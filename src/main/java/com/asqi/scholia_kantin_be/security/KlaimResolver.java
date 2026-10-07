@@ -70,6 +70,15 @@ public class KlaimResolver {
             return AktorKantin.TIDAK_DIKENAL;
         }
         String r = role.trim().toUpperCase().replace('-', '_').replace(' ', '_');
+
+        // URUTAN PENTING: cek peran SPESIFIK lebih dulu. Sebelumnya cabang
+        // generik `contains("KANTIN")` mendahului `contains("PETUGAS")`, sehingga
+        // "PETUGAS_KANTIN" (kasir) dipetakan ke PENGELOLA_KANTIN (hak katalog/
+        // stok/HPP) — ESKALASI HAK. Cek PETUGAS dipindah ke atas; sisa urutan
+        // dipertahankan agar perilaku peran lain tidak berubah.
+        if (r.contains("PETUGAS") || r.contains("KASIR")) {
+            return AktorKantin.PETUGAS_KANTIN;
+        }
         if (r.contains("PENGELOLA") || r.contains("KANTIN")) {
             return AktorKantin.PENGELOLA_KANTIN;
         }
@@ -78,9 +87,6 @@ public class KlaimResolver {
         }
         if (r.contains("ADMIN") || r.contains("KEPSEK") || r.contains("KEPALA_SEKOLAH")) {
             return AktorKantin.ADMIN_SEKOLAH;
-        }
-        if (r.contains("PETUGAS") || r.contains("KASIR")) {
-            return AktorKantin.PETUGAS_KANTIN;
         }
         if (r.contains("ORANG_TUA") || r.contains("ORTU") || r.contains("PARENT")) {
             return AktorKantin.ORANG_TUA;
@@ -96,13 +102,37 @@ public class KlaimResolver {
         for (String k : kandidat) {
             Object v = claims.get(k);
             if (v != null) {
-                String s = String.valueOf(v).trim();
+                String s = stringDari(v);
                 if (!s.isEmpty()) {
                     return s;
                 }
             }
         }
         return null;
+    }
+
+    /**
+     * Ubah nilai klaim menjadi string, menormalkan angka.
+     *
+     * <p><b>Kenapa perlu:</b> jjwt-gson mendeserialisasi angka JSON apa pun
+     * menjadi {@link Double} — klaim {@code user_id} bernilai {@code 42} dari
+     * admin-be terbaca sebagai {@code 42.0}. Akibatnya {@code String.valueOf}
+     * menghasilkan {@code "42.0"} dan {@code Long.valueOf("42.0")} di
+     * {@code IdentitasKantin.aktorIdWajib()} GAGAL, sehingga seluruh endpoint
+     * tulis (saldo, kartu tamu, katalog) error dengan token staf yang sah.
+     * Angka integral dinormalkan ke bentuk tanpa pecahan ({@code "42"}).
+     */
+    private String stringDari(Object v) {
+        if (v instanceof Number n) {
+            double d = n.doubleValue();
+            if (!Double.isNaN(d) && !Double.isInfinite(d)
+                    && d == Math.rint(d)
+                    && d >= Long.MIN_VALUE && d <= Long.MAX_VALUE) {
+                return String.valueOf((long) d);
+            }
+            return String.valueOf(v).trim();
+        }
+        return String.valueOf(v).trim();
     }
 
     private Long ambilLong(Claims claims, List<String> kandidat) {

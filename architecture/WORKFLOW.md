@@ -26,6 +26,9 @@ main            ← production-ready. PROTECTED. Hanya merge dari PR (develop).
 | `docs/` | Dokumentasi | `docs/adr-0002-jwt-rs256` |
 
 > **Tidak boleh push langsung ke `main` atau `develop`.** Selalu via PR.
+>
+> ✅ **Proteksi branch AKTIF** (sejak 2026-10-06) — PR ke `develop`/`main` wajib
+> **2 approval**. Detail, cara verifikasi, & riwayat: [`docs/plan-branch-protection.md`](../docs/plan-branch-protection.md).
 
 ---
 

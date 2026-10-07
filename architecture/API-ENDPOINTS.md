@@ -37,6 +37,11 @@
 | `POST` | `/api/saldo/koreksi` | TU, admin, pengelola | Koreksi saldo (arah KREDIT/DEBIT, alasan + berita acara wajib) |
 | `GET` | `/api/saldo?subjekTipe=&subjekId=&batasMutasi=` | petugas, TU, pengelola, admin | Saldo berjalan + belanja hari ini + mutasi terbaru |
 | `GET` | `/api/saldo/rekonsiliasi?subjekTipe=&subjekId=` | TU, admin, pengelola | Hitung ulang saldo dari ledger |
+| `GET` | `/api/saldo/refund/kandidat?hanyaTidakAktif=` | TU, admin, pengelola | Daftar siswa bersisa saldo (kandidat refund/pindah); filter siswa nonaktif |
+| `POST` | `/api/saldo/refund` | TU, admin, pengelola | Refund **seluruh** sisa saldo siswa keluar ke ortu; saldo → 0 & kartu diblokir |
+| `POST` | `/api/saldo/pindah-saldo` | TU, admin, pengelola | Pindah **seluruh** sisa saldo ke saudara kandung (aktif, sekolah sama); saldo sumber → 0 |
+| `GET` | `/api/saldo/setoran-tu/rekap?tanggal=` | TU, admin, pengelola | Rekap top-up tunai per petugas per hari + selisih (kosong = hari ini) |
+| `POST` | `/api/saldo/setoran-tu` | TU, admin, pengelola | Konfirmasi setoran kas TU (selisih dicatat, tidak dihapus; `referensiId` = kunci idempotensi) |
 
 ## 4. Stok (StokController)
 
@@ -65,8 +70,10 @@
 > (`items`, `total`, `halaman`, `ukuran`, `totalHalaman`). Tiap item memuat
 > `id` (dipakai sebagai `mutasiId` saat membalik), `menuId`, `menuNama`, `jenis`,
 > `qty`, `hargaBeliSatuan`, `totalNilai`, `stokSetelah`, `referensiId`, `waktu`,
-> serta untuk `BARANG_MASUK`: `sudahDibalik`, `sisaDapatDibalik`, `dapatDibalik`.
-> Tenant-scoped (sekolah lain ⇒ tidak tampil).
+> `aktorId`, **`aktorNama`** (nama petugas saat mutasi dicatat; `null` = aksi
+> sistem/baris lama — FE tampilkan "Sistem"), serta untuk `BARANG_MASUK`:
+> `sudahDibalik`, `sisaDapatDibalik`, `dapatDibalik`. Tenant-scoped (sekolah
+> lain ⇒ tidak tampil).
 
 > **Opname batch (`POST /api/stok/opname-batch`).** Satu `referensiId` (nomor
 > berita acara, mis. `OPN-20261006-001`) untuk seluruh `items`. Server menghitung
@@ -103,6 +110,31 @@
 
 ---
 
+## 5b. Webhook masuk (WebhookController) — 🆕
+
+| Method | Path | Auth | Keterangan |
+|---|---|---|---|
+| `POST` | `/api/webhook/{sumber}` | **HMAC-SHA256 + anti-replay** (bukan token) | Terima event dari SKOOLIA/callback-be. `{sumber}` mis. `skoolia`. Idempotent per `(sumber, eventId)` |
+
+> **Autentikasi webhook (B34, SECURITY.md §5.1).** `/api/webhook/**` dibuka
+> `permitAll` (tanpa token user), **tetapi** setiap request wajib membawa:
+>
+> | Header | Isi |
+> |---|---|
+> | `X-Webhook-Timestamp` | epoch detik penandatanganan |
+> | `X-Webhook-Signature` | `sha256=<hex HMAC-SHA256(rahasia, timestamp + "." + body_mentah)>` |
+> | `X-Webhook-Id` | id event unik (kunci idempotency; boleh dari field body `eventId`) |
+>
+> `WebhookSignatureFilter` menolak, **fail-closed**: signature salah / timestamp
+> kedaluwarsa (replay) / header kurang ⇒ **401**; IP di luar
+> `kantin.webhook.allowed-ips` (bila diisi) ⇒ **403**; badan > batas ⇒ **413**;
+> `KANTIN_WEBHOOK_SECRET` kosong ⇒ **503**. Respons sukses memuat
+> `{ sumber, eventId, eventType, status, replay }` — `replay=true` berarti retry
+> event yang sama **tidak diproses ulang**. Body: `{ eventId?, eventType?,
+> sekolahId?, data? }` (bentuk generik; handler per jenis event menunggu Q4/Q7).
+
+---
+
 ## 6. Storage — Unggah/Tampil Berkas (StorageController) — 🆕
 
 | Method | Path | Peran | Keterangan |
@@ -113,6 +145,104 @@
 > **Isolasi tenant wajib (B19, PRD §11.4).** Prefix `sekolah-<id>/` dibentuk **server-side**
 > dari tenant token — bukan dari input klien. Berkas sekolah lain ⇒ **404**.
 > `folder` dibatasi allowlist agar klien tak membuat struktur folder sembarang.
+
+---
+
+## 6b. Laporan & Ekspor Excel (LaporanController) — 🆕
+
+> Semua laporan **tenant-scoped** dari token. Periode: kirim `tanggal`
+> (YYYY-MM-DD, default hari ini zona kantin) **atau** rentang `dari`/`sampai`
+> (ISO date-time). Keduanya kosong ⇒ hari ini. Peran: TU, admin, pengelola
+> (PRD §9.5).
+
+| Method | Path | Peran | Keterangan |
+|---|---|---|---|
+| `GET` | `/api/laporan/penjualan` | TU, admin, pengelola | Ringkasan: jumlah transaksi, bruto, HPP, **laba kotor**, void |
+| `GET` | `/api/laporan/penjualan/item` | TU, admin, pengelola | Penjualan per item (terlaris dulu): qty & nilai |
+| `GET` | `/api/laporan/penjualan/kategori` | TU, admin, pengelola | Penjualan per kategori |
+| `GET` | `/api/laporan/saldo-mengendap` | TU, admin, pengelola | Dana titipan: Σ saldo siswa + Kartu Tamu (kewajiban sekolah) |
+| `GET` | `/api/laporan/rekonsiliasi` | TU, admin, pengelola | Arus kas per jenis + cek invariant `seimbang`/`selisih` (PRD §5) |
+| `GET` | `/api/laporan/stok?hanyaMenipis=` | TU, admin, pengelola | Stok + nilai persediaan (stok × HPP); `menipis` dari `menu.stok_minimum`. **Ringkasan semua menu dalam 1 panggilan** (anti-N+1) — field `namaMenu`/`stokBerjalan` (alias dari `nama`/`stok`) untuk FE Laporan Inventaris (issue #98) |
+| `GET` | `/api/laporan/kerugian-stok` | TU, admin, pengelola | Opname keluar & barang rusak: qty + nilai kerugian |
+| `GET` | `/api/laporan/ekspor?jenis=&tanggal=&dari=&sampai=` | TU, admin, pengelola | Unduh **Excel `.xlsx`** (bukan JSON); `jenis` ∈ `JenisLaporan` |
+
+> **Invariant rekonsiliasi (PRD §5).** `selisih = (Σ KREDIT − Σ DEBIT) − saldo
+> mengendap` **harus 0**; `seimbang=false` menandakan ledger & cache tidak
+> sinkron (perlu diselidiki). Laba kotor = penjualan bersih − Σ HPP snapshot
+> item terjual; transaksi **void dipisah** (tidak masuk bruto).
+
+---
+
+## 6c. Konfigurasi Kantin & Solusi Demo (KonfigurasiKantinController) — 🆕
+
+> Solusi "seadanya" untuk pertanyaan terblokir tim lain (#21–#25) selama
+> kantin-be belum rilis penuh. Semua **tenant-scoped** dari token (kecuali
+> `profil` yang konfigurasi-level). Lihat `OPEN-QUESTIONS.md` Q8/Q14–Q17.
+
+| Method | Path | Peran | Keterangan |
+|---|---|---|---|
+| `POST` | `/api/konfigurasi/pos-buku-kas/aktivasi` | admin, pengelola, TU | **#21/Q8** — buat pos Buku Kas standar (Pendapatan/Belanja Stok/Penyesuaian), **idempoten** |
+| `GET` | `/api/konfigurasi/pos-buku-kas` | admin, pengelola, TU, petugas | Daftar pos Buku Kas kantin |
+| `POST` | `/api/konfigurasi/insiden-offline` | petugas, pengelola, TU, admin | **#23/Q14** — catat insiden offline (prosedur darurat ADR-0006), append-only |
+| `GET` | `/api/konfigurasi/insiden-offline` | pengelola, TU, admin | Daftar insiden offline, terbaru dulu |
+| `GET` | `/api/konfigurasi/kebijakan` | admin, pengelola, TU | **#25/Q16** — ambil kebijakan kantin (default `REFUND` bila belum diisi) |
+| `PUT` | `/api/konfigurasi/kebijakan` | admin | Ubah kebijakan saldo mengendap (`REFUND`/`PINDAH_SAUDARA`/`TETAP_MENGENDAP`) |
+| `GET` | `/api/konfigurasi/profil` | semua peran kantin | **#22/Q17 & #24/Q15** — profil reader RFID & postur regulasi (asumsi demo) |
+
+> **#21** pos Buku Kas dibuat otomatis per sekolah (fallback lokal sampai
+> admin-be konfirmasi); posting tetap lewat `BukuKasPort`. **#23** insiden
+> offline **append-only** (trigger `tolak_perubahan_ledger`). **#25** default
+> `REFUND` (kembalikan ke ortu). **#22/#24** nilai `kantin.profil.*`
+> konfigurabel via environment (ADR-0008, ADR-0009).
+
+---
+
+## 6d. Kontrol Kartu — Blokir & Limit (KontrolKartuController) — 🆕 #40
+
+> **#40** — blokir kartu **instan**, limit harian, dan blokir item/kategori.
+> Semua **tenant-scoped** dari token. Kontrol dibaca **tanpa cache** saat tap
+> (PRD §11.11) agar blokir langsung berlaku. Bagian yang bergantung kontrak
+> lookup kartu eksternal (Q7) dilindungi port/fallback, bukan ditunda.
+
+| Method | Path | Peran | Keterangan |
+|---|---|---|---|
+| `POST` | `/api/kontrol-kartu/blokir` | admin, pengelola, petugas, TU | Blokir kartu (siswa/Kartu Tamu); berlaku instan di tap berikutnya |
+| `DELETE` | `/api/kontrol-kartu/blokir` | admin, pengelola, petugas, TU | Buka blokir kartu |
+| `GET` | `/api/kontrol-kartu/blokir` | admin, pengelola, TU | Daftar kartu terblokir |
+| `PUT` | `/api/kontrol-kartu/limit` | admin, pengelola | Set limit belanja harian (siswa/Kartu Tamu) |
+| `DELETE` | `/api/kontrol-kartu/limit` | admin, pengelola | Hapus limit harian |
+| `GET` | `/api/kontrol-kartu/limit` | admin, pengelola, TU | Daftar limit harian |
+| `POST` | `/api/kontrol-kartu/blokir-item` | admin, pengelola | Blokir item/kategori untuk satu kartu |
+| `DELETE` | `/api/kontrol-kartu/blokir-item` | admin, pengelola | Buka blokir item/kategori |
+| `GET` | `/api/kontrol-kartu/blokir-item` | admin, pengelola, TU | Daftar blokir item |
+
+> **Q7** (anti-tabrakan `rfid_uid` dengan admin-be) tidak menghalangi penegakan
+> kontrol: penegakan dilakukan kantin-be pada data kartu yang sudah dikenali
+> (`TapService` → `KontrolKartuService.terapkan`). Kontrak lookup eksternal
+> masuk lewat `KartuLookupPort`.
+
+---
+
+## 6e. Pengaturan Kantin & Titik Kasir + Aktivasi Modul (PengaturanKantinController) — 🆕 #42
+
+> **#42** — pengaturan kantin per sekolah, CRUD titik kasir, dan status
+> aktivasi modul/fee. Semua **tenant-scoped** dari token.
+
+| Method | Path | Peran | Keterangan |
+|---|---|---|---|
+| `GET` | `/api/pengaturan-kantin` | admin, pengelola, TU | Ambil pengaturan (default aman bila belum diatur) |
+| `PUT` | `/api/pengaturan-kantin` | admin | Ubah nama, jam tutup otomatis, konfirmasi manual, durasi foto, min/maks top-up, batas saldo siswa/Kartu Tamu |
+| `GET` | `/api/pengaturan-kantin/titik-kasir` | petugas, pengelola, TU, admin | Daftar titik kasir (`?hanyaAktif=true`) |
+| `GET` | `/api/pengaturan-kantin/titik-kasir/{id}` | petugas, pengelola, TU, admin | Detail titik kasir |
+| `POST` | `/api/pengaturan-kantin/titik-kasir` | admin | Buat titik kasir (kode unik per sekolah) |
+| `PUT` | `/api/pengaturan-kantin/titik-kasir/{id}` | admin | Ubah titik kasir (nama, kode, aktif) |
+| `DELETE` | `/api/pengaturan-kantin/titik-kasir/{id}` | admin | Nonaktifkan titik kasir (soft delete; tolak bila ada sesi terbuka) |
+| `GET` | `/api/pengaturan-kantin/aktivasi-modul` | admin, pengelola, TU | **#42/Q6** — status aktivasi modul & fee (fail-open via `AktivasiModulPort`) |
+
+> **Jam tutup otomatis** dipakai penjadwal `JamTutupKasirScheduler` (berkala)
+> yang menutup sesi **hari ini** begitu jam tutup sekolah terlewati
+> (`kantin.scheduler.jam-tutup.*`). **Aktivasi/fee platform (§10)** dimiliki
+> internal-be (Q6) — kantin-be tidak menduplikasi data, hanya menanyakannya.
 
 ---
 
@@ -134,10 +264,10 @@
 
 | Modul | Endpoint (rencana) | Blocker |
 |---|---|---|
-| Blokir kartu | blokir/buka blokir | Q7 |
-| Limit & blokir item | set limit harian, blokir item | Q7 |
+| Blokir kartu | blokir/buka blokir | ✅ dibuat (#40, `/api/kontrol-kartu/blokir`) |
+| Limit & blokir item | set limit harian, blokir item | ✅ dibuat (#40, `/api/kontrol-kartu/limit`, `/blokir-item`) |
 | Laporan | ekspor Excel/PDF | Q3, Q5 |
-| Aktivasi & fee | toggle modul, fee platform | Q6 |
+| Aktivasi & fee | toggle modul, fee platform | ✅ status dibaca (#42, `/api/pengaturan-kantin/aktivasi-modul`); toggle tetap milik internal-be (Q6) |
 | Top-up online | (dari mobile-be) | Q4 |
 
 > Lihat `MODULE-MAP.md` §1 untuk urutan fase & `OPEN-QUESTIONS.md` untuk Q1–Q7.
