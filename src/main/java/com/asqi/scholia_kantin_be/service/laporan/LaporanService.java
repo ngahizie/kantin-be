@@ -1,8 +1,14 @@
 package com.asqi.scholia_kantin_be.service.laporan;
 
+import com.asqi.scholia_kantin_be.dto.BarisKartuTamu;
 import com.asqi.scholia_kantin_be.dto.BarisKerugianStok;
+import com.asqi.scholia_kantin_be.dto.BarisPembatalanKasir;
+import com.asqi.scholia_kantin_be.dto.BarisPenjualanDimensi;
 import com.asqi.scholia_kantin_be.dto.BarisPenjualan;
 import com.asqi.scholia_kantin_be.dto.BarisStok;
+import com.asqi.scholia_kantin_be.dto.KartuStokItem;
+import com.asqi.scholia_kantin_be.dto.LaporanPerSiswa;
+import com.asqi.scholia_kantin_be.dto.RekapSetoranTuItem;
 import com.asqi.scholia_kantin_be.dto.RingkasanPenjualan;
 import com.asqi.scholia_kantin_be.dto.RingkasanRekonsiliasi;
 import com.asqi.scholia_kantin_be.dto.RingkasanSaldoMengendap;
@@ -15,6 +21,7 @@ import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.model.MutasiStok;
 import com.asqi.scholia_kantin_be.model.SaldoLedger;
 import com.asqi.scholia_kantin_be.model.StokCache;
+import com.asqi.scholia_kantin_be.model.Transaksi;
 import com.asqi.scholia_kantin_be.repository.KategoriMenuRepository;
 import com.asqi.scholia_kantin_be.repository.MenuRepository;
 import com.asqi.scholia_kantin_be.repository.MutasiStokRepository;
@@ -31,6 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -67,8 +75,11 @@ public class LaporanService {
     private final StokCacheRepository stokCacheRepo;
     private final MenuRepository menuRepo;
     private final KategoriMenuRepository kategoriRepo;
+    private final com.asqi.scholia_kantin_be.repository.KartuTamuRepository kartuTamuRepo;
+    private final com.asqi.scholia_kantin_be.repository.TitikKasirRepository titikKasirRepo;
     private final HppService hppService;
     private final JamKantin jam;
+    private final com.asqi.scholia_kantin_be.service.saldo.SetoranTuService setoranTuService;
 
     // ────────────────────────────────────────────────────────────────
     // Periode
@@ -294,12 +305,186 @@ public class LaporanService {
         return mutasiStokRepo.kartuStok(sekolahId, menuId, PageRequest.of(0, limit));
     }
 
+    /**
+     * Laporan <b>Kartu stok per item</b> (PRD §9.5, issue #118): riwayat mutasi
+     * satu menu + saldo stok berjalan. Menu divalidasi tenant-scoped — bila menu
+     * bukan milik sekolah, kembalikan {@code null} (handler → 404).
+     */
+    @Transactional(readOnly = true)
+    public KartuStokItem kartuStokItem(Long sekolahId, Long menuId, int batas) {
+        var menu = menuRepo.findByIdAndSekolahId(menuId, sekolahId).orElse(null);
+        if (menu == null) {
+            return null;
+        }
+        int limit = (batas <= 0 || batas > 500) ? 200 : batas;
+        List<MutasiStok> mutasi = mutasiStokRepo.kartuStok(sekolahId, menuId, PageRequest.of(0, limit));
+        int stokSekarang = stokCacheRepo.findByMenuId(menuId)
+                .filter(s -> s.getSekolahId().equals(sekolahId))
+                .map(s -> s.getStok() == null ? 0 : s.getStok())
+                .orElse(0);
+        return new KartuStokItem(menuId, menu.getNama(),
+                menu.getSatuan() == null ? null : menu.getSatuan().name(),
+                stokSekarang,
+                mutasi.stream().map(KartuStokItem.BarisMutasi::dari).toList());
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // Pembatalan kasir (PRD §9.5, issue #114)
+    // ────────────────────────────────────────────────────────────────
+
+    /**
+     * Laporan <b>Pembatalan kasir</b> (PRD §9.5): daftar transaksi yang
+     * dibatalkan (status {@code VOID}) pada periode, terbaru dulu. Mencakup
+     * alasan void, waktu, petugas, &amp; subjek — untuk audit sengketa
+     * "Kartu dipakai bukan pemiliknya".
+     */
+    @Transactional(readOnly = true)
+    public List<BarisPembatalanKasir> pembatalanKasir(Long sekolahId, LocalDate tanggal,
+                                                      OffsetDateTime dari, OffsetDateTime sampai) {
+        OffsetDateTime[] r = rentang(tanggal, dari, sampai);
+        return transaksiRepo.pembatalanRentang(sekolahId, r[0], r[1])
+                .stream()
+                .map(BarisPembatalanKasir::dari)
+                .toList();
+    }
+
     /** Riwayat saldo satu subjek pada periode (laporan per siswa, PRD §9.5). */
     @Transactional(readOnly = true)
     public List<SaldoLedger> mutasiSaldoRentang(Long sekolahId, LocalDate tanggal,
                                                 OffsetDateTime dari, OffsetDateTime sampai) {
         OffsetDateTime[] r = rentang(tanggal, dari, sampai);
         return saldoLedgerRepo.padaRentang(sekolahId, r[0], r[1]);
+    }
+
+    /**
+     * Laporan <b>Kartu Tamu</b> (PRD §9.5, issue #115): daftar kartu +
+     * label pemegang + saldo + status. Riwayat per kartu disediakan terpisah
+     * ({@code GET /api/kartu-tamu/{kartuId}/riwayat}). Tenant-scoped.
+     */
+    @Transactional(readOnly = true)
+    public List<BarisKartuTamu> laporanKartuTamu(Long sekolahId) {
+        Map<Long, Long> saldoByKartu = new HashMap<>();
+        for (var c : saldoCacheRepo.findBySekolahIdAndSubjekTipe(sekolahId, SubjekTipe.KARTU_TAMU)) {
+            saldoByKartu.put(c.getSubjekId(), c.getSaldo() == null ? 0L : c.getSaldo());
+        }
+        return kartuTamuRepo.findAllBySekolah(sekolahId, false).stream()
+                .map(k -> BarisKartuTamu.builder()
+                        .kartuId(k.getId())
+                        .nomorKartu(k.getNomorKartu())
+                        .labelPemegang(k.getLabelPemegang())
+                        .rfidUid(k.getRfidUid())
+                        .aktif(Boolean.TRUE.equals(k.getAktif()))
+                        .saldo(saldoByKartu.getOrDefault(k.getId(), 0L))
+                        .build())
+                .toList();
+    }
+
+    /**
+     * Penjualan per <b>titik kasir</b> pada periode (PRD §9.5, issue #116).
+     * Nama titik diresolusi dari katalog titik kasir.
+     */
+    @Transactional(readOnly = true)
+    public List<BarisPenjualanDimensi> penjualanPerTitik(Long sekolahId, LocalDate tanggal,
+                                                         OffsetDateTime dari, OffsetDateTime sampai) {
+        OffsetDateTime[] r = rentang(tanggal, dari, sampai);
+        Map<Long, String> namaTitik = new HashMap<>();
+        titikKasirRepo.findBySekolahId(sekolahId)
+                .forEach(t -> namaTitik.put(t.getId(), t.getNama()));
+
+        List<BarisPenjualanDimensi> hasil = new ArrayList<>();
+        for (Object[] b : transaksiRepo.penjualanPerTitikRentang(sekolahId, r[0], r[1])) {
+            Long id = (Long) b[0];
+            long jumlah = ((Number) b[1]).longValue();
+            long nilai = ((Number) b[2]).longValue();
+            long hpp = ((Number) b[3]).longValue();
+            hasil.add(new BarisPenjualanDimensi(id, namaTitik.get(id), jumlah, nilai, hpp, nilai - hpp));
+        }
+        return hasil;
+    }
+
+    /**
+     * Penjualan per <b>petugas</b> pada periode (PRD §9.5, issue #116).
+     * Nama petugas tidak tersedia di kantin-be (ada di admin-be) → {@code null}.
+     */
+    @Transactional(readOnly = true)
+    public List<BarisPenjualanDimensi> penjualanPerPetugas(Long sekolahId, LocalDate tanggal,
+                                                           OffsetDateTime dari, OffsetDateTime sampai) {
+        OffsetDateTime[] r = rentang(tanggal, dari, sampai);
+        List<BarisPenjualanDimensi> hasil = new ArrayList<>();
+        for (Object[] b : transaksiRepo.penjualanPerPetugasRentang(sekolahId, r[0], r[1])) {
+            Long id = (Long) b[0];
+            long jumlah = ((Number) b[1]).longValue();
+            long nilai = ((Number) b[2]).longValue();
+            long hpp = ((Number) b[3]).longValue();
+            hasil.add(new BarisPenjualanDimensi(id, null, jumlah, nilai, hpp, nilai - hpp));
+        }
+        return hasil;
+    }
+
+    /**
+     * Laporan <b>Per siswa</b> (PRD §9.5, issue #117): riwayat lengkap satu
+     * subjek (SISWA/KARTU_TAMU) pada periode — ringkasan + daftar transaksi +
+     * mutasi saldo. Untuk menjawab komplain orang tua. Tenant-scoped.
+     */
+    @Transactional(readOnly = true)
+    public LaporanPerSiswa laporanPerSiswa(Long sekolahId, SubjekTipe subjekTipe, Long subjekId,
+                                           LocalDate tanggal, OffsetDateTime dari, OffsetDateTime sampai) {
+        OffsetDateTime[] r = rentang(tanggal, dari, sampai);
+        List<Transaksi> trx = transaksiRepo.transaksiSubjekRentang(sekolahId, subjekTipe, subjekId, r[0], r[1]);
+        List<SaldoLedger> mutasi = saldoLedgerRepo.padaRentangSubjek(sekolahId, subjekTipe, subjekId, r[0], r[1]);
+
+        long jmlSukses = 0, nilaiSukses = 0, jmlVoid = 0, nilaiVoid = 0, totalHpp = 0, totalTopup = 0;
+        for (Transaksi t : trx) {
+            if (t.getStatus() == StatusTransaksi.SUKSES) {
+                jmlSukses++;
+                nilaiSukses += nolJikaNull(t.getTotal());
+                totalHpp += nolJikaNull(t.getTotalHpp());
+            } else if (t.getStatus() == StatusTransaksi.VOID) {
+                jmlVoid++;
+                nilaiVoid += nolJikaNull(t.getTotal());
+            }
+        }
+        for (SaldoLedger l : mutasi) {
+            if (l.getJenis() == JenisMutasiSaldo.TOPUP_TUNAI) {
+                totalTopup += nolJikaNull(l.getNominal());
+            }
+        }
+
+        long saldo = saldoCacheRepo.findBySubjekTipeAndSubjekId(subjekTipe, subjekId)
+                .filter(c -> c.getSekolahId().equals(sekolahId))
+                .map(c -> c.getSaldo() == null ? 0L : c.getSaldo())
+                .orElse(0L);
+
+        return new LaporanPerSiswa(subjekTipe, subjekId, saldo, label(r),
+                new LaporanPerSiswa.Ringkasan(jmlSukses, nilaiSukses, jmlVoid, nilaiVoid, totalTopup, totalHpp),
+                trx.stream().map(LaporanPerSiswa.BarisTransaksi::dari).toList(),
+                mutasi.stream().map(LaporanPerSiswa.BarisMutasi::dari).toList());
+    }
+
+    private String label(OffsetDateTime[] r) {
+        DateTimeFormatter f = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+        return f.format(r[0]) + " s/d " + f.format(r[1]);
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // Setoran kas TU (PRD §9.2 & §9.5, issue #143)
+    // ────────────────────────────────────────────────────────────────
+
+    /**
+     * Laporan <b>Setoran kas TU</b> (PRD §9.5): rekap top-up tunai
+     * <b>per petugas per hari</b> + uang yang sudah dikonfirmasi disetor +
+     * <b>selisih</b>. Sumber kebenaran rekap = {@link
+     * com.asqi.scholia_kantin_be.service.saldo.SetoranTuService#rekap} (ledger
+     * {@code TOPUP_TUNAI} + {@code setoran_tu} append-only), sehingga laporan
+     * modul laporan &amp; endpoint operasional selalu konsisten.
+     *
+     * <p>Tenant-scoped; baca-saja. {@code tanggal} {@code null} = hari ini
+     * (zona kantin). Akses PRD §9.5: <b>Bendahara</b> (dipetakan ke
+     * {@code TU_SEKOLAH}) — kepsek <b>tidak</b> berhak.
+     */
+    @Transactional(readOnly = true)
+    public List<RekapSetoranTuItem> laporanSetoranTu(Long sekolahId, LocalDate tanggal) {
+        return setoranTuService.rekap(sekolahId, tanggal);
     }
 
     private static long nolJikaNull(Long nilai) {

@@ -91,19 +91,50 @@ public class WebSecurityConfig {
     @Value("${kantin.dev-login.enabled:false}")
     private boolean devLoginEnabled;
 
+    /**
+     * Bila {@code true}, {@code /actuator/prometheus} dapat di-scrape tanpa
+     * token (issue #146). Default {@code true} agar Prometheus/Grafana mudah
+     * dipasang; set {@code false} bila metrik harus tetap di balik JWT.
+     */
+    @Value("${kantin.metrics.public:true}")
+    private boolean metricsPublic;
+
+    /**
+     * Bila {@code true}, dokumentasi OpenAPI (springdoc) dapat diakses tanpa
+     * token: {@code /v3/api-docs/**}, {@code /swagger-ui/**} (#149). Default
+     * {@code true} agar dokumen API mudah ditelusuri; set {@code false} untuk
+     * menutupnya di balik JWT (mis. di produksi).
+     */
+    @Value("${kantin.openapi.public:true}")
+    private boolean openApiPublic;
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http,
                                            CorsConfigurationSource corsConfigurationSource) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable);
         http.cors(cors -> cors.configurationSource(corsConfigurationSource));
 
-        String[] publik = devLoginEnabled
-                ? new String[]{"/actuator/health/**", "/actuator/info", "/api/webhook/**",
-                        "/api/internal/**", "/error", "/api/v1/auth/login"}
-                : PUBLIC_ENDPOINTS;
+        java.util.List<String> publik = new java.util.ArrayList<>(java.util.Arrays.asList(
+                devLoginEnabled
+                        ? new String[]{"/actuator/health/**", "/actuator/info", "/api/webhook/**",
+                                "/api/internal/**", "/error", "/api/v1/auth/login"}
+                        : PUBLIC_ENDPOINTS));
+        // Metrik Prometheus (issue #146) — publik bila diaktifkan agar bisa
+        // di-scrape; bila tidak, endpoint tetap butuh token (tertutup default
+        // hanya bila KANTIN_METRICS_PUBLIC=false).
+        if (metricsPublic) {
+            publik.add("/actuator/prometheus");
+        }
+        // Dokumentasi OpenAPI (springdoc, #149) — publik bila diaktifkan agar
+        // mudah ditelusuri; set KANTIN_OPENAPI_PUBLIC=false untuk menutupnya.
+        if (openApiPublic) {
+            publik.add("/v3/api-docs/**");
+            publik.add("/swagger-ui/**");
+            publik.add("/swagger-ui.html");
+        }
 
         http.authorizeHttpRequests(auth -> auth
-                .requestMatchers(publik).permitAll()
+                .requestMatchers(publik.toArray(new String[0])).permitAll()
                 .anyRequest().authenticated()
         );
 

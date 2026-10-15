@@ -26,11 +26,40 @@
 			lebih lama, override: -Ddocker.api.version=1.43
 		-->
 		<docker.api.version>1.44</docker.api.version>
+		<!--
+			JaCoCo (issue #174): mengukur cakupan test. Dijalankan pada `verify`
+			(prepare-agent di initialize, report di verify) sehingga `./mvnw verify`
+			menghasilkan laporan HTML + XML + CSV di target/site/jacoco/.
+			Versi 0.8.13 mendukung bytecode Java 25.
+		-->
+		<jacoco.version>0.8.13</jacoco.version>
 	</properties>
 
 	<!-- Testcontainers BOM: Spring Boot 4 tidak lagi mengelola versinya. -->
 	<dependencyManagement>
 		<dependencies>
+			<!--
+				WireMock 3.13 (uji kontrak #160) memakai wiremock-jetty12 yang
+				dibangun untuk Jetty 12.0.x, sedangkan Spring Boot 4.0.2 mengelola
+				Jetty 12.1.5 (menghapus Environment.ensure(String)) →
+				NoSuchMethodError saat start. Jetty di sini hanya test-scope
+				(runtime web = Tomcat), jadi BOM 12.0.16 diimpor untuk
+				menyelaraskannya. Impor di POM ini menang atas versi warisan.
+			-->
+			<dependency>
+				<groupId>org.eclipse.jetty</groupId>
+				<artifactId>jetty-bom</artifactId>
+				<version>12.0.16</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+			<dependency>
+				<groupId>org.eclipse.jetty.ee10</groupId>
+				<artifactId>jetty-ee10-bom</artifactId>
+				<version>12.0.16</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
 			<dependency>
 				<groupId>org.testcontainers</groupId>
 				<artifactId>testcontainers-bom</artifactId>
@@ -56,6 +85,28 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+		<!-- ============================================================ -->
+		<!-- OBSERVABILITY: Micrometer + Prometheus registry (issue #146)  -->
+		<!-- ============================================================ -->
+		<!-- Mengekspos /actuator/prometheus agar SLO (tap p95 <= 1 dtk,    -->
+		<!-- PRD §12) & alerting bisa dipantau. Versi dikelola BOM         -->
+		<!-- micrometer-bom (micrometer.version di spring-boot-dependencies). -->
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-registry-prometheus</artifactId>
+		</dependency>
+		<!-- ============================================================ -->
+		<!-- API DOCS: springdoc-openapi (OpenAPI 3 + Swagger UI) — #149   -->
+		<!-- ============================================================ -->
+		<!-- Dokumen API tergenerasi dari kode → mengurangi risiko         -->
+		<!-- API-ENDPOINTS.md basi (audit #149). Endpoint: /v3/api-docs &  -->
+		<!-- /swagger-ui.html. Versi 3.x WAJIB untuk Spring Boot 4         -->
+		<!-- (2.x hanya untuk Boot 3).                                     -->
+		<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+			<version>3.1.1</version>
 		</dependency>
 		<!-- AOP: dipakai RBAC berbasis anotasi @PerluPeran (security/PeranAspect).
 		     ⚠️ Spring Boot 4: artifact lama spring-boot-starter-aop DIHAPUS,
@@ -183,6 +234,55 @@
 			<artifactId>spring-boot-testcontainers</artifactId>
 			<scope>test</scope>
 		</dependency>
+		<!-- ============================================================ -->
+		<!-- WIREMOCK: uji kontrak adapter REST integrasi (issue #160)    -->
+		<!-- ============================================================ -->
+		<!-- Stub HTTP lokal untuk membuktikan adapter memetakan          -->
+		<!-- sukses/timeout/5xx/payload salah dengan benar. TIDAK butuh   -->
+		<!-- Docker (server embedded) sehingga ikut jalan di `mvn test`.  -->
+		<dependency>
+			<groupId>org.wiremock</groupId>
+			<artifactId>wiremock</artifactId>
+			<version>3.13.1</version>
+			<scope>test</scope>
+			<exclusions>
+				<!--
+					WireMock core menarik Jetty 11 (jetty-servlet/servlets/webapp &
+					http2-server 11.0.24) sementara Spring Boot 4 memakai Jetty 12.
+					Campuran ini memecah runtime ("WriteFlusher$Listener" hilang).
+					Jetty 11 di-exclude; wiremock-jetty12 di bawah menyediakan
+					implementasi Jetty 12 (jetty-ee10-servlet).
+				-->
+				<exclusion>
+					<groupId>org.eclipse.jetty</groupId>
+					<artifactId>jetty-servlet</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.eclipse.jetty</groupId>
+					<artifactId>jetty-servlets</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.eclipse.jetty</groupId>
+					<artifactId>jetty-webapp</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.eclipse.jetty.http2</groupId>
+					<artifactId>http2-server</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+		<!--
+			WireMock 3.13 default memakai Jetty 11; proyek ini memakai Jetty 12
+			(Spring Boot 4). Modul wiremock-jetty12 menyediakan HttpServerFactory
+			untuk Jetty 12 — tanpa ini WireMockServer gagal start
+			("Jetty 11 is not present").
+		-->
+		<dependency>
+			<groupId>org.wiremock</groupId>
+			<artifactId>wiremock-jetty12</artifactId>
+			<version>3.13.1</version>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
 
 	<build>
@@ -223,6 +323,14 @@
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-failsafe-plugin</artifactId>
 				<configuration>
+					<!--
+						PENTING (issue #174): Failsafe TIDAK memakai argLine JaCoCo
+						secara default (berbeda dari Surefire). Set eksplisit ke
+						${argLine} (yang diisi jacoco:prepare-agent) agar cakupan
+						integration test tergabung ke jacoco.exec. Tanpa ini, IT
+						jalan tetapi cakupannya tidak tercatat.
+					-->
+					<argLine>${argLine}</argLine>
 					<systemPropertyVariables>
 						<api.version>${docker.api.version}</api.version>
 					</systemPropertyVariables>
@@ -247,6 +355,37 @@
 						</exclude>
 					</excludes>
 				</configuration>
+			</plugin>
+			<!--
+				JaCoCo (issue #174): cakupan test unit (Surefire) + integrasi
+				(Failsafe, Testcontainers), digabung ke satu target/jacoco.exec.
+				- prepare-agent (initialize): menyetel properti `argLine` ke
+				  -javaagent:...jacoco.exec. Surefire memakai `argLine` secara
+				  default; Failsafe TIDAK, jadi argLine di-set eksplisit di
+				  konfigurasi maven-failsafe-plugin (lihat plugin di atas).
+				- report (verify): menulis target/site/jacoco/ (HTML+XML+CSV).
+				Tanpa `check` yang menggagalkan build — angka cakupan dicatat
+				sebagai artefak & gerbang lunak (lihat docs/uat-dan-dod-rilis.md).
+			-->
+			<plugin>
+				<groupId>org.jacoco</groupId>
+				<artifactId>jacoco-maven-plugin</artifactId>
+				<version>${jacoco.version}</version>
+				<executions>
+					<execution>
+						<id>prepare-agent</id>
+						<goals>
+							<goal>prepare-agent</goal>
+						</goals>
+					</execution>
+					<execution>
+						<id>report</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>report</goal>
+						</goals>
+					</execution>
+				</executions>
 			</plugin>
 		</plugins>
 	</build>

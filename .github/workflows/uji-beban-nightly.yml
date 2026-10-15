@@ -1,0 +1,230 @@
+name: Uji Beban (nightly)
+
+# Uji beban SLO tap p95 <= 1 dtk (PRD §12 no.8) — issue #145, divalidasi di
+# runner target untuk issue #172.
+#
+# OPSIONAL / TIDAK MEMBLOK PR: butuh Docker, boot aplikasi, dan beban tinggi,
+# jadi dijalankan TERJADWAL (nightly) atau manual — bukan pada setiap PR.
+# Gerbang per-PR tetap .github/workflows/ci.yml (unit + integration test).
+#
+# Build GAGAL bila threshold k6 tak terpenuhi (p95 >= 1 dtk / gagal > 1%),
+# sehingga regresi performa terdeteksi otomatis dan tampil sebagai run merah.
+#
+# Sejak issue #172, nightly menjalankan SELURUH rentang target PRD
+# (50–100 tap/dtk: 50, 75, 100) dan menyilang-cek p95 dengan metrik SERVER
+# `kantin_tap_duration_seconds` (Prometheus) — bukan hanya sisi klien k6.
+
+on:
+  schedule:
+    # 19:00 UTC = 02:00 WIB (Asia/Jakarta) — di luar jam sekolah.
+    - cron: '0 19 * * *'
+  workflow_dispatch:
+    inputs:
+      tap_rate:
+        description: 'Laju tap (tap/detik). Kosongkan untuk rentang penuh 50 75 100.'
+        required: false
+        default: ''
+      duration:
+        description: 'Lama skenario per laju (mis. 2m, 5m)'
+        required: false
+        default: '2m'
+      warmup:
+        description: 'Jalankan warmup sebelum pengukuran? Set false untuk mengukur skenario COLD-START (issue #180).'
+        required: false
+        default: 'true'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: uji-beban-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  uji-beban:
+    name: Uji beban tap (k6)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: kantin_db
+          POSTGRES_USER: kantin
+          POSTGRES_PASSWORD: kantin_dev
+          TZ: Asia/Jakarta
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kantin -d kantin_db"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+
+    env:
+      TZ: Asia/Jakarta
+      # Aplikasi → layanan (services dipetakan ke localhost runner).
+      DB_URL: jdbc:postgresql://localhost:5432/kantin_db?stringtype=unspecified
+      DB_USERNAME: kantin
+      DB_PASSWORD: kantin_dev
+      REDIS_HOST: localhost
+      REDIS_PORT: '6379'
+      # Profil uji beban: aktifkan lookup Kartu Tamu nyata (KartuLookupLoadTest).
+      SPRING_PROFILES_ACTIVE: local,loadtest
+      # Shim login dev agar k6 bisa minta token (kantin-be tanpa login sendiri).
+      KANTIN_DEV_LOGIN_ENABLED: 'true'
+      # Matikan rate limit agar 429 tidak mengotori pengukuran latensi jalur sukses.
+      KANTIN_RATE_LIMIT_ENABLED: 'false'
+      # Laju yang diuji: DEFAULT = seluruh rentang target PRD (50–100 tap/dtk).
+      # Dispatch manual dengan input tap_rate menguji satu laju saja.
+      TAP_RATES: ${{ github.event.inputs.tap_rate || '50 75 100' }}
+      DURATION: ${{ github.event.inputs.duration || '2m' }}
+      # Opsi JVM (issue #180 — stabilitas latensi saat JVM baru boot):
+      #   -Xms = -Xmx  → heap tidak tumbuh saat beban naik (hindari GC berulang
+      #                  + realokasi di detik-detik awal),
+      #   +AlwaysPreTouch → seluruh halaman heap disentuh saat start sehingga
+      #                  tidak ada page-fault stall di tengah beban.
+      APP_JAVA_OPTS: '-Xms1g -Xmx1g -XX:+AlwaysPreTouch'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      # Keypair RS256 DUMMY + EPHEMERAL (hanya untuk run ini) agar shim login
+      # dev bisa menerbitkan token yang lolos verifikasi. Bukan kredensial nyata.
+      - name: Siapkan keypair JWT dummy (ephemeral)
+        run: |
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out /tmp/priv.pem 2>/dev/null
+          echo "KANTIN_DEV_LOGIN_PRIVATE_KEY=$(openssl pkcs8 -topk8 -nocrypt -in /tmp/priv.pem -outform DER | base64 -w0)" >> "$GITHUB_ENV"
+          echo "JWT_ADMIN_PUBLIC_KEY=$(openssl rsa -in /tmp/priv.pem -pubout -outform DER | base64 -w0)" >> "$GITHUB_ENV"
+
+      - name: Build jar (tanpa test — sudah diuji di CI per-PR)
+        run: ./mvnw -B -ntp clean package -DskipTests
+
+      - name: Jalankan aplikasi (background)
+        run: |
+          echo "Opsi JVM: $APP_JAVA_OPTS"
+          nohup java $APP_JAVA_OPTS -jar target/*.jar > app.log 2>&1 &
+          echo "APP_PID=$!" >> "$GITHUB_ENV"
+
+      - name: Tunggu aplikasi sehat
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:8082/actuator/health >/dev/null; then
+              echo "kantin-be sehat setelah ${i} percobaan."; exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::kantin-be tidak sehat dalam 120 dtk"; tail -100 app.log; exit 1
+
+      - name: Seed data uji beban
+        run: |
+          PGPASSWORD=kantin_dev psql -h localhost -U kantin -d kantin_db -v ON_ERROR_STOP=1 \
+            -f load/seed/seed-loadtest.sql
+
+      - name: Pasang k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
+            --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" \
+            | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update -qq
+          sudo apt-get install -y k6
+          k6 version
+
+      # Sanity: pastikan alat silang-cek Prometheus sehat sebelum dipakai.
+      - name: Uji mandiri parser p95 (tanpa dependensi)
+        run: python3 load/k6/p95-prometheus.py --self-test
+
+      # Warmup: SLO PRD §12 no.8 adalah tentang JAM ISTIRAHAT (steady state),
+      # bukan detik-detik pertama JVM dingin. Tanpa warmup, pengukuran laju
+      # pertama (mis. 100 tap/dtk langsung setelah boot) didominasi JIT/compile
+      # & pengisian pool — bukan kapasitas produksi. Jalankan beban ringan dulu
+      # agar gerbang mengukur throughput stabil (lihat catatan di §5 docs).
+      #
+      # Dispatch dengan input `warmup: false` untuk mengukur skenario COLD-START
+      # secara eksplisit (issue #180) — langkah ini dilewati.
+      - name: Warmup JVM & pool (bukan bagian pengukuran SLO)
+        if: ${{ github.event.inputs.warmup != 'false' }}
+        run: |
+          TAP_RATE=20 DURATION=30s k6 run load/k6/tap-slo.js || true
+
+      - name: Catat mode pengukuran
+        run: |
+          if [ "${{ github.event.inputs.warmup }}" = "false" ]; then
+            echo "::notice::MODE COLD-START (tanpa warmup) — skenario issue #180."
+          else
+            echo "::notice::MODE STEADY-STATE (dengan warmup)."
+          fi
+
+      - name: Jalankan uji beban (k6) untuk tiap laju + silang-cek Prometheus
+        run: |
+          set -uo pipefail
+          mkdir -p hasil-k6
+          gagal=0
+
+          for rate in $TAP_RATES; do
+            echo "::group::TAP_RATE=$rate (durasi $DURATION)"
+            # Snapshot metrik SERVER sebelum & sesudah agar p95 sisi server
+            # dihitung untuk laju INI saja (counter Prometheus monoton/kumulatif).
+            curl -sf http://localhost:8082/actuator/prometheus \
+              -o "hasil-k6/prom-sebelum-$rate.txt" || true
+
+            if ! TAP_RATE="$rate" DURATION="$DURATION" \
+                 k6 run --summary-export="hasil-k6/k6-summary-$rate.json" load/k6/tap-slo.js; then
+              echo "::warning::k6 TAP_RATE=$rate MELANGGAR threshold (p95>=1 dtk / gagal>1%)"
+              gagal=1
+            fi
+
+            curl -sf http://localhost:8082/actuator/prometheus \
+              -o "hasil-k6/prom-sesudah-$rate.txt" || true
+
+            echo "--- Silang-cek server (kantin_tap_duration_seconds) TAP_RATE=$rate ---"
+            if ! python3 load/k6/p95-prometheus.py --gerbang \
+                   "hasil-k6/prom-sebelum-$rate.txt" "hasil-k6/prom-sesudah-$rate.txt" \
+                   | tee "hasil-k6/prom-p95-$rate.json"; then
+              echo "::warning::p95 sisi SERVER (Prometheus) melanggar SLO pada TAP_RATE=$rate"
+              gagal=1
+            fi
+            echo "::endgroup::"
+          done
+
+          echo "=== Ringkasan k6 tiap laju ==="
+          for f in hasil-k6/k6-summary-*.json; do
+            echo "## $f"; cat "$f"; echo
+          done
+
+          echo "=== Silang-cek server tiap laju ==="
+          for f in hasil-k6/prom-p95-*.json; do
+            echo "## $f"; cat "$f"; echo
+          done
+
+          if [ "$gagal" -ne 0 ]; then
+            echo "::error::SLO tap p95 <= 1 dtk TIDAK terpenuhi pada >=1 laju (lihat ringkasan)."
+            exit 1
+          fi
+
+      - name: Unggah hasil (ringkasan k6 + prom + log app)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hasil-uji-beban
+          path: |
+            hasil-k6/
+            app.log
+          if-no-files-found: ignore
+          retention-days: 14

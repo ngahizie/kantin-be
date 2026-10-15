@@ -310,8 +310,6 @@ Integration**. Semua sudah ditindaklanjuti kecuali yang ditandai menunggu.
 - **Uji baru:** `KompatibilitasTokenStafAdminTest` (5).
 
 
-## B35 — (audit RBAC) Peran `PETUGAS_KANTIN` dipetakan ke `PENGELOLA_KANTIN` (eskalasi hak)
-
 ## B36 — (audit keamanan #13) Filter keamanan terdaftar DUA KALI (auto-register + addFilterBefore)
 
 - **Konteks:** menindaklanjuti issue #13 (turunan B33). `RateLimitFilter` & `JwtAuthTokenFilter` adalah `@Component` → Spring Boot **auto-register** keduanya ke rantai filter servlet, **dan** `WebSecurityConfig` mendaftarkannya lagi lewat `http.addFilterBefore(...)`. Reproduksi dibuat lebih dulu (`FilterGandaIT`, gagal sebelum perbaikan).
@@ -338,8 +336,35 @@ Integration**. Semua sudah ditindaklanjuti kecuali yang ditandai menunggu.
 - **Dampak:** laporan stok "menipis" (PRD §9.5) dan **peringatan stok minimum** (PRD §7.1) tidak pernah menyala untuk stok > 0 → pengelola tak diberi tahu saat persediaan hampir habis. Bukan hanya laporan: fitur notifikasi stok menipis apa pun yang membaca `stok_cache.stok_minimum` ikut salah.
 - **Perbaikan (sisi laporan):** `LaporanService.laporanStok` mengambil `stok_minimum` dari **katalog `menu`** (sumber kebenaran PRD §7.1), bukan dari `stok_cache`. Sekaligus mengisi `kategoriId` dari menu.
 - **Perbaikan lanjutan yang disarankan (di luar #41):** sinkronkan `menu.stok_minimum` → `stok_cache.stok_minimum` saat menu dibuat/diubah (atau jadikan `stok_cache` tanpa kolom itu dan baca dari katalog di semua pemakaian), agar fitur peringatan stok lain konsisten. Perlu keputusan apakah `stok_minimum` memang milik katalog (ya, PRD §7.1) — bila ya, `stok_cache.stok_minimum` adalah kolom **redundan** yang layak dihapus.
+- **✅ Keputusan #196 (OPSI 2):** `stok_cache.stok_minimum` **dipertahankan** agar `GET /api/stok/menipis` & `GET /api/stok/{menuId}` tetap membaca **satu** tabel (jalur baca cepat), tetapi konsistensinya kini dijamin **trigger DB** `trg_menu_sinkron_stok_minimum` pada tabel `menu` (`AFTER INSERT OR UPDATE OF stok_minimum`, migrasi `V23__TriggerSinkronStokMinimum.sql`). Trigger berlaku untuk **semua** jalur tulis — service, seed, migrasi, `UPDATE` SQL langsung, update massal — sehingga tidak lagi bergantung pada disiplin pemanggil (akar bug #113 terulang). **Opsi 1** (hapus kolom + join ke `menu`) ditolak: menambah join pada jalur baca dan memerlukan migrasi destruktif tanpa manfaat tambahan.
+- **Bukti regresi #196:** `StokMinimumSinkronIT` (5) menulis lewat **SQL langsung** (mem-bypass service) — **gagal bila trigger tidak ada**; `KatalogServiceIT` #113 (2) tetap lulus semata-mata karena trigger. `StokCacheRepository.sinkronStokMinimum` **dihapus** (dead code) karena tak lagi diperlukan.
 - **Bukti:** `LaporanServiceIT.laporanStok` — menu stok 1 (min 2) → `menipis=true`; `hanyaMenipis=true` hanya mengembalikan menu tersebut.
 
+
+## B39 — (RBAC #123) Peran Kepsek dipetakan ke `ADMIN_SEKOLAH` → eskalasi hak (CRUD bocor ke kepala sekolah)
+
+- **Konteks:** issue #123 (PRD §9.5/§9.6). PRD §9.5 hanya memberi **Kepala Sekolah (Kepsek)** hak **baca** sebagian laporan; §9.6 menaruh "Kantin – Pengaturan & Titik Kasir → **Admin (CRUD)**". `AktorKantin` tidak punya peran `KEPSEK` tersendiri.
+- **Gejala:** `KlaimResolver.petakanPeran` baris lama `if (r.contains("ADMIN") || r.contains("KEPSEK") || r.contains("KEPALA_SEKOLAH")) return ADMIN_SEKOLAH;` — peran kepsek **dilebur** ke `ADMIN_SEKOLAH`.
+- **Dampak:** kepala sekolah **mewarisi hak CRUD** admin: ubah pengaturan kantin & titik kasir (§9.6), blokir/limit kartu, ubah kebijakan, bahkan cabut token — **eskalasi hak** (melanggar least-privilege & PRD §11.5). `LaporanController` juga mencatat keterbatasan ini (kepsek belum dipetakan → laporan dibuka untuk peran back-office).
+- **Perbaikan:** tambah `AktorKantin.KEPSEK`; cek `KEPSEK`/`KEPALA_SEKOLAH` **sebelum** cabang generik `contains("ADMIN")` → kembali ke `KEPSEK`. Terapkan **read-only**:
+  - `@PerluPeran` laporan §9.5 yang menyebut kepsek (penjualan/laba kotor, saldo mengendap, rekonsiliasi, kerugian stok) menyertakan `KEPSEK`; laporan **stok** tetap tanpa kepsek (§9.5 hanya Pengelola & Bendahara).
+  - `GET /api/laporan/ekspor` menegakkan batas per jenis → kepsek meminta `STOK`/`BARANG_MASUK` = **403**.
+  - `GET /api/saldo/refund/kandidat` (§9.6 "Refund & Koreksi — Kepsek read") menyertakan `KEPSEK`; endpoint tulis refund/pindah tetap tanpa kepsek.
+  - Seluruh endpoint tulis pengaturan/titik kasir/kebijakan/kontrol kartu/cabut token **tetap** tanpa `KEPSEK`.
+- **Keputusan arsitektur:** ADR-0012.
+- **Bukti:** `RbacKepsekGuardTest` (9) — pemetaan peran, kepsek → 403 pada aksi `@PerluPeran(ADMIN_SEKOLAH)`, anotasi endpoint tulis tak memuat `KEPSEK`, laporan berhak memuat `KEPSEK`, ekspor per-jenis menolak kepsek; `KlaimResolverPeranTest` diperluas (`KEPSEK`/`KEPALA_SEKOLAH` → `KEPSEK`).
+- **Catatan untuk FE:** `KonteksResponse.peran` untuk token kepsek kini bernilai `KEPSEK` (bukan `ADMIN_SEKOLAH`).
+
+
+## B40 — (performa #180) Cold-start 100 tap/dtk melanggar SLO karena antrean kolam koneksi Hikari
+
+- **Konteks:** SLO PRD §12 no.8 (p95 tap ≤ 1 dtk). Uji beban nightly semula hanya mengukur **steady state** (ada warmup 30 dtk), sehingga temuan cold-start dari #172 belum punya gerbang tersendiri.
+- **Gejala:** 100 tap/dtk pada **JVM baru boot tanpa warmup** → p95 klien 1 163–1 398 ms, dan **5,74 %** permintaan >1 dtk **di sisi server** (`kantin_tap_duration_seconds` → `lulus_slo=false`).
+- **Diagnosa:** CPU proses hanya 17 %, total jeda GC 0,1 dtk, throughput tetap 99,3 tap/dtk → **bukan** CPU/JIT. `hikaricp_connections_acquire_seconds_sum` = **1 327 dtk** dari total 1 522 dtk durasi tap (**87 %**); satu tap mengambil koneksi Hikari **~3×**; saat hangat tunggu itu hanya **0,09 ms**. Jadi tail = **antrean kolam koneksi** (rho → 1 ketika transaksi cold lebih lama).
+- **Perbaikan:** `spring.datasource.hikari.maximum-pool-size=30` (`KANTIN_DB_POOL_MAX`), `server.tomcat.threads.min-spare=100` (`KANTIN_TOMCAT_MIN_SPARE`), opsi JVM `-Xms=-Xmx -XX:+AlwaysPreTouch` di workflow, serta input dispatch `warmup=false` agar skenario cold-start dapat diukur eksplisit.
+- **Bukti:** 4 run cold-start — `38536059471` (kolam 10) p95 1 167 ms; `38536969811` (kolam 30) **689 ms**; `38537759753` & `38538444320` (kolam 30, konfigurasi **sama**) 2 446 / 2 366 ms; SHA lama diulang 1 708 ms. Rincian di `docs/uji-beban-tap.md` §5.3.
+- **Kesimpulan:** penyebab terkonfirmasi (antrean kolam; 1 tap = 3× ambil koneksi) dan mitigasi sudah dipasang, tetapi **cold-start tidak stabil di runner bersama** (p95 689–2 446 ms dengan konfigurasi sama) → tidak layak dijadikan gerbang mutlak dari satu run.
+- **Sisa (SELESAI):** kurangi **3 → 1 pengambilan koneksi per tap** — kedua pra-cek idempotency kini dijalankan **di dalam** transaksi utama (`TapService.jalankanTap`), memangkas permintaan kolam ~66 % dan menyentuh penyebab langsung. Diverifikasi uji regresi `TapKoneksiPerTapIT` (metrik `hikaricp.connections.acquire` = 1 per tap) + seluruh `TapServiceIT`/`DemoE2EIT` tetap hijau.
 
 ## Ringkasan untuk tim
 

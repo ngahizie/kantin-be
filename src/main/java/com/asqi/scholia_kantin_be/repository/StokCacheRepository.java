@@ -71,4 +71,9 @@ public interface StokCacheRepository extends JpaRepository<StokCache, Long> {
             ON CONFLICT (menu_id) DO NOTHING
             """, nativeQuery = true)
     int pastikanBarisAda(@Param("menuId") Long menuId, @Param("sekolahId") Long sekolahId);
+
+    // Catatan (issue #196): tidak ada lagi metode sinkronStokMinimum di sini.
+    // Ambang stok_cache.stok_minimum dijaga trigger DB
+    // trg_menu_sinkron_stok_minimum (migrasi V23) sehingga SEMUA jalur tulis ke
+    // menu tetap sinkron — bukan hanya yang lewat service ini.
 }

@@ -70,7 +70,7 @@ class KartuTamuServiceIT {
     void bersihkan() {
         // TRUNCATE aman: trigger append-only hanya menolak DELETE/UPDATE baris,
         // bukan TRUNCATE (lihat LedgerSaldoServiceIT).
-        jdbc.execute("TRUNCATE TABLE kartu_tamu, saldo_ledger, saldo_cache CASCADE");
+        jdbc.execute("TRUNCATE TABLE kartu_tamu, saldo_ledger, saldo_cache, audit_log CASCADE");
     }
 
     // ────────────────────────────── CREATE ──────────────────────────────
@@ -338,5 +338,137 @@ class KartuTamuServiceIT {
 
         assertThat(ledger.saldo(SEKOLAH, SubjekTipe.KARTU_TAMU, k.getId())).isEqualTo(30_000L);
         assertThat(ledger.saldo(SEKOLAH, SubjekTipe.SISWA, siswaId)).isEqualTo(10_000L);
+    }
+
+    // ──────────────── #121: nomor kartu auto + label pemegang ────────────────
+
+    @Test
+    @DisplayName("#121: nomor kartu digenerate otomatis (KT-001, KT-002, ...) per sekolah")
+    void nomorKartuDigenerateOtomatis() {
+        KartuTamu k1 = kartu.buatKartu(SEKOLAH, null, null, null, AKTOR);
+        KartuTamu k2 = kartu.buatKartu(SEKOLAH, "  ", null, null, AKTOR);
+        KartuTamu k3 = kartu.buatKartu(SEKOLAH, null, null, null, AKTOR);
+
+        assertThat(k1.getNomorKartu()).isEqualTo("KT-001");
+        assertThat(k2.getNomorKartu()).isEqualTo("KT-002");
+        assertThat(k3.getNomorKartu()).isEqualTo("KT-003");
+    }
+
+    @Test
+    @DisplayName("#121: generate nomor menghormati urutan numerik (bukan leksikal) lintas 999")
+    void nomorKartuUrutanNumerik() {
+        // Seed kartu manual hingga lewat 999, plus nomor non-standar yang harus diabaikan.
+        kartu.buatKartu(SEKOLAH, "KT-999", null, null, AKTOR);
+        kartu.buatKartu(SEKOLAH, "KT-1000", null, null, AKTOR);
+        kartu.buatKartu(SEKOLAH, "CUSTOM-X", null, null, AKTOR);
+
+        assertThat(kartu.generateNomorKartu(SEKOLAH)).isEqualTo("KT-1001");
+    }
+
+    @Test
+    @DisplayName("#121: nomor otomatis dihitung per sekolah (tenant-scoped)")
+    void nomorKartuPerSekolah() {
+        kartu.buatKartu(SEKOLAH, "KT-005", null, null, AKTOR);
+        kartu.buatKartu(SEKOLAH_LAIN, "KT-001", null, null, AKTOR);
+
+        // Sekolah lain sudah punya KT-001 → berikutnya KT-002 (bukan ikut sekolah 1).
+        assertThat(kartu.generateNomorKartu(SEKOLAH_LAIN)).isEqualTo("KT-002");
+        assertThat(kartu.generateNomorKartu(SEKOLAH)).isEqualTo("KT-006");
+    }
+
+    @Test
+    @DisplayName("#121: label pemegang tersimpan saat buat; blank → null")
+    void labelPemegangDisimpan() {
+        KartuTamu guru = kartu.buatKartu(SEKOLAH, null, null, null, "Bu Sari (Guru)", AKTOR);
+        KartuTamu tamu = kartu.buatKartu(SEKOLAH, null, null, null, "   ", AKTOR);
+
+        assertThat(guru.getLabelPemegang()).isEqualTo("Bu Sari (Guru)");
+        assertThat(tamu.getLabelPemegang()).isNull();
+    }
+
+    @Test
+    @DisplayName("#121: label pemegang bisa diganti & dikosongkan saat pengembalian")
+    void labelPemegangDikosongkanSaatPengembalian() {
+        KartuTamu k = kartu.buatKartu(SEKOLAH, null, null, null, "Tamu", AKTOR);
+        assertThat(k.getLabelPemegang()).isEqualTo("Tamu");
+
+        // Ganti label ke guru lain.
+        KartuTamu diubah = kartu.updateKartu(
+                SEKOLAH, k.getId(), null, null, null, "Pak Budi (Staf)", null, AKTOR);
+        assertThat(diubah.getLabelPemegang()).isEqualTo("Pak Budi (Staf)");
+
+        // Kosongkan label (kartu dikembalikan) — "" = clear.
+        KartuTamu kosong = kartu.updateKartu(
+                SEKOLAH, k.getId(), null, null, null, "", null, AKTOR);
+        assertThat(kosong.getLabelPemegang()).isNull();
+    }
+
+    @Test
+    @DisplayName("#121: update tanpa menyentuh label (null) → label lama tetap")
+    void labelTidakBerubahBilaNull() {
+        KartuTamu k = kartu.buatKartu(SEKOLAH, null, null, null, "Tamu", AKTOR);
+
+        KartuTamu diubah = kartu.updateKartu(
+                SEKOLAH, k.getId(), null, null, "catatan baru", null, null, AKTOR);
+
+        assertThat(diubah.getLabelPemegang()).isEqualTo("Tamu");
+        assertThat(diubah.getCatatan()).isEqualTo("catatan baru");
+    }
+
+    // ──────────────── #148: jejak audit nonaktifkan & ubah kartu ────────────────
+
+    @Test
+    @DisplayName("#148: nonaktifkanKartu menulis audit NONAKTIFKAN_KARTU (aktor, entitas, id)")
+    void nonaktifkanKartuMenulisAudit() {
+        KartuTamu k = kartu.buatKartu(SEKOLAH, "KT-001", "04:A1", null, AKTOR);
+
+        kartu.nonaktifkanKartu(SEKOLAH, k.getId(), AKTOR);
+
+        Integer baris = jdbc.queryForObject(
+                "SELECT count(*) FROM audit_log WHERE aksi = 'NONAKTIFKAN_KARTU' "
+                        + "AND entitas = 'KartuTamu' AND entitas_id = ? AND aktor_id = ? AND sekolah_id = ?",
+                Integer.class, String.valueOf(k.getId()), AKTOR, SEKOLAH);
+        assertThat(baris).isEqualTo(1);
+
+        String nilaiBaru = jdbc.queryForObject(
+                "SELECT nilai_baru FROM audit_log WHERE aksi = 'NONAKTIFKAN_KARTU' AND entitas_id = ?",
+                String.class, String.valueOf(k.getId()));
+        assertThat(nilaiBaru).contains("aktif=false");
+    }
+
+    @Test
+    @DisplayName("#148: rebind RFID menulis audit UBAH_KARTU dengan UID lama → baru")
+    void rebindUidMenulisAudit() {
+        KartuTamu k = kartu.buatKartu(SEKOLAH, "KT-001", "04:LAMA", null, AKTOR);
+
+        kartu.updateKartu(SEKOLAH, k.getId(), null, "04:BARU", null, null, AKTOR);
+
+        Integer baris = jdbc.queryForObject(
+                "SELECT count(*) FROM audit_log WHERE aksi = 'UBAH_KARTU' AND entitas = 'KartuTamu' "
+                        + "AND entitas_id = ? AND aktor_id = ?",
+                Integer.class, String.valueOf(k.getId()), AKTOR);
+        assertThat(baris).isEqualTo(1);
+
+        String nilaiLama = jdbc.queryForObject(
+                "SELECT nilai_lama FROM audit_log WHERE aksi = 'UBAH_KARTU' AND entitas_id = ?",
+                String.class, String.valueOf(k.getId()));
+        String nilaiBaru = jdbc.queryForObject(
+                "SELECT nilai_baru FROM audit_log WHERE aksi = 'UBAH_KARTU' AND entitas_id = ?",
+                String.class, String.valueOf(k.getId()));
+        assertThat(nilaiLama).contains("rfidUid=04:LAMA");
+        assertThat(nilaiBaru).contains("rfidUid=04:BARU");
+    }
+
+    @Test
+    @DisplayName("#148: update tanpa perubahan berarti tidak menulis audit (hindari noise)")
+    void updateTanpaPerubahanTidakMenulisAudit() {
+        KartuTamu k = kartu.buatKartu(SEKOLAH, "KT-001", "04:A1", "catatan", AKTOR);
+
+        // Semua null = tidak ada field diubah.
+        kartu.updateKartu(SEKOLAH, k.getId(), null, null, null, null, AKTOR);
+
+        Integer baris = jdbc.queryForObject(
+                "SELECT count(*) FROM audit_log WHERE aksi = 'UBAH_KARTU'", Integer.class);
+        assertThat(baris).isZero();
     }
 }

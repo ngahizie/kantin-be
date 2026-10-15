@@ -202,6 +202,10 @@ public class KatalogService {
                 .build();
 
         Menu tersimpan = menuRepo.save(menu);
+        // Ambang stok menipis ikut tersinkron ke stok_cache lewat trigger DB
+        // trg_menu_sinkron_stok_minimum (V23, issue #196) — tidak lagi bergantung
+        // pada panggilan manual di sini, sehingga jalur tulis lain (seed, SQL
+        // langsung, update massal) pun tetap sinkron.
         auditLogger.catat(aktorId, sekolahId, "MENU_DIBUAT", "Menu",
                 String.valueOf(tersimpan.getId()), null, null,
                 bersih + " @ " + hargaJual);
@@ -255,6 +259,7 @@ public class KatalogService {
         menu.setUpdatedAt(jam.sekarang());
 
         Menu tersimpan = menuRepo.save(menu);
+        // Ambang stok menipis tersinkron otomatis oleh trigger DB (V23, #196).
         auditLogger.catat(aktorId, sekolahId, "MENU_DIUBAH", "Menu",
                 String.valueOf(menuId), null, null, tersimpan.getNama());
         return tersimpan;

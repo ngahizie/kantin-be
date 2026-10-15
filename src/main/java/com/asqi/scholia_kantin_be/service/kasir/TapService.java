@@ -2,17 +2,22 @@ package com.asqi.scholia_kantin_be.service.kasir;
 
 import com.asqi.scholia_kantin_be.component.exception.ConflictException;
 import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
+import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
+import com.asqi.scholia_kantin_be.component.metrics.MetrikTap;
 import com.asqi.scholia_kantin_be.dto.TapRequest;
 import com.asqi.scholia_kantin_be.dto.TapResponse;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.JenisNotifikasi;
 import com.asqi.scholia_kantin_be.enums.MetodeRequestKartu;
+import com.asqi.scholia_kantin_be.enums.StatusPendingTap;
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
 import com.asqi.scholia_kantin_be.helper.IdGenerator;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.model.SesiKasir;
 import com.asqi.scholia_kantin_be.model.Transaksi;
 import com.asqi.scholia_kantin_be.model.TransaksiItem;
+import com.asqi.scholia_kantin_be.model.TransaksiMenungguKonfirmasi;
+import com.asqi.scholia_kantin_be.repository.TransaksiMenungguKonfirmasiRepository;
 import com.asqi.scholia_kantin_be.repository.TransaksiRepository;
 import com.asqi.scholia_kantin_be.security.IdentitasKantin;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoKartu;
@@ -21,6 +26,7 @@ import com.asqi.scholia_kantin_be.service.integrasi.MenuLookupPort;
 import com.asqi.scholia_kantin_be.service.integrasi.NotifikasiService;
 import com.asqi.scholia_kantin_be.service.integrasi.PerintahNotifikasi;
 import com.asqi.scholia_kantin_be.service.kartu.KontrolKartuService;
+import com.asqi.scholia_kantin_be.service.konfigurasi.PengaturanKantinService;
 import com.asqi.scholia_kantin_be.service.stok.HasilMutasiStok;
 import com.asqi.scholia_kantin_be.service.stok.LedgerStokService;
 import lombok.RequiredArgsConstructor;
@@ -28,11 +34,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.json.JsonMapper;
 
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 /**
  * Alur logika bisnis utama: <b>satu tap di kasir</b> (PRD §6.1–6.2).
@@ -61,6 +69,7 @@ import java.util.Optional;
 public class TapService {
 
     private final TransaksiRepository transaksiRepo;
+    private final TransaksiMenungguKonfirmasiRepository pendingRepo;
     private final TapValidator validator;
     private final LedgerSaldoService ledgerSaldo;
     private final LedgerStokService ledgerStok;
@@ -72,6 +81,9 @@ public class TapService {
     private final TransactionTemplate txTemplate;
     private final NotifikasiService notifikasi;
     private final KontrolKartuService kontrolKartu;
+    private final PengaturanKantinService pengaturan;
+    private final MetrikTap metrikTap;
+    private final JsonMapper objectMapper = JsonMapper.builder().build();
 
     /**
      * Proses satu tap.
@@ -82,20 +94,54 @@ public class TapService {
      * @return hasil tap untuk ditampilkan di layar kasir
      */
     public TapResponse tap(Long sekolahId, IdentitasKantin identitas, TapRequest request) {
+        long mulai = System.nanoTime();
+        try {
+            TapResponse hasil = jalankanTap(sekolahId, identitas, request);
+            metrikTap.catat(Duration.ofNanos(System.nanoTime() - mulai),
+                    hasil.isMenungguKonfirmasi() ? MetrikTap.OUTCOME_MENUNGGU : MetrikTap.OUTCOME_SUKSES);
+            return hasil;
+        } catch (RuntimeException e) {
+            // Gagal validasi/konflik → tetap dicatat agar rasio error & latensi
+            // jalur gagal terlihat (SLO tap diukur pada jalur sukses).
+            metrikTap.catat(Duration.ofNanos(System.nanoTime() - mulai), MetrikTap.OUTCOME_GAGAL);
+            throw e;
+        }
+    }
+
+    /** Isi alur tap (dipisah agar pengukuran durasi membungkus seluruh jalur). */
+    private TapResponse jalankanTap(Long sekolahId, IdentitasKantin identitas, TapRequest request) {
         String key = request.getIdempotencyKey();
 
-        // Idempotency jalur cepat: key sudah pernah diproses → kembalikan hasil lama.
-        if (transaksiRepo.existsBySekolahIdAndIdempotencyKey(sekolahId, key)) {
-            log.debug("Idempotency replay tap key={}", key);
-            return txTemplate.execute(status -> bangunReplay(sekolahId, key));
-        }
-
         try {
-            return txTemplate.execute(status -> eksekusi(sekolahId, identitas, request));
+            // Semua pra-cek idempotency + eksekusi berjalan dalam SATU transaksi DB,
+            // sehingga satu tap hanya mengambil koneksi Hikari SEKALI (perbaikan #180).
+            // Sebelumnya kedua pra-cek berada di luar transaksi → 1 tap = 3× acquire,
+            // yang menjadi antrean kolam koneksi saat JVM masih dingin (cold-start).
+            return txTemplate.execute(status -> {
+                // 1) Idempotency jalur cepat: transaksi sudah pernah dibuat → hasil lama.
+                if (transaksiRepo.existsBySekolahIdAndIdempotencyKey(sekolahId, key)) {
+                    log.debug("Idempotency replay tap key={}", key);
+                    return bangunReplay(sekolahId, key);
+                }
+
+                // 2) Idempotency jalur pending: tap yang sama masih menunggu konfirmasi.
+                var pendingLama = pendingRepo.findBySekolahIdAndIdempotencyKey(sekolahId, key);
+                if (pendingLama.isPresent() && pendingLama.get().menunggu()) {
+                    log.debug("Idempotency replay pending key={}", key);
+                    return bangunMenunggu(pendingLama.get());
+                }
+
+                // 3) Eksekusi tap.
+                return eksekusi(sekolahId, identitas, request);
+            });
         } catch (DataIntegrityViolationException e) {
-            // Balapan idempotency: transaksi kalah sudah di-rollback; pakai hasil pemenang.
+            // Balapan idempotency: transaksi/pending kalah sudah di-rollback; pakai pemenang.
             if (transaksiRepo.existsBySekolahIdAndIdempotencyKey(sekolahId, key)) {
                 return txTemplate.execute(status -> bangunReplay(sekolahId, key));
+            }
+            var pemenang = pendingRepo.findBySekolahIdAndIdempotencyKey(sekolahId, key);
+            if (pemenang.isPresent()) {
+                return txTemplate.execute(status -> bangunMenunggu(pemenang.get()));
             }
             throw e;
         }
@@ -104,14 +150,25 @@ public class TapService {
     /** Inti eksekusi — berjalan di dalam satu transaksi DB. */
     private TapResponse eksekusi(Long sekolahId, IdentitasKantin identitas, TapRequest request) {
         Long petugasId = identitas.aktorIdWajib();
+        Siap siap = siapkan(sekolahId, request);
 
+        // Konfirmasi manual (PRD §6.1/§9.1): bila aktif, JANGAN potong apa pun —
+        // simpan permintaan & minta petugas mengonfirmasi.
+        if (pengaturan.ambil(sekolahId).isKonfirmasiManual()) {
+            return buatPending(sekolahId, petugasId, request, siap);
+        }
+
+        return commit(sekolahId, petugasId, request, siap);
+    }
+
+    /** Hasil lookup kartu + validasi 6 tahap (read-only, belum mengubah state). */
+    private Siap siapkan(Long sekolahId, TapRequest request) {
         // 2) Lookup kartu (port). Status blokir diperiksa server tiap tap.
         InfoKartu kartu = kartuLookup.cariBerdasarkanUid(sekolahId, request.getRfidUid());
 
         // 2b) Tempelkan kontrol kantin-be (blokir kartu/limit/blokir item) — data
         // milik kantin-be, dibaca tiap tap TANPA cache (PRD §11.11) sehingga
-        // blokir yang baru disimpan langsung menolak tap berikutnya. Ini membuat
-        // blokir/limit tetap berfungsi walau lookup identitas (Q7) masih fallback.
+        // blokir yang baru disimpan langsung menolak tap berikutnya.
         kartu = kontrolKartu.terapkan(sekolahId, kartu);
 
         long saldo = 0L;
@@ -130,8 +187,113 @@ public class TapService {
         if (!hasil.valid()) {
             throw new ConflictException(hasil.getValidasi().getPesan());
         }
+        return new Siap(kartu, hasil);
+    }
 
-        // 4) Sesi kasir hari ini (buka bila belum ada).
+    /** Nilai antara: kartu + hasil validasi (belum mengubah state). */
+    private record Siap(InfoKartu kartu, TapValidator.Hasil hasil) {
+    }
+
+    /** Simpan tap sebagai pending (konfirmasi manual) tanpa memotong saldo/stok. */
+    private TapResponse buatPending(Long sekolahId, Long petugasId, TapRequest request, Siap siap) {
+        OffsetDateTime now = jam.sekarang();
+        Long pendingId = idGenerator.berikutnyaLong();
+
+        TransaksiMenungguKonfirmasi pending = TransaksiMenungguKonfirmasi.builder()
+                .id(pendingId)
+                .sekolahId(sekolahId)
+                .idempotencyKey(request.getIdempotencyKey())
+                .rfidUid(request.getRfidUid())
+                .titikKasirId(request.getTitikKasirId())
+                .subjekTipe(siap.kartu().getSubjekTipe())
+                .subjekId(siap.kartu().getSubjekId())
+                .petugasId(petugasId)
+                .total(siap.hasil().getTotal())
+                .itemsJson(tulisItems(request.getItems()))
+                .status(StatusPendingTap.MENUNGGU)
+                .dibuatAt(now)
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
+        pendingRepo.save(pending);
+
+        log.info("Tap menunggu konfirmasi pendingId={} sekolah={} total={}",
+                pendingId, sekolahId, siap.hasil().getTotal());
+        return bangunMenunggu(pending);
+    }
+
+    /**
+     * Konfirmasi tap pending (PRD §6.1) — eksekusi commit (potong saldo/stok).
+     * <b>Idempoten</b>: pending yang sudah dikonfirmasi mengembalikan transaksi lama.
+     *
+     * <p>Item divalidasi ulang (stok/saldo bisa berubah antara tap &amp; konfirmasi).
+     */
+    public TapResponse konfirmasi(Long sekolahId, Long pendingId, IdentitasKantin identitas) {
+        Long petugasId = identitas.aktorIdWajib();
+        return txTemplate.execute(status -> {
+            TransaksiMenungguKonfirmasi pending = pendingRepo.kunciUntukUpdate(sekolahId, pendingId)
+                    .orElseThrow(() -> new NotFoundEntity("Permintaan konfirmasi tidak ditemukan"));
+            if (!pending.getSekolahId().equals(sekolahId)) {
+                throw new NotFoundEntity("Permintaan konfirmasi tidak ditemukan");
+            }
+            if (pending.getStatus() == StatusPendingTap.DIKONFIRMASI) {
+                // Idempoten: kembalikan transaksi yang sudah dibuat.
+                return bangunReplay(sekolahId, pending.getIdempotencyKey());
+            }
+            if (pending.getStatus() == StatusPendingTap.DIBATALKAN) {
+                throw new InvalidOperationException("Permintaan konfirmasi sudah dibatalkan");
+            }
+
+            TapRequest request = dariPending(pending);
+            Siap siap = siapkan(sekolahId, request);
+            TapResponse resp = commit(sekolahId, petugasId, request, siap);
+
+            pending.setStatus(StatusPendingTap.DIKONFIRMASI);
+            pending.setTransaksiId(resp.getTransaksiId());
+            pending.setUpdatedAt(jam.sekarang());
+            pendingRepo.save(pending);
+            return resp;
+        });
+    }
+
+    /** Batalkan tap pending (PRD §6.1) — tidak jadi transaksi. Idempoten. */
+    public void batal(Long sekolahId, Long pendingId, IdentitasKantin identitas) {
+        Long petugasId = identitas.aktorIdWajib();
+        txTemplate.executeWithoutResult(status -> {
+            TransaksiMenungguKonfirmasi pending = pendingRepo.kunciUntukUpdate(sekolahId, pendingId)
+                    .orElseThrow(() -> new NotFoundEntity("Permintaan konfirmasi tidak ditemukan"));
+            if (!pending.getSekolahId().equals(sekolahId)) {
+                throw new NotFoundEntity("Permintaan konfirmasi tidak ditemukan");
+            }
+            if (pending.getStatus() == StatusPendingTap.DIKONFIRMASI) {
+                throw new InvalidOperationException("Permintaan sudah dikonfirmasi — tidak dapat dibatalkan");
+            }
+            if (pending.getStatus() == StatusPendingTap.DIBATALKAN) {
+                return; // idempoten
+            }
+            pending.setStatus(StatusPendingTap.DIBATALKAN);
+            pending.setUpdatedAt(jam.sekarang());
+            pendingRepo.save(pending);
+            log.info("Tap pending {} dibatalkan oleh={}", pendingId, petugasId);
+        });
+    }
+
+    /** Daftar tap pending yang masih menunggu konfirmasi untuk satu sekolah. */
+    public List<TransaksiMenungguKonfirmasi> daftarPending(Long sekolahId) {
+        return pendingRepo.findBySekolahIdAndStatusOrderByIdAsc(sekolahId, StatusPendingTap.MENUNGGU);
+    }
+
+    /** Bangun respons ringkas untuk baris pending (dipakai endpoint daftar menunggu). */
+    public TapResponse keResponse(TransaksiMenungguKonfirmasi pending) {
+        return bangunMenunggu(pending);
+    }
+
+    /** Commit transaksi: sesi → stok → transaksi + item → debit saldo → notifikasi. */
+    private TapResponse commit(Long sekolahId, Long petugasId, TapRequest request, Siap siap) {
+        InfoKartu kartu = siap.kartu();
+        TapValidator.Hasil hasil = siap.hasil();
+
+        // Sesi kasir hari ini (buka bila belum ada).
         SesiKasir sesi = sesiKasir.sesiTerbukaAtauBuka(sekolahId, request.getTitikKasirId());
 
         OffsetDateTime now = jam.sekarang();
@@ -227,6 +389,26 @@ public class TapService {
                 .saldoSisa(hasilDebit.getSaldoSetelah())
                 .namaItem(namaItem)
                 .metode(MetodeRequestKartu.UID)
+                .menungguKonfirmasi(false)
+                .build();
+    }
+
+    /** Respons "menunggu konfirmasi" (belum memotong saldo/stok). */
+    private TapResponse bangunMenunggu(TransaksiMenungguKonfirmasi pending) {
+        InfoKartu kartu = pending.getRfidUid() == null ? null
+                : kartuLookup.cariBerdasarkanUid(pending.getSekolahId(), pending.getRfidUid());
+        return TapResponse.builder()
+                .transaksiId(null)
+                .subjekTipe(pending.getSubjekTipe())
+                .nama(kartu == null ? null : kartu.getNama())
+                .kelas(kartu == null ? null : kartu.getKelas())
+                .fotoUrl(kartu == null ? null : kartu.getFotoUrl())
+                .total(pending.getTotal())
+                .saldoSisa(null)
+                .namaItem(null)
+                .metode(MetodeRequestKartu.UID)
+                .menungguKonfirmasi(true)
+                .pendingId(pending.getId())
                 .build();
     }
 
@@ -270,6 +452,31 @@ public class TapService {
                 .saldoSisa(saldoSisa)
                 .namaItem(namaItem)
                 .metode(MetodeRequestKartu.UID)
+                .menungguKonfirmasi(false)
                 .build();
+    }
+
+    /** Serialisasi item tap ke JSON untuk disimpan di baris pending. */
+    private String tulisItems(List<TapRequest.ItemTap> items) {
+        try {
+            return objectMapper.writeValueAsString(items);
+        } catch (Exception e) {
+            throw new IllegalStateException("Gagal menyimpan item tap pending", e);
+        }
+    }
+
+    /** Rekonstruksi permintaan tap dari baris pending (untuk konfirmasi). */
+    private TapRequest dariPending(TransaksiMenungguKonfirmasi pending) {
+        TapRequest request = new TapRequest();
+        request.setRfidUid(pending.getRfidUid());
+        request.setTitikKasirId(pending.getTitikKasirId());
+        request.setIdempotencyKey(pending.getIdempotencyKey());
+        try {
+            request.setItems(objectMapper.readValue(pending.getItemsJson(),
+                    new TypeReference<List<TapRequest.ItemTap>>() { }));
+        } catch (Exception e) {
+            throw new IllegalStateException("Gagal membaca item tap pending", e);
+        }
+        return request;
     }
 }
