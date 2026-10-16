@@ -62,6 +62,13 @@ import java.util.List;
  * <i>di luar</i> transaksi (transaksi sudah di-rollback bersih), request yang
  * kalah dapat mengembalikan <b>hasil pemenang</b> — bukan error 409. Ini menjaga
  * kontrak idempotency (PRD §11.3) tetap benar pada kondisi balapan.
+ *
+ * <p><b>Satu koneksi per tap (#180/B40).</b> Pra-cek idempotency (transaksi lama
+ * &amp; pending lama) dijalankan <b>di dalam</b> transaksi yang sama dengan
+ * eksekusi, sehingga seluruh jalur sukses hanya memakai <b>satu</b> koneksi
+ * Hikari — sebelumnya <b>tiga</b> (dua pra-cek di luar transaksi + satu
+ * transaksi utama). Ini menyentuh langsung penyebab tail cold-start pada SLO
+ * tap p95 (PRD §12 no.8) tanpa mengubah kontrak idempotency.
  */
 @Service
 @RequiredArgsConstructor
@@ -113,37 +120,41 @@ public class TapService {
         String key = request.getIdempotencyKey();
 
         try {
-            // Semua pra-cek idempotency + eksekusi berjalan dalam SATU transaksi DB,
-            // sehingga satu tap hanya mengambil koneksi Hikari SEKALI (perbaikan #180).
-            // Sebelumnya kedua pra-cek berada di luar transaksi → 1 tap = 3× acquire,
-            // yang menjadi antrean kolam koneksi saat JVM masih dingin (cold-start).
+            // Seluruh pra-cek idempotency + eksekusi berjalan di SATU transaksi →
+            // satu koneksi Hikari per tap (#180/B40). Sebelumnya dua pra-cek
+            // berada di luar transaksi sehingga satu tap mengambil koneksi 3×.
             return txTemplate.execute(status -> {
-                // 1) Idempotency jalur cepat: transaksi sudah pernah dibuat → hasil lama.
-                if (transaksiRepo.existsBySekolahIdAndIdempotencyKey(sekolahId, key)) {
+                // Idempotency jalur cepat: transaksi sudah pernah dibuat → replay.
+                var trxLama = transaksiRepo.findBySekolahIdAndIdempotencyKey(sekolahId, key);
+                if (trxLama.isPresent()) {
                     log.debug("Idempotency replay tap key={}", key);
-                    return bangunReplay(sekolahId, key);
+                    return bangunReplay(sekolahId, trxLama.get());
                 }
 
-                // 2) Idempotency jalur pending: tap yang sama masih menunggu konfirmasi.
+                // Idempotency jalur pending: tap yang sama masih menunggu konfirmasi.
                 var pendingLama = pendingRepo.findBySekolahIdAndIdempotencyKey(sekolahId, key);
                 if (pendingLama.isPresent() && pendingLama.get().menunggu()) {
                     log.debug("Idempotency replay pending key={}", key);
                     return bangunMenunggu(pendingLama.get());
                 }
 
-                // 3) Eksekusi tap.
+
                 return eksekusi(sekolahId, identitas, request);
             });
         } catch (DataIntegrityViolationException e) {
-            // Balapan idempotency: transaksi/pending kalah sudah di-rollback; pakai pemenang.
-            if (transaksiRepo.existsBySekolahIdAndIdempotencyKey(sekolahId, key)) {
-                return txTemplate.execute(status -> bangunReplay(sekolahId, key));
-            }
-            var pemenang = pendingRepo.findBySekolahIdAndIdempotencyKey(sekolahId, key);
-            if (pemenang.isPresent()) {
-                return txTemplate.execute(status -> bangunMenunggu(pemenang.get()));
-            }
-            throw e;
+            // Balapan idempotency: transaksi/pending kalah sudah di-rollback; pakai
+            // pemenang. Dibaca di transaksi baru (pemenang sudah commit).
+            return txTemplate.execute(status -> {
+                var pemenangTrx = transaksiRepo.findBySekolahIdAndIdempotencyKey(sekolahId, key);
+                if (pemenangTrx.isPresent()) {
+                    return bangunReplay(sekolahId, pemenangTrx.get());
+                }
+                var pemenangPending = pendingRepo.findBySekolahIdAndIdempotencyKey(sekolahId, key);
+                if (pemenangPending.isPresent()) {
+                    return bangunMenunggu(pemenangPending.get());
+                }
+                throw e;
+            });
         }
     }
 
@@ -238,7 +249,11 @@ public class TapService {
             }
             if (pending.getStatus() == StatusPendingTap.DIKONFIRMASI) {
                 // Idempoten: kembalikan transaksi yang sudah dibuat.
-                return bangunReplay(sekolahId, pending.getIdempotencyKey());
+                Transaksi trxLama = transaksiRepo
+                        .findBySekolahIdAndIdempotencyKey(sekolahId, pending.getIdempotencyKey())
+                        .orElseThrow(() -> new InvalidOperationException(
+                                "Transaksi idempoten tidak ditemukan: " + pending.getIdempotencyKey()));
+                return bangunReplay(sekolahId, trxLama);
             }
             if (pending.getStatus() == StatusPendingTap.DIBATALKAN) {
                 throw new InvalidOperationException("Permintaan konfirmasi sudah dibatalkan");
@@ -416,12 +431,11 @@ public class TapService {
      * Bangun respons untuk permintaan idempoten (tidak membuat transaksi baru).
      * Dipanggil <b>di dalam</b> transaksi agar relasi {@code items} (lazy) bisa
      * dimuat untuk menampilkan rincian item.
+     *
+     * <p>Entitas {@code trx} sudah ditemukan pemanggil (tenant-scoped) sehingga
+     * tidak ada query ulang — satu koneksi per tap (#180/B40).
      */
-    private TapResponse bangunReplay(Long sekolahId, String idempotencyKey) {
-        Transaksi trx = transaksiRepo.findBySekolahIdAndIdempotencyKey(sekolahId, idempotencyKey)
-                .orElseThrow(() -> new InvalidOperationException(
-                        "Transaksi idempoten tidak ditemukan: " + idempotencyKey));
-
+    private TapResponse bangunReplay(Long sekolahId, Transaksi trx) {
         // Tenant scoping: key dibuat klien, jadi transaksi yang ditemukan WAJIB
         // milik sekolah pemanggil. Bila bukan → 404 (jangan bocorkan data
         // sekolah lain lewat jalur idempotency — PRD §11.4).

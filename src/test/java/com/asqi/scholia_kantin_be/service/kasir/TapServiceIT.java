@@ -28,6 +28,12 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -144,6 +150,53 @@ class TapServiceIT {
         Integer jumlahTrx = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM transaksi WHERE idempotency_key = 'tap-dup'", Integer.class);
         assertThat(jumlahTrx).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("#180: tap BERSAMAAN key sama → tepat 1 transaksi & 1× potong (race di dalam transaksi)")
+    void tapBersamaanIdempotenSatuTransaksi() throws Exception {
+        // Memindahkan pra-cek idempotency ke DALAM transaksi (#180/B40) tidak boleh
+        // merusak kontrak balapan: N request key sama → tepat 1 transaksi, 1× potong.
+        int paralel = 6;
+        ExecutorService pool = Executors.newFixedThreadPool(paralel);
+        CountDownLatch mulai = new CountDownLatch(1);
+        AtomicInteger sukses = new AtomicInteger();
+        var idTransaksi = new java.util.concurrent.ConcurrentHashMap<Long, Boolean>();
+
+        Callable<Void> tugas = () -> {
+            mulai.await();
+            try {
+                TapResponse r = tapService.tap(SEKOLAH, petugas, request("tap-race", 1, 0));
+                if (r.getTransaksiId() != null) {
+                    idTransaksi.put(r.getTransaksiId(), Boolean.TRUE);
+                }
+                sukses.incrementAndGet();
+            } catch (RuntimeException e) {
+                // Idempotency harus menyerap balapan → tidak boleh error.
+                throw new AssertionError("Tap balapan idempotent tidak boleh gagal: " + e, e);
+            }
+            return null;
+        };
+
+        var futures = new java.util.ArrayList<Future<Void>>();
+        for (int i = 0; i < paralel; i++) {
+            futures.add(pool.submit(tugas));
+        }
+        mulai.countDown();
+        for (Future<Void> f : futures) {
+            f.get();
+        }
+        pool.shutdown();
+
+        // Semua request sukses dan menunjuk SATU transaksi yang sama.
+        assertThat(sukses.get()).isEqualTo(paralel);
+        assertThat(idTransaksi).hasSize(1);
+        // Hanya sekali potong: saldo 50.000 - 8.000 = 42.000, stok 20 → 19.
+        assertThat(ledgerSaldo.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA)).isEqualTo(42_000L);
+        assertThat(ledgerStok.stok(SEKOLAH, MENU_NASI)).isEqualTo(19);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM transaksi WHERE idempotency_key = 'tap-race'",
+                Integer.class)).isEqualTo(1);
     }
 
     @Test
