@@ -125,6 +125,13 @@ class SmokeGetEndpointIT {
         return Stream.of(
                 // SaldoController
                 "/api/saldo?subjekTipe=SISWA&subjekId=1",
+                // #213 — daftar koreksi bendahara (semua filter)
+                "/api/saldo/koreksi",
+                "/api/saldo/koreksi?tanggal=2026-10-16",
+                "/api/saldo/koreksi?subjekTipe=SISWA",
+                "/api/saldo/koreksi?subjekTipe=KARTU_TAMU&subjekId=1",
+                "/api/saldo/koreksi?tanggal=2026-10-16&subjekTipe=SISWA&subjekId=1",
+                "/api/saldo/koreksi?halaman=0&ukuran=5",
                 "/api/saldo/rekonsiliasi?subjekTipe=SISWA&subjekId=1",
                 "/api/saldo/refund/kandidat",
                 "/api/saldo/setoran-tu/rekap",
@@ -166,6 +173,19 @@ class SmokeGetEndpointIT {
 
                 // KasirController
                 "/api/kasir/tap/menunggu",
+                // #212 — daftar transaksi utk koreksi bendahara (semua filter)
+                "/api/kasir/transaksi",
+                "/api/kasir/transaksi?sesiId=1",
+                "/api/kasir/transaksi?tanggal=2026-10-16",
+                "/api/kasir/transaksi?status=SUKSES",
+                "/api/kasir/transaksi?status=VOID",
+                "/api/kasir/transaksi?sesiId=1&tanggal=2026-10-16&status=SUKSES",
+                "/api/kasir/transaksi?halaman=0&ukuran=5",
+
+                // SiswaController — cari siswa (#214); tanpa demo → daftar kosong 200
+                "/api/siswa",
+                "/api/siswa?q=budi",
+                "/api/siswa?hanyaTidakAktif=true&batas=5",
 
                 // AuthController — identitas dari token
                 "/api/auth/me"
