@@ -1,5 +1,6 @@
 package com.asqi.scholia_kantin_be.db;
 
+import com.asqi.scholia_kantin_be.dev.DevLoginValidator;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
@@ -62,6 +63,24 @@ class SeedDevIT {
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM saldo_cache WHERE sekolah_id = 10", Integer.class))
                 .as("saldo_cache tenant FE").isEqualTo(4);
+
+        // Akun login dev: kredensial harus benar-benar diverifikasi, bukan sekadar ada.
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM dev_pengguna", Integer.class))
+                .as("akun login dev").isEqualTo(6);
+
+        DevLoginValidator validator = new DevLoginValidator(jdbc);
+        var akun = validator.autentikasi("tu1", "Kantin#2026");
+        assertThat(akun).as("login dengan kredensial seed").isPresent();
+        assertThat(akun.get().role()).as("role dari akun").isEqualTo("TATA_USAHA");
+        assertThat(akun.get().sekolahId()).as("sekolah dari akun").isEqualTo(1L);
+        assertThat(validator.autentikasi("TU1", "Kantin#2026"))
+                .as("username tidak peka huruf besar").isPresent();
+        assertThat(validator.autentikasi("tu1", "salah"))
+                .as("password salah harus ditolak").isEmpty();
+        assertThat(validator.autentikasi("ngasal", "Kantin#2026"))
+                .as("username asal-asalan harus ditolak").isEmpty();
+        assertThat(validator.autentikasi("", ""))
+                .as("kredensial kosong harus ditolak").isEmpty();
 
         // Jalankan ulang isi seed: harus idempoten, tidak menggandakan baris.
         new ResourceDatabasePopulator(new ClassPathResource("db/seed/R__seed_dev.sql"))

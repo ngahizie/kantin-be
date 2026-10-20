@@ -66,6 +66,12 @@ sudah diubah aplikasi. Ingin DB kosong? Komentari baris di atas. CI dan seluruh
 `@SpringBootTest` **tidak** memuatnya (lokasi seed hanya ditambahkan lewat file
 lokal yang gitignored).
 
+Seed juga membuat tabel **`dev_pengguna`** (hanya ada di lokal, bukan migrasi)
+berisi 6 akun login dev dengan password `Kantin#2026`: `kepsek1`, `tu1`,
+`bendahara1`, `pengelola1`, `kasir1` (sekolah 1) dan `tu2` (sekolah 2).
+Login dengan username/password asal-asalan ditolak `401` — lihat
+`docs/demo-e2e-kasir.md` §4.
+
 ---
 
 ## 3. Skema Database — Aturan Wajib
