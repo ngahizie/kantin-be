@@ -19,7 +19,7 @@ import java.util.List;
  * Saat {@code kantin.integrasi.wajib-aktif=true}, aplikasi <b>menolak start</b>
  * bila salah satu dari berikut belum siap:
  * <ol>
- *   <li>salah satu dari <b>6 adapter REST</b> belum aktif
+ *   <li>salah satu dari <b>7 adapter REST</b> belum aktif
  *       ({@code kantin.integrasi.<nama>.enabled=false}) — artinya {@code *Fallback}
  *       masih dipakai; atau</li>
  *   <li>adapter aktif tetapi {@code base-url} kosong (panggilan akan gagal); atau</li>
@@ -91,6 +91,7 @@ public class PemeriksaIntegrasiProduksi {
                 new Adapter("Buku Kas", "bukukas", properties.getBukukas()),
                 new Adapter("Notifikasi", "notifikasi", properties.getNotifikasi()),
                 new Adapter("Lookup kartu", "kartu-lookup", properties.getKartuLookup()),
+                new Adapter("Pencarian siswa", "cari-siswa", properties.getCariSiswa()),
                 new Adapter("Status siswa", "status-siswa", properties.getStatusSiswa()),
                 new Adapter("UID siswa", "uid-siswa", properties.getUidSiswa()),
                 new Adapter("Aktivasi modul", "aktivasi", properties.getAktivasi()));

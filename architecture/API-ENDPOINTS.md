@@ -3,7 +3,7 @@
 > **Single source of truth endpoint kantin-be.** Semua path berprefix `/api`.
 > Respons selalu dibungkus `Response<T>` (`{ responseCode, message, data, ... }`).
 >
-> **Sinkron terakhir:** 2026-10-20 · **Total: 94 endpoint** (93 di `controller/` + 1 shim dev)
+> **Sinkron terakhir:** 2026-10-20 · **Total: 95 endpoint** (94 di `controller/` + 1 shim dev)
 > di **15 controller**. Dijaga otomatis oleh `ApiEndpointsDocTest` — uji ini
 > **gagal** bila daftar di bawah tidak lagi sama persis dengan anotasi
 > `@…Mapping` di kode. Bila menambah/mengubah endpoint, perbarui dokumen ini.
@@ -162,6 +162,7 @@
 | `GET` | `/api/laporan/penjualan/item` | TU, admin, pengelola, kepsek | Penjualan per item (terlaris dulu): qty & nilai |
 | `GET` | `/api/laporan/penjualan/kategori` | TU, admin, pengelola, kepsek | Penjualan per kategori |
 | `GET` | `/api/laporan/saldo-mengendap` | TU, admin, pengelola, kepsek | Dana titipan: Σ saldo siswa + Kartu Tamu (kewajiban sekolah) |
+| `GET` | `/api/laporan/saldo-mengendap/siswa` | TU, admin, pengelola | **Rincian saldo per siswa** (#224): identitas dari integrasi siswa + saldo/kontrol tenant-lokal. Query: `search?`, `batas?` (default 20, max 50) |
 | `GET` | `/api/laporan/rekonsiliasi` | TU, admin, pengelola, kepsek | Arus kas per jenis + cek invariant `seimbang`/`selisih` (PRD §5) |
 | `GET` | `/api/laporan/stok` | TU, admin, pengelola | Stok + nilai persediaan; `menipis` dari `menu.stok_minimum`. Query: `hanyaMenipis`. **Tanpa kepsek** (§9.5) |
 | `GET` | `/api/laporan/kerugian-stok` | TU, admin, pengelola, kepsek | Opname keluar & barang rusak: qty + nilai kerugian |
