@@ -12,6 +12,7 @@ import com.asqi.scholia_kantin_be.dto.KartuTamuSaldoDetail;
 import com.asqi.scholia_kantin_be.dto.LaporanPerSiswa;
 import com.asqi.scholia_kantin_be.dto.LaporanRiwayatSiswa;
 import com.asqi.scholia_kantin_be.dto.RekapSetoranTuItem;
+import com.asqi.scholia_kantin_be.dto.SiswaSaldoDetail;
 import com.asqi.scholia_kantin_be.dto.RingkasanPenjualan;
 import com.asqi.scholia_kantin_be.dto.RingkasanRekonsiliasi;
 import com.asqi.scholia_kantin_be.dto.RingkasanSaldoMengendap;
