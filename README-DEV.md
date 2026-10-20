@@ -45,6 +45,24 @@ Profil default sudah `local` (`spring.profiles.active`), jadi cukup:
 
 Port aplikasi: **8082** (admin-be 8081, agar tidak bentrok).
 
+### Data seed dev (untuk FE)
+
+`application-local.properties.example` sudah memuat baris ini:
+
+```properties
+spring.flyway.locations=classpath:db/migration,classpath:db/seed
+```
+
+Artinya saat `./mvnw spring-boot:run`, Flyway menerapkan 23 migrasi **lalu**
+`db/seed/R__seed_dev.sql` — dataset dummy deterministik (2 sekolah, 13 menu,
+2 titik kasir, sesi, 8 transaksi, 11 Kartu Tamu (10 bersaldo), saldo/HPP/stok,
+koreksi saldo, setoran TU, pengaturan kantin) supaya FE **tidak perlu mock**.
+
+Idempoten: start berulang tidak menggandakan baris dan tidak menimpa data yang
+sudah diubah aplikasi. Ingin DB kosong? Komentari baris di atas. CI dan seluruh
+`@SpringBootTest` **tidak** memuatnya (lokasi seed hanya ditambahkan lewat file
+lokal yang gitignored).
+
 ---
 
 ## 3. Skema Database — Aturan Wajib
