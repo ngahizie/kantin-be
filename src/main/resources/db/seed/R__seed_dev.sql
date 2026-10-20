@@ -485,7 +485,8 @@ VALUES
   (910006, 10, 'KARTU_TAMU', 1003, 'DEBIT',  'PENJUALAN',    16000,  14000, 910103, 'seed-fe10-kt3-trx910103', 'TRANSAKSI', '910103', NULL, 4, ((CURRENT_DATE - 1) + time '09:30') AT TIME ZONE 'Asia/Jakarta', now()),
   (910007, 10, 'KARTU_TAMU', 1003, 'DEBIT',  'PENJUALAN',     5000,   9000, 910104, 'seed-fe10-kt3-trx910104', 'TRANSAKSI', '910104', NULL, 4, ((CURRENT_DATE - 1) + time '10:20') AT TIME ZONE 'Asia/Jakarta', now()),
   (910008, 10, 'KARTU_TAMU', 1003, 'KREDIT', 'VOID_PENJUALAN', 5000, 14000, 910104, 'seed-fe10-kt3-void', 'TRANSAKSI', '910104', 'Pembalik void transaksi', 2, ((CURRENT_DATE - 1) + time '11:10') AT TIME ZONE 'Asia/Jakarta', now()),
-  -- SISWA 1001: topup tunai 75.000 (belum dibelanjakan) → saldo mengendap siswa
+  -- SISWA demo 1001 (sekolah 10, UID RFID DA100001): topup tunai 75.000.
+  -- UID hanya dipetakan oleh KartuLookupDemo saat profil demo aktif (lokal); bukan master siswa.
   (910009, 10, 'SISWA', 1001, 'KREDIT', 'TOPUP_TUNAI', 75000, 75000, NULL, 'seed-fe10-siswa1-topup', 'TOPUP', 'TOPUP-FE10-S001', 'Top up tunai di TU', 2, ((CURRENT_DATE - 2) + time '08:10') AT TIME ZONE 'Asia/Jakarta', now())
 ON CONFLICT DO NOTHING;
 
@@ -533,6 +534,22 @@ VALUES (1001, 10, 1002,
         ((CURRENT_DATE - 2) + time '09:00') AT TIME ZONE 'Asia/Jakarta',
         ((CURRENT_DATE - 2) + time '09:12') AT TIME ZONE 'Asia/Jakarta',
         12, 'Koneksi internet terputus', 4, now())
+ON CONFLICT DO NOTHING;
+
+-- ── Mapping kartu siswa demo (tabel HANYA ada di lokal) ───────
+-- Bukan master siswa: hanya fixture untuk lookup satu UID saat profil demo aktif.
+CREATE TABLE IF NOT EXISTS dev_siswa_rfid (
+    sekolah_id BIGINT NOT NULL,
+    siswa_id BIGINT NOT NULL,
+    nomor_kartu VARCHAR(32) NOT NULL,
+    rfid_uid VARCHAR(50) NOT NULL UNIQUE,
+    aktif BOOLEAN NOT NULL DEFAULT true,
+    PRIMARY KEY (sekolah_id, siswa_id),
+    UNIQUE (sekolah_id, nomor_kartu)
+);
+
+INSERT INTO dev_siswa_rfid (sekolah_id, siswa_id, nomor_kartu, rfid_uid, aktif)
+VALUES (10, 1001, 'RFID-SISWA-001', 'DA100001', true)
 ON CONFLICT DO NOTHING;
 
 -- ── Akun login dev (tabel HANYA ada di lokal) ────────────────

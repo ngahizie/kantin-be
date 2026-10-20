@@ -5,6 +5,7 @@ import com.asqi.scholia_kantin_be.model.KartuTamu;
 import com.asqi.scholia_kantin_be.repository.KartuTamuRepository;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoKartu;
 import org.junit.jupiter.api.DisplayName;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
@@ -24,7 +25,8 @@ import static org.mockito.Mockito.when;
 class KartuLookupDemoTest {
 
     private final KartuTamuRepository repo = mock(KartuTamuRepository.class);
-    private final KartuLookupDemo lookup = new KartuLookupDemo(repo);
+    private final JdbcTemplate jdbc = mock(JdbcTemplate.class);
+    private final KartuLookupDemo lookup = new KartuLookupDemo(repo, jdbc);
 
     private KartuTamu kartu(Long id, Long sekolahId, boolean aktif, String label) {
         return KartuTamu.builder()
@@ -95,6 +97,48 @@ class KartuLookupDemoTest {
         assertThat(lookup.cariBerdasarkanUid(1L, "DE009999").isDikenal()).isFalse();
         assertThat(lookup.cariBerdasarkanUid(1L, null).isDikenal()).isFalse();
         assertThat(lookup.cariBerdasarkanUid(1L, "  ").isDikenal()).isFalse();
+    }
+
+    @Test
+    @DisplayName("UID siswa fixture demo sekolah 10 dikenali sebagai SISWA")
+    void uidSiswaDemoDikenali() {
+        when(repo.findByRfidUid("DA100001")).thenReturn(Optional.empty());
+        when(jdbc.queryForObject(
+                org.mockito.ArgumentMatchers.contains("dev_siswa_rfid"),
+                org.mockito.ArgumentMatchers.eq(Boolean.class),
+                org.mockito.ArgumentMatchers.eq(10L), org.mockito.ArgumentMatchers.eq(1001L),
+                org.mockito.ArgumentMatchers.eq("DA100001")))
+                .thenReturn(true);
+
+        InfoKartu info = lookup.cariBerdasarkanUid(10L, "DA100001");
+
+        assertThat(info.isDikenal()).isTrue();
+        assertThat(info.getSubjekTipe()).isEqualTo(SubjekTipe.SISWA);
+        assertThat(info.getSubjekId()).isEqualTo(1001L);
+        assertThat(info.getNama()).isNull();
+    }
+
+    @Test
+    @DisplayName("UID siswa demo tidak bocor lintas tenant atau jika fixture saldo tidak ada")
+    void uidSiswaDemoFailClosed() {
+        when(repo.findByRfidUid("DA100001")).thenReturn(Optional.empty());
+        when(jdbc.queryForObject(
+                org.mockito.ArgumentMatchers.contains("dev_siswa_rfid"),
+                org.mockito.ArgumentMatchers.eq(Boolean.class),
+                org.mockito.ArgumentMatchers.eq(10L), org.mockito.ArgumentMatchers.eq(1001L),
+                org.mockito.ArgumentMatchers.eq("DA100001")))
+                .thenReturn(false);
+        when(jdbc.queryForObject(
+                org.mockito.ArgumentMatchers.contains("dev_siswa_rfid"),
+                org.mockito.ArgumentMatchers.eq(Boolean.class),
+                org.mockito.ArgumentMatchers.eq(10L), org.mockito.ArgumentMatchers.eq(1001L),
+                org.mockito.ArgumentMatchers.eq("DA100002")))
+                .thenThrow(new org.springframework.jdbc.BadSqlGrammarException(
+                        "lookup", "SELECT", new java.sql.SQLException("table missing")));
+
+        assertThat(lookup.cariBerdasarkanUid(1L, "DA100001").isDikenal()).isFalse();
+        assertThat(lookup.cariBerdasarkanUid(10L, "DA100001").isDikenal()).isFalse();
+        assertThat(lookup.cariBerdasarkanUid(10L, "DA100002").isDikenal()).isFalse();
     }
 
     @Test
