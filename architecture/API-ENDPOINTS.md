@@ -37,7 +37,7 @@
 | `GET` | `/api/kasir/tap/menunggu` | petugas, pengelola, admin | Daftar tap yang masih menunggu konfirmasi (tenant-scoped) |
 | `POST` | `/api/kasir/transaksi/{transaksiId}/void` | petugas, pengelola, admin | Void transaksi (PRD §6.3): kembalikan saldo & stok; wajib `alasan`; hanya sesi belum ditutup |
 | `POST` | `/api/kasir/transaksi/{transaksiId}/koreksi` | TU, admin, pengelola | Koreksi transaksi pada **sesi tertutup** (PRD §6.3/§9.2) — mutasi pembalik beralasan + audit; wajib `alasan` |
-| `GET` | `/api/kasir/transaksi` | TU, admin, pengelola | Daftar transaksi untuk **koreksi bendahara** (PRD §6.3/§9.2, issue #212) — terbaru dulu, berhalaman; filter opsional `sesiId`, `tanggal` (`yyyy-MM-dd`, zona sekolah), `status` (`SUKSES`/`VOID`), `halaman`, `ukuran`. Tenant dari token |
+| `GET` | `/api/kasir/transaksi` | TU, admin, pengelola | Daftar transaksi untuk **koreksi bendahara** (PRD §6.3/§9.2, issue #212) — terbaru dulu, berhalaman; filter opsional `sesiId`, `tanggal` (`yyyy-MM-dd`, zona sekolah), `status` (`SUKSES`/`VOID`), `halaman` (0-based), `ukuran`. Tenant dari token |
 | `POST` | `/api/kasir/sesi/buka` | petugas, pengelola, admin | Ambil sesi terbuka hari ini atau buka baru (idempoten per sekolah+titik+hari). Body `BukaSesiRequest` (`titikKasirId`) |
 | `GET` | `/api/kasir/sesi/{sesiId}/rekap` | petugas, pengelola, admin | Pratinjau rekap (bruto/void/bersih) |
 | `POST` | `/api/kasir/sesi/{sesiId}/tutup` | petugas, pengelola, admin | Tutup sesi: hitung rekap, tandai DITUTUP, kunci transaksi |
@@ -50,7 +50,7 @@
 |---|---|---|---|
 | `POST` | `/api/saldo/topup` | TU, admin, pengelola | Top-up tunai (PRD §9.1); `referensiId` = kunci idempotensi |
 | `POST` | `/api/saldo/koreksi` | TU, admin, pengelola | Koreksi saldo (arah KREDIT/DEBIT, alasan + berita acara wajib) |
-| `GET` | `/api/saldo/koreksi` | TU, admin, pengelola, **kepsek (read)** | **Daftar mutasi koreksi saldo** (PRD §9.2, issue #213) — terbaru dulu, berhalaman; filter opsional `tanggal` (`yyyy-MM-dd`, zona sekolah), `subjekTipe`, `subjekId`, `halaman`, `ukuran`. Data koreksi tak pernah diedit/dihapus |
+| `GET` | `/api/saldo/koreksi` | TU, admin, pengelola, **kepsek (read)** | **Daftar mutasi koreksi saldo** (PRD §9.2, issue #213) — terbaru dulu, berhalaman; filter opsional `tanggal` (`yyyy-MM-dd`, zona sekolah), `subjekTipe`, `subjekId`, `halaman` (0-based), `ukuran`. Data koreksi tak pernah diedit/dihapus |
 | `GET` | `/api/saldo` | petugas, TU, pengelola, admin | Saldo berjalan + belanja hari ini + mutasi terbaru. Query: `subjekTipe`, `subjekId`, `batasMutasi` |
 | `GET` | `/api/saldo/rekonsiliasi` | TU, admin, pengelola | Hitung ulang saldo dari ledger. Query: `subjekTipe`, `subjekId` |
 | `GET` | `/api/saldo/refund/kandidat` | TU, admin, pengelola, **kepsek (read)** | Daftar siswa bersisa saldo (kandidat refund/pindah). Query: `hanyaTidakAktif`. Kepsek **hanya baca** (§9.6) |
