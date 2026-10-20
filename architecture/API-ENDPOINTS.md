@@ -162,6 +162,7 @@
 | `GET` | `/api/laporan/penjualan/item` | TU, admin, pengelola, kepsek | Penjualan per item (terlaris dulu): qty & nilai |
 | `GET` | `/api/laporan/penjualan/kategori` | TU, admin, pengelola, kepsek | Penjualan per kategori |
 | `GET` | `/api/laporan/saldo-mengendap` | TU, admin, pengelola, kepsek | Dana titipan: Σ saldo siswa + Kartu Tamu (kewajiban sekolah) |
+| `GET` | `/api/laporan/saldo-mengendap/siswa` | TU, admin, pengelola | **Rincian saldo per siswa** (#224): identitas dari integrasi siswa + saldo/kontrol tenant-lokal. Query: `search?`, `batas?` (default 20, max 50) |
 | `GET` | `/api/laporan/rekonsiliasi` | TU, admin, pengelola, kepsek | Arus kas per jenis + cek invariant `seimbang`/`selisih` (PRD §5) |
 | `GET` | `/api/laporan/stok` | TU, admin, pengelola | Stok + nilai persediaan; `menipis` dari `menu.stok_minimum`. Query: `hanyaMenipis`. **Tanpa kepsek** (§9.5) |
 | `GET` | `/api/laporan/kerugian-stok` | TU, admin, pengelola, kepsek | Opname keluar & barang rusak: qty + nilai kerugian |

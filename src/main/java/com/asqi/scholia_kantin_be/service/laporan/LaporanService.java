@@ -15,6 +15,7 @@ import com.asqi.scholia_kantin_be.dto.RingkasanPenjualan;
 import com.asqi.scholia_kantin_be.dto.RingkasanRekonsiliasi;
 import com.asqi.scholia_kantin_be.dto.RingkasanKerugianStok;
 import com.asqi.scholia_kantin_be.dto.RingkasanSaldoMengendap;
+import com.asqi.scholia_kantin_be.dto.SiswaSaldoDetail;
 import com.asqi.scholia_kantin_be.enums.ArahMutasi;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiStok;
@@ -100,6 +101,7 @@ public class LaporanService {
     private final LimitHarianRepository limitRepo;
     private final com.asqi.scholia_kantin_be.service.kasir.LedgerSaldoService ledgerSaldo;
     private final com.asqi.scholia_kantin_be.service.saldo.SetoranTuService setoranTuService;
+    private final com.asqi.scholia_kantin_be.service.CariSiswaService cariSiswaService;
 
     // ────────────────────────────────────────────────────────────────
     // Periode
@@ -202,6 +204,34 @@ public class LaporanService {
         return new RingkasanSaldoMengendap(
                 saldoSiswa, saldoKartuTamu, saldoSiswa + saldoKartuTamu,
                 jumlahSiswa, jumlahKartuTamu);
+    }
+
+    /**
+     * Rincian saldo mengendap per siswa (issue #224).
+     * Identitas dicari melalui CariSiswaPort; saldo/kontrol dibaca tenant-lokal.
+     */
+    @Transactional(readOnly = true)
+    public List<SiswaSaldoDetail> saldoMengendapSiswa(Long sekolahId, String search, int batas) {
+        return cariSiswaService.cari(sekolahId, search, false, batas).stream()
+                .map(siswa -> {
+                    Long siswaId = siswa.getSiswaId();
+                    SaldoCache cache = saldoCacheRepo
+                            .findBySekolahIdAndSubjekTipeAndSubjekId(sekolahId, SubjekTipe.SISWA, siswaId)
+                            .orElse(null);
+                    BlokirKartu blokir = blokirRepo
+                            .findBySekolahIdAndSubjekTipeAndSubjekId(sekolahId, SubjekTipe.SISWA, siswaId)
+                            .orElse(null);
+                    Long limit = limitRepo
+                            .findBySekolahIdAndSubjekTipeAndSubjekId(sekolahId, SubjekTipe.SISWA, siswaId)
+                            .map(LimitHarian::getNominal)
+                            .orElse(null);
+                    return new SiswaSaldoDetail(
+                            siswaId, siswa.getNis(), null, siswa.getNama(), siswa.getKelas(),
+                            cache == null || cache.getSaldo() == null ? 0L : cache.getSaldo(),
+                            ledgerSaldo.belanjaHariIni(sekolahId, SubjekTipe.SISWA, siswaId),
+                            limit, blokir != null && blokir.isDiblokir(), null, null, null);
+                })
+                .toList();
     }
 
     // ────────────────────────────────────────────────────────────────
