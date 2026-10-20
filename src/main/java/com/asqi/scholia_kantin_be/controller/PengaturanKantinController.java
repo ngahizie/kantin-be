@@ -54,8 +54,16 @@ public class PengaturanKantinController {
     // PENGATURAN KANTIN (PRD §9.1)
     // ────────────────────────────────────────────────────────────────
 
-    /** Ambil pengaturan kantin (default aman bila belum diatur). */
-    @PerluPeran({AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN, AktorKantin.TU_SEKOLAH})
+    /**
+     * Ambil pengaturan kantin (default aman bila belum diatur).
+     *
+     * <p>{@code PETUGAS_KANTIN} ikut diizinkan: kasir POS membaca
+     * {@code jamTutupOtomatis} (peringatan lewat jam operasional) dan
+     * {@code durasiFotoDetik} dari endpoint ini. Sebelumnya peran kasir
+     * ditolak 403 dan halaman POS diam-diam memakai nilai default.
+     */
+    @PerluPeran({AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN, AktorKantin.TU_SEKOLAH,
+            AktorKantin.PETUGAS_KANTIN})
     @GetMapping
     public ResponseEntity<Response<PengaturanKantinResponse>> ambil() {
         return CommonResponse.data(pengaturanService.ambil(TenantContext.sekolahIdWajib()));

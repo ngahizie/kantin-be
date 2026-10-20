@@ -212,7 +212,7 @@
 
 | Method | Path | Peran | Keterangan |
 |---|---|---|---|
-| `GET` | `/api/pengaturan-kantin` | admin, pengelola, TU | Ambil pengaturan (default aman bila belum diatur) |
+| `GET` | `/api/pengaturan-kantin` | petugas, pengelola, TU, admin | Ambil pengaturan (default aman bila belum diatur). Kasir POS membaca `jamTutupOtomatis` & `durasiFotoDetik` dari sini |
 | `PUT` | `/api/pengaturan-kantin` | admin | Ubah nama, jam tutup otomatis, konfirmasi manual, durasi foto, min/maks top-up, batas saldo siswa/Kartu Tamu |
 | `GET` | `/api/pengaturan-kantin/titik-kasir` | petugas, pengelola, TU, admin | Daftar titik kasir. Query: `hanyaAktif` |
 | `GET` | `/api/pengaturan-kantin/titik-kasir/{titikId}` | petugas, pengelola, TU, admin | Detail titik kasir |
