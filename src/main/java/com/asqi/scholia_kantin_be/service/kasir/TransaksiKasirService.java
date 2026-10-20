@@ -1,15 +1,20 @@
 package com.asqi.scholia_kantin_be.service.kasir;
 
+import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
 import com.asqi.scholia_kantin_be.dto.HalamanResponse;
 import com.asqi.scholia_kantin_be.dto.TransaksiKasirItem;
+import com.asqi.scholia_kantin_be.dto.TransaksiSesiItem;
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.model.KartuTamu;
 import com.asqi.scholia_kantin_be.model.TitikKasir;
 import com.asqi.scholia_kantin_be.model.Transaksi;
+import com.asqi.scholia_kantin_be.model.TransaksiItem;
 import com.asqi.scholia_kantin_be.repository.KartuTamuRepository;
+import com.asqi.scholia_kantin_be.repository.SesiKasirRepository;
 import com.asqi.scholia_kantin_be.repository.TitikKasirRepository;
+import com.asqi.scholia_kantin_be.repository.TransaksiItemRepository;
 import com.asqi.scholia_kantin_be.repository.TransaksiRepository;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
@@ -60,6 +65,8 @@ public class TransaksiKasirService {
     private final TransaksiRepository transaksiRepo;
     private final TitikKasirRepository titikKasirRepo;
     private final KartuTamuRepository kartuTamuRepo;
+    private final TransaksiItemRepository transaksiItemRepo;
+    private final SesiKasirRepository sesiKasirRepo;
     private final JamKantin jam;
 
     /**
@@ -93,6 +100,42 @@ public class TransaksiKasirService {
             }
             return item;
         });
+    }
+
+    /**
+     * Riwayat transaksi satu <b>sesi kasir</b> (issue #229) — dipakai panel
+     * riwayat di layar POS. Tanpa paginasi (terikat satu sesi), terbaru dulu.
+     *
+     * <p>Rincian item diambil dalam <b>satu query</b> untuk seluruh sesi
+     * ({@code findByTransaksiIdIn}), bukan per transaksi — tidak ada N+1.
+     * Nama/kelas/NIS siswa tidak tersedia (ADR-0002), lihat
+     * {@link TransaksiSesiItem}.
+     *
+     * @param sesiId sesi kasir; harus milik tenant pemanggil (jika tidak 404)
+     */
+    @Transactional(readOnly = true)
+    public List<TransaksiSesiItem> riwayatSesi(Long sekolahId, Long sesiId) {
+        sesiKasirRepo.findById(sesiId)
+                .filter(s -> sekolahId.equals(s.getSekolahId()))
+                .orElseThrow(() -> new NotFoundEntity("Sesi kasir " + sesiId + " tidak ditemukan"));
+
+        List<Transaksi> trx = transaksiRepo.findAll(filter(sekolahId, sesiId, null, null),
+                Sort.by(Sort.Direction.DESC, "waktu").and(Sort.by(Sort.Direction.DESC, "id")));
+
+        Map<Long, String> namaTitik = namaTitikKasir(sekolahId, trx);
+        Map<Long, String> namaSubjek = namaPemegangKartu(sekolahId, trx);
+
+        Map<Long, List<TransaksiItem>> itemByTrx = trx.isEmpty() ? Map.of()
+                : transaksiItemRepo.findByTransaksiIdIn(
+                        trx.stream().map(Transaksi::getId).toList()).stream()
+                .collect(Collectors.groupingBy(i -> i.getTransaksi().getId()));
+
+        return trx.stream()
+                .map(t -> TransaksiSesiItem.dari(t,
+                        namaTitik.get(t.getTitikKasirId()),
+                        namaSubjek.get(t.getSubjekId()),
+                        itemByTrx.getOrDefault(t.getId(), List.of())))
+                .toList();
     }
 
     // ────────────────────────────────────────────────────────────────
