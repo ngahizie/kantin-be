@@ -3,7 +3,7 @@
 > **Single source of truth endpoint kantin-be.** Semua path berprefix `/api`.
 > Respons selalu dibungkus `Response<T>` (`{ responseCode, message, data, ... }`).
 >
-> **Sinkron terakhir:** 2026-10-20 · **Total: 93 endpoint** (92 di `controller/` + 1 shim dev)
+> **Sinkron terakhir:** 2026-10-20 · **Total: 94 endpoint** (93 di `controller/` + 1 shim dev)
 > di **15 controller**. Dijaga otomatis oleh `ApiEndpointsDocTest` — uji ini
 > **gagal** bila daftar di bawah tidak lagi sama persis dengan anotasi
 > `@…Mapping` di kode. Bila menambah/mengubah endpoint, perbarui dokumen ini.
@@ -219,6 +219,7 @@
 | `POST` | `/api/pengaturan-kantin/titik-kasir` | admin | Buat titik kasir (kode unik per sekolah) |
 | `PUT` | `/api/pengaturan-kantin/titik-kasir/{titikId}` | admin | Ubah titik kasir (nama, kode, aktif) |
 | `DELETE` | `/api/pengaturan-kantin/titik-kasir/{titikId}` | admin | Nonaktifkan titik kasir (soft delete; tolak bila ada sesi terbuka) |
+| `PATCH` | `/api/pengaturan-kantin/titik-kasir/{titikId}/toggle` | pengelola, admin | Balik status aktif titik kasir (issue #228). Body opsional `{"aktif": true\|false}`; body kosong membalik status sekarang. Idempoten; tolak 409 bila masih ada sesi terbuka |
 | `GET` | `/api/pengaturan-kantin/aktivasi-modul` | admin, pengelola, TU | **#42/Q6** — status aktivasi modul & fee (fail-open via `AktivasiModulPort`) |
 
 > **Jam tutup otomatis** dipakai penjadwal `JamTutupKasirScheduler` yang menutup

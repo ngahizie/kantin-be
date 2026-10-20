@@ -123,6 +123,24 @@ public class TitikKasirService {
         return ubah(sekolahId, titikId, null, null, false, aktorId);
     }
 
+    /**
+     * Balik status aktif titik kasir (issue <b>#228</b>).
+     *
+     * <p>{@code aktif} kosong ⇒ dibalik dari nilai sekarang; bila diisi ⇒ dipakai apa
+     * adanya. Nilai yang sama dengan status sekarang tidak menulis apa pun, sehingga
+     * pemanggilan berulang idempoten. Menonaktifkan titik yang masih punya sesi
+     * {@code TERBUKA} ditolak 409 lewat {@link #ubah}.
+     */
+    @Transactional
+    public TitikKasirResponse toggle(Long sekolahId, Long titikId, Boolean aktif, Long aktorId) {
+        TitikKasir titik = ambilMilikSekolah(sekolahId, titikId);
+        boolean target = aktif != null ? aktif : !titik.isAktif();
+        if (target == titik.isAktif()) {
+            return TitikKasirResponse.dari(titik);
+        }
+        return ubah(sekolahId, titikId, null, null, target, aktorId);
+    }
+
     private void pastikanTakAdaSesiTerbuka(Long sekolahId, Long titikId) {
         boolean adaTerbuka = !sesiRepo
                 .findBySekolahIdAndStatus(sekolahId, StatusSesiKasir.TERBUKA).stream()
