@@ -67,8 +67,11 @@ sudah diubah aplikasi. Ingin DB kosong? Komentari baris di atas. CI dan seluruh
 lokal yang gitignored).
 
 Seed juga membuat tabel **`dev_pengguna`** (hanya ada di lokal, bukan migrasi)
-berisi 6 akun login dev dengan password `Kantin#2026`: `kepsek1`, `tu1`,
-`bendahara1`, `pengelola1`, `kasir1` (sekolah 1) dan `tu2` (sekolah 2).
+berisi 8 akun login dev dengan password `Kantin#2026`: `kepsek1`, `tu1`,
+`bendahara1`, `pengelola1`, `kasir1` (sekolah 1), `tu2` (sekolah 2), serta
+`kasir10` & `bendahara10` (sekolah 10 — tenant default form login FE).
+`sekolah_id` di body login **diabaikan**: tenant selalu diambil dari akun, jadi
+memakai tenant lain butuh akun di tenant tersebut.
 Login dengan username/password asal-asalan ditolak `401` — lihat
 `docs/demo-e2e-kasir.md` §4.
 

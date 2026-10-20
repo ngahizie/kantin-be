@@ -535,12 +535,6 @@ VALUES (1001, 10, 1002,
         12, 'Koneksi internet terputus', 4, now())
 ON CONFLICT DO NOTHING;
 
--- ── Ringkas ──────────────────────────────────────────────────
--- Isi seed: 3 sekolah | 21 menu | 14 kartu tamu | 6 sesi kasir |
--- 12 transaksi | 31 mutasi saldo | 21 baris stok | pengaturan kantin.
--- Sekolah 10 (tenant FE) menyumbang: 8 menu, 3 kartu tamu, 2 sesi kasir,
--- 4 transaksi, 4 baris saldo_cache (3 kartu tamu + 1 siswa).
-=======
 -- ── Akun login dev (tabel HANYA ada di lokal) ────────────────
 -- Dibuat di sini, BUKAN sebagai migrasi biasa: skema produksi tidak boleh
 -- punya tabel akun — kantin-be tidak menyimpan master pengguna (ADR-0002),
@@ -569,12 +563,21 @@ VALUES
     (5, 1, 'bendahara1', 'Siti Rahma (Bendahara)',        'BENDAHARA',
      '$2a$10$0PkEyDmQ0sxGV/kdv5XE.udnbKO1N1yWLx7hnbA3cTBFG17fE9Byu', true),
     (6, 2, 'tu2',        'Andika Pratama (TU Sekolah 2)', 'TATA_USAHA',
-     '$2a$10$3vynpehMjgcknvLbhkE4kuucUfxfSsSxiq9fTAJ0VYbLzGbcXRJwa', true)
+     '$2a$10$3vynpehMjgcknvLbhkE4kuucUfxfSsSxiq9fTAJ0VYbLzGbcXRJwa', true),
+    -- Sekolah 10 (tenant default FE). Tanpa akun di tenant ini, data sekolah 10
+    -- tidak pernah bisa dijangkau dari UI: token memakai sekolah_id dari akun,
+    -- bukan dari body request (#231, #235).
+    (7, 10, 'kasir10',     'Rizky Pratama (Petugas POS 10)', 'PETUGAS',
+     '$2a$10$LGt9ZvDWW97jh0ozfFEIrOlwkp.DQ7HSpq7Eg/VxbHLn3UDuD.Xem', true),
+    (8, 10, 'bendahara10', 'Nurul Hidayah (Bendahara 10)',    'BENDAHARA',
+     '$2a$10$0PkEyDmQ0sxGV/kdv5XE.udnbKO1N1yWLx7hnbA3cTBFG17fE9Byu', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- ── Ringkas ──────────────────────────────────────────────────
--- Isi seed: 2 sekolah | 13 menu | 11 kartu tamu | 4 sesi kasir |
--- 8 transaksi | 22 mutasi saldo | 13 baris stok | 6 akun login dev |
+-- Isi seed: 3 sekolah | 21 menu | 14 kartu tamu | 6 sesi kasir |
+-- 12 transaksi | 31 mutasi saldo | 21 baris stok | 8 akun login dev |
 -- pengaturan kantin.
+-- Sekolah 10 (tenant FE) menyumbang: 8 menu, 3 kartu tamu, 2 sesi kasir,
+-- 4 transaksi, 4 baris saldo_cache (3 kartu tamu + 1 siswa), 2 akun dev.
 -- (Tanpa blok DO $$ agar berkas ini aman dijalankan psql, Flyway, maupun
 --  ResourceDatabasePopulator yang memecah pernyataan pada titik koma.)

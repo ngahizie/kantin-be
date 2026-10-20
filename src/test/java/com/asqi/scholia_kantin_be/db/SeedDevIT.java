@@ -66,7 +66,7 @@ class SeedDevIT {
 
         // Akun login dev: kredensial harus benar-benar diverifikasi, bukan sekadar ada.
         assertThat(jdbc.queryForObject("SELECT count(*) FROM dev_pengguna", Integer.class))
-                .as("akun login dev").isEqualTo(6);
+                .as("akun login dev").isEqualTo(8);
 
         DevLoginValidator validator = new DevLoginValidator(jdbc);
         var akun = validator.autentikasi("tu1", "Kantin#2026");
@@ -81,6 +81,15 @@ class SeedDevIT {
                 .as("username asal-asalan harus ditolak").isEmpty();
         assertThat(validator.autentikasi("", ""))
                 .as("kredensial kosong harus ditolak").isEmpty();
+
+        // Tenant default FE (sekolah 10) wajib punya akun; token memakai sekolah
+        // dari akun, jadi tanpa akun ini data sekolah 10 tak terjangkau dari UI.
+        var akunFe = validator.autentikasi("kasir10", "Kantin#2026");
+        assertThat(akunFe).as("akun dev tenant FE").isPresent();
+        assertThat(akunFe.get().sekolahId()).as("sekolah akun tenant FE").isEqualTo(10L);
+        assertThat(akunFe.get().role()).as("role akun tenant FE").isEqualTo("PETUGAS");
+        assertThat(validator.autentikasi("bendahara10", "Kantin#2026"))
+                .as("akun bendahara tenant FE").isPresent();
 
         // Jalankan ulang isi seed: harus idempoten, tidak menggandakan baris.
         new ResourceDatabasePopulator(new ClassPathResource("db/seed/R__seed_dev.sql"))
