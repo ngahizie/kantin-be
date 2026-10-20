@@ -15,6 +15,7 @@ import com.asqi.scholia_kantin_be.dto.RekapSetoranTuItem;
 import com.asqi.scholia_kantin_be.dto.RingkasanPenjualan;
 import com.asqi.scholia_kantin_be.dto.RingkasanRekonsiliasi;
 import com.asqi.scholia_kantin_be.dto.RingkasanSaldoMengendap;
+import com.asqi.scholia_kantin_be.dto.SiswaSaldoDetail;
 import com.asqi.scholia_kantin_be.enums.AktorKantin;
 import com.asqi.scholia_kantin_be.enums.JenisLaporan;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
@@ -119,6 +120,17 @@ public class LaporanController {
     @GetMapping("saldo-mengendap")
     public ResponseEntity<Response<RingkasanSaldoMengendap>> saldoMengendap() {
         return CommonResponse.data(laporan.saldoMengendap(TenantContext.sekolahIdWajib()));
+    }
+
+    /** Saldo mengendap per siswa (issue #224), dibatasi untuk menghindari pemuatan seluruh siswa. */
+    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
+    @GetMapping("saldo-mengendap/siswa")
+    public ResponseEntity<Response<List<SiswaSaldoDetail>>> saldoMengendapSiswa(
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "20") int batas) {
+        int batasAman = Math.min(Math.max(batas, 1), 50);
+        return CommonResponse.data(laporan.saldoMengendapSiswa(
+                TenantContext.sekolahIdWajib(), search, batasAman));
     }
 
     /** Rekonsiliasi harian + pemeriksaan invariant (PRD §9.5, §5). */

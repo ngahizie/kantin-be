@@ -17,7 +17,10 @@ import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiStok;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
+import com.asqi.scholia_kantin_be.service.integrasi.CariSiswaPort;
+import com.asqi.scholia_kantin_be.service.integrasi.InfoSiswa;
 import com.asqi.scholia_kantin_be.service.kasir.LedgerSaldoService;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import com.asqi.scholia_kantin_be.service.kasir.PerintahMutasiSaldo;
 import com.asqi.scholia_kantin_be.service.stok.LedgerStokService;
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;
@@ -60,8 +63,30 @@ class LaporanServiceIT {
     private static final long MENU_B = 20L;
     private static final long KATEGORI = 500L;
 
+    @MockitoBean
+    private CariSiswaPort cariSiswaPort;
+
     @Autowired
     private LaporanService laporan;
+
+    @BeforeEach
+    void siapkanCariSiswa() {
+        org.mockito.Mockito.when(cariSiswaPort.cari(
+                        org.mockito.ArgumentMatchers.anyLong(),
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.anyBoolean(),
+                        org.mockito.ArgumentMatchers.anyInt()))
+                .thenAnswer(invocation -> {
+                    long sekolahId = invocation.getArgument(0);
+                    String q = invocation.getArgument(1);
+                    if (SEKOLAH != sekolahId || q == null || !q.equalsIgnoreCase("2024001")) {
+                        return List.of();
+                    }
+                    return List.of(InfoSiswa.builder()
+                            .siswaId(SISWA).nis("2024001").nama("Budi Santoso")
+                            .kelas("7A").saldo(0).build());
+                });
+    }
 
     @Autowired
     private LaporanExportService exportService;
@@ -169,6 +194,24 @@ class LaporanServiceIT {
         assertThat(perKategori.get(0).kunciId()).isEqualTo(KATEGORI);
         assertThat(perKategori.get(0).nama()).isEqualTo("Makanan");
         assertThat(perKategori.get(0).nilai()).isEqualTo(21_000);
+    }
+
+    @Test
+    @DisplayName("#224: saldo per siswa — filter NIS, tenant-scope, saldo & belanja hari ini")
+    void saldoMengendapPerSiswa() {
+        topup(SISWA, SubjekTipe.SISWA, 50_000, JenisMutasiSaldo.TOPUP_TUNAI);
+        tx.executeWithoutResult(s -> ledgerSaldo.debit(PerintahMutasiSaldo.builder()
+                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).subjekId(SISWA)
+                .jenis(JenisMutasiSaldo.PENJUALAN).nominal(8_000)
+                .idempotencyKey("jual-224").build()));
+
+        var hasil = laporan.saldoMengendapSiswa(SEKOLAH, "2024001", 20);
+        assertThat(hasil).hasSize(1);
+        assertThat(hasil.getFirst().nis()).isEqualTo("2024001");
+        assertThat(hasil.getFirst().nama()).isEqualTo("Budi Santoso");
+        assertThat(hasil.getFirst().saldo()).isEqualTo(42_000);
+        assertThat(hasil.getFirst().belanjaHariIni()).isEqualTo(8_000);
+        assertThat(laporan.saldoMengendapSiswa(SEKOLAH_LAIN, "2024001", 20)).isEmpty();
     }
 
     @Test
