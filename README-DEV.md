@@ -54,9 +54,12 @@ spring.flyway.locations=classpath:db/migration,classpath:db/seed
 ```
 
 Artinya saat `./mvnw spring-boot:run`, Flyway menerapkan 23 migrasi **lalu**
-`db/seed/R__seed_dev.sql` — dataset dummy deterministik (2 sekolah, 13 menu,
-2 titik kasir, sesi, 8 transaksi, 11 Kartu Tamu (10 bersaldo), saldo/HPP/stok,
-koreksi saldo, setoran TU, pengaturan kantin) supaya FE **tidak perlu mock**.
+`db/seed/R__seed_dev.sql` — dataset dummy deterministik (3 sekolah, 21 menu,
+14 Kartu Tamu, 12 transaksi, 5 titik kasir, sesi kasir terbuka & tertutup,
+saldo/HPP/stok, koreksi saldo, setoran TU, pengaturan kantin) supaya FE
+**tidak perlu mock**. Tenant `sekolah_id = 10` ikut diisi karena form login
+`kantin-fe` mengirim angka itu secara hardcoded — tanpa data di tenant tersebut
+semua layar FE tampak kosong walau endpoint sudah membalas 200.
 
 Idempoten: start berulang tidak menggandakan baris dan tidak menimpa data yang
 sudah diubah aplikasi. Ingin DB kosong? Komentari baris di atas. CI dan seluruh
