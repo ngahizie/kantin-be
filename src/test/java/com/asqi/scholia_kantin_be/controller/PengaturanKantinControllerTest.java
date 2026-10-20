@@ -1,7 +1,11 @@
 package com.asqi.scholia_kantin_be.controller;
 
+import com.asqi.scholia_kantin_be.component.exception.ForbiddenException;
 import com.asqi.scholia_kantin_be.dto.TitikKasirResponse;
+import com.asqi.scholia_kantin_be.enums.AktorKantin;
 import com.asqi.scholia_kantin_be.security.IdentitasKantin;
+import com.asqi.scholia_kantin_be.security.PeranAspect;
+import com.asqi.scholia_kantin_be.security.PerluPeran;
 import com.asqi.scholia_kantin_be.security.TenantContext;
 import com.asqi.scholia_kantin_be.service.konfigurasi.AktivasiModulService;
 import com.asqi.scholia_kantin_be.service.konfigurasi.PengaturanKantinService;
@@ -21,6 +25,8 @@ import org.springframework.web.context.request.NativeWebRequest;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.method.support.ModelAndViewContainer;
 
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
@@ -109,5 +115,26 @@ class PengaturanKantinControllerTest {
                 .andExpect(jsonPath("$.data.aktif").value(true));
 
         verify(service).toggle(eq(7L), eq(5L), isNull(), eq(42L));
+    }
+
+    /**
+     * Guard regresi RBAC: anotasi asli {@code ambil()} dibaca dari controller,
+     * lalu dicek lewat {@link PeranAspect}. Kasir POS wajib boleh membaca
+     * pengaturan (jam tutup &amp; durasi foto) — sebelumnya 403 dan halaman POS
+     * diam-diam memakai nilai default.
+     */
+    @Test
+    void kasirBolehBacaPengaturan() throws Exception {
+        PerluPeran anotasi = PengaturanKantinController.class
+                .getDeclaredMethod("ambil").getAnnotation(PerluPeran.class);
+
+        TenantContext.set(IdentitasKantin.builder()
+                .userId("42").sekolahId(7L).peran(AktorKantin.PETUGAS_KANTIN).build());
+        assertThatCode(() -> new PeranAspect().cek(anotasi)).doesNotThrowAnyException();
+
+        TenantContext.set(IdentitasKantin.builder()
+                .userId("42").sekolahId(7L).peran(AktorKantin.KEPSEK).build());
+        assertThatThrownBy(() -> new PeranAspect().cek(anotasi))
+                .isInstanceOf(ForbiddenException.class);
     }
 }
