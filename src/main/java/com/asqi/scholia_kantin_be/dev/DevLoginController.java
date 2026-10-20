@@ -39,10 +39,12 @@ public class DevLoginController {
                 ? request.email()
                 : (request.username() != null ? request.username() : "staf@skoolia.id");
 
-        long sekolahId = request.sekolah_id() != null ? request.sekolah_id() : 10L;
+        long sekolahId = request.sekolah_id() != null ? request.sekolah_id() : 1L;
         String role = petakanRole(identitas);
-        long userId = 1L;
-        String nama = namaUntuk(role);
+        long userId = request.user_id() != null ? request.user_id() : 1L;
+        String nama = request.nama() != null && !request.nama().isBlank()
+                ? request.nama()
+                : namaUntuk(role);
 
         String token = tokenService.terbitkan(identitas, userId, nama, role, sekolahId);
 

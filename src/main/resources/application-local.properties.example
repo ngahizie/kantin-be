@@ -16,6 +16,15 @@ spring.datasource.url=jdbc:postgresql://localhost:5432/kantin_db?stringtype=unsp
 spring.datasource.username=kantin
 spring.datasource.password=<GANTI_DB_PASSWORD>
 
+# --- SEED DATA DEV (opsional, HANYA lokal) ---
+# Dataset dummy deterministik untuk FE: katalog, kasir, riwayat transaksi,
+# koreksi saldo, stok, laporan, setoran TU, dan pengaturan kartu.
+# Dimuat sebagai Flyway REPEATABLE migration SETELAH semua migrasi skema.
+# Idempoten (ON CONFLICT DO NOTHING) — aman start berulang, tidak menimpa
+# data yang sudah diubah aplikasi.
+# Ingin DB kosong? Komentari baris ini (default hanya db/migration).
+spring.flyway.locations=classpath:db/migration,classpath:db/seed
+
 # --- Redis (docker compose up -d) ---
 spring.data.redis.host=localhost
 spring.data.redis.port=6379
