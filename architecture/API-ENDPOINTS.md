@@ -166,6 +166,7 @@
 | `GET` | `/api/laporan/rekonsiliasi` | TU, admin, pengelola, kepsek | Arus kas per jenis + cek invariant `seimbang`/`selisih` (PRD §5) |
 | `GET` | `/api/laporan/stok` | TU, admin, pengelola | Stok + nilai persediaan; `menipis` dari `menu.stok_minimum`. Query: `hanyaMenipis`. **Tanpa kepsek** (§9.5) |
 | `GET` | `/api/laporan/kerugian-stok` | TU, admin, pengelola, kepsek | Opname keluar & barang rusak: qty + nilai kerugian |
+| `GET` | `/api/laporan/kerugian-stok/ringkasan` | TU, admin, pengelola, kepsek | **Agregat kerugian stok** (#226): total kerugian/qty/kejadian dan pemisahan opname vs barang rusak; periode sama dengan daftar |
 | `GET` | `/api/laporan/pembatalan` | TU, admin, pengelola | **Pembatalan kasir** (#114): daftar transaksi di-void per subjek pada periode |
 | `GET` | `/api/laporan/kartu-tamu` | TU, admin, pengelola | **Kartu Tamu** (#115): daftar kartu + pemegang + saldo + status |
 | `GET` | `/api/laporan/saldo-mengendap/kartu-tamu` | TU, admin, pengelola | **Saldo mengendap per kartu tamu** (issue #225): `{id, nomorKartu, uid, labelPemegang, saldo, status (ACTIVE/BLOCKED), createdAt}` — bentuk yang dipakai FE; data sama dengan `kartu-tamu` |
