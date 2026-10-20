@@ -13,6 +13,7 @@ import com.asqi.scholia_kantin_be.dto.LaporanRiwayatSiswa;
 import com.asqi.scholia_kantin_be.dto.RekapSetoranTuItem;
 import com.asqi.scholia_kantin_be.dto.RingkasanPenjualan;
 import com.asqi.scholia_kantin_be.dto.RingkasanRekonsiliasi;
+import com.asqi.scholia_kantin_be.dto.RingkasanKerugianStok;
 import com.asqi.scholia_kantin_be.dto.RingkasanSaldoMengendap;
 import com.asqi.scholia_kantin_be.enums.ArahMutasi;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
@@ -307,6 +308,24 @@ public class LaporanService {
                     ((Number) b[3]).longValue()));
         }
         return hasil;
+    }
+
+    /** Ringkasan kerugian stok dari agregasi yang sama dengan endpoint daftar (#226). */
+    @Transactional(readOnly = true)
+    public RingkasanKerugianStok ringkasanKerugianStok(Long sekolahId, LocalDate tanggal,
+                                                       OffsetDateTime dari, OffsetDateTime sampai) {
+        List<BarisKerugianStok> baris = kerugianStok(sekolahId, tanggal, dari, sampai);
+        long kerugianOpname = baris.stream().filter(b -> b.jenis().equals(JenisMutasiStok.OPNAME_KELUAR.name()))
+                .mapToLong(BarisKerugianStok::totalNilai).sum();
+        long qtyOpname = baris.stream().filter(b -> b.jenis().equals(JenisMutasiStok.OPNAME_KELUAR.name()))
+                .mapToLong(BarisKerugianStok::totalQty).sum();
+        long kerugianRusak = baris.stream().filter(b -> b.jenis().equals(JenisMutasiStok.BARANG_RUSAK.name()))
+                .mapToLong(BarisKerugianStok::totalNilai).sum();
+        long qtyRusak = baris.stream().filter(b -> b.jenis().equals(JenisMutasiStok.BARANG_RUSAK.name()))
+                .mapToLong(BarisKerugianStok::totalQty).sum();
+        long jumlahKejadian = baris.stream().mapToLong(BarisKerugianStok::jumlahBaris).sum();
+        return new RingkasanKerugianStok(kerugianOpname + kerugianRusak, qtyOpname + qtyRusak,
+                jumlahKejadian, kerugianOpname, qtyOpname, kerugianRusak, qtyRusak);
     }
 
     /** Barang masuk pada periode (PRD §9.5). */

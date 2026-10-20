@@ -227,6 +227,35 @@ class LaporanServiceIT {
     }
 
     @Test
+    @DisplayName("#226: ringkasan kerugian stok konsisten dengan penjumlahan daftar")
+    void ringkasanKerugianStokKonsistenDenganDaftar() {
+        tx.executeWithoutResult(s -> ledgerStok.masukBarang(SEKOLAH, MENU_A, 20, 4_000, "BM-226", "BM-226", 1L));
+        tx.executeWithoutResult(s -> ledgerStok.sesuaikanOpname(SEKOLAH, MENU_A, 17, "opname harian", "OP-226-1", 1L));
+        tx.executeWithoutResult(s -> ledgerStok.sesuaikanOpname(SEKOLAH, MENU_A, 15, "rusak/basi", "OP-226-2", true, "OPNAME", 1L));
+
+        List<BarisKerugianStok> daftar = laporan.kerugianStok(SEKOLAH, null, null, null);
+        var ringkasan = laporan.ringkasanKerugianStok(SEKOLAH, null, null, null);
+        long nilai = daftar.stream().mapToLong(BarisKerugianStok::totalNilai).sum();
+        long qty = daftar.stream().mapToLong(BarisKerugianStok::totalQty).sum();
+        long kejadian = daftar.stream().mapToLong(BarisKerugianStok::jumlahBaris).sum();
+        long nilaiOpname = daftar.stream().filter(b -> b.jenis().equals("OPNAME_KELUAR"))
+                .mapToLong(BarisKerugianStok::totalNilai).sum();
+        long qtyOpname = daftar.stream().filter(b -> b.jenis().equals("OPNAME_KELUAR"))
+                .mapToLong(BarisKerugianStok::totalQty).sum();
+        long nilaiRusak = daftar.stream().filter(b -> b.jenis().equals("BARANG_RUSAK"))
+                .mapToLong(BarisKerugianStok::totalNilai).sum();
+        long qtyRusak = daftar.stream().filter(b -> b.jenis().equals("BARANG_RUSAK"))
+                .mapToLong(BarisKerugianStok::totalQty).sum();
+        assertThat(ringkasan.totalKerugian()).isEqualTo(nilai);
+        assertThat(ringkasan.totalQtyHilang()).isEqualTo(qty);
+        assertThat(ringkasan.jumlahKejadian()).isEqualTo(kejadian);
+        assertThat(ringkasan.kerugianOpname()).isEqualTo(nilaiOpname);
+        assertThat(ringkasan.qtyOpname()).isEqualTo(qtyOpname);
+        assertThat(ringkasan.kerugianBarangRusak()).isEqualTo(nilaiRusak);
+        assertThat(ringkasan.qtyBarangRusak()).isEqualTo(qtyRusak);
+    }
+
+    @Test
     @DisplayName("laporan stok — stok sekarang, nilai persediaan, penanda menipis")
     void laporanStok() {
         tx.executeWithoutResult(s -> ledgerStok.masukBarang(SEKOLAH, MENU_A, 10, 4_000, "BM-1", "BM-1", 1L));

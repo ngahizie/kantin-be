@@ -15,6 +15,7 @@ import com.asqi.scholia_kantin_be.dto.RekapSetoranTuItem;
 import com.asqi.scholia_kantin_be.dto.RingkasanPenjualan;
 import com.asqi.scholia_kantin_be.dto.RingkasanRekonsiliasi;
 import com.asqi.scholia_kantin_be.dto.RingkasanSaldoMengendap;
+import com.asqi.scholia_kantin_be.dto.RingkasanKerugianStok;
 import com.asqi.scholia_kantin_be.enums.AktorKantin;
 import com.asqi.scholia_kantin_be.enums.JenisLaporan;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
@@ -155,6 +156,18 @@ public class LaporanController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime sampai) {
         return CommonResponse.data(
                 laporan.kerugianStok(TenantContext.sekolahIdWajib(), tanggal, dari, sampai));
+    }
+
+    /** Ringkasan agregat kerugian stok, konsisten dengan daftar pada periode sama (#226). */
+    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH,
+            AktorKantin.PENGELOLA_KANTIN, AktorKantin.KEPSEK})
+    @GetMapping("kerugian-stok/ringkasan")
+    public ResponseEntity<Response<RingkasanKerugianStok>> ringkasanKerugianStok(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tanggal,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime dari,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime sampai) {
+        return CommonResponse.data(laporan.ringkasanKerugianStok(
+                TenantContext.sekolahIdWajib(), tanggal, dari, sampai));
     }
 
     /**

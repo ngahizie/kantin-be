@@ -3,7 +3,7 @@
 > **Single source of truth endpoint kantin-be.** Semua path berprefix `/api`.
 > Respons selalu dibungkus `Response<T>` (`{ responseCode, message, data, ... }`).
 >
-> **Sinkron terakhir:** 2026-10-20 · **Total: 94 endpoint** (93 di `controller/` + 1 shim dev)
+> **Sinkron terakhir:** 2026-10-20 · **Total: 95 endpoint** (94 di `controller/` + 1 shim dev)
 > di **15 controller**. Dijaga otomatis oleh `ApiEndpointsDocTest` — uji ini
 > **gagal** bila daftar di bawah tidak lagi sama persis dengan anotasi
 > `@…Mapping` di kode. Bila menambah/mengubah endpoint, perbarui dokumen ini.
@@ -165,6 +165,7 @@
 | `GET` | `/api/laporan/rekonsiliasi` | TU, admin, pengelola, kepsek | Arus kas per jenis + cek invariant `seimbang`/`selisih` (PRD §5) |
 | `GET` | `/api/laporan/stok` | TU, admin, pengelola | Stok + nilai persediaan; `menipis` dari `menu.stok_minimum`. Query: `hanyaMenipis`. **Tanpa kepsek** (§9.5) |
 | `GET` | `/api/laporan/kerugian-stok` | TU, admin, pengelola, kepsek | Opname keluar & barang rusak: qty + nilai kerugian |
+| `GET` | `/api/laporan/kerugian-stok/ringkasan` | TU, admin, pengelola, kepsek | **Agregat kerugian stok** (#226): total kerugian/qty/kejadian dan pemisahan opname vs barang rusak; periode sama dengan daftar |
 | `GET` | `/api/laporan/pembatalan` | TU, admin, pengelola | **Pembatalan kasir** (#114): daftar transaksi di-void per subjek pada periode |
 | `GET` | `/api/laporan/kartu-tamu` | TU, admin, pengelola | **Kartu Tamu** (#115): daftar kartu + pemegang + saldo + status |
 | `GET` | `/api/laporan/saldo-mengendap/kartu-tamu` | TU, admin, pengelola | **Saldo mengendap per kartu tamu** (issue #225): `{id, nomorKartu, uid, labelPemegang, saldo, status (ACTIVE/BLOCKED), createdAt}` — bentuk yang dipakai FE; data sama dengan `kartu-tamu` |
