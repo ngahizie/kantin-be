@@ -334,8 +334,40 @@ VALUES (1, 1, 2,
         12, 'Koneksi internet terputus', 4, now())
 ON CONFLICT DO NOTHING;
 
+-- ── Akun login dev (tabel HANYA ada di lokal) ────────────────
+-- Dibuat di sini, BUKAN sebagai migrasi biasa: skema produksi tidak boleh
+-- punya tabel akun — kantin-be tidak menyimpan master pengguna (ADR-0002),
+-- identitas asli datang dari admin-be lewat JWT.
+-- Password seluruh akun: Kantin#2026  (BCrypt cost 10). Hanya untuk lokal.
+CREATE TABLE IF NOT EXISTS dev_pengguna (
+    id            bigint  PRIMARY KEY,
+    sekolah_id    bigint  NOT NULL,
+    username      text    NOT NULL UNIQUE,
+    nama          text    NOT NULL,
+    role          text    NOT NULL,
+    password_hash text    NOT NULL,
+    aktif         boolean NOT NULL DEFAULT true
+);
+
+INSERT INTO dev_pengguna (id, sekolah_id, username, nama, role, password_hash, aktif)
+VALUES
+    (1, 1, 'kepsek1',    'Wibisana Bama (Kepsek)',        'KEPSEK',
+     '$2a$10$QuQdle/cq0LmMnK6NuzTn.FamhgtEtsPlLXBXbLX6M5qvN.MIF2B.', true),
+    (2, 1, 'tu1',        'Sri Wahyuni (TU)',              'TATA_USAHA',
+     '$2a$10$gIRI1JII3tHKLy.JqJQgS.6Oh2aO.5awJMLPKOAXZct1/b1wKjvIC', true),
+    (3, 1, 'pengelola1', 'Deryl Fabiensyah (Pengelola)',  'PENGELOLA',
+     '$2a$10$dzn8cuWxXJX0HXEtVohumuWYg9ri41W4jC8DA4c6moZghqtOcvH5W', true),
+    (4, 1, 'kasir1',     'Ahmad Kasir (Petugas POS)',     'PETUGAS',
+     '$2a$10$LGt9ZvDWW97jh0ozfFEIrOlwkp.DQ7HSpq7Eg/VxbHLn3UDuD.Xem', true),
+    (5, 1, 'bendahara1', 'Siti Rahma (Bendahara)',        'BENDAHARA',
+     '$2a$10$0PkEyDmQ0sxGV/kdv5XE.udnbKO1N1yWLx7hnbA3cTBFG17fE9Byu', true),
+    (6, 2, 'tu2',        'Andika Pratama (TU Sekolah 2)', 'TATA_USAHA',
+     '$2a$10$3vynpehMjgcknvLbhkE4kuucUfxfSsSxiq9fTAJ0VYbLzGbcXRJwa', true)
+ON CONFLICT (id) DO NOTHING;
+
 -- ── Ringkas ──────────────────────────────────────────────────
 -- Isi seed: 2 sekolah | 13 menu | 11 kartu tamu | 4 sesi kasir |
--- 8 transaksi | 22 mutasi saldo | 13 baris stok | pengaturan kantin.
+-- 8 transaksi | 22 mutasi saldo | 13 baris stok | 6 akun login dev |
+-- pengaturan kantin.
 -- (Tanpa blok DO $$ agar berkas ini aman dijalankan psql, Flyway, maupun
 --  ResourceDatabasePopulator yang memecah pernyataan pada titik koma.)

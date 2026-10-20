@@ -84,16 +84,30 @@ ditimpa (`ON CONFLICT DO NOTHING`). Ingin DB kosong? Komentari baris
 
 ## 4. Ambil token (shim login dev)
 
+Kredensial **diverifikasi** terhadap tabel `dev_pengguna` hasil seed — username
+atau password asal-asalan ditolak `401`. Password seluruh akun dev: `Kantin#2026`.
+
+| Username | Role (klaim) | Sekolah | `currentRole` di FE |
+|---|---|---|---|
+| `kepsek1` | KEPSEK | 1 | admin (FE belum punya role kepsek) |
+| `tu1` | TATA_USAHA | 1 | tu |
+| `bendahara1` | BENDAHARA | 1 | bendahara |
+| `pengelola1` | PENGELOLA | 1 | pengelola |
+| `kasir1` | PETUGAS | 1 | kasir |
+| `tu2` | TATA_USAHA | 2 | tu |
+
 ```bash
 TOKEN=$(curl -s -X POST http://localhost:8082/api/v1/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"email":"kasir@skoolia.id","password":"bebas","sekolah_id":1}' \
+  -d '{"username":"kasir1","password":"Kantin#2026"}' \
   | python3 -c 'import sys,json;print(json.load(sys.stdin)["data"]["token"])')
 echo "$TOKEN" | head -c 20; echo "…"
 ```
 
-Role dipetakan dari email: `kasir@…` → **PETUGAS** (lihat `DevLoginController`).
-Bentuk respons: `{"code":200,"message":"…","data":{"token":"…","user":{…}}}`.
+Role, `userId`, dan `sekolah_id` diambil **dari akun**, bukan dari body request —
+klien tidak bisa memilih identitas sendiri, dan `sekolah_id` pada payload FE lama
+diabaikan. Bentuk respons:
+`{"code":200,"message":"…","data":{"token":"…","user":{…}}}`.
 
 ## 5. Tap kartu (transaksi)
 

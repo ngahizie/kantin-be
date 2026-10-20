@@ -1,5 +1,6 @@
 package com.asqi.scholia_kantin_be.dev;
 
+import com.asqi.scholia_kantin_be.component.exception.UnauthorizedException;
 import com.asqi.scholia_kantin_be.payload.response.CommonResponse;
 import com.asqi.scholia_kantin_be.payload.response.Response;
 import lombok.RequiredArgsConstructor;
@@ -13,15 +14,18 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.Locale;
 
 /**
  * Endpoint login <b>shim dev</b> — meniru {@code POST /api/v1/auth/login}
  * admin-be agar FE dapat token RS256 nyata yang diterima kantin-be.
  *
  * <p>Hanya hidup bila profil {@code local} <b>dan</b>
- * {@code kantin.dev-login.enabled=true}. Password <b>tidak</b> diverifikasi
- * (alat uji). Pemetaan role mengikuti {@code KlaimResolver.petakanPeran}.
+ * {@code kantin.dev-login.enabled=true}.
+ *
+ * <p><b>Kredensial diverifikasi</b> oleh {@link DevLoginValidator} terhadap tabel
+ * {@code dev_pengguna} hasil seed dev; username/password asal-asalan ditolak 401.
+ * Role, {@code userId}, dan {@code sekolahId} diambil dari akun — bukan dari body
+ * request — sehingga klien tidak bisa memilih identitas sendiri.
  */
 @RestController
 @Profile("local")
@@ -32,34 +36,32 @@ import java.util.Locale;
 public class DevLoginController {
 
     private final DevTokenService tokenService;
+    private final DevLoginValidator validator;
 
     @PostMapping("login")
     public ResponseEntity<Response<DevLoginResponse>> login(@RequestBody DevLoginRequest request) {
-        String identitas = request.email() != null && !request.email().isBlank()
-                ? request.email()
-                : (request.username() != null ? request.username() : "staf@skoolia.id");
+        String username = request.username() != null && !request.username().isBlank()
+                ? request.username()
+                : request.email();
 
-        long sekolahId = request.sekolah_id() != null ? request.sekolah_id() : 1L;
-        String role = petakanRole(identitas);
-        long userId = request.user_id() != null ? request.user_id() : 1L;
-        String nama = request.nama() != null && !request.nama().isBlank()
-                ? request.nama()
-                : namaUntuk(role);
+        DevLoginValidator.AkunDev akun = validator.autentikasi(username, request.password())
+                .orElseThrow(() -> new UnauthorizedException("Username atau password salah"));
 
-        String token = tokenService.terbitkan(identitas, userId, nama, role, sekolahId);
+        String token = tokenService.terbitkan(
+                akun.username(), akun.id(), akun.nama(), akun.role(), akun.sekolahId());
 
         log.info("[DEV-LOGIN] token diterbitkan untuk {} (role={}, sekolah={})",
-                identitas, role, sekolahId);
+                akun.username(), akun.role(), akun.sekolahId());
 
         DevLoginResponse body = new DevLoginResponse(
                 token,
                 new DevLoginResponse.DevUser(
-                        userId,
-                        nama,
-                        identitas,
-                        roleFe(role),
-                        List.of("ROLE_" + role),
-                        new DevLoginResponse.Sekolah(sekolahId, "SMA Negeri 1 SKOOLIA")));
+                        akun.id(),
+                        akun.nama(),
+                        akun.username(),
+                        roleFe(akun.role()),
+                        List.of("ROLE_" + akun.role()),
+                        new DevLoginResponse.Sekolah(akun.sekolahId(), namaSekolah(akun.sekolahId()))));
 
         return CommonResponse.data(body, "Login berhasil (dev shim)");
     }
@@ -71,40 +73,16 @@ public class DevLoginController {
             case "PENGELOLA" -> "pengelola";
             case "TATA_USAHA" -> "tu";
             case "BENDAHARA" -> "bendahara";
+            // FE belum punya role kepsek (UserRole hanya 5 nilai) → tampil sebagai admin.
             default -> "admin";
         };
     }
 
-    /**
-     * Petakan role dari email → nilai klaim {@code role} yang dibaca
-     * {@code KlaimResolver}. Nilai sengaja dipilih agar TIDAK memicu cabang
-     * yang salah: mis. {@code "PETUGAS"} (bukan {@code "PETUGAS_KANTIN"}, yang
-     * mengandung "KANTIN" dan justru dipetakan ke PENGELOLA_KANTIN).
-     */
-    private String petakanRole(String identitas) {
-        String s = identitas.toLowerCase(Locale.ROOT);
-        if (s.contains("kasir") || s.contains("petugas")) {
-            return "PETUGAS";
-        }
-        if (s.contains("pengelola") || s.contains("kantin")) {
-            return "PENGELOLA";
-        }
-        if (s.contains("bendahara")) {
-            return "BENDAHARA";
-        }
-        if (s.contains("tu") || s.contains("tata_usaha") || s.contains("tata usaha")) {
-            return "TATA_USAHA";
-        }
-        return "ADMIN";
-    }
-
-    private String namaUntuk(String role) {
-        return switch (role) {
-            case "PETUGAS" -> "Ahmad Kasir (Petugas POS)";
-            case "PENGELOLA" -> "Deryl Fabiensyah (Pengelola)";
-            case "TATA_USAHA" -> "Andika Pratama (Petugas TU)";
-            case "BENDAHARA" -> "Siti Rahma (Bendahara)";
-            default -> "Wibisana Bama (Admin)";
+    private String namaSekolah(long sekolahId) {
+        return switch ((int) sekolahId) {
+            case 1 -> "SMA Negeri 1 SKOOLIA";
+            case 2 -> "SMA Negeri 2 SKOOLIA";
+            default -> "Sekolah " + sekolahId;
         };
     }
 }
