@@ -2,16 +2,15 @@ package com.asqi.scholia_kantin_be.dev;
 
 /**
  * Permintaan login shim dev (bentuknya meniru payload FE
- * {@code user-auth-form.tsx}: email, password, sekolah_id).
+ * {@code user-auth-form.tsx}: email/username + password).
  *
- * <p>Shim ini <b>tidak</b> memverifikasi password — ia hanya alat uji lokal
- * agar FE mendapat token RS256 nyata. Jangan dipakai sebagai autentikasi nyata.
+ * <p>Kredensial <b>wajib cocok</b> dengan akun di tabel {@code dev_pengguna}
+ * (lihat {@link DevLoginValidator}) — akun asal-asalan ditolak 401.
  *
- * <p>{@code user_id} & {@code nama} opsional: dipakai agar token bisa mewakili
- * pengguna seed dev tertentu (1=kepsek, 2=TU/bendahara, 3=pengelola, 4=kasir)
- * sehingga {@code aktor_id}/{@code petugas_id} pada data seed cocok dengan
- * identitas yang tampil di FE.
+ * <p>{@code sekolah_id} sengaja tidak dibaca lagi: sekolah, role, dan
+ * {@code userId} diambil dari akun, jadi klien tidak bisa memilih identitas
+ * sendiri. Field itu tetap boleh dikirim (diabaikan) agar payload FE lama
+ * tidak perlu diubah.
  */
-public record DevLoginRequest(String email, String username, String password, Long sekolah_id,
-                              Long user_id, String nama) {
+public record DevLoginRequest(String email, String username, String password) {
 }

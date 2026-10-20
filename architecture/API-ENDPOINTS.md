@@ -276,7 +276,7 @@
 
 | Method | Path | Auth | Keterangan |
 |---|---|---|---|
-| `POST` | `/api/v1/auth/login` | — (profil `local`) | Terbitkan token RS256 dummy untuk FE dev. Body `{ email/username, sekolah_id }` |
+| `POST` | `/api/v1/auth/login` | — (profil `local`) | Terbitkan token RS256 dummy untuk FE dev. Body `{ username/email, password }` — **wajib cocok** dengan tabel `dev_pengguna` hasil seed dev; salah → `401`. Role/sekolah/userId diambil dari akun |
 
 ---
 
