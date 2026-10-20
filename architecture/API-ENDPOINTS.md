@@ -3,7 +3,7 @@
 > **Single source of truth endpoint kantin-be.** Semua path berprefix `/api`.
 > Respons selalu dibungkus `Response<T>` (`{ responseCode, message, data, ... }`).
 >
-> **Sinkron terakhir:** 2026-10-16 · **Total: 90 endpoint** (89 di `controller/` + 1 shim dev)
+> **Sinkron terakhir:** 2026-10-20 · **Total: 93 endpoint** (92 di `controller/` + 1 shim dev)
 > di **15 controller**. Dijaga otomatis oleh `ApiEndpointsDocTest` — uji ini
 > **gagal** bila daftar di bawah tidak lagi sama persis dengan anotasi
 > `@…Mapping` di kode. Bila menambah/mengubah endpoint, perbarui dokumen ini.
@@ -38,6 +38,7 @@
 | `POST` | `/api/kasir/transaksi/{transaksiId}/void` | petugas, pengelola, admin | Void transaksi (PRD §6.3): kembalikan saldo & stok; wajib `alasan`; hanya sesi belum ditutup |
 | `POST` | `/api/kasir/transaksi/{transaksiId}/koreksi` | TU, admin, pengelola | Koreksi transaksi pada **sesi tertutup** (PRD §6.3/§9.2) — mutasi pembalik beralasan + audit; wajib `alasan` |
 | `GET` | `/api/kasir/transaksi` | TU, admin, pengelola | Daftar transaksi untuk **koreksi bendahara** (PRD §6.3/§9.2, issue #212) — terbaru dulu, berhalaman; filter opsional `sesiId`, `tanggal` (`yyyy-MM-dd`, zona sekolah), `status` (`SUKSES`/`VOID`), `halaman` (0-based), `ukuran`. Tenant dari token |
+| `GET` | `/api/kasir/transaksi/sesi` | petugas, pengelola, admin | Riwayat **satu sesi kasir** untuk panel POS (issue #229): `sesiId` wajib, tanpa paginasi, terbaru dulu, memuat `items[]` rincian belanja + status VOID & alasannya. Sesi sekolah lain → 404 |
 | `POST` | `/api/kasir/sesi/buka` | petugas, pengelola, admin | Ambil sesi terbuka hari ini atau buka baru (idempoten per sekolah+titik+hari). Body `BukaSesiRequest` (`titikKasirId`) |
 | `GET` | `/api/kasir/sesi/{sesiId}/rekap` | petugas, pengelola, admin | Pratinjau rekap (bruto/void/bersih) |
 | `POST` | `/api/kasir/sesi/{sesiId}/tutup` | petugas, pengelola, admin | Tutup sesi: hitung rekap, tandai DITUTUP, kunci transaksi |
@@ -166,9 +167,11 @@
 | `GET` | `/api/laporan/kerugian-stok` | TU, admin, pengelola, kepsek | Opname keluar & barang rusak: qty + nilai kerugian |
 | `GET` | `/api/laporan/pembatalan` | TU, admin, pengelola | **Pembatalan kasir** (#114): daftar transaksi di-void per subjek pada periode |
 | `GET` | `/api/laporan/kartu-tamu` | TU, admin, pengelola | **Kartu Tamu** (#115): daftar kartu + pemegang + saldo + status |
+| `GET` | `/api/laporan/saldo-mengendap/kartu-tamu` | TU, admin, pengelola | **Saldo mengendap per kartu tamu** (issue #225): `{id, nomorKartu, uid, labelPemegang, saldo, status (ACTIVE/BLOCKED), createdAt}` — bentuk yang dipakai FE; data sama dengan `kartu-tamu` |
 | `GET` | `/api/laporan/penjualan/titik` | TU, admin, pengelola | **Penjualan per titik kasir** (#116): transaksi, nilai, HPP, laba kotor per titik |
 | `GET` | `/api/laporan/penjualan/petugas` | TU, admin, pengelola | **Penjualan per petugas** (#116): transaksi, nilai, HPP, laba kotor per petugas |
 | `GET` | `/api/laporan/per-siswa` | TU, admin, pengelola | **Per siswa** (#117): riwayat lengkap satu subjek. Query: `subjekTipe=SISWA`, `subjekId`, periode |
+| `GET` | `/api/laporan/siswa/{siswaId}/riwayat` | TU, admin, pengelola | **Riwayat satu siswa** (issue #223) untuk komplain orang tua: `{profil, riwayat}` — profil (saldo, belanjaHariIni, limitHarian, isBlocked) + mutasi saldo terbaru dulu dengan `items[]` belanja. Query opsional `dari`/`sampai` (ISO date-time), default 30 hari. Siswa sekolah lain → 404 |
 | `GET` | `/api/laporan/setoran-tu` | TU, admin, pengelola | **Setoran kas TU** (#143): rekap top-up tunai per petugas per hari + disetor + **selisih**. Query: `tanggal?`. **Tanpa kepsek** (§9.5: hanya Bendahara) |
 | `GET` | `/api/laporan/kartu-stok/{menuId}` | TU, admin, pengelola | **Kartu stok per item** (#118): riwayat mutasi satu menu + saldo berjalan. Query: `batas?` |
 | `GET` | `/api/laporan/ekspor` | TU, admin, pengelola, kepsek* | Unduh **Excel `.xlsx`** (bukan JSON). Query: `jenis` ∈ `JenisLaporan`, `tanggal`/`dari`/`sampai`, `menuId?` (KARTU_STOK), `subjekTipe?`/`subjekId` (PER_SISWA). *Kepsek hanya jenis yang boleh dibacanya — `STOK`/`BARANG_MASUK`/`SETORAN_TU` → **403** |
