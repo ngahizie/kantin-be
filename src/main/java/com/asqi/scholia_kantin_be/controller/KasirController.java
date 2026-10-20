@@ -5,6 +5,7 @@ import com.asqi.scholia_kantin_be.dto.HalamanResponse;
 import com.asqi.scholia_kantin_be.dto.TapRequest;
 import com.asqi.scholia_kantin_be.dto.TapResponse;
 import com.asqi.scholia_kantin_be.dto.TransaksiKasirItem;
+import com.asqi.scholia_kantin_be.dto.TransaksiSesiItem;
 import com.asqi.scholia_kantin_be.dto.VoidRequest;
 import com.asqi.scholia_kantin_be.enums.AktorKantin;
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
@@ -35,6 +36,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
+import java.util.List;
 
 /**
  * Endpoint kasir: <b>tap</b>, <b>void</b>, dan <b>siklus sesi kasir</b>.
@@ -175,6 +177,25 @@ public class KasirController {
 
         return CommonResponse.data(transaksiKasirService.daftar(
                 TenantContext.sekolahIdWajib(), sesiId, tanggal, status, halaman, ukuran));
+    }
+
+    /**
+     * Riwayat transaksi <b>satu sesi</b> (issue #229) — panel riwayat di layar
+     * POS. Tanpa paginasi (terikat satu sesi), terbaru dulu, memuat rincian item.
+     *
+     * <p>RBAC disamakan dengan endpoint sesi kasir lain
+     * ({@code sesi/aktif}, {@code sesi/{id}/rekap}) — <b>termasuk</b>
+     * {@code PETUGAS_KANTIN}, karena pemanggilnya layar kasir. Berbeda dari
+     * {@code /transaksi} yang khusus bendahara untuk koreksi. Tenant tetap dari
+     * token; sesi milik sekolah lain → 404.
+     */
+    @PerluPeran({AktorKantin.PETUGAS_KANTIN, AktorKantin.PENGELOLA_KANTIN, AktorKantin.ADMIN_SEKOLAH,
+            AktorKantin.TU_SEKOLAH})
+    @GetMapping("transaksi/sesi")
+    public ResponseEntity<Response<List<TransaksiSesiItem>>> transaksiSesi(
+            @RequestParam Long sesiId) {
+        return CommonResponse.data(
+                transaksiKasirService.riwayatSesi(TenantContext.sekolahIdWajib(), sesiId));
     }
 
     /**

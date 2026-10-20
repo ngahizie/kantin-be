@@ -8,7 +8,9 @@ import com.asqi.scholia_kantin_be.dto.BarisPenjualanDimensi;
 import com.asqi.scholia_kantin_be.dto.BarisPenjualan;
 import com.asqi.scholia_kantin_be.dto.BarisStok;
 import com.asqi.scholia_kantin_be.dto.KartuStokItem;
+import com.asqi.scholia_kantin_be.dto.KartuTamuSaldoDetail;
 import com.asqi.scholia_kantin_be.dto.LaporanPerSiswa;
+import com.asqi.scholia_kantin_be.dto.LaporanRiwayatSiswa;
 import com.asqi.scholia_kantin_be.dto.RekapSetoranTuItem;
 import com.asqi.scholia_kantin_be.dto.RingkasanPenjualan;
 import com.asqi.scholia_kantin_be.dto.RingkasanRekonsiliasi;
@@ -30,6 +32,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -179,6 +182,17 @@ public class LaporanController {
     }
 
     /**
+     * Saldo mengendap per <b>kartu tamu</b> (issue #225) — bentuk yang dipakai FE
+     * {@code LaporanSaldoMengendapPage} ({@code KartuTamuSaldoDetail}). Sumber
+     * datanya sama dengan {@code kartu-tamu}; hanya path &amp; bentuk berbeda.
+     */
+    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
+    @GetMapping("saldo-mengendap/kartu-tamu")
+    public ResponseEntity<Response<List<KartuTamuSaldoDetail>>> saldoKartuTamu() {
+        return CommonResponse.data(laporan.laporanSaldoKartuTamu(TenantContext.sekolahIdWajib()));
+    }
+
+    /**
      * Laporan <b>Penjualan per titik kasir</b> (PRD §9.5, issue #116): jumlah
      * transaksi, nilai, HPP, laba kotor per titik. RBAC Bendahara/Admin.
      */
@@ -225,6 +239,26 @@ public class LaporanController {
         return CommonResponse.data(
                 laporan.laporanPerSiswa(TenantContext.sekolahIdWajib(), subjekTipe, subjekId,
                         tanggal, dari, sampai));
+    }
+
+    /**
+     * Riwayat satu <b>siswa</b> untuk komplain orang tua (issue #223) — bentuk
+     * yang dipakai FE {@code LaporanRiwayatSiswaPage}: {@code {profil, riwayat}}.
+     *
+     * <p>Data diambil dari ledger/cache saldo milik kantin-be (bukan query baru).
+     * Default rentang 30 hari terakhir bila {@code dari}/{@code sampai} kosong.
+     * Identitas siswa (NIS/nama/kelas/orang tua) tidak tersedia di BE — ADR-0002.
+     *
+     * @param siswaId id siswa (harus punya saldo di sekolah pemanggil, jika tidak 404)
+     */
+    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
+    @GetMapping("siswa/{siswaId}/riwayat")
+    public ResponseEntity<Response<LaporanRiwayatSiswa>> riwayatSiswa(
+            @PathVariable Long siswaId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime dari,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime sampai) {
+        return CommonResponse.data(
+                laporan.riwayatSiswa(TenantContext.sekolahIdWajib(), siswaId, dari, sampai));
     }
 
     /**

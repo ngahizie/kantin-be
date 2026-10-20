@@ -54,14 +54,26 @@ spring.flyway.locations=classpath:db/migration,classpath:db/seed
 ```
 
 Artinya saat `./mvnw spring-boot:run`, Flyway menerapkan 23 migrasi **lalu**
-`db/seed/R__seed_dev.sql` — dataset dummy deterministik (2 sekolah, 13 menu,
-2 titik kasir, sesi, 8 transaksi, 11 Kartu Tamu (10 bersaldo), saldo/HPP/stok,
-koreksi saldo, setoran TU, pengaturan kantin) supaya FE **tidak perlu mock**.
+`db/seed/R__seed_dev.sql` — dataset dummy deterministik (3 sekolah, 21 menu,
+14 Kartu Tamu, 12 transaksi, 5 titik kasir, sesi kasir terbuka & tertutup,
+saldo/HPP/stok, koreksi saldo, setoran TU, pengaturan kantin) supaya FE
+**tidak perlu mock**. Tenant `sekolah_id = 10` ikut diisi karena form login
+`kantin-fe` mengirim angka itu secara hardcoded — tanpa data di tenant tersebut
+semua layar FE tampak kosong walau endpoint sudah membalas 200.
 
 Idempoten: start berulang tidak menggandakan baris dan tidak menimpa data yang
 sudah diubah aplikasi. Ingin DB kosong? Komentari baris di atas. CI dan seluruh
 `@SpringBootTest` **tidak** memuatnya (lokasi seed hanya ditambahkan lewat file
 lokal yang gitignored).
+
+Seed juga membuat tabel **`dev_pengguna`** (hanya ada di lokal, bukan migrasi)
+berisi 8 akun login dev dengan password `Kantin#2026`: `kepsek1`, `tu1`,
+`bendahara1`, `pengelola1`, `kasir1` (sekolah 1), `tu2` (sekolah 2), serta
+`kasir10` & `bendahara10` (sekolah 10 — tenant default form login FE).
+`sekolah_id` di body login **diabaikan**: tenant selalu diambil dari akun, jadi
+memakai tenant lain butuh akun di tenant tersebut.
+Login dengan username/password asal-asalan ditolak `401` — lihat
+`docs/demo-e2e-kasir.md` §4.
 
 ---
 

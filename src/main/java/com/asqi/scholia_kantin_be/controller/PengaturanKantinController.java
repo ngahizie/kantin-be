@@ -5,6 +5,7 @@ import com.asqi.scholia_kantin_be.dto.PengaturanKantinRequest;
 import com.asqi.scholia_kantin_be.dto.PengaturanKantinResponse;
 import com.asqi.scholia_kantin_be.dto.TitikKasirRequest;
 import com.asqi.scholia_kantin_be.dto.TitikKasirResponse;
+import com.asqi.scholia_kantin_be.dto.ToggleTitikKasirRequest;
 import com.asqi.scholia_kantin_be.enums.AktorKantin;
 import com.asqi.scholia_kantin_be.payload.response.CommonResponse;
 import com.asqi.scholia_kantin_be.payload.response.Response;
@@ -20,6 +21,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -127,6 +129,24 @@ public class PengaturanKantinController {
         TitikKasirResponse hasil = titikKasirService.nonaktifkan(
                 TenantContext.sekolahIdWajib(), titikId, identitas.aktorIdWajib());
         return CommonResponse.data(hasil, "Titik kasir dinonaktifkan");
+    }
+
+    /**
+     * Balik status aktif titik kasir (issue <b>#228</b>).
+     *
+     * <p>Body opsional: {@code {"aktif": true|false}} memaksa nilai tertentu,
+     * body kosong membalik status sekarang.
+     */
+    @PerluPeran({AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
+    @PatchMapping("titik-kasir/{titikId}/toggle")
+    public ResponseEntity<Response<TitikKasirResponse>> toggleTitik(
+            @PathVariable Long titikId,
+            @RequestBody(required = false) ToggleTitikKasirRequest request,
+            @AuthenticationPrincipal IdentitasKantin identitas) {
+        Boolean aktif = request == null ? null : request.aktif();
+        TitikKasirResponse hasil = titikKasirService.toggle(
+                TenantContext.sekolahIdWajib(), titikId, aktif, identitas.aktorIdWajib());
+        return CommonResponse.data(hasil, hasil.isAktif() ? "Titik kasir diaktifkan" : "Titik kasir dinonaktifkan");
     }
 
     // ────────────────────────────────────────────────────────────────

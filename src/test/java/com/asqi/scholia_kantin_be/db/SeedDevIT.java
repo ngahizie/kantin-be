@@ -1,5 +1,6 @@
 package com.asqi.scholia_kantin_be.db;
 
+import com.asqi.scholia_kantin_be.dev.DevLoginValidator;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
@@ -44,9 +45,51 @@ class SeedDevIT {
                 .migrate();
 
         Jumlah awal = hitung(jdbc);
-        assertThat(awal.menu()).as("menu dari seed").isEqualTo(13);
-        assertThat(awal.kartuTamu()).as("kartu tamu dari seed").isEqualTo(11);
-        assertThat(awal.transaksi()).as("transaksi dari seed").isEqualTo(8);
+        assertThat(awal.menu()).as("menu dari seed").isEqualTo(21);
+        assertThat(awal.kartuTamu()).as("kartu tamu dari seed").isEqualTo(14);
+        assertThat(awal.transaksi()).as("transaksi dari seed").isEqualTo(12);
+
+        // Tenant default form login FE (sekolah_id=10) wajib punya data —
+        // tanpa ini semua layar FE tampak kosong walau endpoint sudah 200 (issue #231).
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM menu WHERE sekolah_id = 10", Integer.class))
+                .as("menu tenant FE (sekolah 10)").isEqualTo(8);
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM kartu_tamu WHERE sekolah_id = 10", Integer.class))
+                .as("kartu tamu tenant FE").isEqualTo(3);
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM transaksi WHERE sekolah_id = 10", Integer.class))
+                .as("transaksi tenant FE").isEqualTo(4);
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM saldo_cache WHERE sekolah_id = 10", Integer.class))
+                .as("saldo_cache tenant FE").isEqualTo(4);
+
+        // Akun login dev: kredensial harus benar-benar diverifikasi, bukan sekadar ada.
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM dev_pengguna", Integer.class))
+                .as("akun login dev").isEqualTo(8);
+
+        DevLoginValidator validator = new DevLoginValidator(jdbc);
+        var akun = validator.autentikasi("tu1", "Kantin#2026");
+        assertThat(akun).as("login dengan kredensial seed").isPresent();
+        assertThat(akun.get().role()).as("role dari akun").isEqualTo("TATA_USAHA");
+        assertThat(akun.get().sekolahId()).as("sekolah dari akun").isEqualTo(1L);
+        assertThat(validator.autentikasi("TU1", "Kantin#2026"))
+                .as("username tidak peka huruf besar").isPresent();
+        assertThat(validator.autentikasi("tu1", "salah"))
+                .as("password salah harus ditolak").isEmpty();
+        assertThat(validator.autentikasi("ngasal", "Kantin#2026"))
+                .as("username asal-asalan harus ditolak").isEmpty();
+        assertThat(validator.autentikasi("", ""))
+                .as("kredensial kosong harus ditolak").isEmpty();
+
+        // Tenant default FE (sekolah 10) wajib punya akun; token memakai sekolah
+        // dari akun, jadi tanpa akun ini data sekolah 10 tak terjangkau dari UI.
+        var akunFe = validator.autentikasi("kasir10", "Kantin#2026");
+        assertThat(akunFe).as("akun dev tenant FE").isPresent();
+        assertThat(akunFe.get().sekolahId()).as("sekolah akun tenant FE").isEqualTo(10L);
+        assertThat(akunFe.get().role()).as("role akun tenant FE").isEqualTo("PETUGAS");
+        assertThat(validator.autentikasi("bendahara10", "Kantin#2026"))
+                .as("akun bendahara tenant FE").isPresent();
 
         // Jalankan ulang isi seed: harus idempoten, tidak menggandakan baris.
         new ResourceDatabasePopulator(new ClassPathResource("db/seed/R__seed_dev.sql"))

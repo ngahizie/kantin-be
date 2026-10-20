@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -19,6 +20,9 @@ import java.util.List;
 public interface TransaksiItemRepository extends JpaRepository<TransaksiItem, Long> {
 
     List<TransaksiItem> findByTransaksiId(Long transaksiId);
+
+    /** Rincian item untuk banyak transaksi sekaligus (hindari N+1) — issue #229. */
+    List<TransaksiItem> findByTransaksiIdIn(Collection<Long> transaksiIds);
 
     /**
      * Item terlaris pada rentang waktu: {@code [menuId, namaMenu, totalQty,

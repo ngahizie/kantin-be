@@ -3,6 +3,8 @@ package com.asqi.scholia_kantin_be.dto;
 import lombok.Builder;
 import lombok.Data;
 
+import java.time.Instant;
+
 /**
  * Satu baris laporan <b>Kartu Tamu</b> (PRD §9.5, issue #115): daftar kartu +
  * pemegang + saldo + status. Riwayat per kartu disediakan terpisah lewat
@@ -20,4 +22,7 @@ public class BarisKartuTamu {
 
     /** Saldo berjalan kartu (rupiah). */
     private long saldo;
+
+    /** Waktu kartu dibuat — dipakai laporan saldo mengendap (issue #225). */
+    private Instant dibuatPada;
 }
