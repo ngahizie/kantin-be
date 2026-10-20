@@ -21,11 +21,12 @@ POST /api/kasir/sesi/1/tutup    # tutup sesi
 GET  /api/laporan/…             # cek laporan
 ```
 
-Data yang di-seed (`db/seed/R__seed_dev.sql`): **2 sekolah** (uji isolasi tenant),
-13 menu, 2 titik kasir, sesi kasir terbuka & tertutup, 8 transaksi, **11 Kartu
-Tamu** (`DE000001`..`DE000005` per sekolah; 10 bersaldo, 1 nonaktif), saldo
-kartu, stok & HPP, koreksi saldo, setoran TU, serta pengaturan kantin — cukup
-untuk semua layar FE.
+Data yang di-seed (`db/seed/R__seed_dev.sql`): **3 sekolah** (sekolah 1 & 2 untuk
+uji isolasi tenant, sekolah **10** = tenant default form login FE), 21 menu,
+5 titik kasir, sesi kasir terbuka & tertutup, 12 transaksi, **14 Kartu Tamu**
+(`DE000001`..`DE000005` untuk sekolah 1, `DA000001`..`DA000003` untuk sekolah 10;
+10 bersaldo di sekolah 1), saldo kartu & siswa, stok & HPP, koreksi saldo,
+setoran TU, serta pengaturan kantin — cukup untuk semua layar FE.
 
 > **Integrasi eksternal disimulasikan (bukan API key).** Profil `demo` juga
 > mengaktifkan adapter **demo** untuk 6 integrasi yang masih `blocked` (butuh

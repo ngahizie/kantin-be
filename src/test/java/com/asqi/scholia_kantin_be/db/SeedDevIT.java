@@ -44,9 +44,24 @@ class SeedDevIT {
                 .migrate();
 
         Jumlah awal = hitung(jdbc);
-        assertThat(awal.menu()).as("menu dari seed").isEqualTo(13);
-        assertThat(awal.kartuTamu()).as("kartu tamu dari seed").isEqualTo(11);
-        assertThat(awal.transaksi()).as("transaksi dari seed").isEqualTo(8);
+        assertThat(awal.menu()).as("menu dari seed").isEqualTo(21);
+        assertThat(awal.kartuTamu()).as("kartu tamu dari seed").isEqualTo(14);
+        assertThat(awal.transaksi()).as("transaksi dari seed").isEqualTo(12);
+
+        // Tenant default form login FE (sekolah_id=10) wajib punya data —
+        // tanpa ini semua layar FE tampak kosong walau endpoint sudah 200 (issue #231).
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM menu WHERE sekolah_id = 10", Integer.class))
+                .as("menu tenant FE (sekolah 10)").isEqualTo(8);
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM kartu_tamu WHERE sekolah_id = 10", Integer.class))
+                .as("kartu tamu tenant FE").isEqualTo(3);
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM transaksi WHERE sekolah_id = 10", Integer.class))
+                .as("transaksi tenant FE").isEqualTo(4);
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM saldo_cache WHERE sekolah_id = 10", Integer.class))
+                .as("saldo_cache tenant FE").isEqualTo(4);
 
         // Jalankan ulang isi seed: harus idempoten, tidak menggandakan baris.
         new ResourceDatabasePopulator(new ClassPathResource("db/seed/R__seed_dev.sql"))
