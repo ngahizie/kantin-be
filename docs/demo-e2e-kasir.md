@@ -96,6 +96,12 @@ atau password asal-asalan ditolak `401`. Password seluruh akun dev: `Kantin#2026
 | `pengelola1` | PENGELOLA | 1 | pengelola |
 | `kasir1` | PETUGAS | 1 | kasir |
 | `tu2` | TATA_USAHA | 2 | tu |
+| `kasir10` | PETUGAS | 10 | kasir |
+| `bendahara10` | BENDAHARA | 10 | bendahara |
+
+Catatan: `sekolah_id` yang dikirim FE **diabaikan**. Tenant ditentukan oleh akun,
+jadi untuk menguji tenant 10 (tenant default form login `kantin-fe`) pakai
+`kasir10`/`bendahara10`, bukan akun sekolah 1.
 
 ```bash
 TOKEN=$(curl -s -X POST http://localhost:8082/api/v1/auth/login \
