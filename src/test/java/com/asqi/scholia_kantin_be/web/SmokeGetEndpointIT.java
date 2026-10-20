@@ -173,6 +173,9 @@ class SmokeGetEndpointIT {
 
                 // KasirController
                 "/api/kasir/tap/menunggu",
+                // #230 — kandidat koreksi bendahara (transaksi pada sesi DITUTUP)
+                "/api/transaksi/sesi-tutup",
+                "/api/transaksi/sesi-tutup?batas=5",
                 // #212 — daftar transaksi utk koreksi bendahara (semua filter)
                 "/api/kasir/transaksi",
                 "/api/kasir/transaksi?sesiId=1",

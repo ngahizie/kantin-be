@@ -154,6 +154,29 @@ public interface TransaksiRepository extends JpaRepository<Transaksi, Long>,
                                               @Param("sampai") OffsetDateTime sampai);
 
     /**
+     * Transaksi pada sesi yang sudah <b>DITUTUP</b> pada rentang waktu — kandidat
+     * koreksi bendahara (PRD §6.3, §9.2; issue <b>#230</b>).
+     *
+     * <p>JOIN eksplisit ke {@link com.asqi.scholia_kantin_be.model.SesiKasir} agar
+     * filter status sesi tidak perlu menarik daftar {@code sesiId} lebih dulu
+     * (jumlah sesi satu sekolah bisa ribuan). Tenant-scoped ganda
+     * ({@code transaksi.sekolah_id} &amp; {@code sesi_kasir.sekolah_id}).
+     */
+    @Query("""
+            SELECT t FROM Transaksi t, SesiKasir s
+            WHERE s.id = t.sesiKasirId
+              AND s.sekolahId = :sekolahId
+              AND s.status = com.asqi.scholia_kantin_be.enums.StatusSesiKasir.DITUTUP
+              AND t.sekolahId = :sekolahId
+              AND t.waktu >= :dari AND t.waktu < :sampai
+            ORDER BY t.waktu DESC, t.id DESC
+            """)
+    List<Transaksi> sesiTutupRentang(@Param("sekolahId") Long sekolahId,
+                                     @Param("dari") OffsetDateTime dari,
+                                     @Param("sampai") OffsetDateTime sampai,
+                                     Pageable pageable);
+
+    /**
      * Semua transaksi satu subjek pada rentang (laporan per siswa, PRD §9.5,
      * issue #117), urut waktu menaik. Tenant-scoped.
      */

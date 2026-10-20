@@ -3,8 +3,8 @@
 > **Single source of truth endpoint kantin-be.** Semua path berprefix `/api`.
 > Respons selalu dibungkus `Response<T>` (`{ responseCode, message, data, ... }`).
 >
-> **Sinkron terakhir:** 2026-10-16 · **Total: 90 endpoint** (89 di `controller/` + 1 shim dev)
-> di **15 controller**. Dijaga otomatis oleh `ApiEndpointsDocTest` — uji ini
+> **Sinkron terakhir:** 2026-10-20 · **Total: 91 endpoint** (90 di `controller/` + 1 shim dev)
+> di **16 controller**. Dijaga otomatis oleh `ApiEndpointsDocTest` — uji ini
 > **gagal** bila daftar di bawah tidak lagi sama persis dengan anotasi
 > `@…Mapping` di kode. Bila menambah/mengubah endpoint, perbarui dokumen ini.
 >
@@ -291,6 +291,30 @@
 | Method | Path | Auth | Keterangan |
 |---|---|---|---|
 | `GET` | `/api/siswa` | TU, admin, pengelola, kepsek (read) | Cari siswa (nama/NIS) + saldo dari ledger lokal. Query: `q` (nama/NIS), `hanyaTidakAktif` (refund §9.3), `batas` (default 20, maks 50) |
+
+---
+
+## 16. Transaksi — sesi tertutup (TransaksiController) — `/api/transaksi`
+
+> **#230** — daftar transaksi pada **sesi yang sudah DITUTUP** untuk koreksi
+> bendahara (PRD §6.3, §9.2). Sebelumnya `KoreksiBendaharaPage` memanggil path
+> ini, menerima **404**, lalu fallback ke `MOCK_KOREKSI_BENDAHARA` — bendahara
+> melihat **data palsu** tanpa tanda error.
+
+| Method | Path | Peran | Keterangan |
+|---|---|---|---|
+| `GET` | `/api/transaksi/sesi-tutup` | TU, admin, pengelola | **Kandidat koreksi** (PRD §6.3/§9.2, issue #230) — transaksi pada sesi `DITUTUP`, terbaru dulu. Query: `tanggal` (`yyyy-MM-dd`, zona sekolah) atau `dari`/`sampai` (ISO date-time); ketiganya kosong ⇒ **7 hari terakhir**; `batas` (default 20, maks 200). Tenant dari token |
+
+> **Kontrak respons = milik FE (`snake_case`).** Berbeda dari endpoint lain,
+> field JSON di sini sengaja `snake_case` karena halaman pemanggil membaca
+> `subjek_nama`, `subjek_info`, `titik_kasir`, `items[].menu_id` langsung tanpa
+> pemetaan: `id`, `waktu`, `sesi_kasir_id`, `titik_kasir`, `petugas_kasir`,
+> `subjek_tipe`, `subjek_id`, `subjek_nama`, `subjek_info`, `total`,
+> `items[{ menu_id, nama, qty, harga, subtotal }]`, `status`
+> (`SELESAI`/`DIKOREKSI`), `koreksi_referensi_id?`.
+> `petugas_kasir` selalu `""` (nama petugas milik admin-be, ADR-0002) dan
+> `subjek_nama`/`subjek_info` `""` bila tidak dapat diresolusi — **tidak pernah
+> `null`**, karena FE memanggil `.toLowerCase()` pada keduanya.
 
 ---
 

@@ -21,6 +21,13 @@ public interface TransaksiItemRepository extends JpaRepository<TransaksiItem, Lo
     List<TransaksiItem> findByTransaksiId(Long transaksiId);
 
     /**
+     * Rincian item untuk <b>banyak</b> transaksi sekaligus — dipakai daftar
+     * transaksi sesi tertutup (issue #230) agar tidak N+1 per transaksi.
+     * Pemanggil mengelompokkan sendiri berdasarkan {@code transaksi.getId()}.
+     */
+    List<TransaksiItem> findByTransaksiIdIn(java.util.Collection<Long> transaksiIds);
+
+    /**
      * Item terlaris pada rentang waktu: {@code [menuId, namaMenu, totalQty,
      * totalNilai]}, hanya dari transaksi SUKSES.
      *

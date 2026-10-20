@@ -56,6 +56,15 @@ public interface SaldoLedgerRepository extends JpaRepository<SaldoLedger, Long>,
     List<SaldoLedger> findBySekolahIdAndTransaksiId(Long sekolahId, Long transaksiId);
 
     /**
+     * Mutasi ledger untuk <b>banyak</b> transaksi sekaligus — dipakai daftar
+     * transaksi sesi tertutup (issue #230) untuk menandai transaksi yang sudah
+     * dikoreksi bendahara beserta nomor referensinya. Satu query, bukan N+1.
+     */
+    List<SaldoLedger> findBySekolahIdAndTransaksiIdIn(Long sekolahId,
+                                                      java.util.Collection<Long> transaksiIds);
+
+
+    /**
      * Saldo berjalan = Σ KREDIT − Σ DEBIT untuk satu subjek (PRD §11.1).
      *
      * <p>Dipakai untuk <b>verifikasi</b> terhadap {@code saldo_cache} dan
