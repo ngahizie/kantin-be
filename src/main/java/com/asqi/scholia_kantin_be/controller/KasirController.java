@@ -180,6 +180,33 @@ public class KasirController {
     }
 
     /**
+     * <b>Daftar transaksi sesi tertutup</b> — kandidat koreksi bendahara
+     * (issue <b>#230</b>): hanya transaksi pada sesi berstatus
+     * {@code DITUTUP} milik tenant, sesuai aksi koreksi di atas. Melengkapi
+     * {@code /transaksi} (semua sesi) untuk halaman
+     * {@code KoreksiBendaharaPage} yang sebelumnya memanggil path yang belum
+     * ada dan diam-diam jatuh ke data mock.
+     *
+     * <p>Filter & paginasi sama dengan {@code /transaksi}; {@code sesiId}
+     * divalidasi (milik tenant + sudah ditutup → selain itu 404/invalid).
+     * RBAC sengaja disamakan dengan aksi koreksinya (TU/bendahara, admin,
+     * pengelola). Tenant selalu dari token (PRD §11.4).
+     */
+    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
+    @GetMapping("transaksi/sesi-tutup")
+    public ResponseEntity<Response<HalamanResponse<TransaksiKasirItem>>> daftarTransaksiSesiTutup(
+            @RequestParam(required = false) Long sesiId,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tanggal,
+            @RequestParam(required = false) StatusTransaksi status,
+            @RequestParam(defaultValue = "0") int halaman,
+            @RequestParam(defaultValue = "20") int ukuran) {
+
+        return CommonResponse.data(transaksiKasirService.daftarSesiTutup(
+                TenantContext.sekolahIdWajib(), sesiId, tanggal, status, halaman, ukuran));
+    }
+
+    /**
      * Riwayat transaksi <b>satu sesi</b> (issue #229) — panel riwayat di layar
      * POS. Tanpa paginasi (terikat satu sesi), terbaru dulu, memuat rincian item.
      *
