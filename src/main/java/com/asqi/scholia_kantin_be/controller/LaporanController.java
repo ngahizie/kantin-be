@@ -5,6 +5,7 @@ import com.asqi.scholia_kantin_be.component.exception.ForbiddenException;
 import com.asqi.scholia_kantin_be.dto.BarisKerugianStok;
 import com.asqi.scholia_kantin_be.dto.BarisPembatalanKasir;
 import com.asqi.scholia_kantin_be.dto.BarisPenjualanDimensi;
+import com.asqi.scholia_kantin_be.dto.BarisPenjualanKasir;
 import com.asqi.scholia_kantin_be.dto.BarisPenjualan;
 import com.asqi.scholia_kantin_be.dto.BarisStok;
 import com.asqi.scholia_kantin_be.dto.KartuStokItem;
@@ -243,6 +244,22 @@ public class LaporanController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime sampai) {
         return CommonResponse.data(
                 laporan.penjualanPerPetugas(TenantContext.sekolahIdWajib(), tanggal, dari, sampai));
+    }
+
+    /**
+     * Penjualan <b>per kasir</b> — grouping per titik kasir + petugas
+     * (PRD §9.5, issue #227). Tagihan FE {@code LaporanPenjualanPage}:
+     * {@code laporanApi.getPenjualanPerKasir()}. Semantik bruto/void/bersih
+     * konsisten dengan rekap sesi kasir.
+     */
+    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
+    @GetMapping("penjualan/kasir")
+    public ResponseEntity<Response<List<BarisPenjualanKasir>>> penjualanPerKasir(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tanggal,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime dari,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime sampai) {
+        return CommonResponse.data(
+                laporan.penjualanPerKasir(TenantContext.sekolahIdWajib(), tanggal, dari, sampai));
     }
 
     /**

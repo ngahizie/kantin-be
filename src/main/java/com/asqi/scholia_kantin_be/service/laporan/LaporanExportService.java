@@ -4,6 +4,7 @@ import com.asqi.scholia_kantin_be.dto.BarisKartuTamu;
 import com.asqi.scholia_kantin_be.dto.BarisKerugianStok;
 import com.asqi.scholia_kantin_be.dto.BarisPembatalanKasir;
 import com.asqi.scholia_kantin_be.dto.BarisPenjualanDimensi;
+import com.asqi.scholia_kantin_be.dto.BarisPenjualanKasir;
 import com.asqi.scholia_kantin_be.dto.BarisPenjualan;
 import com.asqi.scholia_kantin_be.dto.BarisStok;
 import com.asqi.scholia_kantin_be.dto.KartuStokItem;
@@ -97,6 +98,7 @@ public class LaporanExportService {
             case PENJUALAN_PETUGAS -> eksporPenjualanDimensi(sekolahId, tanggal, dari, sampai, label,
                     "Penjualan per Petugas", "Petugas",
                     laporan.penjualanPerPetugas(sekolahId, tanggal, dari, sampai));
+            case PENJUALAN_KASIR -> eksporPenjualanKasir(sekolahId, tanggal, dari, sampai, label);
             case KARTU_STOK -> eksporKartuStok(sekolahId, menuId, label);
             case SETORAN_TU -> eksporSetoranTu(sekolahId, tanggal, label);
             case PER_SISWA -> eksporPerSiswa(sekolahId, subjekTipe, subjekId, tanggal, dari, sampai, label);
@@ -265,6 +267,25 @@ public class LaporanExportService {
                     b.nilai(), b.hpp(), b.labaKotor()));
         }
         return berkas(judul, label, header, baris);
+    }
+
+    /**
+     * Ekspor <b>penjualan per kasir</b> (PRD §9.5, issue #227): grouping per
+     * titik kasir + petugas. Rekap sama dengan endpoint
+     * {@code GET /api/laporan/penjualan/kasir}.
+     */
+    private HasilEkspor eksporPenjualanKasir(Long sekolahId, LocalDate tgl, OffsetDateTime dari,
+                                             OffsetDateTime sampai, String label) {
+        List<BarisPenjualanKasir> data = laporan.penjualanPerKasir(sekolahId, tgl, dari, sampai);
+        List<String> header = List.of("ID Titik", "Titik Kasir", "ID Petugas", "Petugas",
+                "Jumlah Transaksi", "Penjualan Bruto", "Nilai Void", "Penjualan Bersih");
+        List<List<Object>> baris = new ArrayList<>();
+        for (BarisPenjualanKasir b : data) {
+            baris.add(List.of(nvl(b.titikKasirId()), nvl(b.namaTitikKasir()),
+                    nvl(b.petugasId()), nvl(b.petugas()), b.jumlahTransaksi(),
+                    b.penjualanBruto(), b.nilaiVoid(), b.penjualanBersih()));
+        }
+        return berkas("Penjualan per Kasir", label, header, baris);
     }
 
     /**
