@@ -2,12 +2,15 @@ package com.asqi.scholia_kantin_be.service.kasir;
 
 import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
+import com.asqi.scholia_kantin_be.dto.SesiKasirAktifData;
 import com.asqi.scholia_kantin_be.enums.StatusSesiKasir;
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
 import com.asqi.scholia_kantin_be.helper.IdGenerator;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.model.SesiKasir;
+import com.asqi.scholia_kantin_be.model.TitikKasir;
 import com.asqi.scholia_kantin_be.repository.SesiKasirRepository;
+import com.asqi.scholia_kantin_be.repository.TitikKasirRepository;
 import com.asqi.scholia_kantin_be.repository.TransaksiRepository;
 import com.asqi.scholia_kantin_be.security.SekolahGuard;
 import com.asqi.scholia_kantin_be.service.integrasi.BukuKasPostingService;
@@ -46,6 +49,7 @@ public class SesiKasirService {
 
     private final SesiKasirRepository sesiRepo;
     private final TransaksiRepository transaksiRepo;
+    private final TitikKasirRepository titikKasirRepo;
     private final SekolahGuard sekolahGuard;
     private final IdGenerator idGenerator;
     private final JamKantin jam;
@@ -308,6 +312,48 @@ public class SesiKasirService {
             throw new NotFoundEntity("Sesi kasir tidak ditemukan");
         }
         return sesi;
+    }
+
+    /**
+     * Baca sesi kasir <b>TERBUKA hari ini</b> per titik kasir (issue <b>#222</b>)
+     * — tanpa membuka sesi baru, sehingga aman dipanggil berulang oleh layar
+     * kasir untuk tahu sudah ada yang membuka shift atau belum.
+     *
+     * <p><b>Perilaku kosong yang disepakati (issue #222 poin 3):</b> tidak ada
+     * sesi terbuka (belum dibuka, atau sudah ditutup hari ini) → kembalikan
+     * {@code null}. Controller meneruskannya sebagai <b>HTTP 200 + {@code data:
+     * null}</b> bukan 404 — FE {@code KasirPosPage.loadSesiData()} menangani
+     * hasil {@code null} dengan lanjut memanggil {@code bukaSesi()}.
+     *
+     * <p>Tenant selalu dari token (PRD §11.4): titik kasir milik sekolah lain
+     * → {@link NotFoundEntity} (404) agar keberadaannya tidak bocor, sesuai
+     * pola {@link #ambil(Long, Long)}.
+     *
+     * <p>Reuse logika buka sesi: tanggal diturunkan {@link JamKantin#hariIni()}
+     * (zona sekolah) dan status {@link StatusSesiKasir#TERBUKA} — sama dengan
+     * jalur {@code bukaSesi()}, hanya jalur baca tanpa kunci PESSIMISTIC_WRITE.
+     *
+     * @return DTO sesi aktif, atau {@code null} bila tidak ada sesi terbuka
+     */
+    @Transactional(readOnly = true)
+    public SesiKasirAktifData ambilSesiAktif(Long sekolahId, Long titikKasirId) {
+        TitikKasir titik = titikKasirRepo.findById(titikKasirId)
+                .filter(t -> sekolahId.equals(t.getSekolahId()))
+                .orElseThrow(() -> new NotFoundEntity("Titik kasir tidak ditemukan"));
+
+        LocalDate hariIni = jam.hariIni();
+        SesiKasir sesi = sesiRepo.findBySekolahIdAndTitikKasirIdAndTanggalAndStatus(
+                        sekolahId, titikKasirId, hariIni, StatusSesiKasir.TERBUKA)
+                .orElse(null);
+        if (sesi == null) {
+            return null;
+        }
+
+        // Rekap dari sumber yang sama dengan tutup kasir — kolom total_* di
+        // sesi_kasir baru terisi saat sesi ditutup, jadi saat terbuka hitung live.
+        SesiKasirService.RekapSesi rekap = hitungRekap(sekolahId, sesi);
+        return SesiKasirAktifData.dari(sesi, titik.getNama(), rekap.getJumlahTransaksi(),
+                rekap.getTotalBruto(), rekap.getTotalVoid(), rekap.getTotalBersih());
     }
 
     private RekapSesi hitungRekap(Long sekolahId, SesiKasir sesi) {

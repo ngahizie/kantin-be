@@ -103,4 +103,19 @@ public interface SesiKasirRepository extends JpaRepository<SesiKasir, Long> {
     Optional<SesiKasir> kunciBerdasarkanTitikTanggal(@Param("sekolahId") Long sekolahId,
                                                      @Param("titikKasirId") Long titikKasirId,
                                                      @Param("tanggal") LocalDate tanggal);
+
+    /**
+     * Sesi TERBUKA hari ini pada satu titik kasir <b>tanpa kunci</b> — untuk
+     * pembacaan layar POS (issue #222). Tenant-scoped (PRD §11.4): sekolah_id
+     * ikut di {@code WHERE} seperti {@link #kunciBerdasarkanTitikTanggal},
+     * hanya tanpa {@code PESSIMISTIC_WRITE} karena ini jalur baca murni.
+     *
+     * <p>Bagian dari logika yang sama dengan buka sesi: UNIQUE DB
+     * {@code (titik_kasir_id, tanggal)} jamin paling banyak satu baris per
+     * hari, jadi hasil {@code Optional} memadai tanpa urutan.
+     */
+    Optional<SesiKasir> findBySekolahIdAndTitikKasirIdAndTanggalAndStatus(Long sekolahId,
+                                                                          Long titikKasirId,
+                                                                          LocalDate tanggal,
+                                                                          StatusSesiKasir status);
 }

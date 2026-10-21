@@ -2,6 +2,7 @@ package com.asqi.scholia_kantin_be.controller;
 
 import com.asqi.scholia_kantin_be.dto.BukaSesiRequest;
 import com.asqi.scholia_kantin_be.dto.HalamanResponse;
+import com.asqi.scholia_kantin_be.dto.SesiKasirAktifData;
 import com.asqi.scholia_kantin_be.dto.TapRequest;
 import com.asqi.scholia_kantin_be.dto.TapResponse;
 import com.asqi.scholia_kantin_be.dto.TransaksiKasirItem;
@@ -223,6 +224,36 @@ public class KasirController {
             @RequestParam Long sesiId) {
         return CommonResponse.data(
                 transaksiKasirService.riwayatSesi(TenantContext.sekolahIdWajib(), sesiId));
+    }
+
+    /**
+     * Baca sesi kasir <b>aktif hari ini</b> per titik kasir (issue <b>#222</b>)
+     * — melengkapi {@code sesi/buka}: FE layar POS
+     * ({@code KasirPosPage.loadSesiData()}) memanggil
+     * {@code GET /api/kasir/sesi/aktif} tiap kali layar dibuka, lalu baru
+     * memanggil {@code sesi/buka} bila hasilnya kosong. Tanpa endpoint ini
+     * {@code aktif} tertangkap pemetaan {@code sesi/{sesiId}} dan gagal
+     * konversi path ke {@code Long} (400) — tak ada cara membaca sesi aktif
+     * tanpa tahu id-nya.
+     *
+     * <p><b>Perilaku kosong yang disepakati:</b> belum ada sesi terbuka
+     * (belum dibuka / sudah ditutup) tetap <b>HTTP 200 + {@code data: null}</b>,
+     * bukan 404, agar FE bisa membedakan "sesi memang belum ada" dari "request
+     * gagal" — persis bentuk yang diharapkan FE. Titik kasir milik sekolah
+     * lain dijawab 404 (jangan bocorkan keberadaan data tenant lain, PRD §11.4).
+     *
+     * <p>RBAC sama dengan {@code sesi/buka}: pemanggilnya layar kasir.
+     * Tenant selalu dari token (PRD §11.4), bukan parameter klien.
+     */
+    @PerluPeran({AktorKantin.PETUGAS_KANTIN, AktorKantin.PENGELOLA_KANTIN, AktorKantin.ADMIN_SEKOLAH})
+    @GetMapping("sesi/aktif")
+    public ResponseEntity<Response<SesiKasirAktifData>> sesiAktif(
+            @RequestParam Long titikKasirId) {
+
+        SesiKasirAktifData sesi = sesiKasirService.ambilSesiAktif(
+                TenantContext.sekolahIdWajib(), titikKasirId);
+        return CommonResponse.data(sesi,
+                sesi == null ? "Tidak ada sesi kasir terbuka" : "Sesi kasir aktif");
     }
 
     /**
