@@ -41,7 +41,11 @@ class RateLimitFilterTest {
     }
 
     private MockHttpServletRequest req(String uri) {
-        return new MockHttpServletRequest("POST", uri);
+        return req("POST", uri);
+    }
+
+    private MockHttpServletRequest req(String method, String uri) {
+        return new MockHttpServletRequest(method, uri);
     }
 
     @Test
@@ -64,6 +68,32 @@ class RateLimitFilterTest {
                 .thenReturn(new RateLimiterRedis.Hasil(true, 1, 60));
 
         filter.doFilter(req("/api/kasir/tap"), new MockHttpServletResponse(),
+                mock(FilterChain.class));
+
+        verify(limiter).periksa(eq("sensitif"), anyString(), eq(60));
+    }
+
+    @Test
+    @DisplayName("GET kasir/katalog memakai limit umum; mutasi tetap sensitif")
+    void bacaKasirDanKatalogMemakaiLimitUmum() throws Exception {
+        when(limiter.periksa(eq("umum"), anyString(), eq(600)))
+                .thenReturn(new RateLimiterRedis.Hasil(true, 1, 600));
+
+        filter.doFilter(req("GET", "/api/kasir/sesi/aktif"), new MockHttpServletResponse(),
+                mock(FilterChain.class));
+        filter.doFilter(req("GET", "/api/katalog/menu"), new MockHttpServletResponse(),
+                mock(FilterChain.class));
+
+        verify(limiter, org.mockito.Mockito.times(2)).periksa(eq("umum"), anyString(), eq(600));
+    }
+
+    @Test
+    @DisplayName("mutasi katalog tetap memakai batas sensitif")
+    void mutasiKatalogTetapSensitif() throws Exception {
+        when(limiter.periksa(eq("sensitif"), anyString(), eq(60)))
+                .thenReturn(new RateLimiterRedis.Hasil(true, 1, 60));
+
+        filter.doFilter(req("POST", "/api/katalog/menu"), new MockHttpServletResponse(),
                 mock(FilterChain.class));
 
         verify(limiter).periksa(eq("sensitif"), anyString(), eq(60));

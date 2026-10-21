@@ -64,6 +64,13 @@ class SeedDevIT {
                 "SELECT count(*) FROM saldo_cache WHERE sekolah_id = 10", Integer.class))
                 .as("saldo_cache tenant FE").isEqualTo(4);
 
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM dev_siswa_rfid WHERE sekolah_id = 10 AND siswa_id = 1001 "
+                        + "AND nomor_kartu = 'RFID-SISWA-001' AND rfid_uid = 'DA100001' AND aktif",
+                Integer.class))
+                .as("fixture UID RFID siswa demo lokal")
+                .isEqualTo(1);
+
         // Akun login dev: kredensial harus benar-benar diverifikasi, bukan sekadar ada.
         assertThat(jdbc.queryForObject("SELECT count(*) FROM dev_pengguna", Integer.class))
                 .as("akun login dev").isEqualTo(8);

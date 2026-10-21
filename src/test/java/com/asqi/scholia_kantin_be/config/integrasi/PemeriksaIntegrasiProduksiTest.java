@@ -22,6 +22,7 @@ class PemeriksaIntegrasiProduksiTest {
         isi(p.getBukukas(), "http://admin-be:8081");
         isi(p.getNotifikasi(), "http://mobile-be:8083");
         isi(p.getKartuLookup(), "http://admin-be:8081");
+        isi(p.getCariSiswa(), "http://admin-be:8081");
         isi(p.getStatusSiswa(), "http://admin-be:8081");
         isi(p.getUidSiswa(), "http://admin-be:8081");
         isi(p.getAktivasi(), "http://internal-be:8084");
@@ -69,6 +70,19 @@ class PemeriksaIntegrasiProduksiTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Buku Kas")
                 .hasMessageContaining("bukukas");
+    }
+
+    @Test
+    @DisplayName("wajib-aktif=true & pencarian siswa belum aktif → DIGAGALKAN")
+    void pencarianSiswaBelumAktif() {
+        IntegrasiRestProperties p = lengkap();
+        p.getCariSiswa().setEnabled(false);
+        var pemeriksa = new PemeriksaIntegrasiProduksi(p, envKunciLengkap());
+
+        assertThatThrownBy(pemeriksa::periksa)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Pencarian siswa")
+                .hasMessageContaining("cari-siswa");
     }
 
     @Test

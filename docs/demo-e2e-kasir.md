@@ -99,6 +99,8 @@ atau password asal-asalan ditolak `401`. Password seluruh akun dev: `Kantin#2026
 | `kasir10` | PETUGAS | 10 | kasir |
 | `bendahara10` | BENDAHARA | 10 | bendahara |
 
+Fixture siswa lokal/demo untuk tenant sekolah 10: nomor kartu `RFID-SISWA-001`, UID RFID `DA100001`, siswa ID `1001` (identitas nama/kelas sengaja kosong). Fixture hanya dikenali pada profil `demo`; kantin-be tidak menambah master siswa. Untuk mencobanya, login sebagai `kasir10` dan kirim tap dengan UID tersebut, titik kasir `1001`, menu `1002` (Mie Ayam), kuantitas `1`, dan idempotency key baru.
+
 Catatan: `sekolah_id` yang dikirim FE **diabaikan**. Tenant ditentukan oleh akun,
 jadi untuk menguji tenant 10 (tenant default form login `kantin-fe`) pakai
 `kasir10`/`bendahara10`, bukan akun sekolah 1.

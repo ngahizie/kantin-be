@@ -150,8 +150,9 @@ Lihat `BUGS-DITEMUKAN.md` B6–B8 tentang perbaikan status 403 dari `admin-be`.
   `kantin.cors.allowed-origins` (tanpa wildcard saat kredensial aktif). Set
   daftar origin production sebelum rilis.
 - ✅ **Rate limit Redis** (B27, SECURITY.md §7) — fixed-window atomik (Lua),
-  per kategori: `auth` 20/menit, `sensitif` (kasir/saldo/stok/katalog) 60/menit,
-  `umum` 600/menit. **Fail-open** default (`kantin.rate-limit.fail-closed=false`):
+  per kategori: `auth` 20/menit, mutasi non-auth yang sensitif (kasir/saldo/stok/katalog)
+  60/menit, request baca umum (`GET`/`HEAD`, termasuk POS) 600/menit, `umum` lainnya
+  600/menit. **Fail-open** default (`kantin.rate-limit.fail-closed=false`):
   Redis mati ⇒ request tetap dilayani agar kantin tidak lumpuh. Balas **429** +
   `Retry-After` + `X-RateLimit-Limit`.
 - ✅ **Cabut token (blacklist Redis)** (B28) — `POST /api/auth/cabut` (admin/TU).

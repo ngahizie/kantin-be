@@ -47,6 +47,9 @@ public interface SaldoCacheRepository extends JpaRepository<SaldoCache, SaldoCac
 
     Optional<SaldoCache> findBySubjekTipeAndSubjekId(SubjekTipe subjekTipe, Long subjekId);
 
+    Optional<SaldoCache> findBySekolahIdAndSubjekTipeAndSubjekId(
+            Long sekolahId, SubjekTipe subjekTipe, Long subjekId);
+
     List<SaldoCache> findBySekolahIdAndSubjekTipe(Long sekolahId, SubjekTipe subjekTipe);
 
     /**

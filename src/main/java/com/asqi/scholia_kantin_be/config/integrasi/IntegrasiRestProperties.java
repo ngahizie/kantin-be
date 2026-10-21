@@ -42,6 +42,9 @@ public class IntegrasiRestProperties {
     /** Adapter lookup kartu RFID → siswa di admin-be (Q7, §4). */
     private Endpoint kartuLookup = new Endpoint();
 
+    /** Adapter pencarian identitas siswa admin-be (Q7, #224); belum aktif sampai kontrak REST tersedia. */
+    private Endpoint cariSiswa = new Endpoint();
+
     /** Adapter status siswa + blokir kartu di admin-be (Q7, §4.4). */
     private StatusSiswa statusSiswa = new StatusSiswa();
 
@@ -54,7 +57,7 @@ public class IntegrasiRestProperties {
     /**
      * Penjaga kesiapan produksi (issue <b>#164</b>). Bila {@code true}, saat
      * aplikasi siap ({@code ApplicationReadyEvent}) kantin-be <b>menolak start</b>
-     * kecuali <b>keenam</b> adapter REST aktif + {@code base-url} terisi
+     * kecuali <b>ketujuh</b> adapter REST aktif + {@code base-url} terisi
      * <b>dan</b> public key RS256 admin-be &amp; mobile-be terpasang.
      *
      * <p>Default {@code false} (dev/demo/test tetap memakai {@code *Fallback}).

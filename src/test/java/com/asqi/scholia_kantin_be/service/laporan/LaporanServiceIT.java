@@ -17,7 +17,10 @@ import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiStok;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
+import com.asqi.scholia_kantin_be.service.integrasi.CariSiswaPort;
+import com.asqi.scholia_kantin_be.service.integrasi.InfoSiswa;
 import com.asqi.scholia_kantin_be.service.kasir.LedgerSaldoService;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import com.asqi.scholia_kantin_be.service.kasir.PerintahMutasiSaldo;
 import com.asqi.scholia_kantin_be.service.stok.LedgerStokService;
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;
@@ -60,8 +63,30 @@ class LaporanServiceIT {
     private static final long MENU_B = 20L;
     private static final long KATEGORI = 500L;
 
+    @MockitoBean
+    private CariSiswaPort cariSiswaPort;
+
     @Autowired
     private LaporanService laporan;
+
+    @BeforeEach
+    void siapkanCariSiswa() {
+        org.mockito.Mockito.when(cariSiswaPort.cari(
+                        org.mockito.ArgumentMatchers.anyLong(),
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.anyBoolean(),
+                        org.mockito.ArgumentMatchers.anyInt()))
+                .thenAnswer(invocation -> {
+                    long sekolahId = invocation.getArgument(0);
+                    String q = invocation.getArgument(1);
+                    if (SEKOLAH != sekolahId || q == null || !q.equalsIgnoreCase("2024001")) {
+                        return List.of();
+                    }
+                    return List.of(InfoSiswa.builder()
+                            .siswaId(SISWA).nis("2024001").nama("Budi Santoso")
+                            .kelas("7A").saldo(0).build());
+                });
+    }
 
     @Autowired
     private LaporanExportService exportService;
@@ -172,6 +197,24 @@ class LaporanServiceIT {
     }
 
     @Test
+    @DisplayName("#224: saldo per siswa — filter NIS, tenant-scope, saldo & belanja hari ini")
+    void saldoMengendapPerSiswa() {
+        topup(SISWA, SubjekTipe.SISWA, 50_000, JenisMutasiSaldo.TOPUP_TUNAI);
+        tx.executeWithoutResult(s -> ledgerSaldo.debit(PerintahMutasiSaldo.builder()
+                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).subjekId(SISWA)
+                .jenis(JenisMutasiSaldo.PENJUALAN).nominal(8_000)
+                .idempotencyKey("jual-224").build()));
+
+        var hasil = laporan.saldoMengendapSiswa(SEKOLAH, "2024001", 20);
+        assertThat(hasil).hasSize(1);
+        assertThat(hasil.getFirst().nis()).isEqualTo("2024001");
+        assertThat(hasil.getFirst().nama()).isEqualTo("Budi Santoso");
+        assertThat(hasil.getFirst().saldo()).isEqualTo(42_000);
+        assertThat(hasil.getFirst().belanjaHariIni()).isEqualTo(8_000);
+        assertThat(laporan.saldoMengendapSiswa(SEKOLAH_LAIN, "2024001", 20)).isEmpty();
+    }
+
+    @Test
     @DisplayName("saldo mengendap — total siswa + Kartu Tamu")
     void saldoMengendap() {
         topup(SISWA, SubjekTipe.SISWA, 50_000, JenisMutasiSaldo.TOPUP_TUNAI);
@@ -224,6 +267,35 @@ class LaporanServiceIT {
                 .filter(b -> b.jenis().equals("OPNAME_KELUAR")).findFirst().orElseThrow();
         assertThat(opnameKeluar.totalQty()).isEqualTo(3);
         assertThat(opnameKeluar.totalNilai()).isEqualTo(3 * 4_000L);
+    }
+
+    @Test
+    @DisplayName("#226: ringkasan kerugian stok konsisten dengan penjumlahan daftar")
+    void ringkasanKerugianStokKonsistenDenganDaftar() {
+        tx.executeWithoutResult(s -> ledgerStok.masukBarang(SEKOLAH, MENU_A, 20, 4_000, "BM-226", "BM-226", 1L));
+        tx.executeWithoutResult(s -> ledgerStok.sesuaikanOpname(SEKOLAH, MENU_A, 17, "opname harian", "OP-226-1", 1L));
+        tx.executeWithoutResult(s -> ledgerStok.sesuaikanOpname(SEKOLAH, MENU_A, 15, "rusak/basi", "OP-226-2", true, "OPNAME", 1L));
+
+        List<BarisKerugianStok> daftar = laporan.kerugianStok(SEKOLAH, null, null, null);
+        var ringkasan = laporan.ringkasanKerugianStok(SEKOLAH, null, null, null);
+        long nilai = daftar.stream().mapToLong(BarisKerugianStok::totalNilai).sum();
+        long qty = daftar.stream().mapToLong(BarisKerugianStok::totalQty).sum();
+        long kejadian = daftar.stream().mapToLong(BarisKerugianStok::jumlahBaris).sum();
+        long nilaiOpname = daftar.stream().filter(b -> b.jenis().equals("OPNAME_KELUAR"))
+                .mapToLong(BarisKerugianStok::totalNilai).sum();
+        long qtyOpname = daftar.stream().filter(b -> b.jenis().equals("OPNAME_KELUAR"))
+                .mapToLong(BarisKerugianStok::totalQty).sum();
+        long nilaiRusak = daftar.stream().filter(b -> b.jenis().equals("BARANG_RUSAK"))
+                .mapToLong(BarisKerugianStok::totalNilai).sum();
+        long qtyRusak = daftar.stream().filter(b -> b.jenis().equals("BARANG_RUSAK"))
+                .mapToLong(BarisKerugianStok::totalQty).sum();
+        assertThat(ringkasan.totalKerugian()).isEqualTo(nilai);
+        assertThat(ringkasan.totalQtyHilang()).isEqualTo(qty);
+        assertThat(ringkasan.jumlahKejadian()).isEqualTo(kejadian);
+        assertThat(ringkasan.kerugianOpname()).isEqualTo(nilaiOpname);
+        assertThat(ringkasan.qtyOpname()).isEqualTo(qtyOpname);
+        assertThat(ringkasan.kerugianBarangRusak()).isEqualTo(nilaiRusak);
+        assertThat(ringkasan.qtyBarangRusak()).isEqualTo(qtyRusak);
     }
 
     @Test

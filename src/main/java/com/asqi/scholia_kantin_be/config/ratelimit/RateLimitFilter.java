@@ -52,7 +52,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         }
 
         String path = request.getRequestURI();
-        Kategori kategori = tentukanKategori(path);
+        Kategori kategori = tentukanKategori(request.getMethod(), path);
         if (kategori == null) {
             filterChain.doFilter(request, response);
             return;
@@ -102,15 +102,16 @@ public class RateLimitFilter extends OncePerRequestFilter {
         }
     }
 
-    private Kategori tentukanKategori(String path) {
+    private Kategori tentukanKategori(String method, String path) {
         if (path.startsWith("/api/auth")) {
             return Kategori.AUTH;
         }
-        // Mutasi bernilai uang / stok / katalog → ketat.
-        if (path.startsWith("/api/kasir")
+        // Operasi mutasi bernilai uang/stok/katalog → ketat; GET/HEAD tetap limit umum.
+        boolean mutasi = !"GET".equalsIgnoreCase(method) && !"HEAD".equalsIgnoreCase(method);
+        if (mutasi && (path.startsWith("/api/kasir")
                 || path.startsWith("/api/saldo")
                 || path.startsWith("/api/stok")
-                || path.startsWith("/api/katalog")) {
+                || path.startsWith("/api/katalog"))) {
             return Kategori.SENSITIF;
         }
         if (path.startsWith("/api")) {
