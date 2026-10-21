@@ -41,6 +41,7 @@
 | `GET` | `/api/kasir/transaksi/sesi-tutup` | TU, admin, pengelola | Daftar transaksi **sesi tertutup** — kandidat koreksi bendahara (issue #230): hanya transaksi pada sesi `DITUTUP` milik tenant; filter & paginasi sama dengan `/api/kasir/transaksi`; `sesiId` bila diberikan wajib sesi tenant yang sudah ditutup (selain itu 404/invalid). Tenant dari token |
 | `GET` | `/api/kasir/transaksi/sesi` | petugas, pengelola, admin | Riwayat **satu sesi kasir** untuk panel POS (issue #229): `sesiId` wajib, tanpa paginasi, terbaru dulu, memuat `items[]` rincian belanja + status VOID & alasannya. Sesi sekolah lain → 404 |
 | `POST` | `/api/kasir/sesi/buka` | petugas, pengelola, admin | Ambil sesi terbuka hari ini atau buka baru (idempoten per sekolah+titik+hari). Body `BukaSesiRequest` (`titikKasirId`) |
+| `GET` | `/api/kasir/sesi/aktif` | petugas, pengelola, admin | Sesi **TERBUKA hari ini** per titik kasir (issue #222): data `SesiKasirData` untuk layar POS (`titikKasirNama`, `totalTransaksi` terisi). `titikKasirId` wajib. Belum ada sesi terbuka → **200 + `data: null`** (bukan 404) — FE lanjut ke `sesi/buka`. Titik kasir sekolah lain → 404. Tenant dari token |
 | `GET` | `/api/kasir/sesi/{sesiId}/rekap` | petugas, pengelola, admin | Pratinjau rekap (bruto/void/bersih) |
 | `POST` | `/api/kasir/sesi/{sesiId}/tutup` | petugas, pengelola, admin | Tutup sesi: hitung rekap, tandai DITUTUP, kunci transaksi |
 | `GET` | `/api/kasir/sesi/{sesiId}` | petugas, pengelola, admin | Detail sesi kasir |
