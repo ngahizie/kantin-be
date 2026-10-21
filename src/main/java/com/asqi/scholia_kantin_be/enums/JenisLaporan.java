@@ -31,6 +31,8 @@ public enum JenisLaporan {
     PENJUALAN_TITIK,
     /** Penjualan per petugas (PRD §9.5). */
     PENJUALAN_PETUGAS,
+    /** Penjualan per kasir — grouping per titik kasir + petugas (PRD §9.5, issue #227). */
+    PENJUALAN_KASIR,
     /** Kartu stok per item — riwayat mutasi satu menu + saldo berjalan (PRD §9.5). */
     KARTU_STOK,
     /** Setoran kas TU — rekap top-up tunai per petugas per hari + selisih (PRD §9.5). */
