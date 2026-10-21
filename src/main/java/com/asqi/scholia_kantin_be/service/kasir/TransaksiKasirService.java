@@ -1,13 +1,16 @@
 package com.asqi.scholia_kantin_be.service.kasir;
 
+import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
 import com.asqi.scholia_kantin_be.dto.HalamanResponse;
 import com.asqi.scholia_kantin_be.dto.TransaksiKasirItem;
 import com.asqi.scholia_kantin_be.dto.TransaksiSesiItem;
+import com.asqi.scholia_kantin_be.enums.StatusSesiKasir;
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.model.KartuTamu;
+import com.asqi.scholia_kantin_be.model.SesiKasir;
 import com.asqi.scholia_kantin_be.model.TitikKasir;
 import com.asqi.scholia_kantin_be.model.Transaksi;
 import com.asqi.scholia_kantin_be.model.TransaksiItem;
@@ -17,6 +20,8 @@ import com.asqi.scholia_kantin_be.repository.TitikKasirRepository;
 import com.asqi.scholia_kantin_be.repository.TransaksiItemRepository;
 import com.asqi.scholia_kantin_be.repository.TransaksiRepository;
 import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -88,6 +93,56 @@ public class TransaksiKasirService {
         Page<Transaksi> page = transaksiRepo.findAll(
                 filter(sekolahId, sesiId, tanggal, status), pageable);
 
+        return keHalaman(sekolahId, page);
+    }
+
+    /**
+     * Daftar transaksi <b>kandidat koreksi bendahara</b> (issue <b>#230</b>) —
+     * hanya transaksi pada sesi kasir berstatus {@code DITUTUP} milik tenant,
+     * sesuai aksi {@code POST /api/kasir/transaksi/{transaksiId}/koreksi}
+     * (PRD §6.3, §9.2).
+     *
+     * <p>Bedanya dengan {@link #daftar}: transaksi pada sesi yang masih
+     * <b>TERBUKA</b> tidak muncul — bukan kandidat koreksi (koreksi pada sesi
+     * terbuka ditolak {@code VoidService}; harus lewat void biasa). FE
+     * {@code KoreksiBendaharaPage} sebelumnya memanggil
+     * {@code GET /api/transaksi/sesi-tutup} yang tidak ada dan diam-diam jatuh
+     * ke data mock; endpoint ini menutup celahnya dengan path konsisten
+     * {@code GET /api/kasir/transaksi/sesi-tutup}.
+     *
+     * <p>Filter & paginasi sama dengan {@link #daftar}. Bila {@code sesiId}
+     * diberikan, sesi divalidasi eksplisit: harus milik tenant <b>dan</b> sudah
+     * ditutup — 404 lebih jelas daripada halaman kosong diam-diam
+     * (pola soft-404 dihindari).
+     */
+    @Transactional(readOnly = true)
+    public HalamanResponse<TransaksiKasirItem> daftarSesiTutup(Long sekolahId, Long sesiId,
+                                                               LocalDate tanggal,
+                                                               StatusTransaksi status,
+                                                               int halaman, int ukuran) {
+        if (sesiId != null) {
+            SesiKasir sesi = sesiKasirRepo.findById(sesiId)
+                    .filter(s -> sekolahId.equals(s.getSekolahId()))
+                    .orElseThrow(() -> new NotFoundEntity(
+                            "Sesi kasir " + sesiId + " tidak ditemukan"));
+            if (sesi.terbuka()) {
+                throw new InvalidOperationException(
+                        "Sesi kasir " + sesiId + " masih terbuka — koreksi hanya untuk sesi tertutup");
+            }
+        }
+        int ukuranAman = (ukuran <= 0 || ukuran > UKURAN_MAKS) ? UKURAN_DEFAULT : ukuran;
+        int halamanAman = Math.max(0, halaman);
+        Pageable pageable = PageRequest.of(halamanAman, ukuranAman,
+                Sort.by(Sort.Direction.DESC, "waktu").and(Sort.by(Sort.Direction.DESC, "id")));
+
+        Page<Transaksi> page = transaksiRepo.findAll(
+                filter(sekolahId, sesiId, tanggal, status).and(sesiTertutup(sekolahId)), pageable);
+
+        return keHalaman(sekolahId, page);
+    }
+
+    /** Halaman {@code Transaksi} → {@code HalamanResponse<TransaksiKasirItem>} (nama batch). */
+    private HalamanResponse<TransaksiKasirItem> keHalaman(Long sekolahId, Page<Transaksi> page) {
         // Nama untuk tampilan — diambil BATCH (satu query per jenis), bukan per baris.
         Map<Long, String> namaTitik = namaTitikKasir(sekolahId, page.getContent());
         Map<Long, String> namaSubjek = namaPemegangKartu(sekolahId, page.getContent());
@@ -167,6 +222,24 @@ public class TransaksiKasirService {
                 syarat.add(cb.lessThan(root.get("waktu"), awal.plusDays(1)));
             }
             return cb.and(syarat.toArray(new Predicate[0]));
+        };
+    }
+
+    /**
+     * Predicate: transaksi milik sesi kasir berstatus {@code DITUTUP}
+     * (issue #230) — via <b>subquery</b> ke {@code sesi_kasir} karena
+     * {@code Transaksi} hanya menyimpan {@code sesiKasirId} (tanpa asosiasi).
+     * Tenant juga ditegakkan di subquery agar transaksi tenant lain dengan
+     * sesiId sama (id lokal) tidak bisa menyelundup.
+     */
+    private Specification<Transaksi> sesiTertutup(Long sekolahId) {
+        return (root, query, cb) -> {
+            Subquery<Long> sub = query.subquery(Long.class);
+            Root<SesiKasir> sesi = sub.from(SesiKasir.class);
+            sub.select(sesi.get("id")).where(
+                    cb.equal(sesi.get("sekolahId"), sekolahId),
+                    cb.equal(sesi.get("status"), StatusSesiKasir.DITUTUP));
+            return root.get("sesiKasirId").in(sub);
         };
     }
 

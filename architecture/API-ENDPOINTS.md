@@ -3,7 +3,7 @@
 > **Single source of truth endpoint kantin-be.** Semua path berprefix `/api`.
 > Respons selalu dibungkus `Response<T>` (`{ responseCode, message, data, ... }`).
 >
-> **Sinkron terakhir:** 2026-10-20 · **Total: 96 endpoint** (95 di `controller/` + 1 shim dev)
+> **Sinkron terakhir:** 2026-10-20 · **Total: 97 endpoint** (96 di `controller/` + 1 shim dev)
 > di **15 controller**. Dijaga otomatis oleh `ApiEndpointsDocTest` — uji ini
 > **gagal** bila daftar di bawah tidak lagi sama persis dengan anotasi
 > `@…Mapping` di kode. Bila menambah/mengubah endpoint, perbarui dokumen ini.
@@ -38,6 +38,7 @@
 | `POST` | `/api/kasir/transaksi/{transaksiId}/void` | petugas, pengelola, admin | Void transaksi (PRD §6.3): kembalikan saldo & stok; wajib `alasan`; hanya sesi belum ditutup |
 | `POST` | `/api/kasir/transaksi/{transaksiId}/koreksi` | TU, admin, pengelola | Koreksi transaksi pada **sesi tertutup** (PRD §6.3/§9.2) — mutasi pembalik beralasan + audit; wajib `alasan` |
 | `GET` | `/api/kasir/transaksi` | TU, admin, pengelola | Daftar transaksi untuk **koreksi bendahara** (PRD §6.3/§9.2, issue #212) — terbaru dulu, berhalaman; filter opsional `sesiId`, `tanggal` (`yyyy-MM-dd`, zona sekolah), `status` (`SUKSES`/`VOID`), `halaman` (0-based), `ukuran`. Tenant dari token |
+| `GET` | `/api/kasir/transaksi/sesi-tutup` | TU, admin, pengelola | Daftar transaksi **sesi tertutup** — kandidat koreksi bendahara (issue #230): hanya transaksi pada sesi `DITUTUP` milik tenant; filter & paginasi sama dengan `/api/kasir/transaksi`; `sesiId` bila diberikan wajib sesi tenant yang sudah ditutup (selain itu 404/invalid). Tenant dari token |
 | `GET` | `/api/kasir/transaksi/sesi` | petugas, pengelola, admin | Riwayat **satu sesi kasir** untuk panel POS (issue #229): `sesiId` wajib, tanpa paginasi, terbaru dulu, memuat `items[]` rincian belanja + status VOID & alasannya. Sesi sekolah lain → 404 |
 | `POST` | `/api/kasir/sesi/buka` | petugas, pengelola, admin | Ambil sesi terbuka hari ini atau buka baru (idempoten per sekolah+titik+hari). Body `BukaSesiRequest` (`titikKasirId`) |
 | `GET` | `/api/kasir/sesi/{sesiId}/rekap` | petugas, pengelola, admin | Pratinjau rekap (bruto/void/bersih) |
