@@ -68,7 +68,7 @@ public class KasirController {
      * @param request   data tap (termasuk idempotency key dari klien)
      * @param identitas diisi otomatis oleh Spring dari SecurityContext
      */
-    @PerluPeran({AktorKantin.PETUGAS_KANTIN, AktorKantin.PENGELOLA_KANTIN, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.PETUGAS_KANTIN})
     @PostMapping("tap")
     public ResponseEntity<Response<TapResponse>> tap(
             @Valid @RequestBody TapRequest request,
@@ -85,7 +85,7 @@ public class KasirController {
      * Konfirmasi tap yang menunggu (PRD §6.1) — di sini barulah saldo/stok
      * dipotong. Idempoten: konfirmasi ganda mengembalikan transaksi yang sama.
      */
-    @PerluPeran({AktorKantin.PETUGAS_KANTIN, AktorKantin.PENGELOLA_KANTIN, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.PETUGAS_KANTIN})
     @PostMapping("tap/{pendingId}/konfirmasi")
     public ResponseEntity<Response<TapResponse>> konfirmasiTap(
             @PathVariable Long pendingId,
@@ -100,7 +100,7 @@ public class KasirController {
      * Batalkan tap yang menunggu konfirmasi (PRD §6.1) — tidak jadi transaksi.
      * Idempoten: pembatalan ganda tetap sukses.
      */
-    @PerluPeran({AktorKantin.PETUGAS_KANTIN, AktorKantin.PENGELOLA_KANTIN, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.PETUGAS_KANTIN})
     @PostMapping("tap/{pendingId}/batal")
     public ResponseEntity<Response<Void>> batalTap(
             @PathVariable Long pendingId,
@@ -111,7 +111,7 @@ public class KasirController {
     }
 
     /** Daftar tap yang masih menunggu konfirmasi untuk sekolah ini (PRD §6.1). */
-    @PerluPeran({AktorKantin.PETUGAS_KANTIN, AktorKantin.PENGELOLA_KANTIN, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.PETUGAS_KANTIN})
     @GetMapping("tap/menunggu")
     public ResponseEntity<Response<java.util.List<TapResponse>>> daftarTapMenunggu() {
         var daftar = tapService.daftarPending(TenantContext.sekolahIdWajib()).stream()
@@ -124,7 +124,7 @@ public class KasirController {
      * Batalkan (void) transaksi — kembalikan saldo &amp; stok (PRD §6.3).
      * Hanya untuk transaksi pada sesi yang belum ditutup; wajib alasan.
      */
-    @PerluPeran({AktorKantin.PETUGAS_KANTIN, AktorKantin.PENGELOLA_KANTIN, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.PETUGAS_KANTIN})
     @PostMapping("transaksi/{transaksiId}/void")
     public ResponseEntity<Response<Transaksi>> voidTransaksi(
             @PathVariable Long transaksiId,
@@ -142,7 +142,7 @@ public class KasirController {
      * pembalik</b> beralasan — saldo &amp; stok dikembalikan, transaksi ditandai
      * VOID, dan jejaknya dicatat di audit log. Wajib alasan.
      */
-    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
+    @PerluPeran({AktorKantin.TU_SEKOLAH})
     @PostMapping("transaksi/{transaksiId}/koreksi")
     public ResponseEntity<Response<Transaksi>> koreksiTransaksiSesiTertutup(
             @PathVariable Long transaksiId,
@@ -245,7 +245,7 @@ public class KasirController {
      * <p>RBAC sama dengan {@code sesi/buka}: pemanggilnya layar kasir.
      * Tenant selalu dari token (PRD §11.4), bukan parameter klien.
      */
-    @PerluPeran({AktorKantin.PETUGAS_KANTIN, AktorKantin.PENGELOLA_KANTIN, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.PETUGAS_KANTIN})
     @GetMapping("sesi/aktif")
     public ResponseEntity<Response<SesiKasirAktifData>> sesiAktif(
             @RequestParam Long titikKasirId) {
@@ -261,7 +261,7 @@ public class KasirController {
      * (PRD §6.4). Idempoten per (sekolah, titik, hari) — aman dipanggil
      * berkali-kali oleh klien kasir saat mulai shift.
      */
-    @PerluPeran({AktorKantin.PETUGAS_KANTIN, AktorKantin.PENGELOLA_KANTIN, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.PETUGAS_KANTIN})
     @PostMapping("sesi/buka")
     public ResponseEntity<Response<SesiKasir>> bukaSesi(
             @Valid @RequestBody BukaSesiRequest request) {
@@ -272,7 +272,7 @@ public class KasirController {
     }
 
     /** Pratinjau rekap sesi (bruto/void/bersih) sebelum tutup kasir (PRD §6.4). */
-    @PerluPeran({AktorKantin.PETUGAS_KANTIN, AktorKantin.PENGELOLA_KANTIN, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.PETUGAS_KANTIN})
     @GetMapping("sesi/{sesiId}/rekap")
     public ResponseEntity<Response<SesiKasirService.RekapSesi>> rekap(
             @PathVariable Long sesiId) {
@@ -284,7 +284,7 @@ public class KasirController {
      * Tutup sesi kasir: hitung rekap, tandai DITUTUP, kunci transaksi
      * (PRD §6.4). Setelah ditutup, koreksi hanya boleh oleh bendahara.
      */
-    @PerluPeran({AktorKantin.PETUGAS_KANTIN, AktorKantin.PENGELOLA_KANTIN, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.PETUGAS_KANTIN})
     @PostMapping("sesi/{sesiId}/tutup")
     public ResponseEntity<Response<SesiKasir>> tutupSesi(
             @PathVariable Long sesiId,
@@ -296,7 +296,7 @@ public class KasirController {
     }
 
     /** Ambil detail satu sesi kasir (tenant-scoped). */
-    @PerluPeran({AktorKantin.PETUGAS_KANTIN, AktorKantin.PENGELOLA_KANTIN, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.PETUGAS_KANTIN})
     @GetMapping("sesi/{sesiId}")
     public ResponseEntity<Response<SesiKasir>> ambilSesi(@PathVariable Long sesiId) {
         return CommonResponse.data(sesiKasirService.ambil(TenantContext.sekolahIdWajib(), sesiId));

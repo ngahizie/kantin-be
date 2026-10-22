@@ -145,7 +145,7 @@ public class PengaturanKantinController {
      * <p>Body opsional: {@code {"aktif": true|false}} memaksa nilai tertentu,
      * body kosong membalik status sekarang.
      */
-    @PerluPeran({AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
+    @PerluPeran({AktorKantin.ADMIN_SEKOLAH})
     @PatchMapping("titik-kasir/{titikId}/toggle")
     public ResponseEntity<Response<TitikKasirResponse>> toggleTitik(
             @PathVariable Long titikId,

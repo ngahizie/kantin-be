@@ -1,5 +1,6 @@
 package com.asqi.scholia_kantin_be.controller;
 
+import com.asqi.scholia_kantin_be.component.exception.ForbiddenException;
 import com.asqi.scholia_kantin_be.dto.BlokirItemRequest;
 import com.asqi.scholia_kantin_be.dto.BlokirKartuRequest;
 import com.asqi.scholia_kantin_be.dto.KontrolSubjekResponse;
@@ -52,6 +53,20 @@ public class KontrolKartuController {
             @Valid @RequestBody BlokirKartuRequest request,
             @AuthenticationPrincipal IdentitasKantin identitas) {
 
+        // Satu endpoint melayani dua subjek dengan pemilik hak berbeda:
+        // Kartu Tamu → TU/Bendahara (§9.4 "TU memblokir"), siswa → Admin
+        // sekolah (§9.6 "Kontrol Siswa"), ortu hanya anaknya (§8.3).
+        if (request.getSubjekTipe() == SubjekTipe.KARTU_TAMU
+                && identitas.getPeran() != AktorKantin.TU_SEKOLAH) {
+            throw new ForbiddenException(
+                    "Blokir Kartu Tamu hanya untuk TU/Bendahara (PRD §9.4)");
+        }
+        if (request.getSubjekTipe() == SubjekTipe.SISWA
+                && identitas.getPeran() == AktorKantin.TU_SEKOLAH) {
+            throw new ForbiddenException(
+                    "Kontrol siswa hanya untuk Admin sekolah (PRD §9.6)");
+        }
+
         boolean diblokir = request.getDiblokir() == null || request.getDiblokir();
         KontrolSubjekResponse hasil = service.ubahBlokir(
                 TenantContext.sekolahIdWajib(), request.getSubjekTipe(), request.getSubjekId(),
@@ -64,7 +79,7 @@ public class KontrolKartuController {
     // ────────────────────────────────────────────────────────────────
 
     /** Set / ubah limit belanja harian (nominal null = tanpa limit). */
-    @PerluPeran({AktorKantin.ADMIN_SEKOLAH, AktorKantin.TU_SEKOLAH, AktorKantin.ORANG_TUA})
+    @PerluPeran({AktorKantin.ADMIN_SEKOLAH, AktorKantin.ORANG_TUA})
     @PutMapping("limit-harian")
     public ResponseEntity<Response<KontrolSubjekResponse>> setLimit(
             @Valid @RequestBody LimitHarianRequest request,
@@ -81,7 +96,7 @@ public class KontrolKartuController {
     // ────────────────────────────────────────────────────────────────
 
     /** Blokir / buka blokir item atau kategori. */
-    @PerluPeran({AktorKantin.ADMIN_SEKOLAH, AktorKantin.TU_SEKOLAH, AktorKantin.ORANG_TUA})
+    @PerluPeran({AktorKantin.ADMIN_SEKOLAH, AktorKantin.ORANG_TUA})
     @PostMapping("blokir-item")
     public ResponseEntity<Response<KontrolSubjekResponse>> ubahBlokirItem(
             @Valid @RequestBody BlokirItemRequest request,
