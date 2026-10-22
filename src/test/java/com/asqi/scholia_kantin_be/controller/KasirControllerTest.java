@@ -180,4 +180,60 @@ class KasirControllerTest {
         verify(transaksiKasirService).daftar(eq(7L), eq(3L), eq(LocalDate.parse("2026-10-16")),
                 eq(StatusTransaksi.VOID), eq(0), eq(20));
     }
+
+    // ────────────────────────────────────────────────────────────────
+    // GET sesi/aktif (issue #222)
+    // ────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("sesi aktif (#222): 200 + data sesi; tenant dari konteks, bukan klien")
+    void sesiAktifMeneruskanTenantDariKonteks() throws Exception {
+        when(sesiKasirService.ambilSesiAktif(eq(7L), eq(1L)))
+                .thenReturn(new com.asqi.scholia_kantin_be.dto.SesiKasirAktifData(
+                        900L, 7L, 1L, "Kasir 1", LocalDate.parse("2026-10-21"),
+                        com.asqi.scholia_kantin_be.enums.StatusSesiKasir.TERBUKA,
+                        16_000L, 8_000L, 8_000L, 1L, null, null, null, false));
+
+        mockMvc.perform(get("/api/kasir/sesi/aktif").param("titikKasirId", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(900))
+                .andExpect(jsonPath("$.data.status").value("TERBUKA"))
+                .andExpect(jsonPath("$.data.titikKasirNama").value("Kasir 1"))
+                .andExpect(jsonPath("$.data.totalBersih").value(8000));
+
+        // Tenant WAJIB dari TenantContext (7), bukan dari parameter klien.
+        verify(sesiKasirService).ambilSesiAktif(eq(7L), eq(1L));
+    }
+
+    /**
+     * Perilaku kosong yang disepakati (#222 poin 3): belum ada sesi terbuka →
+     * HTTP 200 + {@code data: null} (bukan 404), persis yang diharapkan FE
+     * sebelum lanjut memanggil {@code sesi/buka}.
+     */
+    @Test
+    @DisplayName("sesi aktif (#222): tanpa sesi terbuka → 200 + data null")
+    void sesiAktifTanpaSesiDiberiNull() throws Exception {
+        when(sesiKasirService.ambilSesiAktif(eq(7L), eq(1L))).thenReturn(null);
+
+        mockMvc.perform(get("/api/kasir/sesi/aktif").param("titikKasirId", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").doesNotExist())
+                .andExpect(jsonPath("$.message").value("Tidak ada sesi kasir terbuka"));
+
+        verify(sesiKasirService).ambilSesiAktif(eq(7L), eq(1L));
+    }
+
+    /**
+     * {@code titikKasirId} wajib di level wiring Spring (standalone MockMvc
+     * menolak param hilang dengan 400). Catatan: di aplikasi penuh,
+     * {@code GlobalExceptionHandler.handleMissingParam} mengubah ini menjadi
+     * HTTP 200 + pesan (warisan admin-be, lihat komentar CommonResponse) —
+     * tes ini hanya membuktikan param wajib, bukan bentuk HTTP produksinya.
+     */
+    @Test
+    @DisplayName("sesi aktif (#222): tanpa titikKasirId ditolak (params wajib)")
+    void sesiAktifTanpaParamDitolak() throws Exception {
+        mockMvc.perform(get("/api/kasir/sesi/aktif"))
+                .andExpect(status().isBadRequest());
+    }
 }

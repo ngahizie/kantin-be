@@ -13,16 +13,30 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
+import java.util.Comparator;
 import java.util.Date;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -46,8 +60,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>Autentikasi memakai <b>token RS256 sungguhan</b> yang ditandatangani keypair
  * yang dibuat saat uji &amp; didaftarkan sebagai {@code jwt.admin.public-key}. Jadi
  * jalur verifikasi produksi (ADR-0002) benar-benar dilewati — ini bukan bypass.
- * Peran {@code PENGELOLA_KANTIN} dipilih karena diizinkan di <b>semua</b> endpoint
- * GET yang diuji.
+ * Peran token diambil dari <b>matriks RBAC</b>
+ * ({@code architecture/RBAC-MATRIX.md}) per endpoint, karena issue #250 membuat
+ * hak baca berbeda per endpoint (kasir hanya kasir, Kartu Tamu hanya TU, dst.).
  *
  * <p>Menegakkan acceptance criteria #199: endpoint GET utama
  * {@code SaldoController}, {@code StokController}, {@code LaporanController},
@@ -64,7 +79,28 @@ class SmokeGetEndpointIT {
     private static final long USER_ID = 42L;
 
     private static final KeyPair KEYPAIR = buatKeyPair();
-    private static final String TOKEN = tokenPengelola(KEYPAIR.getPrivate());
+
+    /**
+     * Peran → klaim token. Mengikuti pemetaan {@code KlaimResolver}:
+     * {@code PETUGAS/KASIR → PETUGAS_KANTIN}, {@code PENGELOLA → PENGELOLA_KANTIN},
+     * {@code TATA_USAHA/TU/BENDAHARA → TU_SEKOLAH}, {@code KEPSEK → KEPSEK},
+     * {@code ADMIN → ADMIN_SEKOLAH}.
+     */
+    private static final Map<String, String> KLAIM_PERAN = Map.of(
+            "kasir", "PETUGAS",
+            "pengelola", "PENGELOLA",
+            "tu", "TATA_USAHA",
+            "admin", "ADMIN",
+            "kepsek", "KEPSEK");
+
+    private static final Map<String, String> TOKEN_CACHE = new ConcurrentHashMap<>();
+
+    /** Baris matriks: | `GET` | `/api/...` | peran | … */
+    private static final Pattern BARIS_MATRIX = Pattern.compile(
+            "^\\|\\s*`GET`\\s*\\|\\s*`([^`]+)`\\s*\\|([^|]*)\\|");
+
+    /** Matriks RBAC: path → peran yang boleh. Template {@code {id}} → regex. */
+    private static final List<Map.Entry<Pattern, List<String>>> MATRIKS = bacaMatriks();
 
     @LocalServerPort
     private int port;
@@ -89,19 +125,119 @@ class SmokeGetEndpointIT {
     }
 
     /** Token meniru admin-be: klaim lengkap, tanpa `iss` (lihat AUDIT Q1). */
-    private static String tokenPengelola(PrivateKey privateKey) {
+    private static String token(String klaimPeran, PrivateKey privateKey) {
         return Jwts.builder()
                 .id(UUID.randomUUID().toString())
-                .subject("pengelola01")
+                .subject("smoke01")
                 .claim("typ", "access")
                 .claim("user_id", USER_ID)
-                .claim("nama", "Pengelola Kantin Uji")
-                .claim("role", "PENGELOLA_KANTIN")
+                .claim("nama", "Pemilik Uji " + klaimPeran)
+                .claim("role", klaimPeran)
                 .claim("sekolah_id", SEKOLAH_ID)
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + 3_600_000L))
                 .signWith(privateKey, Jwts.SIG.RS256)
                 .compact();
+    }
+
+    /**
+     * <p>Token untuk sebuah path, dipilih dari <b>matriks RBAC</b>
+     * ({@code architecture/RBAC-MATRIX.md}) — bukan peran tetap. Penetapan RBAC
+     * issue #250 membuat hak akses berbeda per endpoint (kasir hanya kasir,
+     * Kartu Tamu hanya TU, dst.), jadi satu token untuk semua endpoint tidak
+     * lagi sah.
+     *
+     * <p>Matriks dibaca sebagai sumber kebenaran → kalau RBAC berubah, smoke
+     * test otomatis memakai peran yang masih berwenang.
+     */
+    private static String tokenUntuk(String path) {
+        String polos = path.split("\\?")[0];
+        List<String> peran = peranDariMatriks(polos);
+        assertThat(peran)
+                .as("Path %s tidak ada di architecture/RBAC-MATRIX.md — tambahkan barisnya", polos)
+                .isNotNull();
+        if (peran.isEmpty()) {
+            // endpoint tanpa @PerluPeran → terbuka untuk semua peran
+            return TOKEN_CACHE.computeIfAbsent("pengelola",
+                    k -> token(KLAIM_PERAN.get(k), KEYPAIR.getPrivate()));
+        }
+        String kode = peran.stream()
+                .filter(KLAIM_PERAN::containsKey)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError(
+                        "Tidak ada peran yang bisa dipakai untuk " + polos + ": " + peran));
+        return TOKEN_CACHE.computeIfAbsent(kode,
+                k -> token(KLAIM_PERAN.get(k), KEYPAIR.getPrivate()));
+    }
+
+    /**
+     * Peran yang boleh membaca path, according to matriks RBAC.
+     *
+     * @return daftar peran; {@code null} bila path tidak terdaftar di matriks,
+     *         daftar kosong bila endpointnya terbuka untuk semua peran
+     *         (tanpa {@code @PerluPeran}).
+     */
+    private static List<String> peranDariMatriks(String path) {
+        // matriks menulis path root-modul dengan garis miring akhir
+        // (`/api/saldo/`), sedangkan pemanggil smoke menulis `/api/saldo`.
+        List<String> kandidat = new ArrayList<>();
+        kandidat.add(path);
+        kandidat.add(path + "/");
+        if (path.endsWith("/")) {
+            kandidat.add(path.substring(0, path.length() - 1));
+        }
+        for (String p : kandidat) {
+            for (Map.Entry<Pattern, List<String>> e : MATRIKS) {
+                if (e.getKey().matcher(p).matches()) {
+                    return e.getValue();
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Cari berkas matriks di root proyek (naik dari direktori kerja JVM). */
+    private static Path cariMatriks() {
+        Path dir = Paths.get("").toAbsolutePath();
+        for (int i = 0; i < 5 && dir != null; i++) {
+            Path kandidat = dir.resolve("architecture/RBAC-MATRIX.md");
+            if (Files.exists(kandidat)) {
+                return kandidat;
+            }
+            dir = dir.getParent();
+        }
+        return null;
+    }
+
+    private static List<Map.Entry<Pattern, List<String>>> bacaMatriks() {
+        List<Map.Entry<Pattern, List<String>>> hasil = new ArrayList<>();
+        Path p = cariMatriks();
+        if (p != null) {
+            try {
+                List<Map.Entry<Pattern, List<String>>> sementara = new ArrayList<>();
+                for (String baris : Files.readAllLines(p, StandardCharsets.UTF_8)) {
+                    Matcher m = BARIS_MATRIX.matcher(baris);
+                    if (!m.find()) {
+                        continue;
+                    }
+                    String regex = m.group(1).replaceAll("\\{[^}]+\\}", "[^/]+");
+                    List<String> peran = Arrays.stream(m.group(2).split(","))
+                            .map(String::trim)
+                            .filter(s -> !s.isEmpty() && !s.equals("—"))
+                            .toList();
+                    sementara.add(Map.entry(Pattern.compile(regex), peran));
+                }
+                // path literal didahulukan agar `/api/kasir/sesi/aktif` tidak
+                // tertangkap template `/api/kasir/sesi/{sesiId}`
+                sementara.sort(Comparator.comparingInt(
+                        e -> e.getKey().pattern().contains("[^/]+") ? 1 : 0));
+                hasil.addAll(sementara);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+        assertThat(hasil).as("architecture/RBAC-MATRIX.md tidak terbaca").isNotEmpty();
+        return hasil;
     }
 
     private HttpResponse<String> get(String path, String token) throws Exception {
@@ -213,7 +349,7 @@ class SmokeGetEndpointIT {
     @MethodSource("endpointHarus200")
     @DisplayName("#199: endpoint GET utama balas 200 di atas DB nyata (bukan 500)")
     void endpointUtamaBalas200(String path) throws Exception {
-        HttpResponse<String> res = get(path, TOKEN);
+        HttpResponse<String> res = get(path, tokenUntuk(path));
 
         assertThat(res.statusCode())
                 .as("GET %s — badan: %s", path, potong(res.body()))
@@ -224,7 +360,7 @@ class SmokeGetEndpointIT {
     @MethodSource("endpointTakBolehErrorServer")
     @DisplayName("#199: endpoint GET ber-id tak ada tidak meledak (bukan 5xx)")
     void endpointIdTakAdaTidakErrorServer(String path) throws Exception {
-        HttpResponse<String> res = get(path, TOKEN);
+        HttpResponse<String> res = get(path, tokenUntuk(path));
 
         assertThat(res.statusCode())
                 .as("GET %s — badan: %s", path, potong(res.body()))

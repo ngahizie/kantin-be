@@ -5,6 +5,7 @@ import com.asqi.scholia_kantin_be.component.exception.ForbiddenException;
 import com.asqi.scholia_kantin_be.dto.BarisKerugianStok;
 import com.asqi.scholia_kantin_be.dto.BarisPembatalanKasir;
 import com.asqi.scholia_kantin_be.dto.BarisPenjualanDimensi;
+import com.asqi.scholia_kantin_be.dto.BarisPenjualanKasir;
 import com.asqi.scholia_kantin_be.dto.BarisPenjualan;
 import com.asqi.scholia_kantin_be.dto.BarisStok;
 import com.asqi.scholia_kantin_be.dto.KartuStokItem;
@@ -54,8 +55,9 @@ import java.util.Set;
  *
  * <p>Akses mengikuti PRD §9.5 per kolom <i>Akses</i>. Peran {@link AktorKantin#KEPSEK}
  * (kepala sekolah) bersifat <b>read-only</b> dan hanya pada laporan yang
- * menyebutnya — penjualan/laba kotor, saldo mengendap, rekonsiliasi, kerugian
- * stok. Laporan <b>stok</b> &amp; <b>barang masuk</b> tidak dibuka untuk kepsek
+ * menyebutnya — penjualan (termasuk dimensi titik kasir, petugas, dan kasir)
+ * &amp; laba kotor, saldo mengendap, rekonsiliasi, kerugian stok. Laporan
+ * <b>stok</b> &amp; <b>barang masuk</b> tidak dibuka untuk kepsek
  * (PRD §9.5: hanya Pengelola &amp; Bendahara). Lihat ADR-0012 &amp; issue #123.
  */
 @RestController
@@ -72,6 +74,9 @@ public class LaporanController {
             JenisLaporan.PENJUALAN,
             JenisLaporan.PENJUALAN_ITEM,
             JenisLaporan.PENJUALAN_KATEGORI,
+            JenisLaporan.PENJUALAN_TITIK,
+            JenisLaporan.PENJUALAN_PETUGAS,
+            JenisLaporan.PENJUALAN_KASIR,
             JenisLaporan.SALDO_MENGENDAP,
             JenisLaporan.REKONSILIASI,
             JenisLaporan.KERUGIAN_STOK);
@@ -116,15 +121,14 @@ public class LaporanController {
     }
 
     /** Saldo mengendap — dana titipan (PRD §9.5). */
-    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH,
-            AktorKantin.PENGELOLA_KANTIN, AktorKantin.KEPSEK})
+    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.KEPSEK})
     @GetMapping("saldo-mengendap")
     public ResponseEntity<Response<RingkasanSaldoMengendap>> saldoMengendap() {
         return CommonResponse.data(laporan.saldoMengendap(TenantContext.sekolahIdWajib()));
     }
 
     /** Saldo mengendap per siswa (issue #224), dibatasi untuk menghindari pemuatan seluruh siswa. */
-    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
+    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH})
     @GetMapping("saldo-mengendap/siswa")
     public ResponseEntity<Response<List<SiswaSaldoDetail>>> saldoMengendapSiswa(
             @RequestParam(required = false) String search,
@@ -135,8 +139,7 @@ public class LaporanController {
     }
 
     /** Rekonsiliasi harian + pemeriksaan invariant (PRD §9.5, §5). */
-    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH,
-            AktorKantin.PENGELOLA_KANTIN, AktorKantin.KEPSEK})
+    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.KEPSEK})
     @GetMapping("rekonsiliasi")
     public ResponseEntity<Response<RingkasanRekonsiliasi>> rekonsiliasi(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tanggal,
@@ -150,7 +153,7 @@ public class LaporanController {
      * Laporan stok + nilai persediaan (PRD §9.5). <b>Tanpa kepsek</b> — kolom
      * akses §9.5 hanya Pengelola &amp; Bendahara.
      */
-    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
+    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
     @GetMapping("stok")
     public ResponseEntity<Response<List<BarisStok>>> stok(
             @RequestParam(defaultValue = "false") boolean hanyaMenipis) {
@@ -159,8 +162,7 @@ public class LaporanController {
     }
 
     /** Kerugian stok (opname keluar &amp; barang rusak) (PRD §9.5). */
-    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH,
-            AktorKantin.PENGELOLA_KANTIN, AktorKantin.KEPSEK})
+    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.PENGELOLA_KANTIN, AktorKantin.KEPSEK})
     @GetMapping("kerugian-stok")
     public ResponseEntity<Response<List<BarisKerugianStok>>> kerugianStok(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tanggal,
@@ -171,8 +173,7 @@ public class LaporanController {
     }
 
     /** Ringkasan agregat kerugian stok, konsisten dengan daftar pada periode sama (#226). */
-    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH,
-            AktorKantin.PENGELOLA_KANTIN, AktorKantin.KEPSEK})
+    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.PENGELOLA_KANTIN, AktorKantin.KEPSEK})
     @GetMapping("kerugian-stok/ringkasan")
     public ResponseEntity<Response<RingkasanKerugianStok>> ringkasanKerugianStok(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tanggal,
@@ -186,7 +187,7 @@ public class LaporanController {
      * Laporan <b>Pembatalan kasir</b> (PRD §9.5, issue #114): daftar transaksi
      * yang di-void (tombol Batalkan) per subjek pada periode. RBAC Bendahara/Admin.
      */
-    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
+    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH})
     @GetMapping("pembatalan")
     public ResponseEntity<Response<List<BarisPembatalanKasir>>> pembatalan(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tanggal,
@@ -200,7 +201,7 @@ public class LaporanController {
      * Laporan <b>Kartu Tamu</b> (PRD §9.5, issue #115): daftar kartu + pemegang
      * + saldo + status. Riwayat per kartu lewat {@code GET /api/kartu-tamu/{id}/riwayat}.
      */
-    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
+    @PerluPeran({AktorKantin.TU_SEKOLAH})
     @GetMapping("kartu-tamu")
     public ResponseEntity<Response<List<BarisKartuTamu>>> kartuTamu() {
         return CommonResponse.data(laporan.laporanKartuTamu(TenantContext.sekolahIdWajib()));
@@ -211,7 +212,7 @@ public class LaporanController {
      * {@code LaporanSaldoMengendapPage} ({@code KartuTamuSaldoDetail}). Sumber
      * datanya sama dengan {@code kartu-tamu}; hanya path &amp; bentuk berbeda.
      */
-    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
+    @PerluPeran({AktorKantin.TU_SEKOLAH})
     @GetMapping("saldo-mengendap/kartu-tamu")
     public ResponseEntity<Response<List<KartuTamuSaldoDetail>>> saldoKartuTamu() {
         return CommonResponse.data(laporan.laporanSaldoKartuTamu(TenantContext.sekolahIdWajib()));
@@ -219,9 +220,10 @@ public class LaporanController {
 
     /**
      * Laporan <b>Penjualan per titik kasir</b> (PRD §9.5, issue #116): jumlah
-     * transaksi, nilai, HPP, laba kotor per titik. RBAC Bendahara/Admin.
+     * transaksi, nilai, HPP, laba kotor per titik. RBAC Bendahara/Admin/Kepsek.
      */
-    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
+    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH,
+            AktorKantin.PENGELOLA_KANTIN, AktorKantin.KEPSEK})
     @GetMapping("penjualan/titik")
     public ResponseEntity<Response<List<BarisPenjualanDimensi>>> penjualanPerTitik(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tanggal,
@@ -233,9 +235,10 @@ public class LaporanController {
 
     /**
      * Laporan <b>Penjualan per petugas</b> (PRD §9.5, issue #116): jumlah
-     * transaksi, nilai, HPP, laba kotor per petugas. RBAC Bendahara/Admin.
+     * transaksi, nilai, HPP, laba kotor per petugas. RBAC Bendahara/Admin/Kepsek.
      */
-    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
+    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH,
+            AktorKantin.PENGELOLA_KANTIN, AktorKantin.KEPSEK})
     @GetMapping("penjualan/petugas")
     public ResponseEntity<Response<List<BarisPenjualanDimensi>>> penjualanPerPetugas(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tanggal,
@@ -246,6 +249,23 @@ public class LaporanController {
     }
 
     /**
+     * Penjualan <b>per kasir</b> — grouping per titik kasir + petugas
+     * (PRD §9.5, issue #227). Tagihan FE {@code LaporanPenjualanPage}:
+     * {@code laporanApi.getPenjualanPerKasir()}. Semantik bruto/void/bersih
+     * konsisten dengan rekap sesi kasir.
+     */
+    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH,
+            AktorKantin.PENGELOLA_KANTIN, AktorKantin.KEPSEK})
+    @GetMapping("penjualan/kasir")
+    public ResponseEntity<Response<List<BarisPenjualanKasir>>> penjualanPerKasir(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tanggal,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime dari,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime sampai) {
+        return CommonResponse.data(
+                laporan.penjualanPerKasir(TenantContext.sekolahIdWajib(), tanggal, dari, sampai));
+    }
+
+    /**
      * Laporan <b>Per siswa</b> (PRD §9.5, issue #117): riwayat lengkap satu
      * subjek (SISWA/KARTU_TAMU) pada periode — ringkasan + daftar transaksi +
      * mutasi saldo. Untuk menjawab komplain orang tua. RBAC Bendahara/Admin.
@@ -253,7 +273,7 @@ public class LaporanController {
      * @param subjekTipe SISWA (default) atau KARTU_TAMU
      * @param subjekId   id siswa/kartu tamu
      */
-    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
+    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH})
     @GetMapping("per-siswa")
     public ResponseEntity<Response<LaporanPerSiswa>> perSiswa(
             @RequestParam(defaultValue = "SISWA") SubjekTipe subjekTipe,
@@ -276,7 +296,7 @@ public class LaporanController {
      *
      * @param siswaId id siswa (harus punya saldo di sekolah pemanggil, jika tidak 404)
      */
-    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
+    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH})
     @GetMapping("siswa/{siswaId}/riwayat")
     public ResponseEntity<Response<LaporanRiwayatSiswa>> riwayatSiswa(
             @PathVariable Long siswaId,
@@ -291,7 +311,7 @@ public class LaporanController {
      * per petugas per hari + uang disetor + <b>selisih</b>. RBAC <b>Bendahara</b>
      * (PRD §9.5: hanya Bendahara) — kepsek <b>tidak</b> berhak. Tanpa kepsek.
      */
-    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
+    @PerluPeran({AktorKantin.TU_SEKOLAH})
     @GetMapping("setoran-tu")
     public ResponseEntity<Response<List<RekapSetoranTuItem>>> setoranTu(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tanggal) {
@@ -304,7 +324,7 @@ public class LaporanController {
      * satu menu (masuk, terjual, void, penyesuaian) + saldo stok berjalan.
      * RBAC Pengelola/Bendahara.
      */
-    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
+    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
     @GetMapping("kartu-stok/{menuId}")
     public ResponseEntity<Response<KartuStokItem>> kartuStok(
             @org.springframework.web.bind.annotation.PathVariable Long menuId,

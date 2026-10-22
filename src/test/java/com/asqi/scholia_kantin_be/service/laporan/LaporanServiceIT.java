@@ -4,6 +4,7 @@ import com.asqi.scholia_kantin_be.dto.BarisKartuTamu;
 import com.asqi.scholia_kantin_be.dto.BarisKerugianStok;
 import com.asqi.scholia_kantin_be.dto.BarisPembatalanKasir;
 import com.asqi.scholia_kantin_be.dto.BarisPenjualanDimensi;
+import com.asqi.scholia_kantin_be.dto.BarisPenjualanKasir;
 import com.asqi.scholia_kantin_be.dto.BarisPenjualan;
 import com.asqi.scholia_kantin_be.dto.BarisStok;
 import com.asqi.scholia_kantin_be.dto.KartuStokItem;
@@ -567,6 +568,63 @@ class LaporanServiceIT {
         transaksiDimensi(1, 1, 5, 21_000, 10_000);
 
         assertThat(laporan.penjualanPerTitik(SEKOLAH_LAIN, null, null, null)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("#227: penjualan per kasir — grup titik+petugas, void terpisah, bersih = ringkasan sesi")
+    void penjualanPerKasir() {
+        titikKasir(2, "Kasir 2");
+        transaksiDimensi(1, 1, 5, 21_000, 10_000);
+        transaksiDimensi(2, 1, 5, 8_000, 4_000);
+        transaksiDimensi(3, 2, 6, 15_000, 6_000);
+        // VOID: tetap di titik 1 / petugas 5 — hitung di nilaiVoid, bukan penjualan
+        transaksiVoid(4, SISWA, 9_000, "Salah tap ganda");
+
+        List<BarisPenjualanKasir> r = laporan.penjualanPerKasir(SEKOLAH, null, null, null);
+
+        assertThat(r).hasSize(2);
+        BarisPenjualanKasir k15 = r.stream()
+                .filter(x -> x.titikKasirId().equals(1L) && x.petugasId().equals(5L))
+                .findFirst().orElseThrow();
+        assertThat(k15.namaTitikKasir()).isEqualTo("Kasir 1");
+        assertThat(k15.jumlahTransaksi()).isEqualTo(2);            // hanya SUKSES
+        assertThat(k15.penjualanBruto()).isEqualTo(38_000);         // 21k + 8k + 9k void (rekap sesi: bruto menyentuh kasir)
+        assertThat(k15.nilaiVoid()).isEqualTo(9_000);
+        assertThat(k15.penjualanBersih()).isEqualTo(29_000);        // 38k − 9k = Σ SUKSES = totalBersih rekap sesi
+
+        BarisPenjualanKasir k26 = r.stream()
+                .filter(x -> x.titikKasirId().equals(2L))
+                .findFirst().orElseThrow();
+        assertThat(k26.namaTitikKasir()).isEqualTo("Kasir 2");
+        assertThat(k26.jumlahTransaksi()).isEqualTo(1);
+        assertThat(k26.nilaiVoid()).isEqualTo(0);
+        assertThat(k26.penjualanBersih()).isEqualTo(15_000);
+    }
+
+    @Test
+    @DisplayName("#227: penjualan per kasir — tenant scoping (sekolah lain kosong)")
+    void penjualanPerKasirTenantScoping() {
+        transaksiDimensi(1, 1, 5, 21_000, 10_000);
+
+        assertThat(laporan.penjualanPerKasir(SEKOLAH_LAIN, null, null, null)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("#227: ekspor PENJUALAN_KASIR menghasilkan .xlsx valid")
+    void eksporPenjualanKasir() throws Exception {
+        titikKasir(2, "Kasir 2");
+        transaksiDimensi(1, 1, 5, 21_000, 10_000);
+        transaksiDimensi(3, 2, 6, 15_000, 6_000);
+
+        LaporanExportService.HasilEkspor hasil = exportService.ekspor(
+                SEKOLAH, JenisLaporan.PENJUALAN_KASIR, null, null, null);
+        assertThat(hasil.namaBerkas()).endsWith(".xlsx");
+        try (var wb = new org.apache.poi.xssf.usermodel.XSSFWorkbook(
+                new java.io.ByteArrayInputStream(hasil.isi()))) {
+            var sheet = wb.getSheetAt(0);
+            assertThat(sheet.getPhysicalNumberOfRows()).isGreaterThan(0);
+            assertThat(sheet.getRow(0).getCell(0).getStringCellValue()).contains("Penjualan per Kasir");
+        }
     }
 
     @Test

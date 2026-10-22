@@ -154,6 +154,31 @@ public interface TransaksiRepository extends JpaRepository<Transaksi, Long>,
                                               @Param("sampai") OffsetDateTime sampai);
 
     /**
+     * Penjualan <b>per kasir</b> — grouping per titik kasir + petugas pada
+     * rentang (PRD §9.5, issue #227). SUKSES dan VOID dihitung pada grup yang
+     * sama agar bruto/void/bersih konsisten dengan rekap sesi kasir:
+     * baris {@code [titikKasirId, petugasId, jumlahSukses, Σ total SUKSES,
+     * Σ total VOID]}. Tenant-scoped, diurut per titik lalu petugas.
+     */
+    @Query("""
+            SELECT t.titikKasirId, t.petugasId,
+                   COUNT(CASE WHEN t.status = com.asqi.scholia_kantin_be.enums.StatusTransaksi.SUKSES THEN 1 END),
+                   COALESCE(SUM(CASE WHEN t.status = com.asqi.scholia_kantin_be.enums.StatusTransaksi.SUKSES THEN t.total END), 0),
+                   COALESCE(SUM(CASE WHEN t.status = com.asqi.scholia_kantin_be.enums.StatusTransaksi.VOID THEN t.total END), 0)
+            FROM Transaksi t
+            WHERE t.sekolahId = :sekolahId
+              AND t.status IN (
+                  com.asqi.scholia_kantin_be.enums.StatusTransaksi.SUKSES,
+                  com.asqi.scholia_kantin_be.enums.StatusTransaksi.VOID)
+              AND t.waktu >= :dari AND t.waktu < :sampai
+            GROUP BY t.titikKasirId, t.petugasId
+            ORDER BY t.titikKasirId, t.petugasId
+            """)
+    List<Object[]> penjualanPerKasirRentang(@Param("sekolahId") Long sekolahId,
+                                            @Param("dari") OffsetDateTime dari,
+                                            @Param("sampai") OffsetDateTime sampai);
+
+    /**
      * Semua transaksi satu subjek pada rentang (laporan per siswa, PRD §9.5,
      * issue #117), urut waktu menaik. Tenant-scoped.
      */

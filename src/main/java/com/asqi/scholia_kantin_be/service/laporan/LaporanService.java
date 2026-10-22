@@ -4,6 +4,7 @@ import com.asqi.scholia_kantin_be.dto.BarisKartuTamu;
 import com.asqi.scholia_kantin_be.dto.BarisKerugianStok;
 import com.asqi.scholia_kantin_be.dto.BarisPembatalanKasir;
 import com.asqi.scholia_kantin_be.dto.BarisPenjualanDimensi;
+import com.asqi.scholia_kantin_be.dto.BarisPenjualanKasir;
 import com.asqi.scholia_kantin_be.dto.BarisPenjualan;
 import com.asqi.scholia_kantin_be.dto.BarisStok;
 import com.asqi.scholia_kantin_be.dto.KartuStokItem;
@@ -595,6 +596,42 @@ public class LaporanService {
             long nilai = ((Number) b[2]).longValue();
             long hpp = ((Number) b[3]).longValue();
             hasil.add(new BarisPenjualanDimensi(id, null, jumlah, nilai, hpp, nilai - hpp));
+        }
+        return hasil;
+    }
+
+    /**
+     * Penjualan <b>per kasir</b> — grouping per titik kasir + petugas
+     * (PRD §9.5, issue #227). Kontrak FE {@code BarisPenjualanKasir}: daftar
+     * kasir di {@code LaporanPenjualanPage.tsx}.
+     *
+     * <p>Semantik mengikuti rekap sesi kasir ({@code
+     * SesiKasirService.hitungRekap}) agar Σ {@code penjualanBersih} konsisten
+     * dengan {@code totalBersih} sesi pada periode yang sama: {@code
+     * penjualanBruto} mencakup transaksi VOID (uang yang menyentuh kasir),
+     * {@code nilaiVoid} memisahkannya, dan {@code penjualanBersih} =
+     * bruto − void = Σ SUKSES. Nama petugas tidak tersedia di kantin-be →
+     * field {@code petugas} diisi id petugas (String) sebagai placeholder.
+     */
+    @Transactional(readOnly = true)
+    public List<BarisPenjualanKasir> penjualanPerKasir(Long sekolahId, LocalDate tanggal,
+                                                       OffsetDateTime dari, OffsetDateTime sampai) {
+        OffsetDateTime[] r = rentang(tanggal, dari, sampai);
+        Map<Long, String> namaTitik = new HashMap<>();
+        titikKasirRepo.findBySekolahId(sekolahId)
+                .forEach(t -> namaTitik.put(t.getId(), t.getNama()));
+
+        List<BarisPenjualanKasir> hasil = new ArrayList<>();
+        for (Object[] b : transaksiRepo.penjualanPerKasirRentang(sekolahId, r[0], r[1])) {
+            Long titikId = (Long) b[0];
+            Long petugasId = (Long) b[1];
+            long jumlahSukses = ((Number) b[2]).longValue();
+            long nilaiSukses = ((Number) b[3]).longValue();
+            long nilaiVoid = ((Number) b[4]).longValue();
+            hasil.add(new BarisPenjualanKasir(
+                    titikId, namaTitik.get(titikId), petugasId,
+                    String.valueOf(petugasId), jumlahSukses,
+                    nilaiSukses + nilaiVoid, nilaiVoid, nilaiSukses));
         }
         return hasil;
     }

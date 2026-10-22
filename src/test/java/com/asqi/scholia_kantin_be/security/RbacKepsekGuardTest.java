@@ -14,6 +14,8 @@ import com.asqi.scholia_kantin_be.dto.UbahKebijakanRequest;
 import com.asqi.scholia_kantin_be.enums.AktorKantin;
 import com.asqi.scholia_kantin_be.enums.JenisLaporan;
 import com.asqi.scholia_kantin_be.enums.SumberToken;
+import com.asqi.scholia_kantin_be.enums.SubjekTipe;
+import com.asqi.scholia_kantin_be.service.laporan.LaporanExportService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -167,6 +169,15 @@ class RbacKepsekGuardTest {
         assertThat(peranPada(LaporanController.class, "kerugianStok",
                 LocalDate.class, OffsetDateTime.class, OffsetDateTime.class))
                 .contains(AktorKantin.KEPSEK);
+        assertThat(peranPada(LaporanController.class, "penjualanPerTitik",
+                LocalDate.class, OffsetDateTime.class, OffsetDateTime.class))
+                .contains(AktorKantin.KEPSEK);
+        assertThat(peranPada(LaporanController.class, "penjualanPerPetugas",
+                LocalDate.class, OffsetDateTime.class, OffsetDateTime.class))
+                .contains(AktorKantin.KEPSEK);
+        assertThat(peranPada(LaporanController.class, "penjualanPerKasir",
+                LocalDate.class, OffsetDateTime.class, OffsetDateTime.class))
+                .contains(AktorKantin.KEPSEK);
     }
 
     @Test
@@ -184,19 +195,93 @@ class RbacKepsekGuardTest {
     }
 
     // ────────────────────────────────────────────────────────────────
+    // 5) Matriks lengkap endpoint laporan vs hak baca KEPSEK (issue #249)
+    // ────────────────────────────────────────────────────────────────
+
+    /** Tiga parameter tanggal yang sama dipakai endpoint laporan berkala. */
+    private static final Class<?>[] PERIODE = {LocalDate.class, OffsetDateTime.class, OffsetDateTime.class};
+
+    @Test
+    @DisplayName("#249 — matriks endpoint laporan: hanya yang menyebut Kepsek di §9.5 yang terbuka")
+    void matriksEndpointLaporanUntukKepsek() {
+        List<String> boleh = List.of("penjualan", "penjualanItem", "penjualanKategori",
+                "rekonsiliasi", "kerugianStok", "ringkasanKerugianStok",
+                "penjualanPerTitik", "penjualanPerPetugas", "penjualanPerKasir");
+        for (String m : boleh) {
+            assertThat(peranPada(LaporanController.class, m, PERIODE))
+                    .as("%s harus terbuka untuk KEPSEK", m)
+                    .contains(AktorKantin.KEPSEK);
+        }
+
+        assertThat(peranPada(LaporanController.class, "saldoMengendapSiswa", String.class, int.class))
+                .doesNotContain(AktorKantin.KEPSEK);
+        assertThat(peranPada(LaporanController.class, "stok", boolean.class))
+                .doesNotContain(AktorKantin.KEPSEK);
+        assertThat(peranPada(LaporanController.class, "pembatalan", PERIODE))
+                .doesNotContain(AktorKantin.KEPSEK);
+        assertThat(peranPada(LaporanController.class, "kartuTamu"))
+                .doesNotContain(AktorKantin.KEPSEK);
+        assertThat(peranPada(LaporanController.class, "saldoKartuTamu"))
+                .doesNotContain(AktorKantin.KEPSEK);
+        assertThat(peranPada(LaporanController.class, "setoranTu", LocalDate.class))
+                .doesNotContain(AktorKantin.KEPSEK);
+        assertThat(peranPada(LaporanController.class, "perSiswa",
+                SubjekTipe.class, Long.class, LocalDate.class, OffsetDateTime.class, OffsetDateTime.class))
+                .doesNotContain(AktorKantin.KEPSEK);
+        assertThat(peranPada(LaporanController.class, "riwayatSiswa", Long.class, OffsetDateTime.class, OffsetDateTime.class))
+                .doesNotContain(AktorKantin.KEPSEK);
+        assertThat(peranPada(LaporanController.class, "kartuStok", Long.class, Integer.class))
+                .doesNotContain(AktorKantin.KEPSEK);
+    }
+
+    // ────────────────────────────────────────────────────────────────
     // 4) Ekspor: kepsek hanya jenis yang boleh dibacanya
     // ────────────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("ekspor laporan: kepsek dilarang mengekspor STOK/BARANG_MASUK")
+    @DisplayName("ekspor laporan: kepsek diizinkan mengekspor dimensi PENJUALAN_TITIK, PENJUALAN_PETUGAS, PENJUALAN_KASIR")
+    void eksporKepsekBolehDimensiPenjualan() {
+        LaporanExportService exportService = org.mockito.Mockito.mock(LaporanExportService.class);
+        org.mockito.Mockito.when(exportService.ekspor(
+                        org.mockito.Mockito.anyLong(),
+                        org.mockito.Mockito.any(),
+                        org.mockito.Mockito.any(),
+                        org.mockito.Mockito.any(),
+                        org.mockito.Mockito.any(),
+                        org.mockito.Mockito.any(),
+                        org.mockito.Mockito.any(),
+                        org.mockito.Mockito.any()))
+                .thenReturn(new LaporanExportService.HasilEkspor("test.xlsx", new byte[]{1, 2, 3}));
+
+        LaporanController controller = new LaporanController(null, exportService);
+        TenantContext.set(IdentitasKantin.builder()
+                .userId("9").sekolahId(1L).peran(AktorKantin.KEPSEK).build());
+
+        for (JenisLaporan jenis : List.of(JenisLaporan.PENJUALAN_TITIK, JenisLaporan.PENJUALAN_PETUGAS, JenisLaporan.PENJUALAN_KASIR)) {
+            org.assertj.core.api.Assertions.assertThatNoException()
+                    .isThrownBy(() -> controller.ekspor(jenis, null, null, null, null, null, null));
+        }
+    }
+
+    @Test
+    @DisplayName("ekspor laporan: kepsek dilarang mengekspor yang tidak berhak (§9.5)")
     void eksporKepsekDibatasiPerJenis() {
         LaporanController controller = new LaporanController(null, null);
         TenantContext.set(IdentitasKantin.builder()
                 .userId("9").sekolahId(1L).peran(AktorKantin.KEPSEK).build());
 
-        assertThatThrownBy(() -> controller.ekspor(JenisLaporan.STOK, null, null, null, null, null, null))
-                .isInstanceOf(ForbiddenException.class);
-        assertThatThrownBy(() -> controller.ekspor(JenisLaporan.BARANG_MASUK, null, null, null, null, null, null))
-                .isInstanceOf(ForbiddenException.class);
+        List<JenisLaporan> dilarang = List.of(
+                JenisLaporan.STOK,
+                JenisLaporan.BARANG_MASUK,
+                JenisLaporan.SETORAN_TU,
+                JenisLaporan.KARTU_STOK,
+                JenisLaporan.PEMBATALAN,
+                JenisLaporan.PER_SISWA
+        );
+
+        for (JenisLaporan jenis : dilarang) {
+            assertThatThrownBy(() -> controller.ekspor(jenis, null, null, null, null, null, null))
+                    .isInstanceOf(ForbiddenException.class);
+        }
     }
 }

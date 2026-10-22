@@ -61,7 +61,7 @@ public class SaldoController {
      * Top-up tunai di TU (PRD §9.1). Idempotent lewat {@code referensiId}
      * (nomor bukti) — input bukti sama tidak menambah saldo dua kali.
      */
-    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
+    @PerluPeran({AktorKantin.TU_SEKOLAH})
     @PostMapping("topup")
     public ResponseEntity<Response<HasilMutasiSaldo>> topUp(
             @Valid @RequestBody TopUpRequest request,
@@ -78,7 +78,7 @@ public class SaldoController {
      * Koreksi saldo oleh bendahara (PRD §9.2) — menambah/mengurangi dengan
      * alasan &amp; berita acara wajib (idempotency).
      */
-    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
+    @PerluPeran({AktorKantin.TU_SEKOLAH})
     @PostMapping("koreksi")
     public ResponseEntity<Response<HasilMutasiSaldo>> koreksi(
             @Valid @RequestBody KoreksiSaldoRequest request,
@@ -101,8 +101,7 @@ public class SaldoController {
      * sekolah), {@code subjekTipe}, {@code subjekId}. Tenant selalu dari token
      * (PRD §11.4), bukan parameter klien. Kepsek boleh (read-only).
      */
-    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH,
-            AktorKantin.PENGELOLA_KANTIN, AktorKantin.KEPSEK})
+    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.KEPSEK})
     @GetMapping("koreksi")
     public ResponseEntity<Response<HalamanResponse<MutasiKoreksiItem>>> daftarKoreksi(
             @RequestParam(required = false)
@@ -154,8 +153,7 @@ public class SaldoController {
      * Kepsek (read)"), tetapi <b>tidak</b> boleh mengeksekusi refund/pindah
      * (endpoint tulis di bawah sengaja tanpa {@code KEPSEK}).
      */
-    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH,
-            AktorKantin.PENGELOLA_KANTIN, AktorKantin.KEPSEK})
+    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.KEPSEK})
     @GetMapping("refund/kandidat")
     public ResponseEntity<Response<List<KandidatRefundItem>>> kandidatRefund(
             @RequestParam(defaultValue = "false") boolean hanyaTidakAktif) {
@@ -168,7 +166,7 @@ public class SaldoController {
      * Refund seluruh sisa saldo siswa keluar ke ortu (PRD §9.3). Saldo menjadi 0,
      * kartu diminta diblokir. Idempoten lewat nomor bukti.
      */
-    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
+    @PerluPeran({AktorKantin.TU_SEKOLAH})
     @PostMapping("refund")
     public ResponseEntity<Response<HasilRefundResponse>> refund(
             @Valid @RequestBody RefundSaldoRequest request,
@@ -184,7 +182,7 @@ public class SaldoController {
      * Pindahkan seluruh sisa saldo ke saudara kandung yang masih aktif di sekolah
      * yang sama (PRD §9.3). Idempoten lewat nomor berita acara.
      */
-    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
+    @PerluPeran({AktorKantin.TU_SEKOLAH})
     @PostMapping("pindah-saldo")
     public ResponseEntity<Response<HasilRefundResponse>> pindahSaldo(
             @Valid @RequestBody PindahSaldoRequest request,
@@ -205,7 +203,7 @@ public class SaldoController {
      * bendahara. Menampilkan Σ top-up tunai petugas, uang disetor, selisih.
      * {@code tanggal} kosong = hari ini (zona kantin).
      */
-    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
+    @PerluPeran({AktorKantin.TU_SEKOLAH})
     @GetMapping("setoran-tu/rekap")
     public ResponseEntity<Response<List<RekapSetoranTuItem>>> rekapSetoran(
             @RequestParam(required = false)
@@ -220,7 +218,7 @@ public class SaldoController {
      * Konfirmasi setoran kas TU oleh bendahara (PRD §9.2). Selisih kas dicatat,
      * tidak dihapus; idempoten lewat nomor berita acara.
      */
-    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
+    @PerluPeran({AktorKantin.TU_SEKOLAH})
     @PostMapping("setoran-tu")
     public ResponseEntity<Response<SetoranTuResponse>> konfirmasiSetoran(
             @Valid @RequestBody KonfirmasiSetoranRequest request,

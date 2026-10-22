@@ -99,6 +99,13 @@ atau password asal-asalan ditolak `401`. Password seluruh akun dev: `Kantin#2026
 | `kasir10` | PETUGAS | 10 | kasir |
 | `bendahara10` | BENDAHARA | 10 | bendahara |
 
+> **Hak akses per akun mengikuti PRD §9.5/§9.6** (lihat `architecture/RBAC-MATRIX.md`
+> sebagai sumber kebenaran). Setelah issue #250: `pengelola1` **tidak** lagi bisa
+> top-up/refund/koreksi saldo, menambah menu/kategori, membuka sesi kasir, atau
+> memblokir Kartu Tamu; `tu1`/`bendahara1` **tidak** lagi bisa mengubah limit
+> harian/blokir item siswa (itu hak Admin sekolah) dan **tetap** boleh memblokir
+> Kartu Tamu; `kepsek1` hanya boleh membaca laporan yang PRD §9.5 sebutkan.
+
 Fixture siswa lokal/demo untuk tenant sekolah 10: nomor kartu `RFID-SISWA-001`, UID RFID `DA100001`, siswa ID `1001` (identitas nama/kelas sengaja kosong). Fixture hanya dikenali pada profil `demo`; kantin-be tidak menambah master siswa. Untuk mencobanya, login sebagai `kasir10` dan kirim tap dengan UID tersebut, titik kasir `1001`, menu `1002` (Mie Ayam), kuantitas `1`, dan idempotency key baru.
 
 Catatan: `sekolah_id` yang dikirim FE **diabaikan**. Tenant ditentukan oleh akun,

@@ -20,6 +20,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -166,5 +167,81 @@ class SesiKasirServiceIT {
                 "SELECT status FROM sesi_kasir WHERE id = 9001", String.class)).isEqualTo("DITUTUP");
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM sesi_kasir WHERE status = 'TERBUKA'", Integer.class)).isEqualTo(1);
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // ambilSesiAktif (issue #222)
+    // ────────────────────────────────────────────────────────────────
+
+    /**
+     * Sesi TERBUKA hari ini ditemukan dengan bentuk kontrak FE
+     * {@code SesiKasirData}: nama titik, jumlah transaksi SUKSES, dan total
+     * dari sumber rekap yang sama dengan tutup kasir.
+     */
+    @Test
+    @DisplayName("ambilSesiAktif: sesi terbuka hari ini dikembalikan lengkap")
+    void ambilSesiAktifDenganSesiTerbuka() {
+        tap("s1", 1); // 8.000 — SUKSES
+        TapResponse t2 = tap("s2", 1); // 8.000
+        voidService.voidTransaksi(SEKOLAH, t2.getTransaksiId(), 555L, "salah");
+
+        LocalDate tanggalSesi = jdbc.queryForObject(
+                "SELECT tanggal FROM sesi_kasir WHERE titik_kasir_id = ?", LocalDate.class, TITIK);
+
+        var sesi = sesiKasir.ambilSesiAktif(SEKOLAH, TITIK);
+
+        assertThat(sesi).isNotNull();
+        assertThat(sesi.status()).isEqualTo(StatusSesiKasir.TERBUKA);
+        assertThat(sesi.titikKasirId()).isEqualTo(TITIK);
+        assertThat(sesi.titikKasirNama()).isEqualTo("Kasir 1");
+        assertThat(sesi.sekolahId()).isEqualTo(SEKOLAH);
+        assertThat(sesi.tanggal()).isEqualTo(tanggalSesi);
+        assertThat(sesi.totalBersih()).isEqualTo(8_000L);
+        assertThat(sesi.totalBruto()).isEqualTo(16_000L);
+        assertThat(sesi.totalVoid()).isEqualTo(8_000L);
+        assertThat(sesi.totalTransaksi()).isEqualTo(1L);
+        assertThat(sesi.dibukaAt()).isNotNull();
+    }
+
+    /**
+     * Belum ada sesi (belum dibuka) → {@code null} — controller meneruskan
+     * HTTP 200 + {@code data: null} (perilaku kosong yang disepakati #222).
+     */
+    @Test
+    @DisplayName("ambilSesiAktif: tanpa sesi terbuka → null (bukan 404)")
+    void ambilSesiAktifTanpaSesi() {
+        assertThat(sesiKasir.ambilSesiAktif(SEKOLAH, TITIK)).isNull();
+    }
+
+    /**
+     * Sesi hari ini sudah ditutup manual → tidak dianggap aktif: hasil
+     * {@code null} (bukan sesi DITUTUP), karena eval berfungsi hanya dengan
+     * sesi TERBUKA.
+     */
+    @Test
+    @DisplayName("ambilSesiAktif: sesi sudah ditutup hari ini → null")
+    void ambilSesiAktifSesiSudahDitutup() {
+        tap("s1", 1);
+        Long sesiId = jdbc.queryForObject(
+                "SELECT id FROM sesi_kasir WHERE titik_kasir_id = ?", Long.class, TITIK);
+        sesiKasir.tutupSesi(SEKOLAH, sesiId, 555L, false);
+
+        assertThat(sesiKasir.ambilSesiAktif(SEKOLAH, TITIK)).isNull();
+    }
+
+    /**
+     * Titik kasir milik sekolah lain → 404 (bocor keberadaan data tenant lain
+     * tidak dibolehkan, PRD §11.4) — sama seperti pola {@code ambil}.
+     */
+    @Test
+    @DisplayName("ambilSesiAktif: titik kasir sekolah lain → NotFoundEntity")
+    void ambilSesiAktifTitikSekolahLain() {
+        Long titikLain = 9L;
+        jdbc.update("INSERT INTO titik_kasir (id, sekolah_id, nama, is_active, created_at, updated_at) "
+                + "VALUES (?, ?, 'Kasir 9', true, now(), now())", titikLain, 99L);
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                com.asqi.scholia_kantin_be.component.exception.NotFoundEntity.class,
+                () -> sesiKasir.ambilSesiAktif(SEKOLAH, titikLain));
     }
 }

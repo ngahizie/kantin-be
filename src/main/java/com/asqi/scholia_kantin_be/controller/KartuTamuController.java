@@ -51,8 +51,7 @@ public class KartuTamuController {
      * Daftar semua kartu tamu milik sekolah.
      * Petugas kasir bisa baca untuk validasi tap.
      */
-    @PerluPeran({AktorKantin.PETUGAS_KANTIN, AktorKantin.PENGELOLA_KANTIN,
-            AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.TU_SEKOLAH})
     @GetMapping
     public ResponseEntity<Response<List<KartuTamu>>> daftarKartu(
             @RequestParam(defaultValue = "false") boolean hanyaAktif) {
@@ -64,8 +63,7 @@ public class KartuTamuController {
     /**
      * Detail 1 kartu tamu.
      */
-    @PerluPeran({AktorKantin.PETUGAS_KANTIN, AktorKantin.PENGELOLA_KANTIN,
-            AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.TU_SEKOLAH})
     @GetMapping("{kartuId}")
     public ResponseEntity<Response<KartuTamu>> detailKartu(@PathVariable Long kartuId) {
         KartuTamu kartu = service.detailKartu(TenantContext.sekolahIdWajib(), kartuId);
@@ -77,7 +75,7 @@ public class KartuTamuController {
      * Nomor kartu <b>digenerate otomatis</b> (KT- + urutan) bila tidak diisi.
      * Hanya pengelola/TU/admin yang bisa buat.
      */
-    @PerluPeran({AktorKantin.PENGELOLA_KANTIN, AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.TU_SEKOLAH})
     @PostMapping
     public ResponseEntity<Response<KartuTamu>> buatKartu(
             @Valid @RequestBody KartuTamuRequest request,
@@ -98,7 +96,7 @@ public class KartuTamuController {
      * Pratinjau nomor kartu berikutnya (PRD §9.4) — untuk ditampilkan di form
      * sebelum kartu disimpan/dicetak. Tidak menyimpan apa pun.
      */
-    @PerluPeran({AktorKantin.PENGELOLA_KANTIN, AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.TU_SEKOLAH})
     @GetMapping("nomor-berikutnya")
     public ResponseEntity<Response<String>> nomorBerikutnya() {
         String nomor = service.generateNomorKartu(TenantContext.sekolahIdWajib());
@@ -110,7 +108,7 @@ public class KartuTamuController {
      * Kirim {@code labelPemegang} = "" untuk mengosongkan (mis. pengembalian).
      * Hanya pengelola/TU/admin yang bisa update.
      */
-    @PerluPeran({AktorKantin.PENGELOLA_KANTIN, AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.TU_SEKOLAH})
     @PutMapping("{kartuId}")
     public ResponseEntity<Response<KartuTamu>> updateKartu(
             @PathVariable Long kartuId,
@@ -134,7 +132,7 @@ public class KartuTamuController {
      * Nonaktifkan kartu tamu (soft delete).
      * Kartu nonaktif tidak bisa dipakai tap.
      */
-    @PerluPeran({AktorKantin.PENGELOLA_KANTIN, AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.TU_SEKOLAH})
     @DeleteMapping("{kartuId}")
     public ResponseEntity<Response<KartuTamu>> nonaktifkanKartu(
             @PathVariable Long kartuId,
@@ -157,7 +155,7 @@ public class KartuTamuController {
      * di-refund <b>tunai</b>, saldo → 0, label pemegang dikosongkan agar kartu
      * dapat dipakai ulang. Idempoten lewat nomor bukti. RBAC TU/bendahara.
      */
-    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
+    @PerluPeran({AktorKantin.TU_SEKOLAH})
     @PostMapping("refund")
     public ResponseEntity<Response<HasilRefundResponse>> refundKartu(
             @Valid @RequestBody RefundKartuTamuRequest request,
@@ -174,7 +172,7 @@ public class KartuTamuController {
      * (PRD §9.4): kartu lama diblokir (berlaku instan), saldo pindah. Idempoten
      * lewat nomor berita acara. RBAC TU/bendahara.
      */
-    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
+    @PerluPeran({AktorKantin.TU_SEKOLAH})
     @PostMapping("pindah-saldo")
     public ResponseEntity<Response<HasilRefundResponse>> pindahSaldoKartu(
             @Valid @RequestBody PindahSaldoKartuTamuRequest request,
@@ -192,8 +190,7 @@ public class KartuTamuController {
      * issue #122) — dapat dilihat/dicetak TU atas permintaan pemegang.
      * Transaksi terbaru dulu &amp; berhalaman; tenant-scoped.
      */
-    @PerluPeran({AktorKantin.PETUGAS_KANTIN, AktorKantin.TU_SEKOLAH,
-            AktorKantin.PENGELOLA_KANTIN, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.TU_SEKOLAH})
     @GetMapping("{kartuId}/riwayat")
     public ResponseEntity<Response<RiwayatKartuTamuResponse>> riwayatKartu(
             @PathVariable Long kartuId,

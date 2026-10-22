@@ -2,6 +2,7 @@ package com.asqi.scholia_kantin_be.controller;
 
 import com.asqi.scholia_kantin_be.dto.BukaSesiRequest;
 import com.asqi.scholia_kantin_be.dto.HalamanResponse;
+import com.asqi.scholia_kantin_be.dto.SesiKasirAktifData;
 import com.asqi.scholia_kantin_be.dto.TapRequest;
 import com.asqi.scholia_kantin_be.dto.TapResponse;
 import com.asqi.scholia_kantin_be.dto.TransaksiKasirItem;
@@ -67,7 +68,7 @@ public class KasirController {
      * @param request   data tap (termasuk idempotency key dari klien)
      * @param identitas diisi otomatis oleh Spring dari SecurityContext
      */
-    @PerluPeran({AktorKantin.PETUGAS_KANTIN, AktorKantin.PENGELOLA_KANTIN, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.PETUGAS_KANTIN})
     @PostMapping("tap")
     public ResponseEntity<Response<TapResponse>> tap(
             @Valid @RequestBody TapRequest request,
@@ -84,7 +85,7 @@ public class KasirController {
      * Konfirmasi tap yang menunggu (PRD §6.1) — di sini barulah saldo/stok
      * dipotong. Idempoten: konfirmasi ganda mengembalikan transaksi yang sama.
      */
-    @PerluPeran({AktorKantin.PETUGAS_KANTIN, AktorKantin.PENGELOLA_KANTIN, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.PETUGAS_KANTIN})
     @PostMapping("tap/{pendingId}/konfirmasi")
     public ResponseEntity<Response<TapResponse>> konfirmasiTap(
             @PathVariable Long pendingId,
@@ -99,7 +100,7 @@ public class KasirController {
      * Batalkan tap yang menunggu konfirmasi (PRD §6.1) — tidak jadi transaksi.
      * Idempoten: pembatalan ganda tetap sukses.
      */
-    @PerluPeran({AktorKantin.PETUGAS_KANTIN, AktorKantin.PENGELOLA_KANTIN, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.PETUGAS_KANTIN})
     @PostMapping("tap/{pendingId}/batal")
     public ResponseEntity<Response<Void>> batalTap(
             @PathVariable Long pendingId,
@@ -110,7 +111,7 @@ public class KasirController {
     }
 
     /** Daftar tap yang masih menunggu konfirmasi untuk sekolah ini (PRD §6.1). */
-    @PerluPeran({AktorKantin.PETUGAS_KANTIN, AktorKantin.PENGELOLA_KANTIN, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.PETUGAS_KANTIN})
     @GetMapping("tap/menunggu")
     public ResponseEntity<Response<java.util.List<TapResponse>>> daftarTapMenunggu() {
         var daftar = tapService.daftarPending(TenantContext.sekolahIdWajib()).stream()
@@ -123,7 +124,7 @@ public class KasirController {
      * Batalkan (void) transaksi — kembalikan saldo &amp; stok (PRD §6.3).
      * Hanya untuk transaksi pada sesi yang belum ditutup; wajib alasan.
      */
-    @PerluPeran({AktorKantin.PETUGAS_KANTIN, AktorKantin.PENGELOLA_KANTIN, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.PETUGAS_KANTIN})
     @PostMapping("transaksi/{transaksiId}/void")
     public ResponseEntity<Response<Transaksi>> voidTransaksi(
             @PathVariable Long transaksiId,
@@ -141,7 +142,7 @@ public class KasirController {
      * pembalik</b> beralasan — saldo &amp; stok dikembalikan, transaksi ditandai
      * VOID, dan jejaknya dicatat di audit log. Wajib alasan.
      */
-    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
+    @PerluPeran({AktorKantin.TU_SEKOLAH})
     @PostMapping("transaksi/{transaksiId}/koreksi")
     public ResponseEntity<Response<Transaksi>> koreksiTransaksiSesiTertutup(
             @PathVariable Long transaksiId,
@@ -180,6 +181,33 @@ public class KasirController {
     }
 
     /**
+     * <b>Daftar transaksi sesi tertutup</b> — kandidat koreksi bendahara
+     * (issue <b>#230</b>): hanya transaksi pada sesi berstatus
+     * {@code DITUTUP} milik tenant, sesuai aksi koreksi di atas. Melengkapi
+     * {@code /transaksi} (semua sesi) untuk halaman
+     * {@code KoreksiBendaharaPage} yang sebelumnya memanggil path yang belum
+     * ada dan diam-diam jatuh ke data mock.
+     *
+     * <p>Filter & paginasi sama dengan {@code /transaksi}; {@code sesiId}
+     * divalidasi (milik tenant + sudah ditutup → selain itu 404/invalid).
+     * RBAC sengaja disamakan dengan aksi koreksinya (TU/bendahara, admin,
+     * pengelola). Tenant selalu dari token (PRD §11.4).
+     */
+    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
+    @GetMapping("transaksi/sesi-tutup")
+    public ResponseEntity<Response<HalamanResponse<TransaksiKasirItem>>> daftarTransaksiSesiTutup(
+            @RequestParam(required = false) Long sesiId,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tanggal,
+            @RequestParam(required = false) StatusTransaksi status,
+            @RequestParam(defaultValue = "0") int halaman,
+            @RequestParam(defaultValue = "20") int ukuran) {
+
+        return CommonResponse.data(transaksiKasirService.daftarSesiTutup(
+                TenantContext.sekolahIdWajib(), sesiId, tanggal, status, halaman, ukuran));
+    }
+
+    /**
      * Riwayat transaksi <b>satu sesi</b> (issue #229) — panel riwayat di layar
      * POS. Tanpa paginasi (terikat satu sesi), terbaru dulu, memuat rincian item.
      *
@@ -199,11 +227,41 @@ public class KasirController {
     }
 
     /**
+     * Baca sesi kasir <b>aktif hari ini</b> per titik kasir (issue <b>#222</b>)
+     * — melengkapi {@code sesi/buka}: FE layar POS
+     * ({@code KasirPosPage.loadSesiData()}) memanggil
+     * {@code GET /api/kasir/sesi/aktif} tiap kali layar dibuka, lalu baru
+     * memanggil {@code sesi/buka} bila hasilnya kosong. Tanpa endpoint ini
+     * {@code aktif} tertangkap pemetaan {@code sesi/{sesiId}} dan gagal
+     * konversi path ke {@code Long} (400) — tak ada cara membaca sesi aktif
+     * tanpa tahu id-nya.
+     *
+     * <p><b>Perilaku kosong yang disepakati:</b> belum ada sesi terbuka
+     * (belum dibuka / sudah ditutup) tetap <b>HTTP 200 + {@code data: null}</b>,
+     * bukan 404, agar FE bisa membedakan "sesi memang belum ada" dari "request
+     * gagal" — persis bentuk yang diharapkan FE. Titik kasir milik sekolah
+     * lain dijawab 404 (jangan bocorkan keberadaan data tenant lain, PRD §11.4).
+     *
+     * <p>RBAC sama dengan {@code sesi/buka}: pemanggilnya layar kasir.
+     * Tenant selalu dari token (PRD §11.4), bukan parameter klien.
+     */
+    @PerluPeran({AktorKantin.PETUGAS_KANTIN})
+    @GetMapping("sesi/aktif")
+    public ResponseEntity<Response<SesiKasirAktifData>> sesiAktif(
+            @RequestParam Long titikKasirId) {
+
+        SesiKasirAktifData sesi = sesiKasirService.ambilSesiAktif(
+                TenantContext.sekolahIdWajib(), titikKasirId);
+        return CommonResponse.data(sesi,
+                sesi == null ? "Tidak ada sesi kasir terbuka" : "Sesi kasir aktif");
+    }
+
+    /**
      * Ambil sesi kasir terbuka hari ini untuk titik kasir, atau buka sesi baru
      * (PRD §6.4). Idempoten per (sekolah, titik, hari) — aman dipanggil
      * berkali-kali oleh klien kasir saat mulai shift.
      */
-    @PerluPeran({AktorKantin.PETUGAS_KANTIN, AktorKantin.PENGELOLA_KANTIN, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.PETUGAS_KANTIN})
     @PostMapping("sesi/buka")
     public ResponseEntity<Response<SesiKasir>> bukaSesi(
             @Valid @RequestBody BukaSesiRequest request) {
@@ -214,7 +272,7 @@ public class KasirController {
     }
 
     /** Pratinjau rekap sesi (bruto/void/bersih) sebelum tutup kasir (PRD §6.4). */
-    @PerluPeran({AktorKantin.PETUGAS_KANTIN, AktorKantin.PENGELOLA_KANTIN, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.PETUGAS_KANTIN})
     @GetMapping("sesi/{sesiId}/rekap")
     public ResponseEntity<Response<SesiKasirService.RekapSesi>> rekap(
             @PathVariable Long sesiId) {
@@ -226,7 +284,7 @@ public class KasirController {
      * Tutup sesi kasir: hitung rekap, tandai DITUTUP, kunci transaksi
      * (PRD §6.4). Setelah ditutup, koreksi hanya boleh oleh bendahara.
      */
-    @PerluPeran({AktorKantin.PETUGAS_KANTIN, AktorKantin.PENGELOLA_KANTIN, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.PETUGAS_KANTIN})
     @PostMapping("sesi/{sesiId}/tutup")
     public ResponseEntity<Response<SesiKasir>> tutupSesi(
             @PathVariable Long sesiId,
@@ -238,7 +296,7 @@ public class KasirController {
     }
 
     /** Ambil detail satu sesi kasir (tenant-scoped). */
-    @PerluPeran({AktorKantin.PETUGAS_KANTIN, AktorKantin.PENGELOLA_KANTIN, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.PETUGAS_KANTIN})
     @GetMapping("sesi/{sesiId}")
     public ResponseEntity<Response<SesiKasir>> ambilSesi(@PathVariable Long sesiId) {
         return CommonResponse.data(sesiKasirService.ambil(TenantContext.sekolahIdWajib(), sesiId));
