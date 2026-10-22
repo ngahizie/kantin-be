@@ -55,8 +55,9 @@ import java.util.Set;
  *
  * <p>Akses mengikuti PRD §9.5 per kolom <i>Akses</i>. Peran {@link AktorKantin#KEPSEK}
  * (kepala sekolah) bersifat <b>read-only</b> dan hanya pada laporan yang
- * menyebutnya — penjualan/laba kotor, saldo mengendap, rekonsiliasi, kerugian
- * stok. Laporan <b>stok</b> &amp; <b>barang masuk</b> tidak dibuka untuk kepsek
+ * menyebutnya — penjualan (termasuk dimensi titik kasir, petugas, dan kasir)
+ * &amp; laba kotor, saldo mengendap, rekonsiliasi, kerugian stok. Laporan
+ * <b>stok</b> &amp; <b>barang masuk</b> tidak dibuka untuk kepsek
  * (PRD §9.5: hanya Pengelola &amp; Bendahara). Lihat ADR-0012 &amp; issue #123.
  */
 @RestController
@@ -73,6 +74,9 @@ public class LaporanController {
             JenisLaporan.PENJUALAN,
             JenisLaporan.PENJUALAN_ITEM,
             JenisLaporan.PENJUALAN_KATEGORI,
+            JenisLaporan.PENJUALAN_TITIK,
+            JenisLaporan.PENJUALAN_PETUGAS,
+            JenisLaporan.PENJUALAN_KASIR,
             JenisLaporan.SALDO_MENGENDAP,
             JenisLaporan.REKONSILIASI,
             JenisLaporan.KERUGIAN_STOK);
@@ -220,9 +224,10 @@ public class LaporanController {
 
     /**
      * Laporan <b>Penjualan per titik kasir</b> (PRD §9.5, issue #116): jumlah
-     * transaksi, nilai, HPP, laba kotor per titik. RBAC Bendahara/Admin.
+     * transaksi, nilai, HPP, laba kotor per titik. RBAC Bendahara/Admin/Kepsek.
      */
-    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
+    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH,
+            AktorKantin.PENGELOLA_KANTIN, AktorKantin.KEPSEK})
     @GetMapping("penjualan/titik")
     public ResponseEntity<Response<List<BarisPenjualanDimensi>>> penjualanPerTitik(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tanggal,
@@ -234,9 +239,10 @@ public class LaporanController {
 
     /**
      * Laporan <b>Penjualan per petugas</b> (PRD §9.5, issue #116): jumlah
-     * transaksi, nilai, HPP, laba kotor per petugas. RBAC Bendahara/Admin.
+     * transaksi, nilai, HPP, laba kotor per petugas. RBAC Bendahara/Admin/Kepsek.
      */
-    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
+    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH,
+            AktorKantin.PENGELOLA_KANTIN, AktorKantin.KEPSEK})
     @GetMapping("penjualan/petugas")
     public ResponseEntity<Response<List<BarisPenjualanDimensi>>> penjualanPerPetugas(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tanggal,
@@ -252,7 +258,8 @@ public class LaporanController {
      * {@code laporanApi.getPenjualanPerKasir()}. Semantik bruto/void/bersih
      * konsisten dengan rekap sesi kasir.
      */
-    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
+    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH,
+            AktorKantin.PENGELOLA_KANTIN, AktorKantin.KEPSEK})
     @GetMapping("penjualan/kasir")
     public ResponseEntity<Response<List<BarisPenjualanKasir>>> penjualanPerKasir(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tanggal,

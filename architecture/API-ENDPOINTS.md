@@ -172,14 +172,14 @@
 | `GET` | `/api/laporan/pembatalan` | TU, admin, pengelola | **Pembatalan kasir** (#114): daftar transaksi di-void per subjek pada periode |
 | `GET` | `/api/laporan/kartu-tamu` | TU, admin, pengelola | **Kartu Tamu** (#115): daftar kartu + pemegang + saldo + status |
 | `GET` | `/api/laporan/saldo-mengendap/kartu-tamu` | TU, admin, pengelola | **Saldo mengendap per kartu tamu** (issue #225): `{id, nomorKartu, uid, labelPemegang, saldo, status (ACTIVE/BLOCKED), createdAt}` — bentuk yang dipakai FE; data sama dengan `kartu-tamu` |
-| `GET` | `/api/laporan/penjualan/titik` | TU, admin, pengelola | **Penjualan per titik kasir** (#116): transaksi, nilai, HPP, laba kotor per titik |
-| `GET` | `/api/laporan/penjualan/petugas` | TU, admin, pengelola | **Penjualan per petugas** (#116): transaksi, nilai, HPP, laba kotor per petugas |
-| `GET` | `/api/laporan/penjualan/kasir` | TU, admin, pengelola | **Penjualan per kasir** (#227): grouping per titik kasir + petugas — `{titikKasirId, namaTitikKasir, petugasId, petugas, jumlahTransaksi, penjualanBruto, nilaiVoid, penjualanBersih}`. Bruto/void/bersih konsisten rekap sesi: bruto = Σ SUKSES + Σ VOID, bersih = bruto − void = Σ SUKSES; `petugas` = id petugas (nama hanya di admin-be) |
+| `GET` | `/api/laporan/penjualan/titik` | TU, admin, pengelola, kepsek | **Penjualan per titik kasir** (#116): transaksi, nilai, HPP, laba kotor per titik |
+| `GET` | `/api/laporan/penjualan/petugas` | TU, admin, pengelola, kepsek | **Penjualan per petugas** (#116): transaksi, nilai, HPP, laba kotor per petugas |
+| `GET` | `/api/laporan/penjualan/kasir` | TU, admin, pengelola, kepsek | **Penjualan per kasir** (#227): grouping per titik kasir + petugas — `{titikKasirId, namaTitikKasir, petugasId, petugas, jumlahTransaksi, penjualanBruto, nilaiVoid, penjualanBersih}`. Bruto/void/bersih konsisten rekap sesi: bruto = Σ SUKSES + Σ VOID, bersih = bruto − void = Σ SUKSES; `petugas` = id petugas (nama hanya di admin-be) |
 | `GET` | `/api/laporan/per-siswa` | TU, admin, pengelola | **Per siswa** (#117): riwayat lengkap satu subjek. Query: `subjekTipe=SISWA`, `subjekId`, periode |
 | `GET` | `/api/laporan/siswa/{siswaId}/riwayat` | TU, admin, pengelola | **Riwayat satu siswa** (issue #223) untuk komplain orang tua: `{profil, riwayat}` — profil (saldo, belanjaHariIni, limitHarian, isBlocked) + mutasi saldo terbaru dulu dengan `items[]` belanja. Query opsional `dari`/`sampai` (ISO date-time), default 30 hari. Siswa sekolah lain → 404 |
 | `GET` | `/api/laporan/setoran-tu` | TU, admin, pengelola | **Setoran kas TU** (#143): rekap top-up tunai per petugas per hari + disetor + **selisih**. Query: `tanggal?`. **Tanpa kepsek** (§9.5: hanya Bendahara) |
 | `GET` | `/api/laporan/kartu-stok/{menuId}` | TU, admin, pengelola | **Kartu stok per item** (#118): riwayat mutasi satu menu + saldo berjalan. Query: `batas?` |
-| `GET` | `/api/laporan/ekspor` | TU, admin, pengelola, kepsek* | Unduh **Excel `.xlsx`** (bukan JSON). Query: `jenis` ∈ `JenisLaporan`, `tanggal`/`dari`/`sampai`, `menuId?` (KARTU_STOK), `subjekTipe?`/`subjekId` (PER_SISWA). *Kepsek hanya jenis yang boleh dibacanya — `STOK`/`BARANG_MASUK`/`SETORAN_TU` → **403** |
+| `GET` | `/api/laporan/ekspor` | TU, admin, pengelola, kepsek* | Unduh **Excel `.xlsx`** (bukan JSON). Query: `jenis` ∈ `JenisLaporan`, `tanggal`/`dari`/`sampai`, `menuId?` (KARTU_STOK), `subjekTipe?`/`subjekId` (PER_SISWA). *Kepsek hanya jenis yang boleh dibacanya — `STOK`/`BARANG_MASUK`/`SETORAN_TU`/`KARTU_STOK`/`PEMBATALAN`/`PER_SISWA` → **403** |
 
 > **`JenisLaporan` (16 jenis ekspor):** `PENJUALAN`, `PENJUALAN_ITEM`,
 > `PENJUALAN_KATEGORI`, `SALDO_MENGENDAP`, `REKONSILIASI`, `STOK`,
@@ -187,7 +187,8 @@
 > `PENJUALAN_TITIK`, `PENJUALAN_PETUGAS`, `PENJUALAN_KASIR`, `KARTU_STOK`,
 > `SETORAN_TU`, `PER_SISWA`.
 > Kepsek hanya boleh mengekspor: `PENJUALAN`, `PENJUALAN_ITEM`,
-> `PENJUALAN_KATEGORI`, `SALDO_MENGENDAP`, `REKONSILIASI`, `KERUGIAN_STOK`.
+> `PENJUALAN_KATEGORI`, `PENJUALAN_TITIK`, `PENJUALAN_PETUGAS`,
+> `PENJUALAN_KASIR`, `SALDO_MENGENDAP`, `REKONSILIASI`, `KERUGIAN_STOK`.
 
 > **Invariant rekonsiliasi (PRD §5).** `selisih = (Σ KREDIT − Σ DEBIT) − saldo
 > mengendap` **harus 0**; `seimbang=false` menandakan ledger & cache tidak
