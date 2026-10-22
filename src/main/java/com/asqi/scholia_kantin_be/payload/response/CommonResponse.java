@@ -19,10 +19,9 @@ import java.util.Map;
  * klien tidak bisa membedakan sukses vs gagal dari status HTTP saja. Di kantin-be:
  * <ul>
  *   <li>{@code success/data/paginated} → <b>HTTP 200</b>.</li>
- *   <li>{@code noData/unauthenticated/forbidden/badRequest} → <b>HTTP 2xx dengan
- *       {@code code} non-200</b> (kompatibel dengan FE SKOOLIA yang membaca
- *       {@code body.code}), KECUALI method yang secara eksplisit memakai
- *       {@code ResponseEntity.status(...)}.</li>
+ *   <li>Seluruh error → <b>HTTP status yang sesuai</b> (400/401/403/404/409/429/500)
+ *       dengan {@code code} yang sama di body, plus {@code message} dan
+ *       {@code timestamp}. FE tetap bisa membaca {@code body.code}.</li>
  * </ul>
  * Jangan mengubah kontrak ini tanpa ADR — FE bergantung padanya.
  */
@@ -114,16 +113,17 @@ public class CommonResponse {
     // ────────────────────────────────────────────────────────────────
 
     /**
-     * Kontrak FE SKOOLIA lama: error validasi dijawab HTTP <b>200</b> dengan
-     * {@code code=100}. Ini warisan admin-be — menyulitkan klien modern (harus
-     * baca body untuk tahu sukses/gagal).
+     * Kontrak validasi: <b>HTTP 400</b> + {@code code=100} (atau {@code code=400}
+     * untuk error parameter), body tetap {@code {code, message, timestamp}}.
      *
-     * <p>Default: <b>HTTP 200</b> (kompatibel penuh dengan FE SKOOLIA saat ini).
-     * Ubah ke {@code true} lewat {@code kantin.validation.http-400=true} untuk
-     * memakai HTTP 400 (lebih benar secara REST). Koordinasikan dengan tim FE
-     * sebelum mengubah — lihat OPEN-QUESTIONS.
+     * <p>Dulu default-nya HTTP 200 (warisan admin-be) — menyulitkan klien modern
+     * (harus baca body untuk tahu sukses/gagal) dan membuat request cacat
+     * "lolos" tanpa diuji RBAC. Diubah ke 400 pada issue #251.
+     *
+     * <p>Saklar mundur: {@code kantin.validation.http-400=false} mengembalikan
+     * seluruh respons validasi ke HTTP 200 (lihat {@code ValidasiContractConfig}).
      */
-    private static boolean validasiHttp400 = false;
+    private static boolean validasiHttp400 = true;
 
     public static void setValidasiHttp400(boolean aktif) {
         validasiHttp400 = aktif;

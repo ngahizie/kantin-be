@@ -18,8 +18,13 @@ import org.springframework.context.annotation.Configuration;
 @Slf4j
 public class ValidasiContractConfig {
 
-    /** true = balas HTTP 400; false (default) = HTTP 200 + code=100 (kontrak FE SKOOLIA). */
-    @Value("${kantin.validation.http-400:false}")
+    /**
+     * true (default) = balas HTTP 400; false = HTTP 200 + code=100 (kontrak lama).
+     *
+     * <p>Saklar mundur untuk environment yang belum siap: set
+     * {@code kantin.validation.http-400=false}. Default 400 sejak issue #251.
+     */
+    @Value("${kantin.validation.http-400:true}")
     private boolean validasiHttp400;
 
     @PostConstruct
@@ -28,7 +33,7 @@ public class ValidasiContractConfig {
         if (validasiHttp400) {
             log.info("Validasi dijawab HTTP 400 (mode REST modern).");
         } else {
-            log.info("Validasi dijawab HTTP 200 + code=100 (kompatibel FE SKOOLIA).");
+            log.warn("Validasi dijawab HTTP 200 + code=100 (kontrak lama) — dinyalakan lewat kantin.validation.http-400=false.");
         }
     }
 }
