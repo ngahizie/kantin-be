@@ -50,7 +50,7 @@ public class StokController {
     private final HppService hppService;
 
     /** Barang masuk / stok awal (PRD §7.2) — perbarui HPP rata-rata tertimbang. */
-    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.PENGELOLA_KANTIN, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.PENGELOLA_KANTIN})
     @PostMapping("barang-masuk")
     public ResponseEntity<Response<HasilMutasiStok>> barangMasuk(
             @Valid @RequestBody BarangMasukRequest request,
@@ -67,7 +67,7 @@ public class StokController {
      * input. Baris asal tak diubah; dicatat mutasi pembalik baru (wajib alasan).
      * {@code qty} opsional (kosong = batalkan seluruh sisa).
      */
-    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.PENGELOLA_KANTIN, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.PENGELOLA_KANTIN})
     @PostMapping("barang-masuk-pembalik")
     public ResponseEntity<Response<HasilMutasiStok>> barangMasukPembalik(
             @Valid @RequestBody BarangMasukPembalikRequest request,
@@ -80,7 +80,7 @@ public class StokController {
     }
 
     /** Penyesuaian stok hasil opname fisik (PRD §7.3) — alasan wajib. */
-    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.PENGELOLA_KANTIN, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.PENGELOLA_KANTIN})
     @PostMapping("opname")
     public ResponseEntity<Response<HasilMutasiStok>> opname(
             @Valid @RequestBody OpnameRequest request,
@@ -98,7 +98,7 @@ public class StokController {
      * ditandai {@code rusak=true} agar dicatat sebagai {@code BARANG_RUSAK}
      * (rusak/basi), bukan selisih audit {@code OPNAME_KELUAR}.
      */
-    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.PENGELOLA_KANTIN, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.PENGELOLA_KANTIN})
     @PostMapping("opname-batch")
     public ResponseEntity<Response<OpnameBatchResponse>> opnameBatch(
             @Valid @RequestBody OpnameBatchRequest request,

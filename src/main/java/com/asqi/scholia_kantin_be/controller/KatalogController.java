@@ -55,7 +55,7 @@ public class KatalogController {
                 katalog.daftarKategori(TenantContext.sekolahIdWajib(), hanyaAktif));
     }
 
-    @PerluPeran({AktorKantin.PENGELOLA_KANTIN, AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.PENGELOLA_KANTIN})
     @PostMapping("kategori")
     public ResponseEntity<Response<KategoriMenu>> buatKategori(
             @Valid @RequestBody KategoriRequest request,
@@ -66,7 +66,7 @@ public class KatalogController {
         return CommonResponse.data(kategori, "Kategori dibuat");
     }
 
-    @PerluPeran({AktorKantin.PENGELOLA_KANTIN, AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.PENGELOLA_KANTIN})
     @PutMapping("kategori/{kategoriId}")
     public ResponseEntity<Response<KategoriMenu>> ubahKategori(
             @PathVariable Long kategoriId,
@@ -79,7 +79,7 @@ public class KatalogController {
     }
 
     /** Nonaktifkan kategori (soft delete) — tak bisa bila masih dipakai item aktif. */
-    @PerluPeran({AktorKantin.PENGELOLA_KANTIN, AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.PENGELOLA_KANTIN})
     @DeleteMapping("kategori/{kategoriId}")
     public ResponseEntity<Response<KategoriMenu>> nonaktifkanKategori(
             @PathVariable Long kategoriId,
@@ -120,7 +120,7 @@ public class KatalogController {
         return CommonResponse.data(MenuResponse.dari(menu, katalog.stokBerjalan(sekolahId, menuId)));
     }
 
-    @PerluPeran({AktorKantin.PENGELOLA_KANTIN, AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.PENGELOLA_KANTIN})
     @PostMapping("menu")
     public ResponseEntity<Response<MenuResponse>> buatMenu(
             @Valid @RequestBody MenuRequest request,
@@ -132,7 +132,7 @@ public class KatalogController {
         return CommonResponse.data(MenuResponse.dari(menu), "Menu dibuat");
     }
 
-    @PerluPeran({AktorKantin.PENGELOLA_KANTIN, AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.PENGELOLA_KANTIN})
     @PutMapping("menu/{menuId}")
     public ResponseEntity<Response<MenuResponse>> ubahMenu(
             @PathVariable Long menuId,
@@ -147,7 +147,7 @@ public class KatalogController {
     }
 
     /** Nonaktifkan item (soft delete) — item nonaktif tidak bisa dijual. */
-    @PerluPeran({AktorKantin.PENGELOLA_KANTIN, AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH})
+    @PerluPeran({AktorKantin.PENGELOLA_KANTIN})
     @DeleteMapping("menu/{menuId}")
     public ResponseEntity<Response<MenuResponse>> nonaktifkanMenu(
             @PathVariable Long menuId,
