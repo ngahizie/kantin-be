@@ -14,6 +14,8 @@ import com.asqi.scholia_kantin_be.repository.MutasiStokRepository;
 import com.asqi.scholia_kantin_be.repository.StokCacheRepository;
 import com.asqi.scholia_kantin_be.security.IdentitasKantin;
 import com.asqi.scholia_kantin_be.security.TenantContext;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -50,6 +52,7 @@ public class LedgerStokService {
     private final AuditLogger auditLogger;
     private final IdGenerator idGenerator;
     private final JamKantin jam;
+    private final EntityManager entityManager;
 
     // ────────────────────────────────────────────────────────────────
     // OPERASI BISNIS
@@ -393,6 +396,8 @@ public class LedgerStokService {
         cacheRepo.pastikanBarisAda(menuId, sekolahId);
         StokCache cache = cacheRepo.kunciUntukUpdate(sekolahId, menuId)
                 .orElseThrow(() -> new NotFoundEntity("Stok menu tidak ditemukan"));
+        // Refresh state yang mungkin telah dibaca validator sebelum lock.
+        entityManager.refresh(cache, LockModeType.PESSIMISTIC_WRITE);
         // Pertahanan berlapis: kunci sudah tenant-scoped (B17); cek tetap dijaga.
         if (!cache.getSekolahId().equals(sekolahId)) {
             throw new NotFoundEntity("Stok menu tidak ditemukan");
