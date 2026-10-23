@@ -17,6 +17,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -122,6 +123,50 @@ class LedgerStokServiceIT {
         assertThat(sukses.get()).isEqualTo(3); // 10 / 3 → 3 sukses
         assertThat(gagal.get()).isEqualTo(3);
         assertThat(ledger.stok(SEKOLAH, MENU)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("#258: opname bersamaan dengan barang masuk — cache tetap == Σ ledger")
+    void opnameBersamaanBarangMasuk() throws Exception {
+        tx.executeWithoutResult(s ->
+                ledger.masukBarang(SEKOLAH, MENU, 10, 5_000, "BARANG_MASUK", "BM-seed", 1L));
+
+        ExecutorService pool = Executors.newFixedThreadPool(3);
+        CountDownLatch mulai = new CountDownLatch(1);
+        AtomicInteger sukses = new AtomicInteger();
+
+        Callable<Void> opname = () -> {
+            mulai.await();
+            tx.execute(s -> ledger.sesuaikanOpname(SEKOLAH, MENU, 7, "OPNAME fisik", "OP-1", 1L));
+            sukses.incrementAndGet();
+            return null;
+        };
+        Callable<Void> masuk = () -> {
+            mulai.await();
+            tx.execute(s -> ledger.masukBarang(SEKOLAH, MENU, 5, 5_000, "BARANG_MASUK",
+                    "BM-race-" + System.nanoTime(), 1L));
+            sukses.incrementAndGet();
+            return null;
+        };
+
+        var futures = new java.util.ArrayList<Future<Void>>();
+        futures.add(pool.submit(opname));
+        futures.add(pool.submit(masuk));
+        futures.add(pool.submit(masuk));
+        mulai.countDown();
+        for (Future<Void> f : futures) {
+            f.get();
+        }
+        pool.shutdown();
+
+        assertThat(sukses.get()).isEqualTo(3); // ketiganya serial (FOR UPDATE), tak ada yang hilang
+
+        int stokAkhir = ledger.stok(SEKOLAH, MENU);
+        // 7 = hasil opname absolut + 5 × #barang masuk yang commit setelah opname.
+        assertThat(stokAkhir).isIn(7, 12, 17);
+        // Invarian inti (yang dilindungi perbaikan #254): stok_cache == Σ ledger
+        // — tak ada lost update antara penyesuaian absolut dan tambahan inkremen.
+        assertThat(stokAkhir).isEqualTo(ledger.hitungUlangDariLedger(SEKOLAH, MENU));
     }
 
     @Test

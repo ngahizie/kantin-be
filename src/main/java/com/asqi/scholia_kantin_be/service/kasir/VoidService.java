@@ -124,8 +124,8 @@ public class VoidService {
 
     /** Muat transaksi + guard tenant + pastikan belum di-void (PRD §11.4). */
     private Transaksi muatTransaksi(Long sekolahId, Long transaksiId) {
-        Transaksi trx = transaksiRepo.findById(transaksiId)
-                .orElseThrow(() -> new NotFoundEntity("Transaksi tidak ditemukan"));
+        Transaksi trx = transaksiRepo.kunciUntukVoid(transaksiId)
+                        .orElseThrow(() -> new NotFoundEntity("Transaksi tidak ditemukan"));
         // Tenant scoping: data sekolah lain → 404 (PRD §11.4).
         sekolahGuard.pastikanMilikSekolah(trx.getSekolahId(), "Transaksi");
         if (!trx.getSekolahId().equals(sekolahId)) {
