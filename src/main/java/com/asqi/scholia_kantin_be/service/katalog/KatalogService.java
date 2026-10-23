@@ -140,7 +140,7 @@ public class KatalogService {
 
     @Transactional(readOnly = true)
     public List<Menu> daftarMenu(Long sekolahId, Long kategoriId, boolean hanyaAktif) {
-        return menuRepo.daftar(sekolahId, kategoriId, hanyaAktif);
+        return menuRepo.findAll(MenuRepository.daftarSpec(sekolahId, kategoriId, hanyaAktif));
     }
 
     @Transactional(readOnly = true)

@@ -27,7 +27,8 @@ import java.util.Objects;
  * <b>dua arah</b>:
  * <ul>
  *   <li><b>kantin-be (lokal):</b> tolak UID yang sudah dipakai Kartu Tamu lain
- *       ({@link KartuTamuRepository#existsByRfidUidExcluding});</li>
+ *       ({@link KartuTamuRepository#existsByRfidUid(String) existsByRfidUid} saat
+ *       registrasi, {@code existsByRfidUidAndIdNot} saat update — issue #256);</li>
  *   <li><b>kantin-be → admin-be:</b> tolak UID yang sudah dipakai siswa lewat
  *       {@link UidSiswaPort} (fail-open sampai Q7 terjawab);</li>
  *   <li><b>admin-be → kantin-be:</b> admin-be menanyakan UID Kartu Tamu lewat
@@ -96,7 +97,7 @@ public class KartuTamuService {
 
         // Validasi: UID bentrok dengan kartu lain?
         if (rfidUid != null && !rfidUid.isBlank()) {
-            if (repo.existsByRfidUidExcluding(rfidUid, null)) {
+            if (repo.existsByRfidUid(rfidUid)) {
                 throw new ConflictException("RFID UID " + rfidUid + " sudah terdaftar pada kartu lain");
             }
             tolakBilaDipakaiSiswa(sekolahId, rfidUid);
@@ -177,7 +178,7 @@ public class KartuTamuService {
                 kartu.setRfidUid(null);
             } else if (!rfidUid.equals(kartu.getRfidUid())) {
                 // Bind UID baru — cek bentrok (Kartu Tamu lain + siswa admin-be)
-                if (repo.existsByRfidUidExcluding(rfidUid, kartuId)) {
+                if (repo.existsByRfidUidAndIdNot(rfidUid, kartuId)) {
                     throw new ConflictException("RFID UID " + rfidUid + " sudah terdaftar pada kartu lain");
                 }
                 tolakBilaDipakaiSiswa(sekolahId, rfidUid);
