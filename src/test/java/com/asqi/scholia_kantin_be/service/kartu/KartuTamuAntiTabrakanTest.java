@@ -42,7 +42,7 @@ class KartuTamuAntiTabrakanTest {
     @DisplayName("#29: UID sudah dipakai siswa admin-be → ConflictException")
     void uidDipakaiSiswaDitolak() {
         when(repo.findBySekolahIdAndNomorKartu(anyLong(), anyString())).thenReturn(Optional.empty());
-        when(repo.existsByRfidUidExcluding(anyString(), any())).thenReturn(false);
+        when(repo.existsByRfidUid(anyString())).thenReturn(false);
         UidSiswaPort port = (sekolahId, uid) -> true;
 
         assertThatThrownBy(() -> service(port).buatKartu(1L, "KT-001", "ABCDEF1234", null, 9L))
@@ -54,7 +54,7 @@ class KartuTamuAntiTabrakanTest {
     @DisplayName("#29: UID bebas (bukan siswa, bukan Kartu Tamu lain) → tersimpan")
     void uidBebasDiterima() {
         when(repo.findBySekolahIdAndNomorKartu(anyLong(), anyString())).thenReturn(Optional.empty());
-        when(repo.existsByRfidUidExcluding(anyString(), any())).thenReturn(false);
+        when(repo.existsByRfidUid(anyString())).thenReturn(false);
         when(idGenerator.berikutnya()).thenReturn(123L);
         when(repo.save(any(KartuTamu.class))).thenAnswer(i -> i.getArgument(0));
         UidSiswaPort port = (sekolahId, uid) -> false;
@@ -68,7 +68,7 @@ class KartuTamuAntiTabrakanTest {
     @DisplayName("#29: integrasi absen (null) → fail-open, registrasi tetap jalan")
     void integrasiAbsenFailOpen() {
         when(repo.findBySekolahIdAndNomorKartu(anyLong(), anyString())).thenReturn(Optional.empty());
-        when(repo.existsByRfidUidExcluding(anyString(), any())).thenReturn(false);
+        when(repo.existsByRfidUid(anyString())).thenReturn(false);
         when(idGenerator.berikutnya()).thenReturn(124L);
         when(repo.save(any(KartuTamu.class))).thenAnswer(i -> i.getArgument(0));
         UidSiswaPort port = (sekolahId, uid) -> null;
@@ -82,7 +82,7 @@ class KartuTamuAntiTabrakanTest {
     @DisplayName("#29: UID sudah dipakai Kartu Tamu lain → ditolak (tanpa panggil port siswa)")
     void uidKartuTamuLainDitolak() {
         when(repo.findBySekolahIdAndNomorKartu(anyLong(), anyString())).thenReturn(Optional.empty());
-        when(repo.existsByRfidUidExcluding(anyString(), any())).thenReturn(true);
+        when(repo.existsByRfidUid(anyString())).thenReturn(true);
         UidSiswaPort port = mock(UidSiswaPort.class);
 
         assertThatThrownBy(() -> service(port).buatKartu(1L, "KT-003", "ABCDEF0000", null, 9L))

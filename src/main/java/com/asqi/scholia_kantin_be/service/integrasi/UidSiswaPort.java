@@ -9,7 +9,7 @@ package com.asqi.scholia_kantin_be.service.integrasi;
  * Anti-tabrakan UID bersifat <b>dua arah</b>:
  * <ul>
  *   <li>sisi kantin-be (sudah ada): tolak UID yang sudah dipakai Kartu Tamu lain
- *       ({@code KartuTamuRepository.existsByRfidUidExcluding});</li>
+ *       ({@code KartuTamuRepository.existsByRfidUid});</li>
  *   <li>sisi kantin-be (port ini): tolak UID yang <b>sudah dipakai siswa</b> di
  *       admin-be — melengkapi arah sebaliknya;</li>
  *   <li>sisi admin-be (disediakan endpoint internal kantin-be): admin-be
