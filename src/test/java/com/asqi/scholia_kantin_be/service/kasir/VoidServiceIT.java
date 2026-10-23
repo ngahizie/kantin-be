@@ -5,6 +5,7 @@ import com.asqi.scholia_kantin_be.dto.TapResponse;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
+import com.asqi.scholia_kantin_be.model.Transaksi;
 import com.asqi.scholia_kantin_be.security.IdentitasKantin;
 import com.asqi.scholia_kantin_be.security.TenantContext;
 import com.asqi.scholia_kantin_be.service.stok.LedgerStokService;
@@ -21,6 +22,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -129,6 +135,62 @@ class VoidServiceIT {
         assertThatThrownBy(() -> voidService.voidTransaksi(SEKOLAH, tap.getTransaksiId(), 555L, "  "))
                 .isInstanceOf(com.asqi.scholia_kantin_be.component.exception.InvalidOperationException.class)
                 .hasMessageContaining("Alasan void wajib");
+    }
+
+    @Test
+    @DisplayName("#258: void bersamaan — hanya satu yang menang, invarian saldo & stok tetap")
+    void voidBersamaanSatuPemenang() throws Exception {
+        TapResponse tap = tap("tap-void-race", 2); // 2 × 8_000 = 16_000
+        assertThat(ledgerSaldo.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA)).isEqualTo(34_000L);
+
+        int paralel = 8;
+        ExecutorService pool = Executors.newFixedThreadPool(paralel);
+        CountDownLatch mulai = new CountDownLatch(1);
+        AtomicInteger sukses = new AtomicInteger();
+        AtomicInteger ditolak = new AtomicInteger();
+
+        var futures = new java.util.ArrayList<Future<Transaksi>>();
+        for (int i = 0; i < paralel; i++) {
+            final long seq = i;
+            futures.add(pool.submit(() -> {
+                // TenantContext/SekolahGuard = ThreadLocal, tidak diwariskan ke thread pool.
+                TenantContext.set(petugas);
+                try {
+                    mulai.await();
+                    try {
+                        var trx = voidService.voidTransaksi(
+                                SEKOLAH, tap.getTransaksiId(), 555L, "void paralel #" + seq);
+                        sukses.incrementAndGet();
+                        return trx;
+                    } catch (RuntimeException e) {
+                        // InvalidOperationException ("sudah di-void") atau 409 DB
+                        // kalau pembalik balapan di jalur UNIQUE idempotency.
+                        ditolak.incrementAndGet();
+                        return null;
+                    }
+                } finally {
+                    TenantContext.clear();
+                }
+            }));
+        }
+        mulai.countDown();
+        for (Future<Transaksi> f : futures) {
+            f.get();
+        }
+        pool.shutdown();
+
+        assertThat(sukses.get()).isEqualTo(1);
+        assertThat(ditolak.get()).isEqualTo(paralel - 1);
+
+        // Invarian: saldo & stok kembali persis sekali (satu mutasi pembalik).
+        assertThat(ledgerSaldo.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA)).isEqualTo(50_000L);
+        assertThat(ledgerStok.stok(SEKOLAH, MENU_NASI)).isEqualTo(20);
+        Integer pembalik = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM saldo_ledger WHERE arah = 'KREDIT' AND jenis = 'VOID_PENJUALAN'",
+                Integer.class);
+        assertThat(pembalik).isEqualTo(1);
+        assertThat(ledgerSaldo.hitungUlangDariLedger(SEKOLAH, SubjekTipe.SISWA, SISWA))
+                .isEqualTo(50_000L);
     }
 
     @Test
