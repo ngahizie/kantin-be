@@ -172,7 +172,55 @@ class LedgerSaldoServiceIT {
     }
 
     @Test
+    @DisplayName("saldo dibaca sebelum lock — debit paralel tetap memakai state terbaru")
+    void bacaSaldoSebelumLockTidakMemicuLostUpdate() throws Exception {
+        isiSaldo(25_000);
+
+        int paralel = 10;
+        ExecutorService pool = Executors.newFixedThreadPool(paralel);
+        CountDownLatch sudahMembaca = new CountDownLatch(paralel);
+        CountDownLatch lanjut = new CountDownLatch(1);
+        AtomicInteger sukses = new AtomicInteger();
+        AtomicInteger gagal = new AtomicInteger();
+        var futures = new java.util.ArrayList<Future<Void>>();
+
+        for (int i = 0; i < paralel; i++) {
+            final int index = i;
+            futures.add(pool.submit(() -> {
+                try {
+                    tx.executeWithoutResult(s -> {
+                        // Meniru TapService: entity saldo sudah masuk persistence context sebelum FOR UPDATE.
+                        assertThat(ledger.saldo(SEKOLAH, SubjekTipe.SISWA, subjekId)).isEqualTo(25_000L);
+                        sudahMembaca.countDown();
+                        try {
+                            assertThat(lanjut.await(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw new IllegalStateException(e);
+                        }
+                        ledger.debit(perintah(JenisMutasiSaldo.PENJUALAN, 10_000, "stale-" + index));
+                    });
+                    sukses.incrementAndGet();
+                } catch (ConflictException e) {
+                    gagal.incrementAndGet();
+                }
+                return null;
+            }));
+        }
+        assertThat(sudahMembaca.await(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+        lanjut.countDown();
+        for (Future<Void> future : futures) future.get();
+        pool.shutdown();
+
+        assertThat(sukses.get()).isEqualTo(2);
+        assertThat(gagal.get()).isEqualTo(8);
+        assertThat(ledger.saldo(SEKOLAH, SubjekTipe.SISWA, subjekId)).isEqualTo(5_000L);
+        assertThat(ledger.hitungUlangDariLedger(SEKOLAH, SubjekTipe.SISWA, subjekId)).isEqualTo(5_000L);
+    }
+
+    @Test
     @DisplayName("append-only — UPDATE & DELETE pada ledger ditolak trigger DB")
+
     void appendOnlyDitolak() {
         isiSaldo(10_000);
 
