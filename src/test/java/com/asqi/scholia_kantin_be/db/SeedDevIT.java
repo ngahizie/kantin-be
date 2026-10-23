@@ -103,6 +103,41 @@ class SeedDevIT {
                 .execute(dataSource);
         assertThat(hitung(jdbc)).as("seed idempoten").isEqualTo(awal);
 
+        // Seed harus SELF-HEALING (issue #255): baris cache yang sudah drift
+        // diperbaiki saat seed dijalankan ulang — bukan dibiarkan karena
+        // `ON CONFLICT DO NOTHING`.
+        jdbc.update("UPDATE saldo_cache SET saldo = saldo + 12345");
+        jdbc.update("UPDATE stok_cache SET stok = stok + 7");
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM saldo_cache c
+                WHERE c.saldo <> COALESCE((
+                    SELECT sum(CASE WHEN l.arah = 'KREDIT' THEN l.nominal ELSE -l.nominal END)
+                      FROM saldo_ledger l
+                     WHERE l.sekolah_id = c.sekolah_id
+                       AND l.subjek_tipe = c.subjek_tipe
+                       AND l.subjek_id = c.subjek_id), 0)
+                """, Integer.class)).as("drift saldo sengaja dibuat").isPositive();
+
+        new ResourceDatabasePopulator(new ClassPathResource("db/seed/R__seed_dev.sql"))
+                .execute(dataSource);
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM saldo_cache c
+                WHERE c.saldo <> COALESCE((
+                    SELECT sum(CASE WHEN l.arah = 'KREDIT' THEN l.nominal ELSE -l.nominal END)
+                      FROM saldo_ledger l
+                     WHERE l.sekolah_id = c.sekolah_id
+                       AND l.subjek_tipe = c.subjek_tipe
+                       AND l.subjek_id = c.subjek_id), 0)
+                """, Integer.class)).as("seed memperbaiki cache saldo yang drift").isZero();
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM stok_cache c
+                WHERE c.stok <> COALESCE((
+                    SELECT sum(CASE WHEN m.arah = 'MASUK' THEN m.qty ELSE -m.qty END)
+                      FROM mutasi_stok m
+                     WHERE m.menu_id = c.menu_id
+                       AND m.sekolah_id = c.sekolah_id), 0)
+                """, Integer.class)).as("seed memperbaiki cache stok yang drift").isZero();
+
         // stok_cache harus sama dengan mutasi_stok terakhir per menu.
         assertThat(jdbc.queryForObject("""
                 SELECT count(*) FROM stok_cache c
@@ -130,6 +165,57 @@ class SeedDevIT {
                     GROUP BY t.id, t.total
                 ) x WHERE x.total <> x.item
                 """, Integer.class)).as("transaksi vs item").isZero();
+
+        // ── Invarian "cache = turunan ledger" (issue #255) ─────────────
+        // cache harus sama dengan Σ ledger, bukan hanya sama dengan baris
+        // ledger TERAKHIR (penjaga di atas buta terhadap ledger yang
+        // saldo_setelah-nya tidak berurutan).
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM saldo_cache c
+                WHERE c.saldo <> COALESCE((
+                    SELECT sum(CASE WHEN l.arah = 'KREDIT' THEN l.nominal ELSE -l.nominal END)
+                      FROM saldo_ledger l
+                     WHERE l.sekolah_id = c.sekolah_id
+                       AND l.subjek_tipe = c.subjek_tipe
+                       AND l.subjek_id = c.subjek_id), 0)
+                """, Integer.class)).as("saldo_cache = Σ ledger").isZero();
+
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM stok_cache c
+                WHERE c.stok <> COALESCE((
+                    SELECT sum(CASE WHEN m.arah = 'MASUK' THEN m.qty ELSE -m.qty END)
+                      FROM mutasi_stok m
+                     WHERE m.menu_id = c.menu_id
+                       AND m.sekolah_id = c.sekolah_id), 0)
+                """, Integer.class)).as("stok_cache = Σ mutasi_stok").isZero();
+
+        // Setiap baris ledger harus lanjutan yang benar dari baris
+        // sebelumnya — inilah yang membuat saldo berjalan pada kartu stok
+        // monoton (bug seed menu 3: 50 → 49 → 47, seharusnya 50 → 48 → 47).
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM saldo_ledger a
+                JOIN LATERAL (
+                    SELECT b.saldo_setelah AS prev FROM saldo_ledger b
+                     WHERE b.sekolah_id = a.sekolah_id
+                       AND b.subjek_tipe = a.subjek_tipe
+                       AND b.subjek_id = a.subjek_id
+                       AND (b.waktu, b.id) < (a.waktu, a.id)
+                     ORDER BY b.waktu DESC, b.id DESC LIMIT 1) s ON true
+                WHERE a.saldo_setelah <> s.prev
+                     + CASE WHEN a.arah = 'KREDIT' THEN a.nominal ELSE -a.nominal END
+                """, Integer.class)).as("saldo_setelah berurutan").isZero();
+
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM mutasi_stok a
+                JOIN LATERAL (
+                    SELECT b.stok_setelah AS prev FROM mutasi_stok b
+                     WHERE b.menu_id = a.menu_id
+                       AND b.sekolah_id = a.sekolah_id
+                       AND (b.waktu, b.id) < (a.waktu, a.id)
+                     ORDER BY b.waktu DESC, b.id DESC LIMIT 1) s ON true
+                WHERE a.stok_setelah <> s.prev
+                     + CASE WHEN a.arah = 'MASUK' THEN a.qty ELSE -a.qty END
+                """, Integer.class)).as("stok_setelah berurutan").isZero();
     }
 
     private Jumlah hitung(JdbcTemplate jdbc) {

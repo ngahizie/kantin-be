@@ -209,7 +209,7 @@ VALUES
   -- penjualan (stok_setelah menurun sesuai urutan waktu)
   (900331, 1, 7,  'KELUAR', 'PENJUALAN', 2, 48, 5000, 900106, 'TRANSAKSI', '900106', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE - 1) + time '10:45') AT TIME ZONE 'Asia/Jakarta', now(), NULL),
   (900332, 1, 4,  'KELUAR', 'PENJUALAN', 2, 48, 2000, 900103, 'TRANSAKSI', '900103', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE) + time '11:40') AT TIME ZONE 'Asia/Jakarta', now(), NULL),
-  (900333, 1, 3,  'KELUAR', 'PENJUALAN', 2, 49, 1000, 900104, 'TRANSAKSI', '900104', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE - 1) + time '09:30') AT TIME ZONE 'Asia/Jakarta', now(), NULL),
+  (900333, 1, 3,  'KELUAR', 'PENJUALAN', 2, 48, 1000, 900104, 'TRANSAKSI', '900104', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE - 1) + time '09:30') AT TIME ZONE 'Asia/Jakarta', now(), NULL),
   (900334, 1, 2,  'KELUAR', 'PENJUALAN', 1, 49, 6000, 900104, 'TRANSAKSI', '900104', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE - 1) + time '09:30') AT TIME ZONE 'Asia/Jakarta', now(), NULL),
   (900335, 1, 3,  'KELUAR', 'PENJUALAN', 1, 47, 1000, 900101, 'TRANSAKSI', '900101', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE) + time '09:15') AT TIME ZONE 'Asia/Jakarta', now(), NULL),
   (900336, 1, 1,  'KELUAR', 'PENJUALAN', 1, 49, 7000, 900101, 'TRANSAKSI', '900101', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE) + time '09:15') AT TIME ZONE 'Asia/Jakarta', now(), NULL),
@@ -589,6 +589,41 @@ VALUES
     (8, 10, 'bendahara10', 'Nurul Hidayah (Bendahara 10)',    'BENDAHARA',
      '$2a$10$0PkEyDmQ0sxGV/kdv5XE.udnbKO1N1yWLx7hnbA3cTBFG17fE9Byu', true)
 ON CONFLICT (id) DO NOTHING;
+
+-- ── Perbaikan cache dari ledger (issue #255) ──────────────────
+-- Seed harus SELF-HEALING: INSERT di atas memakai ON CONFLICT DO NOTHING,
+-- jadi baris cache lama yang sudah DRIFT tidak pernah disentuh. Dua perintah
+-- ini menurunkan ulang cache dari ledger — menjadikan seed sebagai jalan
+-- perbaikan DB dev yang sudah tidak seimbang, sekaligus memastikan angka
+-- cache di berkas ini tidak perlu dihafal (selalu = turunan ledger).
+-- Trigger V24 menjamin hal yang sama untuk setiap tulisan setelahnya.
+UPDATE saldo_cache c
+   SET saldo      = GREATEST(COALESCE((SELECT sum(CASE WHEN l.arah = 'KREDIT' THEN l.nominal
+                                                        ELSE -l.nominal END)
+                                        FROM saldo_ledger l
+                                       WHERE l.sekolah_id  = c.sekolah_id
+                                         AND l.subjek_tipe = c.subjek_tipe
+                                         AND l.subjek_id   = c.subjek_id), 0), 0),
+       updated_at = now()
+ WHERE c.saldo IS DISTINCT FROM COALESCE(
+       (SELECT sum(CASE WHEN l.arah = 'KREDIT' THEN l.nominal ELSE -l.nominal END)
+          FROM saldo_ledger l
+         WHERE l.sekolah_id  = c.sekolah_id
+           AND l.subjek_tipe = c.subjek_tipe
+           AND l.subjek_id   = c.subjek_id), 0);
+
+UPDATE stok_cache c
+   SET stok       = GREATEST(COALESCE((SELECT sum(CASE WHEN m.arah = 'MASUK' THEN m.qty
+                                                        ELSE -m.qty END)
+                                        FROM mutasi_stok m
+                                       WHERE m.menu_id    = c.menu_id
+                                         AND m.sekolah_id = c.sekolah_id), 0), 0),
+       updated_at = now()
+ WHERE c.stok IS DISTINCT FROM COALESCE(
+       (SELECT sum(CASE WHEN m.arah = 'MASUK' THEN m.qty ELSE -m.qty END)
+          FROM mutasi_stok m
+         WHERE m.menu_id    = c.menu_id
+           AND m.sekolah_id = c.sekolah_id), 0);
 
 -- ── Ringkas ──────────────────────────────────────────────────
 -- Isi seed: 3 sekolah | 21 menu | 14 kartu tamu | 6 sesi kasir |
