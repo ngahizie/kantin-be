@@ -1,5 +1,6 @@
 package com.asqi.scholia_kantin_be.service.stok;
 
+import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.dto.HalamanResponse;
 import com.asqi.scholia_kantin_be.dto.RiwayatStokItem;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiStok;
@@ -17,6 +18,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import java.time.OffsetDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Uji integrasi {@code GET /api/stok/riwayat} (PRD §9.5) dengan PostgreSQL nyata.
@@ -144,6 +146,17 @@ class RiwayatStokIT {
         assertThat(hal2.getItems()).extracting(RiwayatStokItem::getId).containsExactly(1L);
         assertThat(hal1.getTotal()).isEqualTo(3L);
         assertThat(hal1.getTotalHalaman()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("ukuran < 1 atau > 200 → 400 (bukan diam-diam diclamp)")
+    void ukuranTidakWajar() {
+        assertThatThrownBy(() -> operasi.riwayat(SEKOLAH, null, null, null, null, 0, 0))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("ukuran minimal 1");
+        assertThatThrownBy(() -> operasi.riwayat(SEKOLAH, null, null, null, null, 0, 99_999))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("ukuran maksimal 200");
     }
 
     @Test

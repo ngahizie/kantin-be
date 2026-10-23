@@ -7,6 +7,7 @@ import com.asqi.scholia_kantin_be.dto.SaldoResponse;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
+import com.asqi.scholia_kantin_be.helper.UkuranHalaman;
 import com.asqi.scholia_kantin_be.model.KartuTamu;
 import com.asqi.scholia_kantin_be.model.SaldoLedger;
 import com.asqi.scholia_kantin_be.repository.KartuTamuRepository;
@@ -45,7 +46,6 @@ public class SaldoOperasiService {
     private static final int MAKS_MUTASI = 50;
     /** Batas atas ukuran halaman — sama dengan pola daftar lain. */
     private static final int UKURAN_MAKS = 200;
-    private static final int UKURAN_DEFAULT = 20;
 
     private final LedgerSaldoService ledgerSaldo;
     private final SaldoLedgerRepository ledgerRepo;
@@ -99,7 +99,7 @@ public class SaldoOperasiService {
     public HalamanResponse<MutasiKoreksiItem> daftarKoreksi(Long sekolahId, LocalDate tanggal,
                                                             SubjekTipe subjekTipe, Long subjekId,
                                                             int halaman, int ukuran) {
-        int ukuranAman = (ukuran <= 0 || ukuran > UKURAN_MAKS) ? UKURAN_DEFAULT : ukuran;
+        int ukuranAman = UkuranHalaman.validasi(ukuran, UKURAN_MAKS);
         int halamanAman = Math.max(0, halaman);
         Pageable pageable = PageRequest.of(halamanAman, ukuranAman,
                 Sort.by(Sort.Direction.DESC, "waktu").and(Sort.by(Sort.Direction.DESC, "id")));

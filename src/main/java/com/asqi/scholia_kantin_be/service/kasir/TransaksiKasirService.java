@@ -9,6 +9,7 @@ import com.asqi.scholia_kantin_be.enums.StatusSesiKasir;
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
+import com.asqi.scholia_kantin_be.helper.UkuranHalaman;
 import com.asqi.scholia_kantin_be.model.KartuTamu;
 import com.asqi.scholia_kantin_be.model.SesiKasir;
 import com.asqi.scholia_kantin_be.model.TitikKasir;
@@ -65,7 +66,6 @@ public class TransaksiKasirService {
 
     /** Batas atas ukuran halaman — sama dengan pola {@code /api/stok/riwayat}. */
     private static final int UKURAN_MAKS = 200;
-    private static final int UKURAN_DEFAULT = 20;
 
     private final TransaksiRepository transaksiRepo;
     private final TitikKasirRepository titikKasirRepo;
@@ -85,7 +85,7 @@ public class TransaksiKasirService {
     @Transactional(readOnly = true)
     public HalamanResponse<TransaksiKasirItem> daftar(Long sekolahId, Long sesiId, LocalDate tanggal,
                                                       StatusTransaksi status, int halaman, int ukuran) {
-        int ukuranAman = (ukuran <= 0 || ukuran > UKURAN_MAKS) ? UKURAN_DEFAULT : ukuran;
+        int ukuranAman = UkuranHalaman.validasi(ukuran, UKURAN_MAKS);
         int halamanAman = Math.max(0, halaman);
         Pageable pageable = PageRequest.of(halamanAman, ukuranAman,
                 Sort.by(Sort.Direction.DESC, "waktu").and(Sort.by(Sort.Direction.DESC, "id")));
@@ -130,7 +130,7 @@ public class TransaksiKasirService {
                         "Sesi kasir " + sesiId + " masih terbuka — koreksi hanya untuk sesi tertutup");
             }
         }
-        int ukuranAman = (ukuran <= 0 || ukuran > UKURAN_MAKS) ? UKURAN_DEFAULT : ukuran;
+        int ukuranAman = UkuranHalaman.validasi(ukuran, UKURAN_MAKS);
         int halamanAman = Math.max(0, halaman);
         Pageable pageable = PageRequest.of(halamanAman, ukuranAman,
                 Sort.by(Sort.Direction.DESC, "waktu").and(Sort.by(Sort.Direction.DESC, "id")));

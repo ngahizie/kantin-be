@@ -1,5 +1,6 @@
 package com.asqi.scholia_kantin_be.service.saldo;
 
+import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.dto.HalamanResponse;
 import com.asqi.scholia_kantin_be.dto.MutasiKoreksiItem;
 import com.asqi.scholia_kantin_be.enums.ArahMutasi;
@@ -18,6 +19,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Uji integrasi <b>{@code GET /api/saldo/koreksi}</b> — daftar mutasi koreksi
@@ -163,11 +165,14 @@ class DaftarKoreksiSaldoIT {
     }
 
     @Test
-    @DisplayName("ukuran tidak wajar dibatasi (bukan error)")
-    void ukuranDibatasi() {
-        assertThat(operasi.daftarKoreksi(SEKOLAH, null, null, null, 0, 0).getUkuran()).isEqualTo(20);
-        assertThat(operasi.daftarKoreksi(SEKOLAH, null, null, null, 0, 99_999).getUkuran())
-                .isEqualTo(20);
+    @DisplayName("ukuran < 1 atau > 200 → 400 (bukan diam-diam diclamp), halaman negatif tetap 0")
+    void ukuranTidakWajar() {
+        assertThatThrownBy(() -> operasi.daftarKoreksi(SEKOLAH, null, null, null, 0, 0))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("ukuran minimal 1");
+        assertThatThrownBy(() -> operasi.daftarKoreksi(SEKOLAH, null, null, null, 0, 99_999))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("ukuran maksimal 200");
         assertThat(operasi.daftarKoreksi(SEKOLAH, null, null, null, -3, 20).getHalaman()).isZero();
     }
 
