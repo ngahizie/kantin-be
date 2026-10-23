@@ -1,5 +1,6 @@
 package com.asqi.scholia_kantin_be.service.kartu;
 
+import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
 import com.asqi.scholia_kantin_be.dto.RiwayatKartuTamuResponse;
 import com.asqi.scholia_kantin_be.dto.RiwayatTransaksiKartuItem;
@@ -167,6 +168,19 @@ class RiwayatKartuTamuServiceIT {
         assertThat(hal0.getTransaksi().getItems())
                 .extracting(RiwayatTransaksiKartuItem::getTransaksiId)
                 .containsExactly(4004L, 4003L);
+    }
+
+    @Test
+    @DisplayName("#257: ukuran < 1 atau > 200 → 400 (bukan diam-diam diclamp)")
+    void riwayatUkuranTidakWajar() {
+        KartuTamu k = kartuService.buatKartu(SEKOLAH, null, null, null, "Tamu", AKTOR);
+
+        assertThatThrownBy(() -> riwayatService.riwayat(SEKOLAH, k.getId(), 20, 0, 0))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("ukuran minimal 1");
+        assertThatThrownBy(() -> riwayatService.riwayat(SEKOLAH, k.getId(), 20, 0, 99_999))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("ukuran maksimal 200");
     }
 
     @Test

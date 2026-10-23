@@ -2,6 +2,7 @@ package com.asqi.scholia_kantin_be.service.kasir;
 
 import com.asqi.scholia_kantin_be.dto.HalamanResponse;
 import com.asqi.scholia_kantin_be.dto.TransaksiKasirItem;
+import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.security.TenantContext;
@@ -18,6 +19,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Uji integrasi <b>{@code GET /api/kasir/transaksi}</b> — daftar transaksi untuk
@@ -190,17 +192,15 @@ class DaftarTransaksiKasirIT {
     }
 
     @Test
-    @DisplayName("ukuran tidak wajar dibatasi (bukan error)")
-    void ukuranDibatasi() {
-        HalamanResponse<TransaksiKasirItem> nol = service.daftar(SEKOLAH, null, null, null, 0, 0);
-        HalamanResponse<TransaksiKasirItem> raksasa =
-                service.daftar(SEKOLAH, null, null, null, 0, 99_999);
-        HalamanResponse<TransaksiKasirItem> halamanNegatif =
-                service.daftar(SEKOLAH, null, null, null, -3, 20);
-
-        assertThat(nol.getUkuran()).isEqualTo(20);      // ukuran<=0 → default
-        assertThat(raksasa.getUkuran()).isEqualTo(20);  // >UKURAN_MAKS → default
-        assertThat(halamanNegatif.getHalaman()).isZero();
+    @DisplayName("ukuran < 1 atau > 200 → 400 (bukan diam-diam diclamp), halaman negatif tetap 0")
+    void ukuranTidakWajar() {
+        assertThatThrownBy(() -> service.daftar(SEKOLAH, null, null, null, 0, 0))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("ukuran minimal 1");
+        assertThatThrownBy(() -> service.daftar(SEKOLAH, null, null, null, 0, 99_999))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("ukuran maksimal 200");
+        assertThat(service.daftar(SEKOLAH, null, null, null, -3, 20).getHalaman()).isZero();
     }
 
     // ────────────────────────────────────────────────────────────────

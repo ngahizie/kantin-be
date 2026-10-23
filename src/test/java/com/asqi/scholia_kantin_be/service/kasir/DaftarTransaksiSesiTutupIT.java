@@ -192,15 +192,14 @@ class DaftarTransaksiSesiTutupIT {
     }
 
     @Test
-    @DisplayName("ukuran tidak wajar dibatasi (bukan error)")
-    void ukuranDibatasi() {
-        HalamanResponse<TransaksiKasirItem> nol =
-                service.daftarSesiTutup(SEKOLAH, null, null, null, 0, 0);
-        HalamanResponse<TransaksiKasirItem> raksasa =
-                service.daftarSesiTutup(SEKOLAH, null, null, null, 0, 99_999);
-
-        assertThat(nol.getUkuran()).isEqualTo(20);      // ukuran<=0 → default
-        assertThat(raksasa.getUkuran()).isEqualTo(20);  // >UKURAN_MAKS → default
+    @DisplayName("ukuran < 1 atau > 200 → 400 (bukan diam-diam diclamp)")
+    void ukuranTidakWajar() {
+        assertThatThrownBy(() -> service.daftarSesiTutup(SEKOLAH, null, null, null, 0, 0))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("ukuran minimal 1");
+        assertThatThrownBy(() -> service.daftarSesiTutup(SEKOLAH, null, null, null, 0, 99_999))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("ukuran maksimal 200");
     }
 
     // ────────────────────────────────────────────────────────────────
