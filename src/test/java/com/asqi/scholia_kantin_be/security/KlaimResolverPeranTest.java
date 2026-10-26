@@ -46,12 +46,6 @@ class KlaimResolverPeranTest {
             "KEPALA_SEKOLAH,      KEPSEK",
             "kepala sekolah,      KEPSEK",
             "Kepala Sekolah,      KEPSEK",
-            "ORANG_TUA,           ORANG_TUA",
-            "ORTU,                ORANG_TUA",
-            // ── tak dikenal → fail-closed ──
-            "GURU,                TIDAK_DIKENAL",
-            "RESEPSIONIS,         TIDAK_DIKENAL",
-            "SISWA,               TIDAK_DIKENAL",
     })
     @DisplayName("peran staf dipetakan sesuai haknya")
     void petakanPeranStaf(String role, AktorKantin diharapkan) {
@@ -66,18 +60,11 @@ class KlaimResolverPeranTest {
     }
 
     @Test
-    @DisplayName("token MOBILE selalu ORANG_TUA apa pun klaim role-nya")
-    void mobileSelaluOrangTua() {
-        assertThat(resolver.petakanPeran("ADMIN", SumberToken.MOBILE))
-                .isEqualTo(AktorKantin.ORANG_TUA);
-        assertThat(resolver.petakanPeran(null, SumberToken.MOBILE))
-                .isEqualTo(AktorKantin.ORANG_TUA);
-    }
-
-    @Test
-    @DisplayName("role null/kosong → TIDAK_DIKENAL (fail-closed)")
+    @DisplayName("role null/kosong/tak dikenal → null (fail-closed)")
     void roleKosongFailClosed() {
-        assertThat(resolver.petakanPeran(null, SumberToken.ADMIN)).isEqualTo(AktorKantin.TIDAK_DIKENAL);
-        assertThat(resolver.petakanPeran("  ", SumberToken.ADMIN)).isEqualTo(AktorKantin.TIDAK_DIKENAL);
+        assertThat(resolver.petakanPeran(null, SumberToken.ADMIN)).isNull();
+        assertThat(resolver.petakanPeran("  ", SumberToken.ADMIN)).isNull();
+        assertThat(resolver.petakanPeran("GURU", SumberToken.ADMIN)).isNull();
+        assertThat(resolver.petakanPeran("SISWA", SumberToken.ADMIN)).isNull();
     }
 }

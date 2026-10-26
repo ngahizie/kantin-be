@@ -28,7 +28,8 @@ public class PeranAspect {
         }
         List<com.asqi.scholia_kantin_be.enums.AktorKantin> diizinkan =
                 List.of(perluPeran.value());
-        if (!diizinkan.contains(identitas.getPeran())) {
+        // Null merepresentasikan role JWT tak dikenal; selalu fail-closed.
+        if (identitas.getPeran() == null || !diizinkan.contains(identitas.getPeran())) {
             throw new ForbiddenException(
                     "Peran " + identitas.getPeran() + " tidak berhak atas aksi ini");
         }

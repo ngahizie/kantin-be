@@ -77,8 +77,7 @@ class RbacMatriksTest {
             "pengelola", AktorKantin.PENGELOLA_KANTIN,
             "tu", AktorKantin.TU_SEKOLAH,
             "admin", AktorKantin.ADMIN_SEKOLAH,
-            "kepsek", AktorKantin.KEPSEK,
-            "ortu", AktorKantin.ORANG_TUA);
+            "kepsek", AktorKantin.KEPSEK);
 
     @Test
     @DisplayName("Anotasi @PerluPeran di kode == matriks RBAC.md")

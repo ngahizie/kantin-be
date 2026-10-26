@@ -15,8 +15,7 @@ import java.util.List;
  * ini <b>toleran</b>: menerima beberapa nama klaim alternatif yang lazim, lalu
  * menormalkannya. Setelah format dikonfirmasi, persempit ke satu nama.
  *
- * <p><b>Fail-closed:</b> peran tak dikenal → {@link AktorKantin#TIDAK_DIKENAL};
- * sekolah tak diketahui → {@code sekolahId=null} (bukan menebak).
+ * <p><b>Fail-closed:</b> peran tak dikenal → akses ditolak (403).
  */
 @Component
 @Slf4j
@@ -61,13 +60,13 @@ public class KlaimResolver {
      *
      * <p>Pencocokan tidak peka huruf besar/kecil dan toleran variasi
      * (mis. {@code "Admin Sekolah"}, {@code "ADMIN_SEKOLAH"}).
+     *
+     * <p><b>Fail-closed:</b> role tak dikenal mengembalikan null,
+     * yang akan ditolak oleh filter keamanan (403).
      */
     AktorKantin petakanPeran(String role, SumberToken sumber) {
-        if (sumber == SumberToken.MOBILE) {
-            return AktorKantin.ORANG_TUA;
-        }
         if (role == null || role.isBlank()) {
-            return AktorKantin.TIDAK_DIKENAL;
+            return null; // fail-closed
         }
         String r = role.trim().toUpperCase().replace('-', '_').replace(' ', '_');
 
@@ -96,10 +95,8 @@ public class KlaimResolver {
         if (r.contains("ADMIN")) {
             return AktorKantin.ADMIN_SEKOLAH;
         }
-        if (r.contains("ORANG_TUA") || r.contains("ORTU") || r.contains("PARENT")) {
-            return AktorKantin.ORANG_TUA;
-        }
-        return AktorKantin.TIDAK_DIKENAL;
+        // Role tak dikenal → null (akan ditolak oleh filter)
+        return null;
     }
 
     // ────────────────────────────────────────────────────────────────

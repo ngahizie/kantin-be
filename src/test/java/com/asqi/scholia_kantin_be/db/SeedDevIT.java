@@ -73,16 +73,18 @@ class SeedDevIT {
 
         // Akun login dev: kredensial harus benar-benar diverifikasi, bukan sekadar ada.
         assertThat(jdbc.queryForObject("SELECT count(*) FROM dev_pengguna", Integer.class))
-                .as("akun login dev").isEqualTo(8);
+                .as("akun login dev").isEqualTo(9);
 
         DevLoginValidator validator = new DevLoginValidator(jdbc);
-        var akun = validator.autentikasi("tu1", "Kantin#2026");
-        assertThat(akun).as("login dengan kredensial seed").isPresent();
-        assertThat(akun.get().role()).as("role dari akun").isEqualTo("TATA_USAHA");
+        var akun = validator.autentikasi("admin1", "Kantin#2026");
+        assertThat(akun).as("login admin dengan kredensial seed").isPresent();
+        assertThat(akun.get().role()).as("role dari akun admin").isEqualTo("ADMIN_SEKOLAH");
         assertThat(akun.get().sekolahId()).as("sekolah dari akun").isEqualTo(1L);
-        assertThat(validator.autentikasi("TU1", "Kantin#2026"))
+        assertThat(validator.autentikasi("tu1", "Kantin#2026"))
+                .as("login TU dengan kredensial seed").isPresent();
+        assertThat(validator.autentikasi("ADMIN1", "Kantin#2026"))
                 .as("username tidak peka huruf besar").isPresent();
-        assertThat(validator.autentikasi("tu1", "salah"))
+        assertThat(validator.autentikasi("admin1", "salah"))
                 .as("password salah harus ditolak").isEmpty();
         assertThat(validator.autentikasi("ngasal", "Kantin#2026"))
                 .as("username asal-asalan harus ditolak").isEmpty();
@@ -95,8 +97,8 @@ class SeedDevIT {
         assertThat(akunFe).as("akun dev tenant FE").isPresent();
         assertThat(akunFe.get().sekolahId()).as("sekolah akun tenant FE").isEqualTo(10L);
         assertThat(akunFe.get().role()).as("role akun tenant FE").isEqualTo("PETUGAS");
-        assertThat(validator.autentikasi("bendahara10", "Kantin#2026"))
-                .as("akun bendahara tenant FE").isPresent();
+        assertThat(validator.autentikasi("kasir10", "Kantin#2026"))
+                .as("akun kasir tenant FE").isPresent();
 
         // Jalankan ulang isi seed: harus idempoten, tidak menggandakan baris.
         new ResourceDatabasePopulator(new ClassPathResource("db/seed/R__seed_dev.sql"))

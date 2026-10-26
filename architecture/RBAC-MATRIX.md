@@ -14,7 +14,6 @@
 | `tu` | `TU_SEKOLAH` | **TU **dan** Bendahara** — `KlaimResolver` memetakan `TU`/`TATA_USAHA`/`BENDAHARA` ke satu aktor ini |
 | `admin` | `ADMIN_SEKOLAH` | Admin sekolah |
 | `kepsek` | `KEPSEK` | Kepala sekolah — **read-only**, hanya laporan yang PRD §9.5 sebutkan |
-| `ortu` | `ORANG_TUA` | Orang tua (mobile-be) — §8.3 |
 | `—` | — | Tanpa `@PerluPeran`; terbuka untuk semua token yang lolos autentikasi |
 
 ## Keputusan produk (issue #250)
@@ -27,14 +26,14 @@ Audit silang PRD §9.5/§9.6 vs anotasi `@PerluPeran` menemukan **over-grant** d
 | 1 | Aksi uang — top-up, refund, pindah-saldo, koreksi saldo & koreksi sesi tertutup | **PRD diikuti** | Hanya `tu` (TU + Bendahara) |
 | 2 | Aksi kasir — tap, konfirmasi/batal, buka/tutup sesi, void | **PRD diikuti** | Hanya `kasir` |
 | 3 | Katalog & kategori (mutasi), Kartu Tamu (CRUD/refund/pindah-saldo), stok (barang masuk & opname) | **PRD diikuti** | Katalog & stok → `pengelola`; Kartu Tamu → `tu` |
-| 4 | Titik kasir toggle & kontrol kartu | **PRD diikuti** | `toggle` → `admin`; kontrol siswa → `admin` (+`ortu` §8.3) |
+| 4 | Titik kasir toggle & kontrol kartu | **PRD diikuti** | `toggle` → `admin`; kontrol kartu → `admin`/`tu` sesuai subjek |
 | 5 | Laporan (read-only) | **PRD diikuti** | Kolom *Akses* §9.5 menjadi acuan |
 
 **Pengecualian yang tetap perlu perataan** — `POST /api/kontrol-kartu/blokir` melayani dua
 subjek dengan pemilik hak berbeda, jadi `@PerluPeran` tunggal tidak cukup:
 
 - `KARTU_TAMU` → hanya `tu` (§9.4: "TU memblokir" kartu tamu)
-- `SISWA` → hanya `admin` (§9.6 "Kontrol Siswa") dan `ortu` (§8.3)
+- `SISWA` → hanya `admin` (§9.6 "Kontrol Siswa")
 
 Batas per-subjek ditegakkan di dalam `KontrolKartuController#ubahBlokir`.
 
@@ -85,10 +84,10 @@ Batas per-subjek ditegakkan di dalam `KontrolKartuController#ubahBlokir`.
 | `GET` | `/api/konfigurasi/pos-buku-kas` | kasir, pengelola, tu, admin | — | di luar keputusan #250 — dipertahankan |
 | `POST` | `/api/konfigurasi/pos-buku-kas/aktivasi` | pengelola, tu, admin | — | di luar keputusan #250 — dipertahankan |
 | `GET` | `/api/konfigurasi/profil` | kasir, pengelola, tu, admin | — | di luar keputusan #250 — dipertahankan |
-| `POST` | `/api/kontrol-kartu/blokir` | tu, admin, ortu | §9.4 (blokir Kartu Tamu: TU/Bendahara) & §9.6 (kontrol siswa: Admin) & §8.3 (ortu) | PRD diikuti |
-| `POST` | `/api/kontrol-kartu/blokir-item` | admin, ortu | §9.6 — *Kontrol Siswa: Admin (update)* & §8.3 (ortu) | PRD diikuti |
-| `PUT` | `/api/kontrol-kartu/limit-harian` | admin, ortu | §9.6 — *Kontrol Siswa: Admin (update)* & §8.3 (ortu) | PRD diikuti |
-| `GET` | `/api/kontrol-kartu/{subjekTipe}/{subjekId}` | kasir, pengelola, tu, admin, ortu | §9.6 | di luar keputusan #250 — dipertahankan |
+| `POST` | `/api/kontrol-kartu/blokir` | tu, admin | §9.4 (blokir Kartu Tamu: TU/Bendahara) & §9.6 (kontrol siswa: Admin) | PRD diikuti |
+| `POST` | `/api/kontrol-kartu/blokir-item` | admin, tu | §9.6 — *Kontrol Siswa: Admin (update)* | PRD diikuti |
+| `PUT` | `/api/kontrol-kartu/limit-harian` | admin, tu | §9.6 — *Kontrol Siswa: Admin (update)* | PRD diikuti |
+| `GET` | `/api/kontrol-kartu/{subjekTipe}/{subjekId}` | kasir, pengelola, tu, admin | §9.6 | di luar keputusan #250 — dipertahankan |
 | `GET` | `/api/laporan/ekspor` | pengelola, tu, admin, kepsek | §9.5 — *Semua laporan dapat diekspor; akses mengikuti laporan asal* | PRD diikuti |
 | `GET` | `/api/laporan/kartu-stok/{menuId}` | pengelola, tu | §9.5 — *Kartu stok per item: Pengelola, Bendahara* | PRD diikuti |
 | `GET` | `/api/laporan/kartu-tamu` | tu | §9.5 — *Kartu Tamu: TU, Bendahara* | PRD diikuti |
