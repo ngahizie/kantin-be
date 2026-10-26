@@ -34,7 +34,7 @@ public class CariSiswaDemo implements CariSiswaPort {
     /** Data siswa tiruan: id, NIS, nama, kelas. */
     private static final List<SiswaDemo> DATA = List.of(
             new SiswaDemo(101L, "2024001", "Budi Santoso", "7A", false),
-            new SiswaDemo(102L, "2024002", "Siti Aminah", "7A", false),
+            new SiswaDemo(102L, "2026002", "Siti Rahmawati", "XI IPS 2", false),
             new SiswaDemo(103L, "2024003", "Andi Wijaya", "8B", false),
             new SiswaDemo(104L, "2024004", "Dewi Lestari", "8B", false),
             new SiswaDemo(105L, "2024005", "Rizky Pratama", "9C", false),

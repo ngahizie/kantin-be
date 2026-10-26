@@ -85,6 +85,19 @@ class CariSiswaDemoTest {
     }
 
     @Test
+    @DisplayName("#214: identitas Siti Rahmawati konsisten dengan data demo frontend")
+    void identitasSitiRahmawatiSesuaiFrontend() {
+        List<InfoSiswa> hasil = cari.cari(1L, "2026002", false, 50);
+
+        assertThat(hasil).singleElement().satisfies(s -> {
+            assertThat(s.getSiswaId()).isEqualTo(102L);
+            assertThat(s.getNis()).isEqualTo("2026002");
+            assertThat(s.getNama()).isEqualTo("Siti Rahmawati");
+            assertThat(s.getKelas()).isEqualTo("XI IPS 2");
+        });
+    }
+
+    @Test
     @DisplayName("#214: saldo diambil per siswa dari ledger lokal (bukan hard-code)")
     void saldoDariLedger() {
         when(ledger.saldo(eq(1L), eq(SubjekTipe.SISWA), eq(101L))).thenReturn(99_000L);

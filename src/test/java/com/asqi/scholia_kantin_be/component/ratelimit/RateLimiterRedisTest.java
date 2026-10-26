@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.dao.QueryTimeoutException;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
+import org.springframework.data.redis.serializer.RedisSerializer;
 
 import java.util.List;
 
@@ -34,7 +35,8 @@ class RateLimiterRedisTest {
     }
 
     private void redisMengembalikan(long n) {
-        when(redis.execute(any(RedisScript.class), anyList(), any())).thenReturn(n);
+        when(redis.execute(any(RedisScript.class), any(RedisSerializer.class),
+                any(RedisSerializer.class), anyList(), any())).thenReturn(n);
     }
 
     @Test
@@ -65,7 +67,8 @@ class RateLimiterRedisTest {
     @Test
     @DisplayName("Redis error → FAIL-OPEN (default): request tetap diizinkan")
     void failOpenSaatRedisMati() {
-        when(redis.execute(any(RedisScript.class), anyList(), anyString()))
+        when(redis.execute(any(RedisScript.class), any(RedisSerializer.class),
+                any(RedisSerializer.class), anyList(), anyString()))
                 .thenThrow(new QueryTimeoutException("redis down"));
 
         var hasil = limiter.periksa("tap", "1:42", 10);
@@ -78,7 +81,8 @@ class RateLimiterRedisTest {
     @DisplayName("Redis error + fail-closed aktif → ditolak")
     void failClosedBilaDikonfigurasi() {
         props.setFailClosed(true);
-        when(redis.execute(any(RedisScript.class), anyList(), anyString()))
+        when(redis.execute(any(RedisScript.class), any(RedisSerializer.class),
+                any(RedisSerializer.class), anyList(), anyString()))
                 .thenThrow(new QueryTimeoutException("redis down"));
 
         assertThat(limiter.periksa("tap", "1:42", 10).diizinkan()).isFalse();
@@ -87,7 +91,8 @@ class RateLimiterRedisTest {
     @Test
     @DisplayName("Redis mengembalikan null → dianggap hitungan 1 (diizinkan)")
     void nullDianggapSatu() {
-        when(redis.execute(any(RedisScript.class), anyList(), any())).thenReturn(null);
+        when(redis.execute(any(RedisScript.class), any(RedisSerializer.class),
+                any(RedisSerializer.class), anyList(), any())).thenReturn(null);
         var hasil = limiter.periksa("tap", "1:42", 10);
         assertThat(hasil.diizinkan()).isTrue();
         assertThat(hasil.hitungan()).isEqualTo(1);
