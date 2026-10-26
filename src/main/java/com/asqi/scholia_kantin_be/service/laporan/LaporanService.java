@@ -26,6 +26,8 @@ import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
 import com.asqi.scholia_kantin_be.model.BlokirKartu;
 import com.asqi.scholia_kantin_be.model.LimitHarian;
+import com.asqi.scholia_kantin_be.model.KategoriMenu;
+import com.asqi.scholia_kantin_be.model.Menu;
 import com.asqi.scholia_kantin_be.model.MutasiStok;
 import com.asqi.scholia_kantin_be.model.SaldoCache;
 import com.asqi.scholia_kantin_be.model.SaldoLedger;
@@ -328,15 +330,52 @@ public class LaporanService {
     public List<BarisKerugianStok> kerugianStok(Long sekolahId, LocalDate tanggal,
                                                 OffsetDateTime dari, OffsetDateTime sampai) {
         OffsetDateTime[] r = rentang(tanggal, dari, sampai);
-        List<BarisKerugianStok> hasil = new ArrayList<>();
-        for (Object[] b : mutasiStokRepo.rekapKerugianRentang(
+        List<MutasiStok> mutasi = mutasiStokRepo.kerugianRentang(
                 sekolahId, EnumSet.of(JenisMutasiStok.OPNAME_KELUAR, JenisMutasiStok.BARANG_RUSAK),
-                r[0], r[1])) {
+                r[0], r[1]);
+
+        if (mutasi.isEmpty()) {
+            return List.of();
+        }
+
+        Set<Long> menuIds = mutasi.stream().map(MutasiStok::getMenuId).collect(Collectors.toSet());
+        List<Menu> menus = menuRepo.findAllById(menuIds);
+        Map<Long, Menu> menuMap = menus.stream()
+                .filter(m -> m.getSekolahId().equals(sekolahId))
+                .collect(Collectors.toMap(Menu::getId, m -> m, (a, b) -> a));
+
+        Set<Long> kategoriIds = menus.stream()
+                .map(Menu::getKategoriId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, String> kategoriMap = kategoriRepo.findAllById(kategoriIds).stream()
+                .filter(k -> k.getSekolahId().equals(sekolahId))
+                .collect(Collectors.toMap(KategoriMenu::getId, KategoriMenu::getNama, (a, b) -> a));
+
+        List<BarisKerugianStok> hasil = new ArrayList<>();
+        for (MutasiStok m : mutasi) {
+            Menu menu = menuMap.get(m.getMenuId());
+            String namaMenu = menu != null ? menu.getNama() : "Menu #" + m.getMenuId();
+            String kategoriNama = (menu != null && menu.getKategoriId() != null)
+                    ? kategoriMap.getOrDefault(menu.getKategoriId(), "Umum")
+                    : "Umum";
+            long hpp = m.getHppSnapshot() != null ? m.getHppSnapshot() : 0L;
+            long totalNilai = m.getQty() * hpp;
+            String petugas = m.getAktorNama() != null ? m.getAktorNama() : "Petugas";
+
             hasil.add(new BarisKerugianStok(
-                    ((JenisMutasiStok) b[0]).name(),
-                    ((Number) b[1]).longValue(),
-                    ((Number) b[2]).longValue(),
-                    ((Number) b[3]).longValue()));
+                    m.getId(),
+                    m.getWaktu(),
+                    m.getMenuId(),
+                    namaMenu,
+                    kategoriNama,
+                    m.getJenis().name(),
+                    m.getQty(),
+                    hpp,
+                    totalNilai,
+                    m.getAlasan() != null ? m.getAlasan() : "-",
+                    m.getReferensiId() != null ? m.getReferensiId() : "-",
+                    petugas));
         }
         return hasil;
     }

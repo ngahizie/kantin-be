@@ -1,17 +1,32 @@
 package com.asqi.scholia_kantin_be.dto;
 
+import java.time.OffsetDateTime;
+
 /**
- * Baris laporan kerugian stok (PRD §9.5): penyesuaian opname keluar &amp; barang
- * rusak, beserta nilainya (qty × HPP snapshot).
- *
- * @param jenis        {@code OPNAME_KELUAR} (selisih audit) / {@code BARANG_RUSAK}
- * @param jumlahBaris  banyak baris mutasi pada jenis tsb
- * @param totalQty     Σ qty yang hilang
- * @param totalNilai   Σ (qty × hpp_snapshot) — nilai kerugian (rupiah)
+ * Baris laporan kerugian stok (PRD §9.5): rincian kejadian penyesuaian opname keluar &amp; barang
+ * rusak, beserta nilainya (qty × HPP snapshot), nomor berita acara, dan alasan.
  */
 public record BarisKerugianStok(
+        Long id,
+        OffsetDateTime waktu,
+        Long menuId,
+        String namaMenu,
+        String kategoriNama,
         String jenis,
-        long jumlahBaris,
-        long totalQty,
-        long totalNilai) {
+        int qty,
+        Long hppSnapshot,
+        long totalNilai,
+        String alasan,
+        String beritaAcaraId,
+        String petugas) {
+
+    /** Alias untuk kompatibilitas perhitungan ringkasan &amp; tes. */
+    public long totalQty() {
+        return qty;
+    }
+
+    /** Alias untuk kompatibilitas ringkasan kejadian. */
+    public long jumlahBaris() {
+        return 1L;
+    }
 }
