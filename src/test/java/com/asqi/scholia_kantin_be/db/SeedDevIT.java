@@ -45,24 +45,24 @@ class SeedDevIT {
                 .migrate();
 
         Jumlah awal = hitung(jdbc);
-        assertThat(awal.menu()).as("menu dari seed").isEqualTo(21);
-        assertThat(awal.kartuTamu()).as("kartu tamu dari seed").isEqualTo(14);
-        assertThat(awal.transaksi()).as("transaksi dari seed").isEqualTo(12);
+        assertThat(awal.menu()).as("menu dari seed").isEqualTo(36);
+        assertThat(awal.kartuTamu()).as("kartu tamu dari seed").isEqualTo(19);
+        assertThat(awal.transaksi()).as("transaksi dari seed").isEqualTo(22);
 
         // Tenant default form login FE (sekolah_id=10) wajib punya data —
         // tanpa ini semua layar FE tampak kosong walau endpoint sudah 200 (issue #231).
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM menu WHERE sekolah_id = 10", Integer.class))
-                .as("menu tenant FE (sekolah 10)").isEqualTo(8);
+                .as("menu tenant FE (sekolah 10)").isEqualTo(11);
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM kartu_tamu WHERE sekolah_id = 10", Integer.class))
-                .as("kartu tamu tenant FE").isEqualTo(3);
+                .as("kartu tamu tenant FE").isEqualTo(4);
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM transaksi WHERE sekolah_id = 10", Integer.class))
-                .as("transaksi tenant FE").isEqualTo(4);
+                .as("transaksi tenant FE").isEqualTo(5);
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM saldo_cache WHERE sekolah_id = 10", Integer.class))
-                .as("saldo_cache tenant FE").isEqualTo(4);
+                .as("saldo_cache tenant FE").isEqualTo(5);
 
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM dev_siswa_rfid WHERE sekolah_id = 10 AND siswa_id = 1001 "
