@@ -179,10 +179,21 @@ public class LaporanExportService {
     private HasilEkspor eksporKerugianStok(Long sekolahId, LocalDate tgl, OffsetDateTime dari,
                                            OffsetDateTime sampai, String label) {
         List<BarisKerugianStok> data = laporan.kerugianStok(sekolahId, tgl, dari, sampai);
-        List<String> header = List.of("Jenis", "Jumlah Baris", "Total Qty", "Total Nilai");
+        List<String> header = List.of("Waktu", "No. Berita Acara", "Nama Menu", "Kategori", "Jenis",
+                "Qty", "HPP Unit", "Total Nilai", "Alasan", "Petugas");
         List<List<Object>> baris = new ArrayList<>();
         for (BarisKerugianStok b : data) {
-            baris.add(List.of(b.jenis(), b.jumlahBaris(), b.totalQty(), b.totalNilai()));
+            baris.add(List.of(
+                    b.waktu() == null ? "" : FMT.format(b.waktu()),
+                    nvl(b.beritaAcaraId()),
+                    nvl(b.namaMenu()),
+                    nvl(b.kategoriNama()),
+                    nvl(b.jenis()),
+                    b.qty(),
+                    nvl(b.hppSnapshot()),
+                    b.totalNilai(),
+                    nvl(b.alasan()),
+                    nvl(b.petugas())));
         }
         return berkas("Kerugian Stok", label, header, baris);
     }
