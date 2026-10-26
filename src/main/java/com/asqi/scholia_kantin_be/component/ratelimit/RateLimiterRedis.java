@@ -4,6 +4,8 @@ import com.asqi.scholia_kantin_be.config.ratelimit.RateLimitProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.serializer.GenericToStringSerializer;
+import org.springframework.data.redis.serializer.StringRedisSerializer;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -34,7 +36,9 @@ public class RateLimiterRedis {
     private static final String LUA_INCR_EXPIRE = """
             local n = redis.call('INCR', KEYS[1])
             if n == 1 then
-              redis.call('EXPIRE', KEYS[1], ARGV[1])
+              redis.call('EXPIRE', KEYS[1], tonumber(ARGV[1]))
+            elseif redis.call('TTL', KEYS[1]) == -1 then
+              redis.call('EXPIRE', KEYS[1], tonumber(ARGV[1]))
             end
             return n
             """;
@@ -65,8 +69,9 @@ public class RateLimiterRedis {
     public Hasil periksa(String kategori, String identitas, int batas) {
         String kunci = "rl:" + kategori + ":" + identitas;
         try {
-            Long n = redisTemplate.execute(SCRIPT, List.of(kunci),
-                    String.valueOf(properties.getWindowSeconds()));
+            Long n = redisTemplate.execute(SCRIPT, StringRedisSerializer.UTF_8,
+                    new GenericToStringSerializer<>(Long.class),
+                    List.of(kunci), String.valueOf(properties.getWindowSeconds()));
             long hitungan = n == null ? 1L : n;
 
             if (hitungan > batas) {
