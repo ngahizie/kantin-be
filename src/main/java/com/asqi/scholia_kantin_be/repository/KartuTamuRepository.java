@@ -44,20 +44,21 @@ public interface KartuTamuRepository extends JpaRepository<KartuTamu, Long> {
     List<KartuTamu> findAllBySekolah(Long sekolahId, boolean hanyaAktif);
 
     /**
-     * Cek apakah RFID UID sudah dipakai kartu tamu lain.
-     * Untuk anti-tabrakan saat bind/update UID.
-     * 
-     * @param rfidUid UID yang mau dicek
-     * @param excludeId ID kartu yang boleh diabaikan (untuk update)
+     * Cek apakah RFID UID dipakai kartu tamu <b>selain</b> {@code excludeId}
+     * (kirim kartu itu sendiri saat update, biar UID-nya sendiri tidak dianggap
+     * bentrok). Untuk anti-tabrakan saat bind/update UID.
+     *
+     * <p>Query turunan (derived), bukan JPQL {@code :x IS NULL OR ...}: pola
+     * itu membuat Hibernate mengirim parameter {@code null} tanpa tipe dan
+     * PostgreSQL menolaknya ({@code could not determine data type of
+     * parameter}) — akar bug #198 (issue #256). Untuk {@code excludeId == null}
+     * pakai {@link #existsByRfidUid(String)}.
+     *
+     * @param rfidUid   UID yang mau dicek
+     * @param excludeId ID kartu yang diabaikan (kartu yang sedang di-update)
      * @return {@code true} jika UID sudah dipakai kartu lain
      */
-    @Query("""
-            SELECT CASE WHEN COUNT(k) > 0 THEN true ELSE false END
-            FROM KartuTamu k
-            WHERE k.rfidUid = :rfidUid
-            AND (:excludeId IS NULL OR k.id != :excludeId)
-            """)
-    boolean existsByRfidUidExcluding(String rfidUid, Long excludeId);
+    boolean existsByRfidUidAndIdNot(String rfidUid, Long excludeId);
 
     /**
      * Cek apakah RFID UID dipakai kartu tamu mana pun (aktif maupun tidak),

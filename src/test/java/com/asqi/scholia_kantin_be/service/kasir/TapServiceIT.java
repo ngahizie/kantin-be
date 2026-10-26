@@ -132,6 +132,57 @@ class TapServiceIT {
     }
 
     @Test
+    @DisplayName("tap konkuren — saldo cache dan ledger tetap konsisten")
+    void tapKonkurenTidakMembuatSaldoMinus() throws Exception {
+        jdbc.execute("TRUNCATE TABLE saldo_ledger, saldo_cache CASCADE");
+        tx.executeWithoutResult(s -> ledgerSaldo.kredit(PerintahMutasiSaldo.builder()
+                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).subjekId(SISWA)
+                .jenis(JenisMutasiSaldo.TOPUP_TUNAI).nominal(25_000)
+                .idempotencyKey("seed-concurrent").build()));
+
+        // Buka sesi sebelum fan-out agar test mengisolasi konkurensi saldo/stok,
+        // bukan race pembuatan sesi kasir.
+        tapService.tap(SEKOLAH, petugas, request("warmup-session", 1, 0));
+        tx.executeWithoutResult(s -> ledgerSaldo.kredit(PerintahMutasiSaldo.builder()
+                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).subjekId(SISWA)
+                .jenis(JenisMutasiSaldo.TOPUP_TUNAI).nominal(7_500)
+                .idempotencyKey("restore-concurrent").build()));
+        tx.executeWithoutResult(s -> ledgerStok.masukBarang(SEKOLAH, MENU_NASI, 1, 4_000, "BARANG_MASUK", "restore-concurrent", 1L));
+
+        int paralel = 10;
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(paralel);
+        var mulai = new java.util.concurrent.CountDownLatch(1);
+        var sukses = new java.util.concurrent.atomic.AtomicInteger();
+        var ditolak = new java.util.concurrent.atomic.AtomicInteger();
+        var futures = new java.util.ArrayList<java.util.concurrent.Future<Void>>();
+        for (int i = 0; i < paralel; i++) {
+            int index = i;
+            futures.add(pool.submit(() -> {
+                mulai.await();
+                try {
+                    tapService.tap(SEKOLAH, petugas, request("concurrent-" + index, 1, 0));
+                    sukses.incrementAndGet();
+                } catch (com.asqi.scholia_kantin_be.component.exception.ConflictException e) {
+                    ditolak.incrementAndGet();
+                }
+                return null;
+            }));
+        }
+        mulai.countDown();
+        for (var future : futures) future.get();
+        pool.shutdown();
+
+        long saldo = ledgerSaldo.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA);
+        assertThat(sukses.get()).isEqualTo(3);
+        assertThat(ditolak.get()).isEqualTo(7);
+        assertThat(saldo).isEqualTo(500L); // 25.000 - 8.000 (warmup) + 7.500 (restore) - 3×8.000
+        assertThat(ledgerSaldo.hitungUlangDariLedger(SEKOLAH, SubjekTipe.SISWA, SISWA)).isEqualTo(saldo);
+        assertThat(ledgerStok.stok(SEKOLAH, MENU_NASI)).isEqualTo(17);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM transaksi", Integer.class)).isEqualTo(4); // termasuk tap pembuka sesi
+        assertThat(jdbc.queryForObject("SELECT COUNT(DISTINCT saldo_setelah) FROM saldo_ledger WHERE arah = 'DEBIT'", Integer.class)).isEqualTo(4); // termasuk tap pembuka sesi
+    }
+
+    @Test
     @DisplayName("idempotency — tap ganda dengan key sama hanya memotong sekali")
     void tapGandaIdempotent() {
         TapResponse pertama = tapService.tap(SEKOLAH, petugas, request("tap-dup", 1, 0));

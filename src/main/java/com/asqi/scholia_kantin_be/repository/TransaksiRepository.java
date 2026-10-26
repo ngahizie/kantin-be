@@ -4,7 +4,9 @@ import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
 import com.asqi.scholia_kantin_be.model.Transaksi;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -23,6 +25,11 @@ import java.util.Optional;
 @Repository
 public interface TransaksiRepository extends JpaRepository<Transaksi, Long>,
         JpaSpecificationExecutor<Transaksi> {
+
+    /** Muat dan lock transaksi sebelum operasi kompensasi (void/koreksi) agar hanya satu transaksi balapan menang. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT t FROM Transaksi t WHERE t.id = :id")
+    Optional<Transaksi> kunciUntukVoid(@Param("id") Long id);
 
     /** Idempotency: cari transaksi berdasarkan key dari klien kasir (PRD §11.3). */
     Optional<Transaksi> findByIdempotencyKey(String idempotencyKey);

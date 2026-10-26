@@ -4,6 +4,7 @@ import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
 import com.asqi.scholia_kantin_be.dto.HalamanResponse;
 import com.asqi.scholia_kantin_be.dto.OpnameBatchHasilItem;
+import com.asqi.scholia_kantin_be.helper.UkuranHalaman;
 import com.asqi.scholia_kantin_be.dto.OpnameBatchItemRequest;
 import com.asqi.scholia_kantin_be.dto.OpnameBatchResponse;
 import com.asqi.scholia_kantin_be.dto.RiwayatStokItem;
@@ -310,7 +311,7 @@ public class StokOperasiService {
     public HalamanResponse<RiwayatStokItem> riwayat(Long sekolahId, Long menuId, JenisMutasiStok jenis,
                                                     OffsetDateTime dari, OffsetDateTime sampai,
                                                     int halaman, int ukuran) {
-        int ukuranAman = (ukuran <= 0 || ukuran > UKURAN_MAKS) ? 20 : ukuran;
+        int ukuranAman = UkuranHalaman.validasi(ukuran, UKURAN_MAKS);
         int halamanAman = Math.max(0, halaman);
         Pageable pageable = PageRequest.of(halamanAman, ukuranAman,
                 Sort.by(Sort.Direction.DESC, "id"));

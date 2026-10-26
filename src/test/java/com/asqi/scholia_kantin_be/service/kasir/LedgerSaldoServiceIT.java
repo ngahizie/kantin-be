@@ -137,12 +137,14 @@ class LedgerSaldoServiceIT {
         CountDownLatch mulai = new CountDownLatch(1);
         AtomicInteger sukses = new AtomicInteger();
         AtomicInteger gagal = new AtomicInteger();
+        AtomicInteger kunciSeq = new AtomicInteger(); // idempotency key unik per worker
 
         Callable<Void> tugas = () -> {
             mulai.await();
             try {
                 tx.executeWithoutResult(s ->
-                        ledger.debit(perintah(JenisMutasiSaldo.PENJUALAN, potong, "race-" + System.nanoTime())));
+                        ledger.debit(perintah(JenisMutasiSaldo.PENJUALAN, potong,
+                                "race-" + kunciSeq.incrementAndGet())));
                 sukses.incrementAndGet();
             } catch (ConflictException e) {
                 gagal.incrementAndGet();
@@ -172,7 +174,96 @@ class LedgerSaldoServiceIT {
     }
 
     @Test
+    @DisplayName("saldo dibaca sebelum lock — debit paralel tetap memakai state terbaru")
+    void bacaSaldoSebelumLockTidakMemicuLostUpdate() throws Exception {
+        isiSaldo(25_000);
+
+        int paralel = 10;
+        ExecutorService pool = Executors.newFixedThreadPool(paralel);
+        CountDownLatch sudahMembaca = new CountDownLatch(paralel);
+        CountDownLatch lanjut = new CountDownLatch(1);
+        AtomicInteger sukses = new AtomicInteger();
+        AtomicInteger gagal = new AtomicInteger();
+        var futures = new java.util.ArrayList<Future<Void>>();
+
+        for (int i = 0; i < paralel; i++) {
+            final int index = i;
+            futures.add(pool.submit(() -> {
+                try {
+                    tx.executeWithoutResult(s -> {
+                        // Meniru TapService: entity saldo sudah masuk persistence context sebelum FOR UPDATE.
+                        assertThat(ledger.saldo(SEKOLAH, SubjekTipe.SISWA, subjekId)).isEqualTo(25_000L);
+                        sudahMembaca.countDown();
+                        try {
+                            assertThat(lanjut.await(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw new IllegalStateException(e);
+                        }
+                        ledger.debit(perintah(JenisMutasiSaldo.PENJUALAN, 10_000, "stale-" + index));
+                    });
+                    sukses.incrementAndGet();
+                } catch (ConflictException e) {
+                    gagal.incrementAndGet();
+                }
+                return null;
+            }));
+        }
+        assertThat(sudahMembaca.await(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+        lanjut.countDown();
+        for (Future<Void> future : futures) future.get();
+        pool.shutdown();
+
+        assertThat(sukses.get()).isEqualTo(2);
+        assertThat(gagal.get()).isEqualTo(8);
+        assertThat(ledger.saldo(SEKOLAH, SubjekTipe.SISWA, subjekId)).isEqualTo(5_000L);
+        assertThat(ledger.hitungUlangDariLedger(SEKOLAH, SubjekTipe.SISWA, subjekId)).isEqualTo(5_000L);
+    }
+
+    @Test
+    @DisplayName("kredit bersamaan — top-up paralel menambah tepat satu kali masing-masing (#258)")
+    void kreditBersamaan() throws Exception {
+        int paralel = 10;
+        long nominal = 10_000;
+        ExecutorService pool = Executors.newFixedThreadPool(paralel);
+        CountDownLatch mulai = new CountDownLatch(1);
+        AtomicInteger sukses = new AtomicInteger();
+
+        var futures = new java.util.ArrayList<Future<Long>>();
+        for (int i = 0; i < paralel; i++) {
+            final long seq = i;
+            futures.add(pool.submit(() -> {
+                mulai.await();
+                var hasil = tx.execute(s -> ledger.kredit(
+                        perintah(JenisMutasiSaldo.TOPUP_TUNAI, nominal, "topup-race-" + seq)));
+                sukses.incrementAndGet();
+                return hasil.getSaldoSetelah();
+            }));
+        }
+        mulai.countDown();
+        for (Future<Long> f : futures) {
+            f.get(); // propagate kegagalan worker
+        }
+        pool.shutdown();
+
+        assertThat(sukses.get()).isEqualTo(paralel);
+        long saldoAkhir = ledger.saldo(SEKOLAH, SubjekTipe.SISWA, subjekId);
+        assertThat(saldoAkhir).isEqualTo(paralel * nominal); // tak ada top-up yang hilang
+        Long saldoTerakhir = jdbc.queryForObject(
+                "SELECT saldo_setelah FROM saldo_ledger WHERE sekolah_id = ? ORDER BY id DESC LIMIT 1",
+                Long.class, SEKOLAH);
+        assertThat(saldoTerakhir).isEqualTo(saldoAkhir); // baris terakhir konsisten dgn cache
+        Integer kreditRows = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM saldo_ledger WHERE sekolah_id = ? AND arah = 'KREDIT'",
+                Integer.class, SEKOLAH);
+        assertThat(kreditRows).isEqualTo(paralel);
+        assertThat(ledger.hitungUlangDariLedger(SEKOLAH, SubjekTipe.SISWA, subjekId))
+                .isEqualTo(saldoAkhir); // cache == Σ ledger
+    }
+
+    @Test
     @DisplayName("append-only — UPDATE & DELETE pada ledger ditolak trigger DB")
+
     void appendOnlyDitolak() {
         isiSaldo(10_000);
 

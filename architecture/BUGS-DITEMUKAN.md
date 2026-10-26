@@ -53,7 +53,9 @@ Status: ✅ diperbaiki · ⚠️ perilaku disengaja (didokumentasikan) · 🔲 m
 
 - **Gejala:** input tidak valid → HTTP 200, `code=100`, field `validation`.
 - **Akar:** kontrak FE SKOOLIA lama (warisan `admin-be`).
-- **Keputusan:** ⚠️ **sengaja dipertahankan** (kompatibel FE). Tersedia saklar `kantin.validation.http-400=true` untuk memakai HTTP 400. Lihat `ValidasiContractConfig`.
+- **Perbaikan:** ✅ **diubah ke HTTP 400** (issue #251, 2026-10-22). Bentuk body dipertahankan (`code`/`message`/`timestamp` + `validation`), hanya status HTTP-nya yang dibetulkan — sekarang juga berlaku untuk error parameter (`MissingServletRequestParameterException`, `MethodArgumentTypeMismatchException`, `HandlerMethodValidationException`, `ConstraintViolationException`) dan body JSON rusak (`HttpMessageNotReadableException`, dulu jatuh ke 500).
+- **Saklar mundur:** `kantin.validation.http-400=false` mengembalikan seluruh respons validasi ke HTTP 200 (lihat `ValidasiContractConfig`).
+- **Sisa pekerjaan (di luar #251):** pesan `message` untuk body validasi masih `"ERROR MAPPING"` — teks tak berguna bagi pengguna; pesan per-field ada di `validation`, tapi FE belum membacanya.
 
 ## B8 — Endpoint tak dikenal membalas 401, bukan 404
 

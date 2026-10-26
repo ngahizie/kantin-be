@@ -5,19 +5,25 @@ import com.asqi.scholia_kantin_be.component.logging.ErrorLogger;
 import com.asqi.scholia_kantin_be.payload.response.CommonResponse;
 import com.asqi.scholia_kantin_be.payload.response.SimpleResponse;
 import io.jsonwebtoken.ExpiredJwtException;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
+import org.springframework.context.MessageSourceResolvable;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
+import org.springframework.validation.method.ParameterValidationResult;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.ServletRequestBindingException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
@@ -25,6 +31,7 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -52,19 +59,62 @@ public class GlobalExceptionHandler {
         return simpleResponse;
     }
 
+    // ────────────────────────────────────────────────────────────────
+    // VALIDASI INPUT → HTTP 400 (issue #251)
+    //
+    // Dulu error validasi dijawab HTTP 200 (body `status:0` untuk binding
+    // dan `code=100` untuk body). Akibatnya klien tak bisa membedakan
+    // sukses dari gagal lewat status code, dan request cacat pun "lolos"
+    // sebagai 200 sehingga jalur RBAC-nya tak pernah diuji.
+    //
+    // Sekarang: HTTP 400 + body `{code, message, timestamp}` — bentuk yang
+    // sudah dibaca FE tetap dipertahankan, hanya status HTTP-nya yang
+    // diperbaiki. `kantin.validation.http-400=false` mengembalikan seluruh
+    // respons validasi ke HTTP 200 (saklar mundur, lihat ValidasiContractConfig).
+    // ────────────────────────────────────────────────────────────────
+
     @ExceptionHandler(ServletRequestBindingException.class)
-    public ResponseEntity<SimpleResponse> handleServletRequestBindingException(ServletRequestBindingException ex) {
-        return ResponseEntity.ok(buildSimpleResponse(ex.getMessage()));
+    public ResponseEntity<?> handleServletRequestBindingException(ServletRequestBindingException ex) {
+        return CommonResponse.badRequest("Permintaan tidak lengkap: " + ex.getMessage());
     }
 
     @ExceptionHandler(MissingServletRequestParameterException.class)
-    public ResponseEntity<SimpleResponse> handleMissingParam(MissingServletRequestParameterException ex) {
-        return ResponseEntity.ok(buildSimpleResponse("Parameter wajib tidak ada: " + ex.getParameterName()));
+    public ResponseEntity<?> handleMissingParam(MissingServletRequestParameterException ex) {
+        return CommonResponse.badRequest("Parameter wajib tidak ada: " + ex.getParameterName());
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
-    public ResponseEntity<SimpleResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
-        return ResponseEntity.ok(buildSimpleResponse(ex.getName() + " Type Data Salah"));
+    public ResponseEntity<?> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        return CommonResponse.badRequest(ex.getName() + " Type Data Salah");
+    }
+
+    /** Validasi parameter kendali (@RequestParam/@PathVariable) → 400. */
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<?> handleMethodValidation(HandlerMethodValidationException ex) {
+        Map<String, String> pesan = new LinkedHashMap<>();
+        for (ParameterValidationResult hasil : ex.getParameterValidationResults()) {
+            String nama = hasil.getMethodParameter().getParameterName();
+            for (MessageSourceResolvable galat : hasil.getResolvableErrors()) {
+                pesan.put(nama, galat.getDefaultMessage());
+            }
+        }
+        return CommonResponse.validationError(pesan);
+    }
+
+    /** Constraint jakarta.validation pada parameter → 400. */
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<?> handleConstraintViolation(ConstraintViolationException ex) {
+        Map<String, String> pesan = new LinkedHashMap<>();
+        for (ConstraintViolation<?> pelanggaran : ex.getConstraintViolations()) {
+            pesan.put(pelanggaran.getPropertyPath().toString(), pelanggaran.getMessage());
+        }
+        return CommonResponse.validationError(pesan);
+    }
+
+    /** Body JSON rusak/tidak terbaca → 400 (dulu jatuh ke 500 generik). */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<?> handleBodyTidakTerbaca(HttpMessageNotReadableException ex) {
+        return CommonResponse.badRequest("Body permintaan tidak valid");
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -183,9 +233,9 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
-    public ResponseEntity<SimpleResponse> maxUploadSizeExceededException(MaxUploadSizeExceededException ex) {
-        return ResponseEntity.ok(buildSimpleResponse(
-                "Jumlah upload file terlalu besar, harus kurang dari batas yang ditentukan"));
+    public ResponseEntity<?> maxUploadSizeExceededException(MaxUploadSizeExceededException ex) {
+        return CommonResponse.badRequest(
+                "Jumlah upload file terlalu besar, harus kurang dari batas yang ditentukan");
     }
 
     @ExceptionHandler(Exception.class)

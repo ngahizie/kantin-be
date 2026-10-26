@@ -5,6 +5,7 @@ import com.asqi.scholia_kantin_be.dto.MutasiSaldoItem;
 import com.asqi.scholia_kantin_be.dto.RiwayatKartuTamuResponse;
 import com.asqi.scholia_kantin_be.dto.RiwayatTransaksiKartuItem;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
+import com.asqi.scholia_kantin_be.helper.UkuranHalaman;
 import com.asqi.scholia_kantin_be.model.KartuTamu;
 import com.asqi.scholia_kantin_be.repository.TransaksiRepository;
 import com.asqi.scholia_kantin_be.service.kasir.LedgerSaldoService;
@@ -48,10 +49,12 @@ public class RiwayatKartuTamuService {
                                             int batasMutasi, int halaman, int ukuran) {
         KartuTamu kartu = kartuService.detailKartu(sekolahId, kartuId);
 
+        int ukuranAman = UkuranHalaman.validasi(ukuran, UkuranHalaman.UKURAN_MAKS);
+
         Page<RiwayatTransaksiKartuItem> transaksi = transaksiRepo
                 .findBySekolahIdAndSubjekTipeAndSubjekIdOrderByIdDesc(
                         sekolahId, SubjekTipe.KARTU_TAMU, kartuId,
-                        PageRequest.of(Math.max(0, halaman), Math.max(1, Math.min(ukuran, 100))))
+                        PageRequest.of(Math.max(0, halaman), ukuranAman))
                 .map(RiwayatTransaksiKartuItem::dari);
 
         List<MutasiSaldoItem> mutasi = ledgerSaldo

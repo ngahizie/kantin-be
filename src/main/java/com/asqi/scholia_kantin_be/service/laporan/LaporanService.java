@@ -301,7 +301,7 @@ public class LaporanService {
         // Sumber kebenaran nama, kategori & stok minimum = katalog menu (PRD §7.1).
         // (stok_cache.stok_minimum tidak disinkron dari menu, jadi jangan dipakai.)
         Map<Long, com.asqi.scholia_kantin_be.model.Menu> menuById = new HashMap<>();
-        menuRepo.daftar(sekolahId, null, false).forEach(m -> menuById.put(m.getId(), m));
+        menuRepo.findAll(MenuRepository.daftarSpec(sekolahId, null, false)).forEach(m -> menuById.put(m.getId(), m));
 
         List<BarisStok> hasil = new ArrayList<>();
         for (StokCache s : stokCacheRepo.findBySekolahIdAndMenuIdIn(

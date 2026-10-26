@@ -10,6 +10,8 @@ import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.model.SaldoCache;
 import com.asqi.scholia_kantin_be.model.SaldoLedger;
 import com.asqi.scholia_kantin_be.repository.SaldoCacheRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import com.asqi.scholia_kantin_be.repository.SaldoLedgerRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -51,6 +53,7 @@ public class LedgerSaldoService {
     private final SaldoCacheRepository cacheRepo;
     private final IdGenerator idGenerator;
     private final JamKantin jam;
+    private final EntityManager entityManager;
 
     // ────────────────────────────────────────────────────────────────
     // MUTASI (WAJIB di dalam transaksi pemanggil)
@@ -150,6 +153,9 @@ public class LedgerSaldoService {
         cacheRepo.pastikanBarisAda(perintah.getSubjekTipe().name(), perintah.getSubjekId(), perintah.getSekolahId());
         SaldoCache cache = cacheRepo.kunciUntukUpdate(perintah.getSekolahId(), perintah.getSubjekTipe(), perintah.getSubjekId())
                 .orElseThrow(() -> new NotFoundEntity("Baris saldo tidak ditemukan"));
+        // SELECT FOR UPDATE tidak otomatis me-refresh entity yang sudah ada di persistence context.
+        // TapService membaca cache saat validasi sebelum debit, jadi refresh setelah lock wajib.
+        entityManager.refresh(cache, LockModeType.PESSIMISTIC_WRITE);
 
         // 3) Verifikasi tenant (PRD §11.4) — pertahanan berlapis: kunci sudah
         //    tenant-scoped (B17), tapi tetap dicek agar data sekolah lain → 404.
