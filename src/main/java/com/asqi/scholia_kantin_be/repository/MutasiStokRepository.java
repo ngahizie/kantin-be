@@ -189,4 +189,20 @@ public interface MutasiStokRepository extends JpaRepository<MutasiStok, Long>,
     List<MutasiStok> barangMasukRentang(@Param("sekolahId") Long sekolahId,
                                         @Param("dari") OffsetDateTime dari,
                                         @Param("sampai") OffsetDateTime sampai);
+
+    /**
+     * Daftar mutasi kerugian stok (opname keluar & barang rusak) pada rentang waktu (PRD §9.5),
+     * terbaru dulu.
+     */
+    @Query("""
+            SELECT m FROM MutasiStok m
+            WHERE m.sekolahId = :sekolahId
+              AND m.jenis IN :jenis
+              AND m.waktu >= :dari AND m.waktu < :sampai
+            ORDER BY m.waktu DESC, m.id DESC
+            """)
+    List<MutasiStok> kerugianRentang(@Param("sekolahId") Long sekolahId,
+                                     @Param("jenis") Collection<JenisMutasiStok> jenis,
+                                     @Param("dari") OffsetDateTime dari,
+                                     @Param("sampai") OffsetDateTime sampai);
 }
