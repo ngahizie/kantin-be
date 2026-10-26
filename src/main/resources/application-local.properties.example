@@ -11,6 +11,9 @@
 # JANGAN commit file application-local.properties (AGENTS.md §10).
 # ============================================================
 
+# --- Demo data siswa untuk pencarian lokal ---
+kantin.demo.enabled=true
+
 # --- Database: PostgreSQL (docker compose up -d) ---
 spring.datasource.url=jdbc:postgresql://localhost:5432/kantin_db?stringtype=unspecified
 spring.datasource.username=kantin

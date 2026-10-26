@@ -1,5 +1,6 @@
 package com.asqi.scholia_kantin_be.config;
 
+import com.asqi.scholia_kantin_be.config.ratelimit.RateLimitProperties;
 import com.asqi.scholia_kantin_be.component.ratelimit.RateLimiterRedis;
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;
 import com.asqi.scholia_kantin_be.support.TestcontainersConfig;
@@ -11,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
@@ -55,6 +57,9 @@ class FilterGandaIT {
     @Autowired
     private StringRedisTemplate redis;
 
+    @Autowired
+    private RedisTemplate<String, Object> redisTemplate;
+
     /**
      * Bersihkan kunci rate-limit sebelum tiap test.
      *
@@ -69,6 +74,21 @@ class FilterGandaIT {
         if (kunci != null && !kunci.isEmpty()) {
             redis.delete(kunci);
         }
+    }
+
+    @Test
+    @DisplayName("kunci lama tanpa TTL dipulihkan ke jendela expire")
+    void kunciTanpaTtlDipulihkan() {
+        String key = "rl:audit:legacy-without-ttl";
+        byte[] keyBytes = key.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] valueBytes = "60".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        redis.getConnectionFactory().getConnection().stringCommands().set(keyBytes, valueBytes);
+        RateLimiterRedis limiterNyata = new RateLimiterRedis(redisTemplate, new RateLimitProperties());
+
+        RateLimiterRedis.Hasil hasil = limiterNyata.periksa("audit", "legacy-without-ttl", 100);
+
+        assertThat(hasil.hitungan()).isEqualTo(61);
+        assertThat(redis.getExpire(key, java.util.concurrent.TimeUnit.SECONDS)).isBetween(1L, 60L);
     }
 
     @Test
