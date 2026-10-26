@@ -581,13 +581,14 @@ VALUES
      '$2a$10$0PkEyDmQ0sxGV/kdv5XE.udnbKO1N1yWLx7hnbA3cTBFG17fE9Byu', true),
     (6, 2, 'tu2',        'Andika Pratama (TU Sekolah 2)', 'TATA_USAHA',
      '$2a$10$3vynpehMjgcknvLbhkE4kuucUfxfSsSxiq9fTAJ0VYbLzGbcXRJwa', true),
-    -- Sekolah 10 (tenant default FE). Tanpa akun di tenant ini, data sekolah 10
-    -- tidak pernah bisa dijangkau dari UI: token memakai sekolah_id dari akun,
-    -- bukan dari body request (#231, #235).
     (7, 10, 'kasir10',     'Rizky Pratama (Petugas POS 10)', 'PETUGAS',
      '$2a$10$LGt9ZvDWW97jh0ozfFEIrOlwkp.DQ7HSpq7Eg/VxbHLn3UDuD.Xem', true),
     (8, 10, 'bendahara10', 'Nurul Hidayah (Bendahara 10)',    'BENDAHARA',
-     '$2a$10$0PkEyDmQ0sxGV/kdv5XE.udnbKO1N1yWLx7hnbA3cTBFG17fE9Byu', true)
+     '$2a$10$0PkEyDmQ0sxGV/kdv5XE.udnbKO1N1yWLx7hnbA3cTBFG17fE9Byu', true),
+    -- Satu akun admin dev untuk menguji role ADMIN_SEKOLAH.
+    -- Hash disamakan dengan akun dev yang password-nya Kantin#2026.
+    (9, 1, 'admin1', 'Budi Santoso (Admin Sekolah)', 'ADMIN_SEKOLAH',
+     '$2a$10$LGt9ZvDWW97jh0ozfFEIrOlwkp.DQ7HSpq7Eg/VxbHLn3UDuD.Xem', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- ── Perbaikan cache dari ledger (issue #255) ──────────────────
@@ -627,7 +628,7 @@ UPDATE stok_cache c
 
 -- ── Ringkas ──────────────────────────────────────────────────
 -- Isi seed: 3 sekolah | 21 menu | 14 kartu tamu | 6 sesi kasir |
--- 12 transaksi | 31 mutasi saldo | 21 baris stok | 8 akun login dev |
+-- 12 transaksi | 31 mutasi saldo | 21 baris stok | 9 akun login dev |
 -- pengaturan kantin.
 -- Sekolah 10 (tenant FE) menyumbang: 8 menu, 3 kartu tamu, 2 sesi kasir,
 -- 4 transaksi, 4 baris saldo_cache (3 kartu tamu + 1 siswa), 2 akun dev.

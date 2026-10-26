@@ -63,10 +63,10 @@ class PeranAspectTest {
     }
 
     @Test
-    @DisplayName("peran TIDAK_DIKENAL → 403 (fail-closed)")
-    void peranTidakDikenalDitolak() throws Exception {
+    @DisplayName("peran null (tak dikenal) → 403 (fail-closed)")
+    void peranNullDitolak() throws Exception {
         TenantContext.set(IdentitasKantin.builder()
-                .userId("7").sekolahId(1L).peran(AktorKantin.TIDAK_DIKENAL).build());
+                .userId("7").sekolahId(1L).peran(null).build());
         assertThatThrownBy(() -> aspect.cek(perluPeran()))
                 .isInstanceOf(ForbiddenException.class);
     }

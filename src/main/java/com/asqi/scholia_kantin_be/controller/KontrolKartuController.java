@@ -31,8 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
  * (PRD §6.1, §8.3, issue <b>#40</b>).
  *
  * <p>Blokir berlaku <b>instan</b> — tap berikutnya langsung ditolak
- * (PRD §11.11). RBAC backend (PRD §11.5): admin sekolah mengatur kontrol atas
- * nama ortu (§9.6 "Kontrol Siswa"); ortu (mobile) mengatur anaknya sendiri.
+ * (PRD §11.11). RBAC backend (PRD §11.5): admin sekolah dan TU mengatur kontrol.
  * Semua tenant-scoped (PRD §11.4).
  */
 @RestController
@@ -47,15 +46,14 @@ public class KontrolKartuController {
     // ────────────────────────────────────────────────────────────────
 
     /** Blokir / buka blokir kartu (berlaku instan). */
-    @PerluPeran({AktorKantin.ADMIN_SEKOLAH, AktorKantin.TU_SEKOLAH, AktorKantin.ORANG_TUA})
+    @PerluPeran({AktorKantin.ADMIN_SEKOLAH, AktorKantin.TU_SEKOLAH})
     @PostMapping("blokir")
     public ResponseEntity<Response<KontrolSubjekResponse>> ubahBlokir(
             @Valid @RequestBody BlokirKartuRequest request,
             @AuthenticationPrincipal IdentitasKantin identitas) {
 
         // Satu endpoint melayani dua subjek dengan pemilik hak berbeda:
-        // Kartu Tamu → TU/Bendahara (§9.4 "TU memblokir"), siswa → Admin
-        // sekolah (§9.6 "Kontrol Siswa"), ortu hanya anaknya (§8.3).
+        // Kartu Tamu → TU/Bendahara (§9.4 "TU memblokir"), siswa → Admin sekolah.
         if (request.getSubjekTipe() == SubjekTipe.KARTU_TAMU
                 && identitas.getPeran() != AktorKantin.TU_SEKOLAH) {
             throw new ForbiddenException(
@@ -79,7 +77,7 @@ public class KontrolKartuController {
     // ────────────────────────────────────────────────────────────────
 
     /** Set / ubah limit belanja harian (nominal null = tanpa limit). */
-    @PerluPeran({AktorKantin.ADMIN_SEKOLAH, AktorKantin.ORANG_TUA})
+    @PerluPeran({AktorKantin.ADMIN_SEKOLAH, AktorKantin.TU_SEKOLAH})
     @PutMapping("limit-harian")
     public ResponseEntity<Response<KontrolSubjekResponse>> setLimit(
             @Valid @RequestBody LimitHarianRequest request,
@@ -96,7 +94,7 @@ public class KontrolKartuController {
     // ────────────────────────────────────────────────────────────────
 
     /** Blokir / buka blokir item atau kategori. */
-    @PerluPeran({AktorKantin.ADMIN_SEKOLAH, AktorKantin.ORANG_TUA})
+    @PerluPeran({AktorKantin.ADMIN_SEKOLAH, AktorKantin.TU_SEKOLAH})
     @PostMapping("blokir-item")
     public ResponseEntity<Response<KontrolSubjekResponse>> ubahBlokirItem(
             @Valid @RequestBody BlokirItemRequest request,
@@ -115,7 +113,7 @@ public class KontrolKartuController {
 
     /** Ringkasan kontrol satu subjek (blokir, limit, item diblokir). */
     @PerluPeran({AktorKantin.PETUGAS_KANTIN, AktorKantin.PENGELOLA_KANTIN,
-            AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.ORANG_TUA})
+            AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH})
     @GetMapping("{subjekTipe}/{subjekId}")
     public ResponseEntity<Response<KontrolSubjekResponse>> kontrol(
             @PathVariable SubjekTipe subjekTipe,
