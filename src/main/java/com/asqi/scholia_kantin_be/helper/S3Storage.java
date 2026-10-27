@@ -6,24 +6,31 @@ import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
 import io.minio.errors.MinioException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.BufferedInputStream;
+import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
 import java.util.Set;
 import java.util.UUID;
 
 /**
- * Object storage MinIO/S3 untuk nota barang masuk &amp; foto stok.
- * Parity dengan admin-be (helper/S3Storage). Lihat AGENTS.md §2.
+ * Object storage MinIO/S3 untuk foto menu & nota barang masuk, dengan
+ * fallback ke {@link LocalStorage} saat kredensial MinIO belum diisi
+ * (development/demo tanpa MinIO berjalan).
+ *
+ * <p>Parity dengan admin-be (helper/S3Storage). Lihat AGENTS.md §2.
  *
  * <p><b>Lazy init:</b> klien MinIO baru dibuat saat benar-benar dipakai.
- * {@code MinioClient.builder().build()} MELEMPAR exception bila kredensial
- * kosong, sehingga membuatnya di konstruktor akan menggagalkan start
- * aplikasi di DEV/CI yang belum menyiapkan MinIO.
+ * Saat kredensial kosong, {@link LocalStorage} dipakai agar aplikasi tetap
+ * bisa menyimpan/membaca berkas di direktori lokal tanpa MinIO.
  */
 @Service
+@Slf4j
 public class S3Storage {
 
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of(
@@ -36,6 +43,9 @@ public class S3Storage {
     private final String accessKey;
     private final String secretKey;
 
+    /** Dapat dipakai bila kredensial MinIO kosong. */
+    private final LocalStorage localStorage;
+
     /** Klien dibuat malas (double-checked locking) pada pemakaian pertama. */
     private volatile MinioClient client;
 
@@ -44,13 +54,22 @@ public class S3Storage {
 
     public S3Storage(@Value("${minio.url}") String url,
                      @Value("${minio.access-key}") String accessKey,
-                     @Value("${minio.secret-key}") String secretKey) {
+                     @Value("${minio.secret-key}") String secretKey,
+                     LocalStorage localStorage) {
         this.url = url;
         this.accessKey = accessKey;
         this.secretKey = secretKey;
+        this.localStorage = localStorage;
+
+        if (accessKey != null && !accessKey.isBlank()
+                && secretKey != null && !secretKey.isBlank()) {
+            log.info("S3Storage: MinIO diaktifkan (endpoint={})", url);
+        } else {
+            log.info("S3Storage: kredensial MinIO kosong — pakai LocalStorage fallback");
+        }
     }
 
-    /** @return klien MinIO siap pakai; melempar bila kredensial belum diisi. */
+    /** @return klien MinIO siap pakai; null bila fallback aktif. */
     private MinioClient client() {
         MinioClient local = this.client;
         if (local == null) {
@@ -59,9 +78,7 @@ public class S3Storage {
                 if (local == null) {
                     if (accessKey == null || accessKey.isBlank()
                             || secretKey == null || secretKey.isBlank()) {
-                        throw new IllegalStateException(
-                            "MinIO belum dikonfigurasi (minio.access-key / minio.secret-key kosong). "
-                            + "Isi di application-local.properties sebelum memakai fitur upload.");
+                        return null; // fallback akan dihandle oleh pemanggil
                     }
                     local = MinioClient.builder()
                             .endpoint(url)
@@ -72,6 +89,10 @@ public class S3Storage {
             }
         }
         return local;
+    }
+
+    private boolean useLocalStorage() {
+        return client() == null;
     }
 
     private String validateAndExtractExtension(String originalFileName) {
@@ -85,17 +106,7 @@ public class S3Storage {
         return ext;
     }
 
-    /**
-     * Validasi nama objek agar tak bisa keluar dari namespace yang diizinkan
-     * (cegah path-traversal / IDOR baca objek sembarang — B19, PRD §11.4).
-     *
-     * <p>Aturan: tidak kosong, tidak absolut, tanpa segmen {@code ..} atau
-     * {@code .}, tidak memuat backslash/NUL, dan seluruh segmen hanya berisi
-     * karakter aman ({@code [A-Za-z0-9._-]}). Karena penyimpanan sudah
-     * menyimpan objek ber-prefix tenant (mis. {@code sekolah-7/...}), ketatnya
-     * validasi ini memastikan pemanggil tak bisa meminta objek di luar prefix-nya
-     * dengan menyisipkan {@code ../}.
-     */
+    /** Validasi nama objek agar tak bisa keluar dari namespace yang diizinkan (anti path-traversal/IDOR). */
     private void validasiObjectName(String objectName) {
         if (objectName == null || objectName.isBlank()) {
             throw new IllegalArgumentException("Nama objek wajib diisi");
@@ -108,19 +119,26 @@ public class S3Storage {
                 throw new IllegalArgumentException("Nama objek tidak valid (segmen terlarang)");
             }
             if (!segmen.matches("[A-Za-z0-9._-]+")) {
-                throw new IllegalArgumentException("Nama objek memuat karakter tidak diizinkan");
+                throw new IllegalArgumentException("Nama objek memuat karakter tidak diizinkan: " + segmen);
             }
         }
     }
 
     public String uploadFile(String folderName, MultipartFile file) throws Exception {
-        try (InputStream inputStream = file.getInputStream()) {
-            String originalFileName = file.getOriginalFilename();
-            String extension = validateAndExtractExtension(originalFileName);
-            String fileName = UUID.randomUUID().toString().replace("-", "") + extension;
-            String objectName = folderName + "/" + fileName;
-            validasiObjectName(objectName);
+        String originalFileName = file.getOriginalFilename();
+        if (originalFileName == null) {
+            throw new IllegalArgumentException("Nama file tidak boleh null");
+        }
+        String extension = validateAndExtractExtension(originalFileName);
+        String fileName = UUID.randomUUID().toString().replace("-", "") + extension;
+        String objectName = folderName + "/" + fileName;
+        validasiObjectName(objectName);
 
+        if (useLocalStorage()) {
+            return localStorage.uploadFile(folderName, file);
+        }
+
+        try (InputStream inputStream = file.getInputStream()) {
             client().putObject(
                     PutObjectArgs.builder()
                             .bucket(bucketName)
@@ -129,7 +147,6 @@ public class S3Storage {
                             .contentType(file.getContentType())
                             .build()
             );
-
             return objectName;
         } catch (MinioException e) {
             throw new Exception("Error while uploading file to MinIO", e);
@@ -138,6 +155,12 @@ public class S3Storage {
 
     public void deleteFile(String objectName) throws Exception {
         validasiObjectName(objectName);
+
+        if (useLocalStorage()) {
+            localStorage.deleteFile(objectName);
+            return;
+        }
+
         client().removeObject(
                 RemoveObjectArgs.builder()
                         .bucket(bucketName)
@@ -147,8 +170,12 @@ public class S3Storage {
     }
 
     public InputStream viewFile(String objectName) throws Exception {
-        // Guard path-traversal/IDOR: jangan pernah meneruskan objek tak tervalidasi (B19).
         validasiObjectName(objectName);
+
+        if (useLocalStorage()) {
+            return localStorage.viewFile(objectName);
+        }
+
         try {
             GetObjectResponse response = client().getObject(
                     GetObjectArgs.builder()
@@ -156,7 +183,7 @@ public class S3Storage {
                             .object(objectName)
                             .build()
             );
-            return response;
+            return new BufferedInputStream(response);
         } catch (Exception e) {
             throw new Exception("Gagal mengambil file dari MinIO: " + e.getMessage());
         }
