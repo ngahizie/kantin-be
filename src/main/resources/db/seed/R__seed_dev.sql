@@ -641,7 +641,7 @@ VALUES (13, 1, 1, 'Nasi Padang', 15000, 'PORSI', 5, true, now(), now()),
        (107, 2, 13, 'Pensil', 3500, 'PCS', 20, true, now(), now()),
        (1009, 10, 1001, 'Nasi Kuning', 11000, 'PORSI', 5, true, now(), now()),
        (1010, 10, 1002, 'Jus Alpukat', 9000, 'PCS', 10, true, now(), now()),
-       (1011, 10, 1003, 'Pisang Goreng', 6000, 'PCS', 10, true, now(), now())
+       (1011, 10, (SELECT id FROM kategori_menu WHERE sekolah_id=10 AND nama='Snack'), 'Pisang Goreng', 6000, 'PCS', 5, true, now(), now())
 ON CONFLICT DO NOTHING;
 
 INSERT INTO kartu_tamu (id, sekolah_id, nomor_kartu, rfid_uid, aktif,
