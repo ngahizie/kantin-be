@@ -901,3 +901,18 @@ UPDATE stok_cache c
 -- 5 transaksi, 5 baris saldo_cache (4 kartu tamu + 1 siswa), 2 akun dev.
 -- (Tanpa blok DO $$ agar berkas ini aman dijalankan psql, Flyway, maupun
 --  ResourceDatabasePopulator yang memecah pernyataan pada titik koma.)
+
+
+-- ── Sinkronisasi data fixture RFID siswa (issue #268) ────────────────────
+-- Data ini digunakan oleh KartuLookupDemo untuk lookup UID -> Siswa saat
+-- profil demo aktif. Sinkron dengan FE demo card: RFID-SISWA-101..105 (S1)
+-- dan RFID-SISWA-001 (S10).
+INSERT INTO dev_siswa_rfid (sekolah_id, siswa_id, nomor_kartu, rfid_uid, aktif)
+VALUES (1, 101, 'RFID-SISWA-101', '04A1B2C3D4', true),
+       (1, 102, 'RFID-SISWA-102', '04B2C3D4E5', true),
+       (1, 103, 'RFID-SISWA-103', '04C3D4E5F6', false),  -- kartu diblokir
+       (1, 104, 'RFID-SISWA-104', '04D4E5F6A1', true),
+       (1, 105, 'RFID-SISWA-105', '04E5F6A1B2', true),
+       (10, 1001, 'RFID-SISWA-001', 'DA100001', true)
+ON CONFLICT DO NOTHING;
+

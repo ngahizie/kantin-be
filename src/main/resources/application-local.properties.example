@@ -27,6 +27,7 @@ spring.datasource.password=<GANTI_DB_PASSWORD>
 # data yang sudah diubah aplikasi.
 # Ingin DB kosong? Komentari baris ini (default hanya db/migration).
 spring.flyway.locations=classpath:db/migration,classpath:db/seed
+kantin.demo.enabled=true
 
 # --- Redis (docker compose up -d) ---
 spring.data.redis.host=localhost
