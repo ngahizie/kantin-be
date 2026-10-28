@@ -182,7 +182,7 @@ class ValidasiHttpStatusIT {
                 .isEqualTo(400);
         assertThat(res.body())
                 .as("badan: %s", potong(res.body()))
-                .contains("\"code\"", "\"message\"", "\"timestamp\"");
+                .contains("\"code\"", "\"message\":\"Data tidak valid\"", "\"timestamp\"", "\"validation\"");
     }
 
     @Test
