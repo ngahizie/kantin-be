@@ -197,7 +197,8 @@ Satu panggilan = **satu transaksi DB** (dibungkus `TransactionTemplate`):
 
 | Item | Menunggu |
 |---|---|
-| `KartuLookupPort` nyata (REST ke admin-be) | **Q7** (kontrak lookup kartu) — fallback mengembalikan "tidak dikenal" |
+| `KartuLookupPort` nyata (REST ke admin-be) | ✅ **tersedia** — `KartuLookupRestClient` (#160), default OFF; fallback "tidak dikenal" tetap dipakai sampai adapter dinyalakan |
+| `CariSiswaPort` nyata (REST ke admin-be) | ✅ **tersedia** — `CariSiswaRestClient` (#164), default OFF; fallback daftar kosong tetap dipakai sampai adapter dinyalakan |
 | `MenuLookupPort` nyata (katalog) | **Fase 5** (modul katalog) — fallback mengembalikan `null` |
 | Posting Buku Kas saat tutup sesi | **Q3** — ✅ **dibangun (2026-10-06)** lewat `BukuKasPort`; fallback `DILEWATI` sampai admin-be menambah case `refModul` kantin (mitigasi: `refModul=null`) |
 | `BukuKasPort` nyata (REST ke admin-be) | **Q3** — fallback fail-safe mengembalikan `DILEWATI`; impl `@Primary` menyusul |
