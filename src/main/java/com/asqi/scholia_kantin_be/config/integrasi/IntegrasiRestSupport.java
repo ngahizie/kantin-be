@@ -18,7 +18,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 /**
- * Dasar bersama 6 adapter REST integrasi (issue <b>#160</b>).
+ * Dasar bersama 7 adapter REST integrasi (issue <b>#160</b>).
  *
  * <p>Menyatukan tiga hal yang sama di semua adapter:
  * <ol>
