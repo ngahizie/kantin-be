@@ -59,3 +59,6 @@ build.sh
 ### Keypair JWT DUMMY (dev/test — JANGAN commit) ###
 .dev-jwt/
 *.pem
+
+# Berkas unggahan storage lokal (demo/dev)
+tmp/
