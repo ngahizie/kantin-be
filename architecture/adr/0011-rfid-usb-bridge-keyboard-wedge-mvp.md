@@ -1,7 +1,7 @@
 # ADR-0011 — RFID USB bridge: keyboard-wedge untuk MVP, WebHID/WebSerial menuju produksi
 
-- **Status:** Diterima (2026-10-07)
-- **Tanggal:** 2026-10-07
+- **Status:** Diterima (2026-10-07) · **Ditinjau pra-rilis: tetap berjenjang, transport produksi belum dipilih** (2026-10-30)
+- **Tanggal:** 2026-10-07 · **Tinjauan terakhir:** 2026-10-30
 - **Pengusul:** Tim kantin-be
 - **Terkait:** PRD §6.1, §11.8, §13 poin 5, §14; ADR-0005, ADR-0008; Q10 di OPEN-QUESTIONS; issue #26
 
@@ -61,9 +61,36 @@ Batasan:
 & 1 dtk) → **bukan** pilihan produksi; **wajib** ditinjau ulang setelah konfirmasi Q17 dan
 sebelum rilis produksi.
 
+## Tinjauan Pra-Rilis (2026-10-30)
+
+Ditinjau sebelum rilis pilot untuk memastikan status berjenjang ini **tidak disalahartikan**
+sebagai "transport produksi sudah selesai".
+
+Bukti yang diverifikasi langsung di repo:
+
+- `kantin-fe/src/hooks/useRfidScanner.ts` — satu-satunya jalur RFID di FE saat ini:
+  buffer keystroke di level `window` (`keydown`, capture) + terminator `Enter` + ambang
+  panjang minimum. Ini **sesuai pola aman** di `docs/spesifikasi-rfid-usb-bridge.md` §6
+  (tahan kehilangan fokus, terpisah dari input manual).
+- **Tidak ada** `navigator.hid`, `navigator.serial`, `WebHID`, maupun `WebSerial` di seluruh
+  `kantin-fe/src` — opsi B **belum diimplementasi**.
+- **Tidak ada** komponen agent/bridge lokal di repo (tidak ada paket Node/Electron terpisah)
+  — opsi C **belum diimplementasi**.
+
+**Kesimpulan tinjauan:**
+
+- Keputusan **tetap berjenjang dan tetap sah**. Kontrak backend (`TapRequest.rfidUid` +
+  `@UidKartuValid`) tidak berubah, sehingga pilihan transport di masa depan tetap murah.
+- **Keyboard-wedge masih status MVP/demo, bukan pilihan produksi.** Untuk rilis produksi,
+  transport final **wajib** dipilih lebih dulu — bergantung jawaban **Q17**. Tanpa itu,
+  rilis produksi **tidak boleh** diklaim selesai pada bagian RFID.
+- Tidak ada perubahan keputusan pada tinjauan ini; yang berubah hanya ketegasan status.
+
 ## Tindak Lanjut
 
 - [ ] Konfirmasi Q17 (spesifikasi reader + dukungan HID/serial) ke tim RFID
 - [ ] Bila reader ≠ keyboard-wedge: aktifkan WebHID/WebSerial atau agent lokal; perbarui ADR-0005
 - [ ] Uji: tap → UID sampai ke backend & beep ≤ 1 dtk; uji anti-duplikat
-- [ ] Tinjau ulang sebelum rilis produksi
+- [x] Tinjau ulang sebelum rilis pilot (2026-10-30) — keputusan tetap berjenjang, transport
+      produksi **belum** dipilih; lihat §Tinjauan Pra-Rilis
+- [ ] Tinjau ulang sebelum rilis produksi — **wajib** setelah Q17 terjawab
