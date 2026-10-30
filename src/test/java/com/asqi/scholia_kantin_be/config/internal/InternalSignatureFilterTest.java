@@ -110,6 +110,55 @@ class InternalSignatureFilterTest {
     }
 
     @Test
+    @DisplayName("Rotasi: signature rahasia lama diterima selama secret-previous diisi")
+    void rotasiRahasiaLamaDiterima() throws Exception {
+        props.setSecret("rahasia-baru-internal");
+        props.setSecretPrevious(RAHASIA);
+
+        FilterChain chain = mock(FilterChain.class);
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        filter().doFilter(requestSah(), resp, chain);
+
+        assertThat(resp.getStatus()).isEqualTo(200);
+        verify(chain, times(1)).doFilter(any(), any());
+    }
+
+    @Test
+    @DisplayName("Rotasi: rahasia asing tetap 401")
+    void rotasiRahasiaAsing401() throws Exception {
+        props.setSecret("rahasia-baru-internal");
+        props.setSecretPrevious(RAHASIA);
+
+        MockHttpServletRequest r = new MockHttpServletRequest(
+                "GET", "/api/internal/kartu-tamu/cek-uid");
+        long ts = Instant.now().getEpochSecond();
+        r.addHeader("X-Internal-Timestamp", String.valueOf(ts));
+        r.addHeader("X-Internal-Signature",
+                TandaTanganWebhook.hitung("rahasia-penyerang", String.valueOf(ts), BADAN));
+
+        FilterChain chain = mock(FilterChain.class);
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        filter().doFilter(r, resp, chain);
+
+        assertThat(resp.getStatus()).isEqualTo(401);
+        verify(chain, times(0)).doFilter(any(), any());
+    }
+
+    @Test
+    @DisplayName("Kedua rahasia kosong ⇒ 503 (fail-closed)")
+    void rotasiKeduaRahasiaKosong503() throws Exception {
+        props.setSecret("");
+        props.setSecretPrevious("");
+
+        FilterChain chain = mock(FilterChain.class);
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        filter().doFilter(requestSah(), resp, chain);
+
+        assertThat(resp.getStatus()).isEqualTo(503);
+        verify(chain, times(0)).doFilter(any(), any());
+    }
+
+    @Test
     @DisplayName("Endpoint dinonaktifkan ⇒ 503")
     void dinonaktifkan503() throws Exception {
         props.setEnabled(false);

@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.List;
 
 /**
  * Verifikator tanda tangan webhook (SECURITY.md §5, BUGS-DITEMUKAN B34).
@@ -47,8 +48,8 @@ public class WebhookSignatureVerifier {
      * @param sekarangEpochDetik waktu acuan untuk cek anti-replay
      */
     public Hasil verifikasi(String timestamp, String signature, byte[] badan, long sekarangEpochDetik) {
-        String rahasia = properties.getSecret();
-        if (rahasia == null || rahasia.isBlank()) {
+        List<String> daftarRahasia = properties.daftarRahasia();
+        if (daftarRahasia.isEmpty()) {
             // Fail-closed: tanpa rahasia kita tak bisa memverifikasi apa pun.
             return Hasil.TANPA_KONFIGURASI;
         }
@@ -70,8 +71,7 @@ public class WebhookSignatureVerifier {
             return Hasil.TIMESTAMP_KEDALUWARSA;
         }
 
-        String diharapkan = TandaTanganWebhook.hitung(rahasia, timestamp.trim(), badan);
-        return TandaTanganWebhook.cocok(diharapkan, signature)
+        return TandaTanganWebhook.cocokSalahSatu(daftarRahasia, timestamp.trim(), badan, signature)
                 ? Hasil.SAH
                 : Hasil.SIGNATURE_SALAH;
     }

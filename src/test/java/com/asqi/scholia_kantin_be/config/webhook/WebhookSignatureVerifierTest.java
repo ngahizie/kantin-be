@@ -27,6 +27,12 @@ class WebhookSignatureVerifierTest {
         return p;
     }
 
+    private WebhookProperties props(String rahasia, String rahasiaLama) {
+        WebhookProperties p = props(rahasia);
+        p.setSecretPrevious(rahasiaLama);
+        return p;
+    }
+
     private String sig(String rahasia, String ts) {
         return TandaTanganWebhook.hitung(rahasia, ts, BADAN);
     }
@@ -105,5 +111,43 @@ class WebhookSignatureVerifierTest {
         String ts = String.valueOf(SEKARANG);
         assertThat(v.verifikasi(ts, "apa saja", BADAN, SEKARANG))
                 .isEqualTo(WebhookSignatureVerifier.Hasil.TANPA_KONFIGURASI);
+    }
+
+    @Test
+    @DisplayName("Rotasi: signature dengan rahasia lama tetap SAH selama secret-previous diisi")
+    void rotasiRahasiaLamaSah() {
+        var v = new WebhookSignatureVerifier(props(RAHASIA, "rahasia-lama-uji"));
+        String ts = String.valueOf(SEKARANG);
+        assertThat(v.verifikasi(ts, sig("rahasia-lama-uji", ts), BADAN, SEKARANG))
+                .isEqualTo(WebhookSignatureVerifier.Hasil.SAH);
+        assertThat(v.verifikasi(ts, sig(RAHASIA, ts), BADAN, SEKARANG))
+                .isEqualTo(WebhookSignatureVerifier.Hasil.SAH);
+    }
+
+    @Test
+    @DisplayName("Rahasia asing tetap ditolak walau secret-previous diisi")
+    void rotasiRahasiaAsingDitolak() {
+        var v = new WebhookSignatureVerifier(props(RAHASIA, "rahasia-lama-uji"));
+        String ts = String.valueOf(SEKARANG);
+        assertThat(v.verifikasi(ts, sig("rahasia-penyerang", ts), BADAN, SEKARANG))
+                .isEqualTo(WebhookSignatureVerifier.Hasil.SIGNATURE_SALAH);
+    }
+
+    @Test
+    @DisplayName("Kedua rahasia kosong ⇒ TANPA_KONFIGURASI (fail-closed)")
+    void rotasiKeduaRahasiaKosong() {
+        var v = new WebhookSignatureVerifier(props("", ""));
+        String ts = String.valueOf(SEKARANG);
+        assertThat(v.verifikasi(ts, "apa saja", BADAN, SEKARANG))
+                .isEqualTo(WebhookSignatureVerifier.Hasil.TANPA_KONFIGURASI);
+    }
+
+    @Test
+    @DisplayName("Hanya secret-previous terisi ⇒ tetap dapat memverifikasi (tidak 503)")
+    void hanyaRahasiaLamaTerisi() {
+        var v = new WebhookSignatureVerifier(props("", "rahasia-lama-uji"));
+        String ts = String.valueOf(SEKARANG);
+        assertThat(v.verifikasi(ts, sig("rahasia-lama-uji", ts), BADAN, SEKARANG))
+                .isEqualTo(WebhookSignatureVerifier.Hasil.SAH);
     }
 }
