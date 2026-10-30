@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -31,6 +32,39 @@ public class WebhookProperties {
      * {@code KANTIN_WEBHOOK_SECRET}. <b>Kosong = webhook ditolak (503)</b>.
      */
     private String secret = "";
+
+    /**
+     * Rahasia <b>sebelumnya</b> untuk rotasi tanpa downtime — dari environment
+     * {@code KANTIN_WEBHOOK_SECRET_PREVIOUS}. Selama rotasi, pengirim boleh
+     * masih memakai rahasia lama; verifikasi menerima signature yang cocok
+     * dengan {@link #secret} <b>atau</b> nilai ini. Kosongkan lagi setelah
+     * semua pengirim memakai rahasia baru.
+     *
+     * <p>Nilai dipakai <b>apa adanya</b> (tanpa {@code trim}) agar signature
+     * tetap sama dengan yang dihitung pengirim.
+     */
+    private String secretPrevious = "";
+
+    /**
+     * Daftar rahasia yang boleh dipakai memverifikasi: utama lebih dulu, lalu
+     * rahasia sebelumnya. Nilai kosong/blank dibuang dan duplikat dihilangkan.
+     * Daftar kosong ⇒ <b>fail-closed</b> (503), sama seperti {@link #secret} kosong.
+     */
+    public List<String> daftarRahasia() {
+        List<String> hasil = new ArrayList<>(2);
+        tambahRahasia(hasil, secret);
+        tambahRahasia(hasil, secretPrevious);
+        return hasil;
+    }
+
+    private static void tambahRahasia(List<String> tujuan, String nilai) {
+        if (nilai == null || nilai.isBlank()) {
+            return;
+        }
+        if (!tujuan.contains(nilai)) {
+            tujuan.add(nilai);
+        }
+    }
 
     /**
      * Toleransi jam untuk anti-replay (detik). Request dengan

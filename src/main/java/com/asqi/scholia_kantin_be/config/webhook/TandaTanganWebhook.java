@@ -7,6 +7,7 @@ import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -76,5 +77,32 @@ public final class TandaTanganWebhook {
             v = v.substring(PREFIX_SHA256.length()).trim();
         }
         return v;
+    }
+
+    /**
+     * Cocokkan {@code diberikan} terhadap <b>setiap</b> rahasia dalam daftar
+     * (dukungan rotasi tanpa downtime: rahasia utama + rahasia sebelumnya).
+     *
+     * <p>Setiap kandidat dibandingkan konstan-waktu lewat {@link #cocok(String, String)}.
+     * Daftar kosong atau {@code null} ⇒ {@code false} (fail-closed).
+     * Semua kandidat diperiksa (tanpa berhenti di yang pertama) agar waktu eksekusi
+     * tidak membocorkan posisi rahasia yang cocok.
+     */
+    public static boolean cocokSalahSatu(List<String> daftarRahasia, String timestamp, byte[] badan,
+                                         String diberikan) {
+        if (daftarRahasia == null || daftarRahasia.isEmpty()) {
+            return false;
+        }
+        boolean adaYangCocok = false;
+        for (String rahasia : daftarRahasia) {
+            if (rahasia == null || rahasia.isEmpty()) {
+                continue;
+            }
+            String diharapkan = hitung(rahasia, timestamp, badan);
+            if (cocok(diharapkan, diberikan)) {
+                adaYangCocok = true;
+            }
+        }
+        return adaYangCocok;
     }
 }

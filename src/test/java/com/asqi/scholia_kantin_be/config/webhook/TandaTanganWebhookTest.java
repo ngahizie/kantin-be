@@ -57,4 +57,28 @@ class TandaTanganWebhookTest {
         String h2 = TandaTanganWebhook.hashPayload("b".getBytes(StandardCharsets.UTF_8));
         assertThat(h1).hasSize(64).isNotEqualTo(h2);
     }
+
+    @Test
+    @DisplayName("cocokSalahSatu() menerima rahasia utama maupun rahasia lama (rotasi)")
+    void cocokSalahSatuRotasi() {
+        byte[] badan = "{}".getBytes(StandardCharsets.UTF_8);
+        java.util.List<String> daftar = java.util.List.of(RAHASIA, "rahasia-lama");
+
+        assertThat(TandaTanganWebhook.cocokSalahSatu(
+                daftar, TS, badan, TandaTanganWebhook.hitung(RAHASIA, TS, badan))).isTrue();
+        assertThat(TandaTanganWebhook.cocokSalahSatu(
+                daftar, TS, badan, TandaTanganWebhook.hitung("rahasia-lama", TS, badan))).isTrue();
+        assertThat(TandaTanganWebhook.cocokSalahSatu(
+                daftar, TS, badan, TandaTanganWebhook.hitung("rahasia-asing", TS, badan))).isFalse();
+    }
+
+    @Test
+    @DisplayName("cocokSalahSatu() daftar kosong/null ⇒ false (fail-closed)")
+    void cocokSalahSatuTanpaRahasia() {
+        byte[] badan = "{}".getBytes(StandardCharsets.UTF_8);
+        String sig = TandaTanganWebhook.hitung(RAHASIA, TS, badan);
+
+        assertThat(TandaTanganWebhook.cocokSalahSatu(java.util.List.of(), TS, badan, sig)).isFalse();
+        assertThat(TandaTanganWebhook.cocokSalahSatu(null, TS, badan, sig)).isFalse();
+    }
 }
