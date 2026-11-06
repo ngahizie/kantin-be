@@ -114,9 +114,16 @@ POST /api/webhook/{sumber}
 | Signature salah / header kurang / timestamp kedaluwarsa (replay) | **401** |
 | IP di luar `kantin.webhook.allowed-ips` (bila diisi) | **403** |
 | Badan melebihi `kantin.webhook.max-body-bytes` | **413** |
-| `kantin.webhook.secret` kosong (belum dikonfigurasi) | **503** |
+| `kantin.webhook.secret` **dan** `kantin.webhook.secret-previous` kosong (belum dikonfigurasi) | **503** |
 
 - **Rahasia dari environment** (`KANTIN_WEBHOOK_SECRET`), bukan hardcode.
+- **Rotasi tanpa downtime** — verifikasi menerima signature yang cocok dengan
+  `KANTIN_WEBHOOK_SECRET` **atau** `KANTIN_WEBHOOK_SECRET_PREVIOUS`
+  (`WebhookProperties.daftarRahasia()`; nilai kosong dibuang, duplikat dihilangkan).
+  Selama rotasi pengirim lama tidak terputus; setelah semua pemanggil pindah,
+  `*_SECRET_PREVIOUS` **wajib dikosongkan** agar rahasia lama berhenti berlaku.
+  Prosedur 4 langkah: `docs/checklist-pra-rilis.md` §B.2. Pola yang sama berlaku untuk
+  endpoint internal (`KANTIN_INTERNAL_SECRET` / `KANTIN_INTERNAL_SECRET_PREVIOUS`).
 - **Idempotency** per `(sumber, eventId)` (tabel `webhook_event`, migrasi V12):
   retry event sama ⇒ tidak diproses ulang (respons `replay=true`); event id sama
   dengan payload berbeda ⇒ **409**.
@@ -164,10 +171,14 @@ Lihat `BUGS-DITEMUKAN.md` B6–B8 tentang perbaikan status 403 dari `admin-be`.
   `KANTIN_WEBHOOK_SECRET` (kosong ⇒ 503, fail-closed). Idempotency per event id
   (tabel `webhook_event`, V12). **Isi `KANTIN_WEBHOOK_SECRET` sebelum endpoint
   webhook dipakai di produksi.**
+  Allowlist IP **kosong = allow-all** — keputusan pilot: kontrol utama adalah
+  HMAC, bukan allowlist; mengisi allowlist yang salah justru memblokir top-up.
+  Rotasi rahasia memakai `KANTIN_WEBHOOK_SECRET_PREVIOUS` (§5.1).
 - ✅ **Endpoint internal (mesin-ke-mesin, #29)** — `/api/internal/**` (mis. admin-be
   cek UID Kartu Tamu untuk anti-tabrakan) diamankan `InternalSignatureFilter`
   dengan **rahasia TERPISAH** `KANTIN_INTERNAL_SECRET` (kosong/disabled ⇒ 503,
-  fail-closed) + anti-replay + allowlist IP opsional. Lihat
+  fail-closed) + anti-replay + allowlist IP opsional (kosong = allow-all, alasan
+  sama seperti webhook). Rotasi memakai `KANTIN_INTERNAL_SECRET_PREVIOUS`. Lihat
   `docs/integrasi-anti-tabrakan-uid.md`.
 - ✅ **Audit lengkap** (B18) — `audit_log` ditulis untuk: top-up (tunai/online), void, koreksi saldo,
   barang masuk & pembaliknya, opname, **ubah harga jual** (`UBAH_HARGA_JUAL`), **blokir/buka kartu**

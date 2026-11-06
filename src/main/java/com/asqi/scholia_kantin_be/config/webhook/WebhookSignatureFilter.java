@@ -64,7 +64,7 @@ public class WebhookSignatureFilter extends OncePerRequestFilter {
                                     FilterChain filterChain) throws ServletException, IOException {
 
         // 1) Rahasia wajib ada — tanpa itu kita tak bisa memverifikasi apa pun.
-        if (properties.getSecret() == null || properties.getSecret().isBlank()) {
+        if (properties.daftarRahasia().isEmpty()) {
             log.error("Webhook ditolak: rahasia belum dikonfigurasi (KANTIN_WEBHOOK_SECRET kosong).");
             tolak(response, HttpStatus.SERVICE_UNAVAILABLE,
                     "Webhook belum dikonfigurasi di server");

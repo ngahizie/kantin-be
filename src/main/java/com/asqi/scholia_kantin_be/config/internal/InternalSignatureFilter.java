@@ -23,6 +23,7 @@ import tools.jackson.databind.json.JsonMapper;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 /**
  * Filter verifikasi endpoint internal {@code /api/internal/**} (issue <b>#29</b>).
@@ -66,7 +67,8 @@ public class InternalSignatureFilter extends OncePerRequestFilter {
             tolak(response, HttpStatus.SERVICE_UNAVAILABLE, "Endpoint internal dinonaktifkan");
             return;
         }
-        if (properties.getSecret() == null || properties.getSecret().isBlank()) {
+        List<String> daftarRahasia = properties.daftarRahasia();
+        if (daftarRahasia.isEmpty()) {
             log.error("Endpoint internal ditolak: rahasia belum dikonfigurasi (KANTIN_INTERNAL_SECRET kosong).");
             tolak(response, HttpStatus.SERVICE_UNAVAILABLE,
                     "Endpoint internal belum dikonfigurasi di server");
@@ -111,8 +113,7 @@ public class InternalSignatureFilter extends OncePerRequestFilter {
             return;
         }
 
-        String diharapkan = TandaTanganWebhook.hitung(properties.getSecret(), timestamp.trim(), badan);
-        if (!TandaTanganWebhook.cocok(diharapkan, signature)) {
+        if (!TandaTanganWebhook.cocokSalahSatu(daftarRahasia, timestamp.trim(), badan, signature)) {
             log.warn("Endpoint internal ditolak: tanda tangan tidak cocok dari IP {}.",
                     AlamatKlien.ip(request, properties.getTrustedProxies()));
             tolak(response, HttpStatus.UNAUTHORIZED, "Tanda tangan internal tidak valid");

@@ -1,7 +1,7 @@
 # Adapter REST Integrasi (issue #160)
 
 Dokumen ini menjelaskan **adapter REST nyata** yang menggantikan `*Fallback`
-untuk 6 port integrasi lintas-repo. Tujuannya: begitu endpoint nyata tersedia
+untuk 7 port integrasi lintas-repo. Tujuannya: begitu endpoint nyata tersedia
 (atau siap di-UAT), cukup **menyalakan flag** — tanpa mengubah logika bisnis.
 
 ## Prinsip
@@ -28,6 +28,7 @@ untuk 6 port integrasi lintas-repo. Tujuannya: begitu endpoint nyata tersedia
 | AktivasiModulPort | `AktivasiModulRestClient` | `GET /api/internal/modul-kantin/status` | → internal-be | fail-open (anggap aktif) |
 | StatusSiswaPort | `StatusSiswaRestClient` | `GET /api/siswa/get-by-id/{id}` | → admin-be | `null` (tidak diketahui) |
 | UidSiswaPort | `UidSiswaRestClient` | `GET /api/internal/siswa/cek-uid` | → admin-be | `null` (fail-open) |
+| CariSiswaPort | `CariSiswaRestClient` | `GET /api/siswa/cari?q=&batas=&hanyaTidakAktif=` | → admin-be | daftar kosong (fail-open) |
 
 Catatan `KartuLookupRestClient`: **kartu tamu lokal dicek lebih dulu** (tabel
 `kartu_tamu`), baru jatuh ke admin-be. **Status blokir tidak di-cache** — selalu

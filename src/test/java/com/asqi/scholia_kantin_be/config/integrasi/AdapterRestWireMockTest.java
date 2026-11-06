@@ -10,6 +10,7 @@ import com.asqi.scholia_kantin_be.service.integrasi.HasilPostingBukuKas;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoKartu;
 import com.asqi.scholia_kantin_be.service.integrasi.PerintahBukuKas;
 import com.asqi.scholia_kantin_be.service.integrasi.PerintahNotifikasi;
+import com.asqi.scholia_kantin_be.service.kasir.LedgerSaldoService;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import org.junit.jupiter.api.AfterEach;
@@ -32,6 +33,10 @@ import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Uji <b>kontrak</b> adapter REST integrasi memakai <b>WireMock</b> (issue #160).
@@ -435,6 +440,118 @@ class AdapterRestWireMockTest {
                 .willReturn(aResponse().withStatus(503)));
 
         assertThat(uidSiswa().dipakaiSiswa(1L, "UID-A")).isNull();
+    }
+
+    // ------------------------------------------------------------------
+    // CariSiswa (#164 · Q7 · #224)
+    // ------------------------------------------------------------------
+
+    private CariSiswaRestClient cariSiswa(LedgerSaldoService ledger) {
+        IntegrasiRestProperties p = props();
+        var e = p.getCariSiswa();
+        e.setEnabled(true);
+        e.setBaseUrl(wm.baseUrl());
+        e.setBackoffMs(10);
+        return new CariSiswaRestClient(p, ledger);
+    }
+
+    private LedgerSaldoService ledger(long saldo) {
+        LedgerSaldoService l = mock(LedgerSaldoService.class);
+        when(l.saldo(anyLong(), any(), anyLong())).thenReturn(saldo);
+        return l;
+    }
+
+    @Test
+    @DisplayName("CariSiswa: amplop {data:[...]} → terpetakan + saldo dari ledger lokal")
+    void cariSiswaAmplop() {
+        wm.stubFor(get(urlPathEqualTo("/api/siswa/cari"))
+                .willReturn(aResponse().withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                                {"code":200,"message":"ok","data":[
+                                  {"id":101,"nis":"2024001","namaLengkap":"Budi Santoso",
+                                   "kelas":{"namaKelas":"7A"},"tidakAktif":false}
+                                ]}""")));
+
+        var hasil = cariSiswa(ledger(15000L)).cari(1L, "budi", false, 10);
+
+        assertThat(hasil).hasSize(1);
+        assertThat(hasil.get(0).getSiswaId()).isEqualTo(101L);
+        assertThat(hasil.get(0).getNis()).isEqualTo("2024001");
+        assertThat(hasil.get(0).getNama()).isEqualTo("Budi Santoso");
+        assertThat(hasil.get(0).getKelas()).isEqualTo("7A");
+        assertThat(hasil.get(0).getTidakAktif()).isFalse();
+        assertThat(hasil.get(0).getSaldo()).isEqualTo(15000L);
+
+        wm.verify(getRequestedFor(urlPathEqualTo("/api/siswa/cari"))
+                .withQueryParam("q", equalTo("budi"))
+                .withQueryParam("batas", equalTo("10")));
+    }
+
+    @Test
+    @DisplayName("CariSiswa: array datar & kelas string → tetap terpetakan")
+    void cariSiswaArrayDatar() {
+        wm.stubFor(get(urlPathEqualTo("/api/siswa/cari"))
+                .willReturn(aResponse().withStatus(200)
+                        .withBody("[{\"id\":102,\"nis\":\"2026002\",\"nama\":\"Siti Rahmawati\",\"kelas\":\"XI IPS 2\"}]")));
+
+        var hasil = cariSiswa(ledger(0L)).cari(1L, "", false, 5);
+
+        assertThat(hasil).hasSize(1);
+        assertThat(hasil.get(0).getNama()).isEqualTo("Siti Rahmawati");
+        assertThat(hasil.get(0).getKelas()).isEqualTo("XI IPS 2");
+    }
+
+    @Test
+    @DisplayName("CariSiswa: hanyaTidakAktif → baris aktif dibuang di sisi klien")
+    void cariSiswaHanyaTidakAktif() {
+        wm.stubFor(get(urlPathEqualTo("/api/siswa/cari"))
+                .willReturn(aResponse().withStatus(200)
+                        .withBody("""
+                                {"data":[
+                                  {"id":101,"namaLengkap":"Budi","tidakAktif":false},
+                                  {"id":106,"namaLengkap":"Maya","tidakAktif":true}
+                                ]}""")));
+
+        var hasil = cariSiswa(ledger(0L)).cari(1L, "", true, 10);
+
+        assertThat(hasil).hasSize(1);
+        assertThat(hasil.get(0).getSiswaId()).isEqualTo(106L);
+        wm.verify(getRequestedFor(urlPathEqualTo("/api/siswa/cari"))
+                .withQueryParam("hanyaTidakAktif", equalTo("true")));
+    }
+
+    @Test
+    @DisplayName("CariSiswa: batas dipatuhi walau admin-be mengirim lebih banyak")
+    void cariSiswaBatas() {
+        wm.stubFor(get(urlPathEqualTo("/api/siswa/cari"))
+                .willReturn(aResponse().withStatus(200)
+                        .withBody("""
+                                {"data":[
+                                  {"id":1,"namaLengkap":"A"},
+                                  {"id":2,"namaLengkap":"B"},
+                                  {"id":3,"namaLengkap":"C"}
+                                ]}""")));
+
+        assertThat(cariSiswa(ledger(0L)).cari(1L, "", false, 2)).hasSize(2);
+    }
+
+    @Test
+    @DisplayName("CariSiswa: 5xx → daftar kosong (fail-open, layar TU tidak error)")
+    void cariSiswaGagal() {
+        wm.stubFor(get(urlPathEqualTo("/api/siswa/cari"))
+                .willReturn(aResponse().withStatus(503)));
+
+        assertThat(cariSiswa(ledger(0L)).cari(1L, "budi", false, 10)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("CariSiswa: payload bukan JSON → daftar kosong, tidak melempar")
+    void cariSiswaPayloadRusak() {
+        wm.stubFor(get(urlPathEqualTo("/api/siswa/cari"))
+                .willReturn(aResponse().withStatus(200).withBody("bukan-json")));
+
+        assertThat(cariSiswa(ledger(0L)).cari(1L, "", false, 10)).isEmpty();
     }
 
     // ------------------------------------------------------------------

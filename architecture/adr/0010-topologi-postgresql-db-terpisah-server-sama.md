@@ -1,7 +1,7 @@
 # ADR-0010 — Topologi PostgreSQL: DB terpisah, server boleh sama (co-located) untuk MVP
 
-- **Status:** Diterima (2026-10-07)
-- **Tanggal:** 2026-10-07
+- **Status:** Diterima (2026-10-07) · **Ditinjau pra-rilis: tetap berlaku** (2026-10-30)
+- **Tanggal:** 2026-10-07 · **Tinjauan terakhir:** 2026-10-30
 - **Pengusul:** Tim kantin-be
 - **Terkait:** PRD §4, ADR-0001, Q11 di OPEN-QUESTIONS; issue #27
 
@@ -55,8 +55,36 @@ Batasan yang ada:
 **Negatif / risiko:** bila co-located, satu gangguan server memengaruhi keduanya — dimitigasi
 dengan backup terpisah + batas resource; **wajib ditinjau ulang sebelum skala multi-sekolah**.
 
+## Tinjauan Pra-Rilis (2026-10-30)
+
+Ditinjau sebelum rilis pilot untuk memastikan keputusan masih sahih dan tidak ada
+asumsi yang diam-diam dilanggar. **Hasil: keputusan tetap berlaku, tanpa perubahan.**
+
+Bukti yang diverifikasi langsung di repo:
+
+- `spring.datasource.url=${DB_URL:jdbc:postgresql://localhost:5432/kantin_db}` — DB tetap
+  **terpisah**; pindah server/instance produksi cukup mengganti `DB_URL`, tanpa ubah kode.
+- Seluruh **24 migrasi Flyway (`V1`–`V24`)** hanya menyentuh objek di `kantin_db`;
+  **tidak ada** `dblink`, `postgres_fdw`, atau rujukan skema/tabel `admin_be` di berkas migrasi.
+- Integrasi ke admin-be tetap lewat **JWT + API internal**, bukan akses DB lintas modul.
+- `spring.datasource.username=${DB_USERNAME:postgres}` — nama user dapat di-override,
+  sehingga role produksi tidak harus `postgres`.
+
+Yang **belum** dapat dibuktikan dari repo (tetap tanggung jawab infra saat deploy, bukan
+penghalang keputusan):
+
+- Role `kantin_user` benar-benar tanpa grant lintas-DB.
+- Backup & restore terpisah untuk `kantin_db`.
+- Batas resource (connection pool, memori) bila server di-co-locate.
+
+**Kesimpulan:** keputusan **co-located server** tetap sah untuk pilot 1 sekolah. Tinjauan
+ulang karena **skala multi-sekolah** tetap terbuka; pemicunya bukan rilis pilot, melainkan
+penambahan sekolah/tenant di luar pilot.
+
 ## Tindak Lanjut
 
 - [ ] Infra menyiapkan role `kantin_user` tanpa grant lintas-DB
 - [ ] Dokumentasikan `DB_URL` produksi di `ENVIRONMENT.md`
+- [x] Tinjau ulang topologi sebelum rilis pilot (2026-10-30) — keputusan tetap berlaku,
+      lihat §Tinjauan Pra-Rilis
 - [ ] Tinjau ulang topologi saat naik dari pilot 1 sekolah

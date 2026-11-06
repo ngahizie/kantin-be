@@ -19,7 +19,7 @@ public enum ResponseCode {
     SUCCESS(200, "OK"),
     NO_END_POINT(404, "ENDPOINT NOT FOUND"),
     NO_DATA(101, "DATA TIDAK DITEMUKAN"),
-    VALIDATION(100, "ERROR MAPPING"),
+    VALIDATION(100, "Data tidak valid"),
     TYPE_MISMATCH(103, "ERROR MAPPING"),
     BAD_REQUEST(400, "BAD REQUEST"),
     UNAUTHORIZED(401, "Token tidak valid atau kedaluwarsa"),

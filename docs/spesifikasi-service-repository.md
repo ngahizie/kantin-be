@@ -153,7 +153,8 @@ Satu panggilan = **satu transaksi DB**:
 
 | Item | Menunggu |
 |---|---|
-| `KartuLookupPort` nyata (REST admin-be) | **Q7** — fallback mengembalikan "tidak dikenal" |
+| `KartuLookupPort` nyata (REST admin-be) | ✅ **tersedia** — `KartuLookupRestClient` (#160), default OFF; fallback "tidak dikenal" sampai dinyalakan |
+| `CariSiswaPort` nyata (REST admin-be) | ✅ **tersedia** — `CariSiswaRestClient` (#164), default OFF; fallback daftar kosong sampai dinyalakan |
 | `MenuLookupPort` nyata (katalog) | **Fase 5** — fallback mengembalikan `null` |
 | Posting Buku Kas saat tutup sesi | **Q3** — service hanya menyiapkan angka rekap (`posting_buku_kas=false`) |
 | `AuditLogger` → tabel `audit_log` | Tabel belum ada (V5); sekarang placeholder log |

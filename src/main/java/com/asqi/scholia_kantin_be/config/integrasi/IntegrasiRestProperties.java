@@ -5,7 +5,7 @@ import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * Konfigurasi adapter REST nyata untuk 6 port integrasi (issue <b>#160</b>).
+ * Konfigurasi adapter REST nyata untuk 7 port integrasi (issue <b>#160</b>).
  *
  * <p><b>Kenapa terpisah dari {@code kantin.notifikasi} / {@code kantin.aktivasi-modul}?</b>
  * Properti lama itu adalah <i>saklar fitur</i> (mis. {@code kantin.notifikasi.enabled}
@@ -42,7 +42,13 @@ public class IntegrasiRestProperties {
     /** Adapter lookup kartu RFID → siswa di admin-be (Q7, §4). */
     private Endpoint kartuLookup = new Endpoint();
 
-    /** Adapter pencarian identitas siswa admin-be (Q7, #224); belum aktif sampai kontrak REST tersedia. */
+    /**
+     * Adapter pencarian identitas siswa admin-be (Q7, #224).
+     *
+     * <p>Diimplementasikan {@code CariSiswaRestClient} (default {@code false}).
+     * Sebelumnya properti ini terdaftar di penjaga produksi #164 tanpa adapter —
+     * penjaga bisa lolos padahal {@code CariSiswaFallback} masih dipakai.
+     */
     private Endpoint cariSiswa = new Endpoint();
 
     /** Adapter status siswa + blokir kartu di admin-be (Q7, §4.4). */

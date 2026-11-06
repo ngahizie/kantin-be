@@ -1,18 +1,23 @@
 package com.asqi.scholia_kantin_be.dev;
 
 import com.asqi.scholia_kantin_be.component.exception.UnauthorizedException;
+import com.asqi.scholia_kantin_be.config.security.jwt.JwtConfigValues;
 import com.asqi.scholia_kantin_be.payload.response.CommonResponse;
 import com.asqi.scholia_kantin_be.payload.response.Response;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Duration;
 import java.util.List;
 
 /**
@@ -37,9 +42,11 @@ public class DevLoginController {
 
     private final DevTokenService tokenService;
     private final DevLoginValidator validator;
+    private final JwtConfigValues jwtConfig;
 
     @PostMapping("login")
-    public ResponseEntity<Response<DevLoginResponse>> login(@RequestBody DevLoginRequest request) {
+    public ResponseEntity<Response<DevLoginResponse>> login(@RequestBody DevLoginRequest request,
+                                                            HttpServletResponse response) {
         String username = request.username() != null && !request.username().isBlank()
                 ? request.username()
                 : request.email();
@@ -49,6 +56,18 @@ public class DevLoginController {
 
         String token = tokenService.terbitkan(
                 akun.username(), akun.id(), akun.nama(), akun.role(), akun.sekolahId());
+
+        // Parity admin-be: token juga dipasang sebagai cookie agar sumber daya
+        // yang dimuat browser tanpa header Authorization (mis. <img> dari
+        // /api/storage/file) tetap terautentikasi. HANYA di shim lokal.
+        ResponseCookie cookie = ResponseCookie.from(jwtConfig.getCookieName(), token)
+                .httpOnly(true)
+                .secure(false)
+                .path("/")
+                .sameSite("Lax")
+                .maxAge(Duration.ofHours(12))
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 
         log.info("[DEV-LOGIN] token diterbitkan untuk {} (role={}, sekolah={})",
                 akun.username(), akun.role(), akun.sekolahId());

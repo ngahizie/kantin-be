@@ -173,11 +173,22 @@ CI — dijalankan via skenario terkontrol Testcontainers.
 Pelengkap DoD per fitur ([`AGENTS.md`](../architecture/AGENTS.md) §9). Sebuah
 **rilis** dianggap siap hanya bila **semua** tercentang.
 
+> **Cara membaca status (tinjauan 2026-10-30):** hanya butir yang bisa dibuktikan
+> **dari isi repo** yang diberi catatan bukti + tanggal. Butir yang butuh **CI,
+> lingkungan uji, atau kredensial produksi** sengaja **dibiarkan tidak tercentang** —
+> jangan dicentang berdasarkan asumsi. Rujukan keputusan konfigurasi: issue **#274**.
+
 ### 4.1 Mutu kode & test
 - [ ] `./mvnw verify` **hijau** (unit + integration) di runner CI.
 - [ ] Cakupan JaCoCo tercatat di §1.2 (artefak CI terunggah).
 - [ ] Tidak ada `TODO`/`FIXME` di `src/main` (cek: `grep`).
+      — ✅ **terverifikasi lokal 2026-10-30**: 0 kemunculan di `src/main`; ulangi pada
+      commit yang akan dirilis.
 - [ ] Migrasi Flyway lolos `flyway:validate`; jumlah migrasi sesuai `README`.
+      — ✅ **terverifikasi lokal 2026-10-30**: **24** berkas `V1 … V24` di
+      `src/main/resources/db/migration`; `flyway:validate` sendiri tetap wajib dijalankan CI.
+      Catatan: `README.md` hanya menulis `V1 …` **tanpa angka**, jadi angka 24 dijadikan
+      acuan di [`checklist-pra-rilis.md`](checklist-pra-rilis.md) §E.
 
 ### 4.2 Fungsional (PRD)
 - [ ] Seluruh skenario UAT §2 **✅ lulus** pada lingkungan uji.
@@ -190,6 +201,9 @@ Pelengkap DoD per fitur ([`AGENTS.md`](../architecture/AGENTS.md) §9). Sebuah
 
 ### 4.4 Keamanan & konfigurasi
 - [ ] Checklist pra-rilis produksi tercentang semua ([`checklist-pra-rilis.md`](checklist-pra-rilis.md)).
+      — keputusan 🟡 sudah **ditetapkan** (CORS eksplisit, allowlist allow-all,
+      `trusted-proxies` kondisional, rate limit fail-open; rincian #274); item 🟠 yang
+      butuh kredensial tim lain **tetap menunggu #164**.
 - [ ] Rahasia (webhook/internal/JWT) terisi; profil dev **nonaktif**.
 - [ ] Proteksi branch `main` **aktif** (#171).
 
@@ -200,8 +214,29 @@ Pelengkap DoD per fitur ([`AGENTS.md`](../architecture/AGENTS.md) §9). Sebuah
 
 ### 4.6 Dokumentasi
 - [ ] `README.md` (status, jumlah test, migrasi) sinkron dengan kode.
+      — ⚠️ **temuan 2026-10-30**: README belum memuat **jumlah test** maupun **angka
+      migrasi** (hanya `V1 …`), jadi butir ini belum bisa dinilai "sinkron".
 - [ ] `architecture/API-ENDPOINTS.md` sinkron (dijaga `ApiEndpointsDocTest`).
+      — dijamin otomatis oleh test; kepastian akhir tetap dari CI.
 - [ ] Dokumen keputusan (ADR) diperbarui bila ada perubahan arsitektur.
+      — ✅ **terverifikasi lokal 2026-10-30**: ADR-0010 & ADR-0011 sudah ditinjau
+      pra-rilis; tidak ada perubahan keputusan, hanya penegasan status (§Tinjauan Pra-Rilis).
+
+### 4.7 Ringkasan status DoD per 2026-10-30
+
+| Kelompok | Status | Keterangan |
+|---|---|---|
+| 4.1 `TODO`/`FIXME` & jumlah migrasi | ✅ terverifikasi lokal | 0 temuan; 24 migrasi `V1…V24` |
+| 4.1 `./mvnw verify` & cakupan | ⏳ butuh CI | tidak dapat dibuktikan dari repo |
+| 4.2 UAT & metrik PRD | ⏳ butuh lingkungan uji | lihat §2 & §5 |
+| 4.3 Integrasi eksternal | 🟠 terblokir #164 | endpoint/kunci produksi belum ada |
+| 4.4 Checklist pra-rilis | 🟡 sebagian | keputusan lingkungan ✅ (#274), kredensial 🟠 #164 |
+| 4.5 Performa & observability | ⏳ butuh runner target | lihat `uji-beban-tap.md` |
+| 4.6 ADR | ✅ terverifikasi lokal | ADR-0010/0011 ditinjau 2026-10-30 |
+
+**Kesimpulan:** DoD rilis **belum** terpenuhi. Yang bisa diselesaikan tanpa pihak
+eksternal sudah diselesaikan; sisanya menunggu #164 (kredensial/endpoint), lingkungan uji
+berukuran, dan jawaban Q17 untuk transport RFID produksi (ADR-0011).
 
 ---
 
