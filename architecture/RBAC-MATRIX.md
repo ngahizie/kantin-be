@@ -108,6 +108,7 @@ Batas per-subjek ditegakkan di dalam `KontrolKartuController#ubahBlokir`.
 | `GET` | `/api/laporan/setoran-tu` | tu | §9.5 — *Setoran kas TU: Bendahara* | PRD diikuti |
 | `GET` | `/api/laporan/siswa/{siswaId}/riwayat` | tu, admin | §9.5 — *Per siswa: Bendahara, Admin* | PRD diikuti |
 | `GET` | `/api/laporan/stok` | pengelola, tu | §9.5 — *Stok: Pengelola, Bendahara* | PRD diikuti |
+| `GET` | `/api/laporan/transaksi-keseluruhan` | pengelola, tu, admin | §9.5 — *Riwayat keseluruhan: Bendahara, Admin, Pengelola* | PRD diikuti |
 | `GET` | `/api/pengaturan-kantin/` | kasir, pengelola, tu, admin | — | di luar keputusan #250 — dipertahankan |
 | `PUT` | `/api/pengaturan-kantin/` | admin | — | di luar keputusan #250 — dipertahankan |
 | `GET` | `/api/pengaturan-kantin/aktivasi-modul` | pengelola, tu, admin | — | di luar keputusan #250 — dipertahankan |

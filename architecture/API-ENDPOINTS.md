@@ -3,7 +3,7 @@
 > **Single source of truth endpoint kantin-be.** Semua path berprefix `/api`.
 > Respons selalu dibungkus `Response<T>` (`{ responseCode, message, data, ... }`).
 >
-> **Sinkron terakhir:** 2026-10-21 · **Total: 99 endpoint** (98 di `controller/` + 1 shim dev)
+> **Sinkron terakhir:** 2026-11-09 · **Total: 100 endpoint** (99 di `controller/` + 1 shim dev)
 > di **15 controller**. Dijaga otomatis oleh `ApiEndpointsDocTest` — uji ini
 > **gagal** bila daftar di bawah tidak lagi sama persis dengan anotasi
 > `@…Mapping` di kode. Bila menambah/mengubah endpoint, perbarui dokumen ini.
@@ -177,6 +177,7 @@
 | `GET` | `/api/laporan/penjualan/kasir` | TU, admin, pengelola, kepsek | **Penjualan per kasir** (#227): grouping per titik kasir + petugas — `{titikKasirId, namaTitikKasir, petugasId, petugas, jumlahTransaksi, penjualanBruto, nilaiVoid, penjualanBersih}`. Bruto/void/bersih konsisten rekap sesi: bruto = Σ SUKSES + Σ VOID, bersih = bruto − void = Σ SUKSES; `petugas` = id petugas (nama hanya di admin-be) |
 | `GET` | `/api/laporan/per-siswa` | TU, admin | **Per siswa** (#117): riwayat lengkap satu subjek. Query: `subjekTipe=SISWA`, `subjekId`, periode |
 | `GET` | `/api/laporan/siswa/{siswaId}/riwayat` | TU, admin | **Riwayat satu siswa** (issue #223) untuk komplain orang tua: `{profil, riwayat}` — profil (saldo, belanjaHariIni, limitHarian, isBlocked) + mutasi saldo terbaru dulu dengan `items[]` belanja. Query opsional `dari`/`sampai` (ISO date-time), default 30 hari. Siswa sekolah lain → 404 |
+| `GET` | `/api/laporan/transaksi-keseluruhan` | TU, admin, pengelola | **Riwayat transaksi/mutasi saldo keseluruhan** (FE LaporanRiwayatKeseluruhanPage): daftar mutasi saldo seluruh subjek untuk periode tertentu. Query: `tanggal?` (`yyyy-MM-dd`), `dari?`/`sampai?` (ISO date-time), `batas?` (default 100) |
 | `GET` | `/api/laporan/setoran-tu` | TU | **Setoran kas TU** (#143): rekap top-up tunai per petugas per hari + disetor + **selisih**. Query: `tanggal?`. **Tanpa kepsek** (§9.5: hanya Bendahara) |
 | `GET` | `/api/laporan/kartu-stok/{menuId}` | TU, pengelola | **Kartu stok per item** (#118): riwayat mutasi satu menu + saldo berjalan. Query: `batas?` |
 | `GET` | `/api/laporan/ekspor` | TU, admin, pengelola, kepsek | Unduh **Excel `.xlsx`** (bukan JSON). Query: `jenis` ∈ `JenisLaporan`, `tanggal`/`dari`/`sampai`, `menuId?` (KARTU_STOK), `subjekTipe?`/`subjekId` (PER_SISWA). *Kepsek hanya jenis yang boleh dibacanya — `STOK`/`BARANG_MASUK`/`SETORAN_TU`/`KARTU_STOK`/`PEMBATALAN`/`PER_SISWA` → **403** |
