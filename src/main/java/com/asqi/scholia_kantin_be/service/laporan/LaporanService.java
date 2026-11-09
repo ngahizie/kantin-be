@@ -10,6 +10,7 @@ import com.asqi.scholia_kantin_be.dto.BarisStok;
 import com.asqi.scholia_kantin_be.dto.KartuStokItem;
 import com.asqi.scholia_kantin_be.dto.KartuTamuSaldoDetail;
 import com.asqi.scholia_kantin_be.dto.LaporanPerSiswa;
+import com.asqi.scholia_kantin_be.dto.LaporanRiwayatKeseluruhanItem;
 import com.asqi.scholia_kantin_be.dto.LaporanRiwayatSiswa;
 import com.asqi.scholia_kantin_be.dto.RekapSetoranTuItem;
 import com.asqi.scholia_kantin_be.dto.RingkasanPenjualan;
@@ -47,6 +48,7 @@ import com.asqi.scholia_kantin_be.repository.TransaksiRepository;
 import com.asqi.scholia_kantin_be.service.stok.HppService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -599,6 +601,90 @@ public class LaporanService {
 
         return new LaporanRiwayatSiswa(profil, riwayat);
     }
+
+    /**
+     * Riwayat transaksi/mutasi saldo keseluruhan siswa untuk halaman Laporan Riwayat Transaksi.
+     */
+    @Transactional(readOnly = true)
+    public List<LaporanRiwayatKeseluruhanItem> riwayatKeseluruhan(
+            Long sekolahId, LocalDate tanggal, OffsetDateTime dari, OffsetDateTime sampai, int batas) {
+
+        int batasAman = Math.min(Math.max(batas, 1), 500);
+        Pageable pageable = PageRequest.of(0, batasAman);
+
+        List<SaldoLedger> mutasi;
+        if (tanggal != null) {
+            OffsetDateTime awal = tanggal.atStartOfDay(jam.zona()).toOffsetDateTime();
+            OffsetDateTime akhir = awal.plusDays(1);
+            mutasi = saldoLedgerRepo.riwayatKeseluruhanRentang(sekolahId, awal, akhir, pageable);
+        } else if (dari != null || sampai != null) {
+            OffsetDateTime akhir = sampai != null ? sampai : OffsetDateTime.now(jam.zona());
+            OffsetDateTime awal = dari != null ? dari : akhir.minusDays(HARI_RIWAYAT_DEFAULT);
+            mutasi = saldoLedgerRepo.riwayatKeseluruhanRentang(sekolahId, awal, akhir, pageable);
+        } else {
+            mutasi = saldoLedgerRepo.riwayatKeseluruhanTerbaru(sekolahId, pageable);
+        }
+
+        Set<Long> transaksiIds = mutasi.stream()
+                .map(SaldoLedger::getTransaksiId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        Map<Long, Transaksi> transaksiById = transaksiIds.isEmpty() ? Map.of()
+                : transaksiRepo.findAllById(transaksiIds).stream()
+                .filter(t -> sekolahId.equals(t.getSekolahId()))
+                .collect(Collectors.toMap(Transaksi::getId, Function.identity()));
+
+        Map<Long, String> namaTitik = new HashMap<>();
+        titikKasirRepo.findBySekolahId(sekolahId).forEach(t -> namaTitik.put(t.getId(), t.getNama()));
+
+        Map<Long, List<TransaksiItem>> itemByTrx = transaksiIds.isEmpty() ? Map.of()
+                : transaksiItemRepo.findByTransaksiIdIn(transaksiIds).stream()
+                .collect(Collectors.groupingBy(i -> i.getTransaksi().getId()));
+
+        Map<Long, com.asqi.scholia_kantin_be.service.integrasi.InfoSiswa> siswaById = new HashMap<>();
+        try {
+            for (com.asqi.scholia_kantin_be.service.integrasi.InfoSiswa s : cariSiswaService.cari(sekolahId, "", false, 50)) {
+                siswaById.put(s.getSiswaId(), s);
+            }
+        } catch (Exception e) {
+            // port fallback
+        }
+
+        return mutasi.stream().map(l -> {
+            Transaksi t = l.getTransaksiId() == null ? null : transaksiById.get(l.getTransaksiId());
+            List<LaporanRiwayatSiswa.Item> items = t == null ? List.of()
+                    : itemByTrx.getOrDefault(t.getId(), List.of()).stream()
+                    .map(i -> new LaporanRiwayatSiswa.Item(i.getMenuId(), i.getNamaMenu(),
+                            i.getQty(), i.getHargaJual(), i.getSubtotal()))
+                    .toList();
+
+            Long sId = l.getSubjekId();
+            com.asqi.scholia_kantin_be.service.integrasi.InfoSiswa info =
+                    (l.getSubjekTipe() == SubjekTipe.SISWA && sId != null) ? siswaById.get(sId) : null;
+            String siswaNama = info != null ? info.getNama() : null;
+            String siswaNis = info != null ? info.getNis() : null;
+            String siswaKelas = info != null ? info.getKelas() : null;
+
+            return new LaporanRiwayatKeseluruhanItem(
+                    String.valueOf(l.getId()),
+                    l.getWaktu(),
+                    jenisRiwayat(l.getJenis()),
+                    l.getArah() == null ? null : l.getArah().name(),
+                    l.getNominal() == null ? 0L : l.getNominal(),
+                    l.getSaldoSetelah() == null ? 0L : l.getSaldoSetelah(),
+                    t == null ? "-" : namaTitik.getOrDefault(t.getTitikKasirId(), "-"),
+                    "-",
+                    t == null ? String.valueOf(l.getId()) : String.valueOf(t.getId()),
+                    l.getKeterangan() == null ? "" : l.getKeterangan(),
+                    items,
+                    sId,
+                    siswaNama,
+                    siswaNis,
+                    siswaKelas);
+        }).toList();
+    }
+
 
     /** Jenis mutasi BE → istilah riwayat yang dipakai FE. */
     private static String jenisRiwayat(JenisMutasiSaldo jenis) {
