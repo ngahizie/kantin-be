@@ -64,6 +64,7 @@ public class SesiKasirService {
      */
     @Transactional(propagation = Propagation.MANDATORY)
     public SesiKasir sesiTerbukaAtauBuka(Long sekolahId, Long titikKasirId) {
+        pastikanTitikKasirMilikSekolah(sekolahId, titikKasirId);
         LocalDate hariIni = jam.hariIni();
         var ada = sesiRepo.kunciBerdasarkanTitikTanggal(sekolahId, titikKasirId, hariIni);
         if (ada.isPresent()) {
@@ -82,6 +83,7 @@ public class SesiKasirService {
     /** Buka sesi eksplisit (mis. saat petugas mulai shift). */
     @Transactional
     public SesiKasir bukaSesi(Long sekolahId, Long titikKasirId) {
+        pastikanTitikKasirMilikSekolah(sekolahId, titikKasirId);
         LocalDate hariIni = jam.hariIni();
         var ada = sesiRepo.kunciBerdasarkanTitikTanggal(sekolahId, titikKasirId, hariIni);
         if (ada.isPresent()) {
@@ -95,6 +97,12 @@ public class SesiKasirService {
             return sesi;
         }
         return buatSesiBaru(sekolahId, titikKasirId, hariIni);
+    }
+
+    private void pastikanTitikKasirMilikSekolah(Long sekolahId, Long titikKasirId) {
+        titikKasirRepo.findById(titikKasirId)
+                .filter(titik -> sekolahId.equals(titik.getSekolahId()))
+                .orElseThrow(() -> new NotFoundEntity("Titik kasir tidak ditemukan"));
     }
 
     private SesiKasir buatSesiBaru(Long sekolahId, Long titikKasirId, LocalDate tanggal) {
