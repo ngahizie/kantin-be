@@ -46,6 +46,11 @@ const KARTU_COUNT = Number(__ENV.KARTU_COUNT || 20);
 // Token opsional; bila kosong, skrip login via shim dev (butuh dev-login aktif).
 const TOKEN_ENV = __ENV.TOKEN || '';
 
+// Akun uji beban — dibuat oleh load/seed/seed-loadtest.sql (bukan akun dev biasa),
+// sehingga uji beban tidak lagi bergantung pada kredensial seed dev yang bisa berubah.
+const LOADTEST_USER = __ENV.LOADTEST_USER || 'loadtest';
+const LOADTEST_PASSWORD = __ENV.LOADTEST_PASSWORD || 'loadtest';
+
 // ── Metrik kustom ───────────────────────────────────────────────────────────
 const tapMs = new Trend('tap_ms', true);              // durasi tap (ms)
 const tapOk = new Rate('tap_ok');                     // rasio tap sukses
@@ -86,13 +91,19 @@ export function setup() {
   if (!token) {
     const login = http.post(
       `${BASE_URL}/api/v1/auth/login`,
-      JSON.stringify({ email: 'kasir@skoolia.id', password: 'loadtest', sekolah_id: SEKOLAH }),
+      JSON.stringify({
+        username: LOADTEST_USER,
+        password: LOADTEST_PASSWORD,
+        sekolah_id: SEKOLAH,
+      }),
       { headers: { 'Content-Type': 'application/json' } },
     );
     if (login.status !== 200) {
       exec.test.abort(
-        `Login dev gagal (${login.status}). Set TOKEN=<jwt> atau aktifkan ` +
-        `kantin.dev-login.enabled=true (lihat docs/uji-beban-tap.md).`,
+        `Login dev gagal (${login.status}) untuk akun '${LOADTEST_USER}'. ` +
+        `Jalankan load/seed/seed-loadtest.sql (membuat akun uji beban) atau ` +
+        `set LOADTEST_USER/LOADTEST_PASSWORD, atau TOKEN=<jwt> ` +
+        `(lihat docs/uji-beban-tap.md).`,
       );
     }
     token = login.json('data.token');
