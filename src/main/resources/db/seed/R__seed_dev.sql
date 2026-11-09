@@ -525,9 +525,16 @@ CREATE TABLE IF NOT EXISTS dev_siswa_rfid (
     nomor_kartu VARCHAR(32) NOT NULL,
     rfid_uid VARCHAR(50) NOT NULL UNIQUE,
     aktif BOOLEAN NOT NULL DEFAULT true,
+    -- Nama & kelas hanya untuk tampilan struk saat demo; data asli milik pusat.
+    nama VARCHAR(100),
+    kelas VARCHAR(30),
     PRIMARY KEY (sekolah_id, siswa_id),
     UNIQUE (sekolah_id, nomor_kartu)
 );
+
+-- DB lokal yang dibuat sebelum kolom ini ada: tambahkan tanpa menghapus data.
+ALTER TABLE dev_siswa_rfid ADD COLUMN IF NOT EXISTS nama  VARCHAR(100);
+ALTER TABLE dev_siswa_rfid ADD COLUMN IF NOT EXISTS kelas VARCHAR(30);
 
 INSERT INTO dev_siswa_rfid (sekolah_id, siswa_id, nomor_kartu, rfid_uid, aktif)
 VALUES (10, 1001, 'RFID-SISWA-001', 'DA100001', true)
@@ -974,3 +981,86 @@ FROM (VALUES
 ) AS v(nama, url)
 WHERE m.nama = v.nama
   AND m.sekolah_id IN (1, 2, 10);
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- AKUN PENGETESAN RFID (khusus dev/demo)
+-- Kartu uji untuk mencoba alur tap sebelum data kartu siswa dikirim pusat.
+-- Kartu fisik cukup ditulis UID di bawah (NTAG/Mifare), lalu tap di kasir.
+--   201 → 04AA000201  aktif, saldo 50.000
+--   202 → 04AA000202  aktif, saldo 50.000
+--   203 → 04AA000203  aktif, saldo 50.000
+--   204 → 04AA000204  aktif, saldo 0        (uji "saldo tidak cukup")
+--   205 → 04AA000205  NONAKTIF              (uji "kartu diblokir")
+--   3001 → 04BB003001 aktif, saldo 75.000   (sekolah 10 / tenant FE)
+--   3002 → 04BB003002 aktif, saldo 25.000   (sekolah 10 / tenant FE)
+-- ═══════════════════════════════════════════════════════════════════════
+INSERT INTO saldo_ledger (id, sekolah_id, subjek_tipe, subjek_id, arah, jenis,
+                          nominal, saldo_setelah, transaksi_id, idempotency_key,
+                          referensi_tipe, referensi_id, keterangan, aktor_id, waktu, created_at)
+VALUES
+  (950001, 1, 'SISWA', 201, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, NULL, 'seed-uji-rfid-201',
+   'TOPUP', 'UJI-201', 'Saldo awal akun uji RFID', 2, ((CURRENT_DATE - 1) + time '07:30') AT TIME ZONE 'Asia/Jakarta', now()),
+  (950002, 1, 'SISWA', 202, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, NULL, 'seed-uji-rfid-202',
+   'TOPUP', 'UJI-202', 'Saldo awal akun uji RFID', 2, ((CURRENT_DATE - 1) + time '07:32') AT TIME ZONE 'Asia/Jakarta', now()),
+  (950003, 1, 'SISWA', 203, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, NULL, 'seed-uji-rfid-203',
+   'TOPUP', 'UJI-203', 'Saldo awal akun uji RFID', 2, ((CURRENT_DATE - 1) + time '07:34') AT TIME ZONE 'Asia/Jakarta', now()),
+  (950004, 10, 'SISWA', 3001, 'KREDIT', 'TOPUP_TUNAI', 75000, 75000, NULL, 'seed-uji-rfid-3001',
+   'TOPUP', 'UJI-3001', 'Saldo awal akun uji RFID', 2, ((CURRENT_DATE - 1) + time '07:36') AT TIME ZONE 'Asia/Jakarta', now()),
+  (950005, 10, 'SISWA', 3002, 'KREDIT', 'TOPUP_TUNAI', 25000, 25000, NULL, 'seed-uji-rfid-3002',
+   'TOPUP', 'UJI-3002', 'Saldo awal akun uji RFID', 2, ((CURRENT_DATE - 1) + time '07:38') AT TIME ZONE 'Asia/Jakarta', now())
+ON CONFLICT DO NOTHING;
+
+INSERT INTO saldo_cache (subjek_tipe, subjek_id, sekolah_id, saldo, updated_at)
+VALUES ('SISWA', 201, 1, 50000, now()),
+       ('SISWA', 202, 1, 50000, now()),
+       ('SISWA', 203, 1, 50000, now()),
+       ('SISWA', 3001, 10, 75000, now()),
+       ('SISWA', 3002, 10, 25000, now())
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dev_siswa_rfid (sekolah_id, siswa_id, nomor_kartu, rfid_uid, aktif)
+VALUES (1, 201, 'UJI-RFID-201', '04AA000201', true),
+       (1, 202, 'UJI-RFID-202', '04AA000202', true),
+       (1, 203, 'UJI-RFID-203', '04AA000203', true),
+       (1, 204, 'UJI-RFID-204', '04AA000204', true),
+       (1, 205, 'UJI-RFID-205', '04AA000205', false),
+       (10, 3001, 'UJI-RFID-3001', '04BB003001', true),
+       (10, 3002, 'UJI-RFID-3002', '04BB003002', true)
+ON CONFLICT DO NOTHING;
+
+-- ── Nama pemilik kartu (khusus tampilan struk demo) ───────────
+-- Identitas asli tetap milik pusat (ADR-0002); ini hanya pengganti sementara
+-- supaya struk menampilkan nama, bukan kosong.
+UPDATE dev_siswa_rfid d
+   SET nama = v.nama, kelas = v.kelas
+  FROM (VALUES
+    (1,  101,  'Raka Aditya Pratama', '7A'),
+    (1,  102,  'Nadia Safitri',       '7A'),
+    (1,  103,  'Bima Arya Nugraha',   '7B'),
+    (1,  104,  'Salsabila Putri',     '7B'),
+    (1,  105,  'Fajar Ramadhan',      '8A'),
+    (1,  106,  'Kirana Dewi Lestari', '8A'),
+    (1,  107,  'Abizard',             '8B'),
+    (1,  108,  'Yusuf Maulana',       '8B'),
+    (1,  109,  'Intan Permata',       '9A'),
+    (1,  110,  'Daffa Alfarizi',      '9A'),
+    (1,  12,   'Alya Rahmawati',      '7C'),
+    (1,  13,   'Bagas Saputra',       '7C'),
+    (2,  14,   'Rizky Hidayat',       '8A'),
+    (2,  15,   'Melati Anggraini',    '8B'),
+    (2,  2001, 'Nabila Zahra',        '7A'),
+    (10, 1001, 'Ahmad Fauzan',        '7A'),
+    (10, 1005, 'Citra Ayu Lestari',   '7A'),
+    (10, 1006, 'Dimas Prakoso',       '7B'),
+    (10, 1007, 'Eka Wulandari',       '7B'),
+    -- akun pengetesan RFID
+    (1,  201,  'Rangga Pratama',      '7A'),
+    (1,  202,  'Sinta Maharani',      '7B'),
+    (1,  203,  'Galih Purnomo',       '8A'),
+    (1,  204,  'Wulan Sari',          '8B'),
+    (1,  205,  'Hendra Wijaya',       '9A'),
+    (10, 3001, 'Anisa Rahma',         '7A'),
+    (10, 3002, 'Bayu Setiawan',       '7B')
+  ) AS v(sekolah_id, siswa_id, nama, kelas)
+ WHERE d.sekolah_id = v.sekolah_id
+   AND d.siswa_id = v.siswa_id;
