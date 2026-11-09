@@ -909,21 +909,6 @@ VALUES (1, 101, 'RFID-SISWA-101', '04A1B2C3D4', true),
        (10, 1007, 'RFID-SISWA-007', 'DA100007', true)
 ON CONFLICT DO NOTHING;
 
-INSERT INTO dev_siswa_rfid (sekolah_id, siswa_id, nomor_kartu, rfid_uid, aktif)
-VALUES (1, 106, 'RFID-SISWA-106', '04F1A2B3C4', true),
-       (1, 108, 'RFID-SISWA-108', '04F3A4B5C6', true),
-       (1, 109, 'RFID-SISWA-109', '04F2A3B4C5', true),
-       (1, 110, 'RFID-SISWA-110', '04F5A6B7C8', true),
-       (1, 12, 'RFID-SISWA-012', '04A2B3C4D5', true),
-       (1, 13, 'RFID-SISWA-013', '04B3C4D5E6', true),
-       (2, 2001, 'RFID-SISWA-2001', 'DA200001', true),
-       (2, 14, 'RFID-SISWA-2014', 'DA200002', true),
-       (2, 15, 'RFID-SISWA-2015', 'DA200003', true),
-       (10, 1005, 'RFID-SISWA-005', 'DA100005', true),
-       (10, 1006, 'RFID-SISWA-006', 'DA100006', true),
-       (10, 1007, 'RFID-SISWA-007', 'DA100007', true)
-ON CONFLICT DO NOTHING;
-
 
 
 
@@ -1055,8 +1040,8 @@ UPDATE dev_siswa_rfid d
     (1,  105,  'Fajar Ramadhan',      '8A'),
     (1,  106,  'Kirana Dewi Lestari', '8A'),
     (1,  107,  'Abizard',             '8B'),
-    (1,  108,  'Yusuf Maulana',       '8B'),
-    (1,  109,  'Intan Permata',       '9A'),
+    (1,  108,  'Fajar Nugraha',       '7B'),
+    (1,  109,  'Citra Kirana',        '8A'),
     (1,  110,  'Daffa Alfarizi',      '9A'),
     (1,  12,   'Alya Rahmawati',      '7C'),
     (1,  13,   'Bagas Saputra',       '7C'),
