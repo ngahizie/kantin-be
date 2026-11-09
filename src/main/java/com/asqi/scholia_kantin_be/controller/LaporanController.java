@@ -11,6 +11,7 @@ import com.asqi.scholia_kantin_be.dto.BarisStok;
 import com.asqi.scholia_kantin_be.dto.KartuStokItem;
 import com.asqi.scholia_kantin_be.dto.KartuTamuSaldoDetail;
 import com.asqi.scholia_kantin_be.dto.LaporanPerSiswa;
+import com.asqi.scholia_kantin_be.dto.LaporanRiwayatKeseluruhanItem;
 import com.asqi.scholia_kantin_be.dto.LaporanRiwayatSiswa;
 import com.asqi.scholia_kantin_be.dto.RekapSetoranTuItem;
 import com.asqi.scholia_kantin_be.dto.SiswaSaldoDetail;
@@ -305,6 +306,22 @@ public class LaporanController {
         return CommonResponse.data(
                 laporan.riwayatSiswa(TenantContext.sekolahIdWajib(), siswaId, dari, sampai));
     }
+
+    /**
+     * Riwayat transaksi/mutasi saldo keseluruhan siswa (seluruh subjek) untuk
+     * halaman Laporan Riwayat Transaksi (FE LaporanRiwayatKeseluruhanPage).
+     */
+    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
+    @GetMapping("transaksi-keseluruhan")
+    public ResponseEntity<Response<List<LaporanRiwayatKeseluruhanItem>>> riwayatKeseluruhan(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tanggal,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime dari,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime sampai,
+            @RequestParam(defaultValue = "100") int batas) {
+        return CommonResponse.data(
+                laporan.riwayatKeseluruhan(TenantContext.sekolahIdWajib(), tanggal, dari, sampai, batas));
+    }
+
 
     /**
      * Laporan <b>Setoran kas TU</b> (PRD §9.5, issue #143): rekap top-up tunai

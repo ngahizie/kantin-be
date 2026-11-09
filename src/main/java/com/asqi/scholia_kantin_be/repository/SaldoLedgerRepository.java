@@ -229,4 +229,28 @@ public interface SaldoLedgerRepository extends JpaRepository<SaldoLedger, Long>,
 
         Long getTotal();
     }
+    /**
+     * Riwayat mutasi saldo keseluruhan (seluruh subjek) pada rentang waktu, urut terbaru dulu.
+     */
+    @Query("""
+            SELECT l FROM SaldoLedger l
+            WHERE l.sekolahId = :sekolahId
+              AND l.waktu >= :dari AND l.waktu < :sampai
+            ORDER BY l.waktu DESC, l.id DESC
+            """)
+    List<SaldoLedger> riwayatKeseluruhanRentang(@Param("sekolahId") Long sekolahId,
+                                                @Param("dari") OffsetDateTime dari,
+                                                @Param("sampai") OffsetDateTime sampai,
+                                                Pageable pageable);
+
+    /**
+     * Riwayat mutasi saldo keseluruhan terbaru (tanpa filter rentang waktu), urut terbaru dulu.
+     */
+    @Query("""
+            SELECT l FROM SaldoLedger l
+            WHERE l.sekolahId = :sekolahId
+            ORDER BY l.waktu DESC, l.id DESC
+            """)
+    List<SaldoLedger> riwayatKeseluruhanTerbaru(@Param("sekolahId") Long sekolahId,
+                                                Pageable pageable);
 }
