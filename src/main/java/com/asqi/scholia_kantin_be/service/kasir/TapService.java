@@ -41,6 +41,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -396,8 +397,13 @@ public class TapService {
                 // Data struk: titik kasir + nomor + waktu (dipakai layar kasir).
                 .titikKasir(namaTitikKasir(sekolahId, request.getTitikKasirId()))
                 .nomorStruk(NomorStruk.dari(transaksiId, now))
-                .waktu(now)
+                .waktu(waktuStruk(now))
                 .build();
+    }
+
+    /** Waktu untuk struk: detik saja, tanpa pecahan nanodetik. */
+    private static OffsetDateTime waktuStruk(OffsetDateTime waktu) {
+        return waktu == null ? null : waktu.truncatedTo(ChronoUnit.SECONDS);
     }
 
     /** Nama titik kasir (null bila id kosong/tidak ada di sekolah ini). */
@@ -473,7 +479,7 @@ public class TapService {
                 // Data struk: titik kasir + nomor + waktu (dipakai layar kasir).
                 .titikKasir(namaTitikKasir(sekolahId, trx.getTitikKasirId()))
                 .nomorStruk(NomorStruk.dari(trx.getId(), trx.getWaktu()))
-                .waktu(trx.getWaktu())
+                .waktu(waktuStruk(trx.getWaktu()))
                 .build();
     }
 
