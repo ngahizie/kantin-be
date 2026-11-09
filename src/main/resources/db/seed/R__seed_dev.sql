@@ -916,3 +916,71 @@ VALUES (1, 101, 'RFID-SISWA-101', '04A1B2C3D4', true),
        (10, 1001, 'RFID-SISWA-001', 'DA100001', true)
 ON CONFLICT DO NOTHING;
 
+
+-- ── Foto menu demo (seed dev) ────────────────────────────────────────────────
+-- Sumber: Wikimedia Commons (berkas bebas, hotlink diizinkan) — HANYA untuk
+-- demo/lokal, jadi butuh koneksi internet. Untuk produksi: unggah lewat
+-- POST /api/storage/upload lalu simpan `path`/`url` hasilnya ke kolom ini.
+-- Catatan: blok ini MENIMPA foto menu demo (sekolah 1, 2, 10) setiap seed
+-- dijalankan ulang, termasuk foto yang pernah diunggah manual.
+UPDATE menu m
+SET foto_url = v.url,
+    updated_at = now()
+FROM (VALUES
+    ('Air Mineral',
+     'https://upload.wikimedia.org/wikipedia/commons/0/02/Stilles_Mineralwasser.jpg'),
+    ('Ayam Geprek',
+     'https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5c/Ayam_Geprek_Uyat.jpg/500px-Ayam_Geprek_Uyat.jpg'),
+    ('Bakso',
+     'https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6e/Bakso_Indonesian_Meatball_Soup_from_Solo.jpg/500px-Bakso_Indonesian_Meatball_Soup_from_Solo.jpg'),
+    ('Buku Tulis',
+     'https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f0/Notebook_writing.jpg/500px-Notebook_writing.jpg'),
+    ('Es Jeruk',
+     'https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8e/Orange_Juice_in_ice_cap_cafe.jpg/500px-Orange_Juice_in_ice_cap_cafe.jpg'),
+    ('Es Teh Manis',
+     'https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d4/Iced_lychee_tea_and_Es_teh_manis_-_Bali_2025-09-25.jpg/500px-Iced_lychee_tea_and_Es_teh_manis_-_Bali_2025-09-25.jpg'),
+    ('Jus Alpukat',
+     'https://thumb.wikimedia.org/wikipedia/commons/thumb/4/49/Ovacado_juice_in_a_drinking_glass.jpg/500px-Ovacado_juice_in_a_drinking_glass.jpg'),
+    ('Jus Jeruk',
+     'https://thumb.wikimedia.org/wikipedia/commons/thumb/6/67/Orange_juice_1_edit1.jpg/500px-Orange_juice_1_edit1.jpg'),
+    ('Kentang Goreng',
+     'https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7e/Papas_fritas_%28plato%29.jpg/500px-Papas_fritas_%28plato%29.jpg'),
+    ('Keripik',
+     'https://thumb.wikimedia.org/wikipedia/commons/thumb/7/70/Keripik_sanjay.JPG/500px-Keripik_sanjay.JPG'),
+    ('Kopi Susu',
+     'https://thumb.wikimedia.org/wikipedia/commons/thumb/5/54/Es_kopi_susu_kekinian_di_Yogyakarta%2C_Indonesia.jpg/500px-Es_kopi_susu_kekinian_di_Yogyakarta%2C_Indonesia.jpg'),
+    ('Mie Ayam',
+     'https://thumb.wikimedia.org/wikipedia/commons/thumb/8/82/Mi_ayam_jamur.JPG/500px-Mi_ayam_jamur.JPG'),
+    ('Mie Goreng',
+     'https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f0/Mi_Goreng_GM.jpg/500px-Mi_Goreng_GM.jpg'),
+    ('Nasi Goreng',
+     'https://thumb.wikimedia.org/wikipedia/commons/thumb/3/34/Nasi_goreng_pattaya_20231028_120535.jpg/500px-Nasi_goreng_pattaya_20231028_120535.jpg'),
+    ('Nasi Goreng Spesial',
+     'https://thumb.wikimedia.org/wikipedia/commons/thumb/3/34/Nasi_goreng_pattaya_20231028_120535.jpg/500px-Nasi_goreng_pattaya_20231028_120535.jpg'),
+    ('Nasi Kuning',
+     'https://thumb.wikimedia.org/wikipedia/commons/thumb/9/96/Nasi_Kuning_dan_Ungkep_Ayam.jpg/500px-Nasi_Kuning_dan_Ungkep_Ayam.jpg'),
+    ('Nasi Padang',
+     'https://thumb.wikimedia.org/wikipedia/commons/thumb/9/93/Nasi_padang.jpg/500px-Nasi_padang.jpg'),
+    ('Nasi Uduk',
+     'https://thumb.wikimedia.org/wikipedia/commons/thumb/c/ca/Nasi_uduk_lila.jpg/500px-Nasi_uduk_lila.jpg'),
+    ('Penghapus',
+     'https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2f/Pink_Pearl_eraser.jpg/500px-Pink_Pearl_eraser.jpg'),
+    ('Pensil',
+     'https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3c/YosriFeb05Kalam2.JPG/500px-YosriFeb05Kalam2.JPG'),
+    ('Pisang Goreng',
+     'https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2f/Pisang_goreng_fried_banana.JPG/500px-Pisang_goreng_fried_banana.JPG'),
+    ('Pulpen',
+     'https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7b/Fountain_pen_writing_%28literacy%29.jpg/500px-Fountain_pen_writing_%28literacy%29.jpg'),
+    ('Roti Bakar',
+     'https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1a/Roti_bakar_kekinian.jpg/500px-Roti_bakar_kekinian.jpg'),
+    ('Soto Ayam',
+     'https://thumb.wikimedia.org/wikipedia/commons/thumb/0/05/Soto_ayam.JPG/500px-Soto_ayam.JPG'),
+    ('Susu Coklat',
+     'https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7d/New_chocolate_milk.JPG/500px-New_chocolate_milk.JPG'),
+    ('Susu Kotak',
+     'https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f8/2025.04.10_Milk_Glass_Sugar_Bowl_and_Antique_Glass_Creamer.jpg/500px-2025.04.10_Milk_Glass_Sugar_Bowl_and_Antique_Glass_Creamer.jpg'),
+    ('Teh Botol',
+     'https://thumb.wikimedia.org/wikipedia/commons/thumb/c/ce/Teh_botol_Sosro_Less_Sugar.JPG/500px-Teh_botol_Sosro_Less_Sugar.JPG')
+) AS v(nama, url)
+WHERE m.nama = v.nama
+  AND m.sekolah_id IN (1, 2, 10);

@@ -50,6 +50,11 @@ k6 run load/k6/tap-slo.js
 TAP_RATE=100 DURATION=3m k6 run load/k6/tap-slo.js
 ```
 
+> **Akun login uji beban:** langkah 3 (seed) membuat akun **`loadtest` / `loadtest`**
+> (role `PETUGAS`, sekolah 1) khusus untuk uji beban. Skrip k6 **tidak** memakai
+> akun dev biasa, supaya perubahan kredensial seed dev tidak lagi mematikan
+> nightly. Ganti lewat env `LOADTEST_USER` / `LOADTEST_PASSWORD` bila perlu.
+
 > **Tanpa dev-login:** set `TOKEN=<jwt>` (token RS256 yang diterima kantin-be,
 > mis. dari `scripts/dev/mint-jwt-dummy.sh staf --sekolah 1 --role PETUGAS_KANTIN`)
 > agar skrip tidak perlu login.
