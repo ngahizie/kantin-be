@@ -143,11 +143,20 @@ public class LaporanService {
                 nilaiVoid = total;
             }
         }
-        long hpp = nolJikaNull(transaksiRepo.totalHppRentang(
+        long modal = nolJikaNull(transaksiRepo.totalModalRentang(
                 sekolahId, StatusTransaksi.SUKSES, awal, akhir));
+        long laba = bruto - modal;
 
         return new RingkasanPenjualan(awal, akhir, jumlahSukses, bruto,
-                jumlahVoid, nilaiVoid, bruto, hpp, bruto - hpp);
+                jumlahVoid, nilaiVoid, bruto, modal, laba, persen(laba, bruto));
+    }
+
+    /** Persentase (2 desimal); 0 bila pembagi nol. */
+    private static double persen(long bagian, long total) {
+        if (total == 0) {
+            return 0.0;
+        }
+        return Math.round(bagian * 10_000.0 / total) / 100.0;
     }
 
     /** Penjualan per item (PRD §9.5). */
@@ -158,9 +167,12 @@ public class LaporanService {
         List<BarisPenjualan> hasil = new ArrayList<>();
         for (Object[] b : transaksiItemRepo.itemTerlaris(
                 sekolahId, r[0], r[1], PageRequest.of(0, MAKS_ITEM_TERLARIS))) {
+            long qty = ((Number) b[2]).longValue();
+            long total = ((Number) b[3]).longValue();
+            long modal = b.length > 4 && b[4] != null ? ((Number) b[4]).longValue() : 0L;
             hasil.add(new BarisPenjualan(
-                    (Long) b[0], (String) b[1],
-                    ((Number) b[2]).longValue(), ((Number) b[3]).longValue()));
+                    (Long) b[0], (String) b[1], qty, total,
+                    qty == 0 ? null : total / qty, modal, persen(total - modal, total)));
         }
         return hasil;
     }
@@ -177,9 +189,12 @@ public class LaporanService {
         List<BarisPenjualan> hasil = new ArrayList<>();
         for (Object[] b : transaksiItemRepo.penjualanPerKategori(sekolahId, r[0], r[1])) {
             Long kategoriId = (Long) b[0];
+            long qty = ((Number) b[1]).longValue();
+            long total = ((Number) b[2]).longValue();
+            long modal = b.length > 3 && b[3] != null ? ((Number) b[3]).longValue() : 0L;
             hasil.add(new BarisPenjualan(
-                    kategoriId, namaKategori.get(kategoriId),
-                    ((Number) b[1]).longValue(), ((Number) b[2]).longValue()));
+                    kategoriId, namaKategori.get(kategoriId), qty, total,
+                    null, modal, persen(total - modal, total)));
         }
         return hasil;
     }

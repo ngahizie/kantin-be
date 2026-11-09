@@ -172,9 +172,10 @@ class LaporanServiceIT {
 
         assertThat(r.jumlahTransaksi()).isEqualTo(2);
         assertThat(r.penjualanBruto()).isEqualTo(29_000);
-        assertThat(r.totalHpp()).isEqualTo(14_000);
-        assertThat(r.labaKotor()).isEqualTo(15_000);
-        assertThat(r.jumlahVoid()).isZero();
+        assertThat(r.totalModal()).isEqualTo(14_000);
+        assertThat(r.laba()).isEqualTo(15_000);
+        assertThat(r.marginPersen()).isEqualTo(51.72); // 15.000 / 29.000
+        assertThat(r.jumlahRefund()).isZero();
     }
 
     @Test
@@ -188,13 +189,19 @@ class LaporanServiceIT {
         assertThat(perItem).hasSize(2);
         assertThat(perItem.get(0).nama()).isEqualTo("Nasi Uduk"); // terlaris dulu (qty 2)
         assertThat(perItem.get(0).qty()).isEqualTo(2);
-        assertThat(perItem.get(0).nilai()).isEqualTo(16_000);
+        assertThat(perItem.get(0).total()).isEqualTo(16_000);
+        assertThat(perItem.get(0).hargaSatuan()).isEqualTo(8_000L); // 16.000 ÷ 2
+        assertThat(perItem.get(0).modal()).isEqualTo(8_000);
+        assertThat(perItem.get(0).marginPersen()).isEqualTo(50.0);
 
         List<BarisPenjualan> perKategori = laporan.penjualanPerKategori(SEKOLAH, null, null, null);
         assertThat(perKategori).hasSize(1);
         assertThat(perKategori.get(0).kunciId()).isEqualTo(KATEGORI);
         assertThat(perKategori.get(0).nama()).isEqualTo("Makanan");
-        assertThat(perKategori.get(0).nilai()).isEqualTo(21_000);
+        assertThat(perKategori.get(0).total()).isEqualTo(21_000);
+        assertThat(perKategori.get(0).hargaSatuan()).isNull(); // kategori tanpa harga satuan
+        assertThat(perKategori.get(0).modal()).isEqualTo(10_000);
+        assertThat(perKategori.get(0).marginPersen()).isEqualTo(52.38);
     }
 
     @Test

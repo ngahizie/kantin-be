@@ -114,21 +114,23 @@ public class LaporanExportService {
         List<List<Object>> baris = List.of(
                 List.of("Jumlah transaksi sukses", r.jumlahTransaksi()),
                 List.of("Penjualan bruto", r.penjualanBruto()),
-                List.of("Jumlah transaksi void", r.jumlahVoid()),
-                List.of("Nilai void", r.nilaiVoid()),
+                List.of("Jumlah transaksi refund", r.jumlahRefund()),
+                List.of("Nilai refund", r.nilaiRefund()),
                 List.of("Penjualan bersih", r.penjualanBersih()),
-                List.of("Total HPP", r.totalHpp()),
-                List.of("Laba kotor", r.labaKotor()));
+                List.of("Total modal", r.totalModal()),
+                List.of("Laba", r.laba()),
+                List.of("Margin (%)", r.marginPersen()));
         return berkas("Penjualan & Laba Kotor", label, header, baris);
     }
 
     private HasilEkspor eksporBarisPenjualan(Long sekolahId, LocalDate tgl, OffsetDateTime dari,
                                              OffsetDateTime sampai, String label, String judul,
                                              String kolomNama, List<BarisPenjualan> data) {
-        List<String> header = List.of("ID", kolomNama, "Qty", "Nilai");
+        List<String> header = List.of("ID", kolomNama, "Qty", "Harga Satuan", "Total", "Modal", "Margin (%)");
         List<List<Object>> baris = new ArrayList<>();
         for (BarisPenjualan b : data) {
-            baris.add(List.of(nvl(b.kunciId()), nvl(b.nama()), b.qty(), b.nilai()));
+            baris.add(List.of(nvl(b.kunciId()), nvl(b.nama()), b.qty(),
+                    nvl(b.hargaSatuan()), b.total(), b.modal(), b.marginPersen()));
         }
         return berkas(judul, label, header, baris);
     }
