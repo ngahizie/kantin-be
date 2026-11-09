@@ -5,6 +5,7 @@ import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import lombok.Builder;
 import lombok.Data;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 
 /**
@@ -53,4 +54,13 @@ public class TapResponse {
 
     /** ID baris pending yang harus dikonfirmasi (diisi bila {@link #menungguKonfirmasi}). */
     private Long pendingId;
+
+    /** Nama titik kasir tempat transaksi terjadi (untuk struk). */
+    private String titikKasir;
+
+    /** Nomor struk: {@code TRX-yyyyMMdd-<id>} — sama dengan yang tampil di riwayat sesi. */
+    private String nomorStruk;
+
+    /** Waktu transaksi (untuk struk). */
+    private OffsetDateTime waktu;
 }
