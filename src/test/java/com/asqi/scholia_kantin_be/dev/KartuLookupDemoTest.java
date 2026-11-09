@@ -172,4 +172,23 @@ class KartuLookupDemoTest {
         assertThat(viaDemo.getSubjekId()).isEqualTo(viaLoadtest.getSubjekId());
         assertThat(viaDemo.getSubjekTipe()).isEqualTo(viaLoadtest.getSubjekTipe());
     }
+
+    @Test
+    @DisplayName("Nama & kelas dari fixture dev ikut dikirim (dipakai struk)")
+    void namaDanKelasTerbawa() {
+        when(repo.findByRfidUid("04AA000201")).thenReturn(Optional.empty());
+        when(jdbc.query(
+                org.mockito.ArgumentMatchers.contains("dev_siswa_rfid"),
+                org.mockito.ArgumentMatchers.<org.springframework.jdbc.core.RowMapper<KartuLookupDemo.SiswaKartu>>any(),
+                org.mockito.ArgumentMatchers.eq(1L),
+                org.mockito.ArgumentMatchers.eq("04AA000201")))
+                .thenReturn(List.of(
+                        new KartuLookupDemo.SiswaKartu(201L, true, "Rangga Pratama", "7A")));
+
+        InfoKartu info = lookup.cariBerdasarkanUid(1L, "04AA000201");
+
+        assertThat(info.isDikenal()).isTrue();
+        assertThat(info.getNama()).isEqualTo("Rangga Pratama");
+        assertThat(info.getKelas()).isEqualTo("7A");
+    }
 }
