@@ -11,6 +11,7 @@ import com.asqi.scholia_kantin_be.enums.JenisNotifikasi;
 import com.asqi.scholia_kantin_be.enums.MetodeRequestKartu;
 import com.asqi.scholia_kantin_be.enums.StatusPendingTap;
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
+import com.asqi.scholia_kantin_be.helper.NomorStruk;
 import com.asqi.scholia_kantin_be.helper.IdGenerator;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.model.SesiKasir;
@@ -18,6 +19,7 @@ import com.asqi.scholia_kantin_be.model.Transaksi;
 import com.asqi.scholia_kantin_be.model.TransaksiItem;
 import com.asqi.scholia_kantin_be.model.TransaksiMenungguKonfirmasi;
 import com.asqi.scholia_kantin_be.repository.TransaksiMenungguKonfirmasiRepository;
+import com.asqi.scholia_kantin_be.repository.TitikKasirRepository;
 import com.asqi.scholia_kantin_be.repository.TransaksiRepository;
 import com.asqi.scholia_kantin_be.security.IdentitasKantin;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoKartu;
@@ -39,6 +41,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -69,6 +72,7 @@ import java.util.List;
 public class TapService {
 
     private final TransaksiRepository transaksiRepo;
+    private final TitikKasirRepository titikKasirRepo;
     private final TransaksiMenungguKonfirmasiRepository pendingRepo;
     private final TapValidator validator;
     private final LedgerSaldoService ledgerSaldo;
@@ -390,7 +394,26 @@ public class TapService {
                 .namaItem(namaItem)
                 .metode(MetodeRequestKartu.UID)
                 .menungguKonfirmasi(false)
+                // Data struk: titik kasir + nomor + waktu (dipakai layar kasir).
+                .titikKasir(namaTitikKasir(sekolahId, request.getTitikKasirId()))
+                .nomorStruk(NomorStruk.dari(transaksiId, now))
+                .waktu(waktuStruk(now))
                 .build();
+    }
+
+    /** Waktu untuk struk: detik saja, tanpa pecahan nanodetik. */
+    private static OffsetDateTime waktuStruk(OffsetDateTime waktu) {
+        return waktu == null ? null : waktu.truncatedTo(ChronoUnit.SECONDS);
+    }
+
+    /** Nama titik kasir (null bila id kosong/tidak ada di sekolah ini). */
+    private String namaTitikKasir(Long sekolahId, Long titikKasirId) {
+        if (titikKasirId == null || sekolahId == null) {
+            return null;
+        }
+        return titikKasirRepo.findByIdAndSekolahId(titikKasirId, sekolahId)
+                .map(com.asqi.scholia_kantin_be.model.TitikKasir::getNama)
+                .orElse(null);
     }
 
     /** Respons "menunggu konfirmasi" (belum memotong saldo/stok). */
@@ -453,6 +476,10 @@ public class TapService {
                 .namaItem(namaItem)
                 .metode(MetodeRequestKartu.UID)
                 .menungguKonfirmasi(false)
+                // Data struk: titik kasir + nomor + waktu (dipakai layar kasir).
+                .titikKasir(namaTitikKasir(sekolahId, trx.getTitikKasirId()))
+                .nomorStruk(NomorStruk.dari(trx.getId(), trx.getWaktu()))
+                .waktu(waktuStruk(trx.getWaktu()))
                 .build();
     }
 

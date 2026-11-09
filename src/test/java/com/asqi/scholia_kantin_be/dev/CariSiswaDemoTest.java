@@ -38,7 +38,7 @@ class CariSiswaDemoTest {
     void tanpaKataKunciDaftarAwal() {
         List<InfoSiswa> hasil = cari.cari(1L, null, false, 50);
 
-        assertThat(hasil).hasSize(7);
+        assertThat(hasil).hasSize(9);
         assertThat(hasil).allSatisfy(s -> assertThat(s.getSaldo()).isEqualTo(25_000L));
     }
 
@@ -107,6 +107,26 @@ class CariSiswaDemoTest {
             assertThat(s.getNis()).isEqualTo("2024007");
             assertThat(s.getNama()).isEqualTo("Abizard");
             assertThat(s.getKelas()).isEqualTo("7A");
+        });
+    }
+
+    @Test
+    @DisplayName("#214: identitas siswa demo tambahan Fajar dan Citra konsisten dengan FE dan RFID")
+    void identitasSiswaTambahanSesuaiFrontend() {
+        List<InfoSiswa> fajar = cari.cari(1L, "2024008", false, 50);
+        assertThat(fajar).singleElement().satisfies(s -> {
+            assertThat(s.getSiswaId()).isEqualTo(108L);
+            assertThat(s.getNis()).isEqualTo("2024008");
+            assertThat(s.getNama()).isEqualTo("Fajar Nugraha");
+            assertThat(s.getKelas()).isEqualTo("7B");
+        });
+
+        List<InfoSiswa> citra = cari.cari(1L, "2024009", false, 50);
+        assertThat(citra).singleElement().satisfies(s -> {
+            assertThat(s.getSiswaId()).isEqualTo(109L);
+            assertThat(s.getNis()).isEqualTo("2024009");
+            assertThat(s.getNama()).isEqualTo("Citra Kirana");
+            assertThat(s.getKelas()).isEqualTo("8A");
         });
     }
 

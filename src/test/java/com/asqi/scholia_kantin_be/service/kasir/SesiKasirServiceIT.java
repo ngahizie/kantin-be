@@ -128,6 +128,34 @@ class SesiKasirServiceIT {
     }
 
     @Test
+    @DisplayName("tutup sesi yang tidak ditemukan ditolak sebagai NotFoundEntity")
+    void tutupSesiTidakDitemukan() {
+        org.junit.jupiter.api.Assertions.assertThrows(
+                com.asqi.scholia_kantin_be.component.exception.NotFoundEntity.class,
+                () -> sesiKasir.tutupSesi(SEKOLAH, 987654L, 555L, false));
+
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM sesi_kasir", Integer.class)).isZero();
+    }
+
+    @Test
+    @DisplayName("tutup sesi milik sekolah lain ditolak sebagai NotFoundEntity")
+    void tutupSesiSekolahLain() {
+        jdbc.update("INSERT INTO titik_kasir (id, sekolah_id, nama, is_active, created_at, updated_at) "
+                + "VALUES (99, 99, 'Kasir sekolah lain', true, now(), now())");
+        jdbc.update("INSERT INTO sesi_kasir (id, sekolah_id, titik_kasir_id, tanggal, status, "
+                + "total_bruto, total_void, total_bersih, dibuka_at, auto_tutup, posting_buku_kas, "
+                + "created_at, updated_at) "
+                + "VALUES (999, 99, 99, CURRENT_DATE, 'TERBUKA', 0, 0, 0, now(), false, false, now(), now())");
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                com.asqi.scholia_kantin_be.component.exception.NotFoundEntity.class,
+                () -> sesiKasir.tutupSesi(SEKOLAH, 999L, 555L, false));
+
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM sesi_kasir WHERE id = 999", String.class)).isEqualTo("TERBUKA");
+    }
+
+    @Test
     @DisplayName("auto-tutup menutup semua sesi terbuka")
     void autoTutup() {
         tap("s1", 1);
