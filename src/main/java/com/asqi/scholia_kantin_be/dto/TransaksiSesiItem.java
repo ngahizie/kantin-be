@@ -1,6 +1,7 @@
 package com.asqi.scholia_kantin_be.dto;
 
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
+import com.asqi.scholia_kantin_be.helper.NomorStruk;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.model.Transaksi;
 import com.asqi.scholia_kantin_be.model.TransaksiItem;
@@ -57,7 +58,7 @@ public record TransaksiSesiItem(
         return new TransaksiSesiItem(
                 t.getId(),
                 t.getId(),
-                "TRX-" + t.getWaktu().format(TANGGAL) + "-" + String.format("%04d", t.getId()),
+                NomorStruk.dari(t.getId(), t.getWaktu()),
                 t.getWaktu(),
                 t.getSubjekTipe() == null ? null : t.getSubjekTipe().name(),
                 pembeliNama,
