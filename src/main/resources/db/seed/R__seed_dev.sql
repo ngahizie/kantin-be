@@ -974,3 +974,49 @@ FROM (VALUES
 ) AS v(nama, url)
 WHERE m.nama = v.nama
   AND m.sekolah_id IN (1, 2, 10);
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- AKUN PENGETESAN RFID (khusus dev/demo)
+-- Kartu uji untuk mencoba alur tap sebelum data kartu siswa dikirim pusat.
+-- Kartu fisik cukup ditulis UID di bawah (NTAG/Mifare), lalu tap di kasir.
+--   201 → 04AA000201  aktif, saldo 50.000
+--   202 → 04AA000202  aktif, saldo 50.000
+--   203 → 04AA000203  aktif, saldo 50.000
+--   204 → 04AA000204  aktif, saldo 0        (uji "saldo tidak cukup")
+--   205 → 04AA000205  NONAKTIF              (uji "kartu diblokir")
+--   3001 → 04BB003001 aktif, saldo 75.000   (sekolah 10 / tenant FE)
+--   3002 → 04BB003002 aktif, saldo 25.000   (sekolah 10 / tenant FE)
+-- ═══════════════════════════════════════════════════════════════════════
+INSERT INTO saldo_ledger (id, sekolah_id, subjek_tipe, subjek_id, arah, jenis,
+                          nominal, saldo_setelah, transaksi_id, idempotency_key,
+                          referensi_tipe, referensi_id, keterangan, aktor_id, waktu, created_at)
+VALUES
+  (950001, 1, 'SISWA', 201, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, NULL, 'seed-uji-rfid-201',
+   'TOPUP', 'UJI-201', 'Saldo awal akun uji RFID', 2, ((CURRENT_DATE - 1) + time '07:30') AT TIME ZONE 'Asia/Jakarta', now()),
+  (950002, 1, 'SISWA', 202, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, NULL, 'seed-uji-rfid-202',
+   'TOPUP', 'UJI-202', 'Saldo awal akun uji RFID', 2, ((CURRENT_DATE - 1) + time '07:32') AT TIME ZONE 'Asia/Jakarta', now()),
+  (950003, 1, 'SISWA', 203, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, NULL, 'seed-uji-rfid-203',
+   'TOPUP', 'UJI-203', 'Saldo awal akun uji RFID', 2, ((CURRENT_DATE - 1) + time '07:34') AT TIME ZONE 'Asia/Jakarta', now()),
+  (950004, 10, 'SISWA', 3001, 'KREDIT', 'TOPUP_TUNAI', 75000, 75000, NULL, 'seed-uji-rfid-3001',
+   'TOPUP', 'UJI-3001', 'Saldo awal akun uji RFID', 2, ((CURRENT_DATE - 1) + time '07:36') AT TIME ZONE 'Asia/Jakarta', now()),
+  (950005, 10, 'SISWA', 3002, 'KREDIT', 'TOPUP_TUNAI', 25000, 25000, NULL, 'seed-uji-rfid-3002',
+   'TOPUP', 'UJI-3002', 'Saldo awal akun uji RFID', 2, ((CURRENT_DATE - 1) + time '07:38') AT TIME ZONE 'Asia/Jakarta', now())
+ON CONFLICT DO NOTHING;
+
+INSERT INTO saldo_cache (subjek_tipe, subjek_id, sekolah_id, saldo, updated_at)
+VALUES ('SISWA', 201, 1, 50000, now()),
+       ('SISWA', 202, 1, 50000, now()),
+       ('SISWA', 203, 1, 50000, now()),
+       ('SISWA', 3001, 10, 75000, now()),
+       ('SISWA', 3002, 10, 25000, now())
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dev_siswa_rfid (sekolah_id, siswa_id, nomor_kartu, rfid_uid, aktif)
+VALUES (1, 201, 'UJI-RFID-201', '04AA000201', true),
+       (1, 202, 'UJI-RFID-202', '04AA000202', true),
+       (1, 203, 'UJI-RFID-203', '04AA000203', true),
+       (1, 204, 'UJI-RFID-204', '04AA000204', true),
+       (1, 205, 'UJI-RFID-205', '04AA000205', false),
+       (10, 3001, 'UJI-RFID-3001', '04BB003001', true),
+       (10, 3002, 'UJI-RFID-3002', '04BB003002', true)
+ON CONFLICT DO NOTHING;
