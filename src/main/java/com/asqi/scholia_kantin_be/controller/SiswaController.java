@@ -43,7 +43,7 @@ public class SiswaController {
      * @param batas          jumlah maksimum hasil (default 20, maks 50)
      */
     @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH,
-            AktorKantin.PENGELOLA_KANTIN, AktorKantin.KEPSEK})
+            AktorKantin.PENGELOLA_KANTIN, AktorKantin.KEPSEK, AktorKantin.PETUGAS_KANTIN})
     @GetMapping
     public ResponseEntity<Response<List<InfoSiswa>>> cari(
             @RequestParam(required = false) String q,
