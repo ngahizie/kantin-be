@@ -909,6 +909,22 @@ VALUES (1, 101, 'RFID-SISWA-101', '04A1B2C3D4', true),
        (10, 1007, 'RFID-SISWA-007', 'DA100007', true)
 ON CONFLICT DO NOTHING;
 
+INSERT INTO dev_siswa_rfid (sekolah_id, siswa_id, nomor_kartu, rfid_uid, aktif)
+VALUES (1, 106, 'RFID-SISWA-106', '04F1A2B3C4', true),
+       (1, 108, 'RFID-SISWA-108', '04F3A4B5C6', true),
+       (1, 109, 'RFID-SISWA-109', '04F2A3B4C5', true),
+       (1, 110, 'RFID-SISWA-110', '04F5A6B7C8', true),
+       (1, 12, 'RFID-SISWA-012', '04A2B3C4D5', true),
+       (1, 13, 'RFID-SISWA-013', '04B3C4D5E6', true),
+       (2, 2001, 'RFID-SISWA-2001', 'DA200001', true),
+       (2, 14, 'RFID-SISWA-2014', 'DA200002', true),
+       (2, 15, 'RFID-SISWA-2015', 'DA200003', true),
+       (10, 1005, 'RFID-SISWA-005', 'DA100005', true),
+       (10, 1006, 'RFID-SISWA-006', 'DA100006', true),
+       (10, 1007, 'RFID-SISWA-007', 'DA100007', true)
+ON CONFLICT DO NOTHING;
+
+
 
 
 -- ── Foto menu demo (seed dev) ────────────────────────────────────────────────
@@ -1024,6 +1040,7 @@ VALUES (1, 201, 'UJI-RFID-201', '04AA000201', true),
        (10, 3001, 'UJI-RFID-3001', '04BB003001', true),
        (10, 3002, 'UJI-RFID-3002', '04BB003002', true)
 ON CONFLICT DO NOTHING;
+
 
 -- ── Nama pemilik kartu (khusus tampilan struk demo) ───────────
 -- Identitas asli tetap milik pusat (ADR-0002); ini hanya pengganti sementara
