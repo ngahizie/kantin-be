@@ -9,17 +9,21 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 /**
  * Jalur lookup kartu untuk mode <b>demo / dev</b> (issue #163).
  *
  * <p>Tujuan: membuka alur kasir <b>end-to-end</b> (tap → potong saldo/stok →
  * tutup sesi → cek laporan) di lokal <b>tanpa</b> menunggu data/keys tim SKOOLIA
- * (OPEN-QUESTIONS <b>Q7</b>). Mengenali Kartu Tamu dari tabel lokal dan satu
- * fixture UID siswa {@code DA100001} → siswa demo 1001 di sekolah 10; identitas
- * master siswa tetap tidak disimpan di kantin-be (ADR-0002).
+ * (OPEN-QUESTIONS <b>Q7</b>). Mengenali Kartu Tamu dari tabel lokal dan kartu
+ * siswa dari fixture {@code dev_siswa_rfid} (sekolah mana pun, selama barisnya
+ * ada dan {@code aktif = true}); identitas master siswa tetap tidak disimpan di
+ * kantin-be (ADR-0002).
  *
- * <p>Lookup Kartu Tamu memakai {@link KartuLookupKartuTamu}; fixture siswa khusus
- * demo dibatasi ke tenant 10 dan tidak ikut aktif pada profil {@code loadtest}.
+ * <p>Sejak seed demo tidak lagi memakai Kartu Tamu, fixture {@code dev_siswa_rfid}
+ * menjadi satu-satunya jalur tap yang berfungsi di lokal — karena itu lookup-nya
+ * tidak lagi dibatasi ke satu tenant/UID.
  *
  * <p><b>Gerbang keamanan:</b> hanya hidup bila {@code kantin.demo.enabled=true}
  * (default <b>false</b>). {@code @Primary} agar menang atas
@@ -33,9 +37,9 @@ import org.springframework.stereotype.Component;
 @ConditionalOnProperty(prefix = "kantin.demo", name = "enabled", havingValue = "true")
 public class KartuLookupDemo extends KartuLookupKartuTamu {
 
-    private static final String UID_SISWA_DEMO = "DA100001";
-    private static final Long SEKOLAH_DEMO = 10L;
-    private static final Long SISWA_DEMO = 1001L;
+    private static final String SQL_FIXTURE_SISWA =
+            "SELECT siswa_id FROM dev_siswa_rfid "
+                    + "WHERE sekolah_id = ? AND lower(rfid_uid) = lower(?) AND aktif = true";
 
     private final JdbcTemplate jdbc;
 
@@ -46,30 +50,27 @@ public class KartuLookupDemo extends KartuLookupKartuTamu {
 
     @Override
     public InfoKartu cariBerdasarkanUid(Long sekolahId, String rfidUid) {
-        var kartu = super.cariBerdasarkanUid(sekolahId, rfidUid);
-        if (kartu.isDikenal() || !SEKOLAH_DEMO.equals(sekolahId)
-                || !UID_SISWA_DEMO.equalsIgnoreCase(rfidUid)) {
+        InfoKartu kartu = super.cariBerdasarkanUid(sekolahId, rfidUid);
+        if (kartu.isDikenal() || sekolahId == null || rfidUid == null || rfidUid.isBlank()) {
             return kartu;
         }
 
         // Fixture demo saja; identitas siswa tetap null sesuai ADR-0002.
+        List<Long> siswaIds;
         try {
-            boolean tersedia = Boolean.TRUE.equals(jdbc.queryForObject(
-                    "SELECT EXISTS (SELECT 1 FROM dev_siswa_rfid "
-                            + "WHERE sekolah_id = ? AND siswa_id = ? AND rfid_uid = ? AND aktif = true)",
-                    Boolean.class, SEKOLAH_DEMO, SISWA_DEMO, rfidUid));
-            if (!tersedia) {
-                return kartu;
-            }
+            siswaIds = jdbc.queryForList(SQL_FIXTURE_SISWA, Long.class, sekolahId, rfidUid.trim());
         } catch (DataAccessException e) {
             // Fail-closed bila seed lokal tidak dimuat.
+            return kartu;
+        }
+        if (siswaIds.isEmpty()) {
             return kartu;
         }
         return InfoKartu.builder()
                 .dikenal(true)
                 .diblokir(false)
                 .subjekTipe(SubjekTipe.SISWA)
-                .subjekId(SISWA_DEMO)
+                .subjekId(siswaIds.get(0))
                 .build();
     }
 }
