@@ -8,6 +8,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -103,12 +104,12 @@ class KartuLookupDemoTest {
     @DisplayName("UID siswa fixture demo sekolah 10 dikenali sebagai SISWA")
     void uidSiswaDemoDikenali() {
         when(repo.findByRfidUid("DA100001")).thenReturn(Optional.empty());
-        when(jdbc.queryForObject(
+        when(jdbc.query(
                 org.mockito.ArgumentMatchers.contains("dev_siswa_rfid"),
-                org.mockito.ArgumentMatchers.eq(Boolean.class),
-                org.mockito.ArgumentMatchers.eq(10L), org.mockito.ArgumentMatchers.eq(1001L),
+                org.mockito.ArgumentMatchers.<org.springframework.jdbc.core.RowMapper<KartuLookupDemo.SiswaKartu>>any(),
+                org.mockito.ArgumentMatchers.eq(10L),
                 org.mockito.ArgumentMatchers.eq("DA100001")))
-                .thenReturn(true);
+                .thenReturn(List.of(new KartuLookupDemo.SiswaKartu(1001L, true)));
 
         InfoKartu info = lookup.cariBerdasarkanUid(10L, "DA100001");
 
@@ -119,19 +120,37 @@ class KartuLookupDemoTest {
     }
 
     @Test
+    @DisplayName("UID siswa fixture sekolah 1 dikenali sebagai SISWA (termasuk Abizard 1831574427)")
+    void uidSiswaSekolah1Dikenali() {
+        when(repo.findByRfidUid("1831574427")).thenReturn(Optional.empty());
+        when(jdbc.query(
+                org.mockito.ArgumentMatchers.contains("dev_siswa_rfid"),
+                org.mockito.ArgumentMatchers.<org.springframework.jdbc.core.RowMapper<KartuLookupDemo.SiswaKartu>>any(),
+                org.mockito.ArgumentMatchers.eq(1L),
+                org.mockito.ArgumentMatchers.eq("1831574427")))
+                .thenReturn(List.of(new KartuLookupDemo.SiswaKartu(107L, true)));
+
+        InfoKartu info = lookup.cariBerdasarkanUid(1L, "1831574427");
+
+        assertThat(info.isDikenal()).isTrue();
+        assertThat(info.getSubjekTipe()).isEqualTo(SubjekTipe.SISWA);
+        assertThat(info.getSubjekId()).isEqualTo(107L);
+    }
+
+    @Test
     @DisplayName("UID siswa demo tidak bocor lintas tenant atau jika fixture saldo tidak ada")
     void uidSiswaDemoFailClosed() {
         when(repo.findByRfidUid("DA100001")).thenReturn(Optional.empty());
-        when(jdbc.queryForObject(
+        when(jdbc.query(
                 org.mockito.ArgumentMatchers.contains("dev_siswa_rfid"),
-                org.mockito.ArgumentMatchers.eq(Boolean.class),
-                org.mockito.ArgumentMatchers.eq(10L), org.mockito.ArgumentMatchers.eq(1001L),
+                org.mockito.ArgumentMatchers.<org.springframework.jdbc.core.RowMapper<KartuLookupDemo.SiswaKartu>>any(),
+                org.mockito.ArgumentMatchers.eq(10L),
                 org.mockito.ArgumentMatchers.eq("DA100001")))
-                .thenReturn(false);
-        when(jdbc.queryForObject(
+                .thenReturn(List.<KartuLookupDemo.SiswaKartu>of());
+        when(jdbc.query(
                 org.mockito.ArgumentMatchers.contains("dev_siswa_rfid"),
-                org.mockito.ArgumentMatchers.eq(Boolean.class),
-                org.mockito.ArgumentMatchers.eq(10L), org.mockito.ArgumentMatchers.eq(1001L),
+                org.mockito.ArgumentMatchers.<org.springframework.jdbc.core.RowMapper<KartuLookupDemo.SiswaKartu>>any(),
+                org.mockito.ArgumentMatchers.eq(10L),
                 org.mockito.ArgumentMatchers.eq("DA100002")))
                 .thenThrow(new org.springframework.jdbc.BadSqlGrammarException(
                         "lookup", "SELECT", new java.sql.SQLException("table missing")));

@@ -33,9 +33,7 @@ import org.springframework.stereotype.Component;
 @ConditionalOnProperty(prefix = "kantin.demo", name = "enabled", havingValue = "true")
 public class KartuLookupDemo extends KartuLookupKartuTamu {
 
-    private static final String UID_SISWA_DEMO = "DA100001";
-    private static final Long SEKOLAH_DEMO = 10L;
-    private static final Long SISWA_DEMO = 1001L;
+    record SiswaKartu(Long siswaId, boolean aktif) {}
 
     private final JdbcTemplate jdbc;
 
@@ -47,29 +45,35 @@ public class KartuLookupDemo extends KartuLookupKartuTamu {
     @Override
     public InfoKartu cariBerdasarkanUid(Long sekolahId, String rfidUid) {
         var kartu = super.cariBerdasarkanUid(sekolahId, rfidUid);
-        if (kartu.isDikenal() || !SEKOLAH_DEMO.equals(sekolahId)
-                || !UID_SISWA_DEMO.equalsIgnoreCase(rfidUid)) {
+        if (kartu.isDikenal()) {
+            return kartu;
+        }
+
+        if (sekolahId == null || rfidUid == null || rfidUid.isBlank()) {
             return kartu;
         }
 
         // Fixture demo saja; identitas siswa tetap null sesuai ADR-0002.
         try {
-            boolean tersedia = Boolean.TRUE.equals(jdbc.queryForObject(
-                    "SELECT EXISTS (SELECT 1 FROM dev_siswa_rfid "
-                            + "WHERE sekolah_id = ? AND siswa_id = ? AND rfid_uid = ? AND aktif = true)",
-                    Boolean.class, SEKOLAH_DEMO, SISWA_DEMO, rfidUid));
-            if (!tersedia) {
-                return kartu;
+            var list = jdbc.query(
+                    "SELECT siswa_id, aktif FROM dev_siswa_rfid "
+                            + "WHERE sekolah_id = ? AND UPPER(rfid_uid) = UPPER(?)",
+                    (rs, rowNum) -> new SiswaKartu(rs.getLong("siswa_id"), rs.getBoolean("aktif")),
+                    sekolahId, rfidUid.trim());
+
+            if (!list.isEmpty()) {
+                SiswaKartu sk = list.get(0);
+                return InfoKartu.builder()
+                        .dikenal(true)
+                        .diblokir(!sk.aktif())
+                        .subjekTipe(SubjekTipe.SISWA)
+                        .subjekId(sk.siswaId())
+                        .build();
             }
         } catch (DataAccessException e) {
             // Fail-closed bila seed lokal tidak dimuat.
             return kartu;
         }
-        return InfoKartu.builder()
-                .dikenal(true)
-                .diblokir(false)
-                .subjekTipe(SubjekTipe.SISWA)
-                .subjekId(SISWA_DEMO)
-                .build();
+        return kartu;
     }
 }

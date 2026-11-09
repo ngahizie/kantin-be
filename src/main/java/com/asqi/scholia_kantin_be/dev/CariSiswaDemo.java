@@ -38,7 +38,8 @@ public class CariSiswaDemo implements CariSiswaPort {
             new SiswaDemo(103L, "2024003", "Andi Wijaya", "8B", false),
             new SiswaDemo(104L, "2024004", "Dewi Lestari", "8B", false),
             new SiswaDemo(105L, "2024005", "Rizky Pratama", "9C", false),
-            new SiswaDemo(106L, "2023006", "Maya Sari", "9C", true)); // nonaktif (lulus)
+            new SiswaDemo(106L, "2023006", "Maya Sari", "9C", true), // nonaktif (lulus)
+            new SiswaDemo(107L, "2024007", "Abizard", "7A", false));
 
     private final LedgerSaldoService ledgerSaldo;
 
