@@ -88,7 +88,7 @@ public interface TransaksiRepository extends JpaRepository<Transaksi, Long>,
               AND t.status = :status
               AND t.waktu >= :dari AND t.waktu < :sampai
             """)
-    Long totalHppRentang(@Param("sekolahId") Long sekolahId,
+    Long totalModalRentang(@Param("sekolahId") Long sekolahId,
                          @Param("status") StatusTransaksi status,
                          @Param("dari") OffsetDateTime dari,
                          @Param("sampai") OffsetDateTime sampai);

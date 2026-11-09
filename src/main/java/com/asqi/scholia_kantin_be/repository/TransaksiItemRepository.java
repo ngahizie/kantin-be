@@ -31,7 +31,8 @@ public interface TransaksiItemRepository extends JpaRepository<TransaksiItem, Lo
      * <p>JOIN ke {@code Transaksi} untuk memfilter status &amp; waktu.
      */
     @Query("""
-            SELECT i.menuId, i.namaMenu, SUM(i.qty), SUM(i.subtotal)
+            SELECT i.menuId, i.namaMenu, SUM(i.qty), SUM(i.subtotal),
+                   SUM(i.hppSnapshot * i.qty)
             FROM TransaksiItem i JOIN i.transaksi t
             WHERE t.sekolahId = :sekolahId
               AND t.status = com.asqi.scholia_kantin_be.enums.StatusTransaksi.SUKSES
@@ -46,7 +47,8 @@ public interface TransaksiItemRepository extends JpaRepository<TransaksiItem, Lo
 
     /** Penjualan per kategori pada rentang waktu: {@code [kategoriId, totalQty, totalNilai]}. */
     @Query("""
-            SELECT i.kategoriId, SUM(i.qty), SUM(i.subtotal)
+            SELECT i.kategoriId, SUM(i.qty), SUM(i.subtotal),
+                   SUM(i.hppSnapshot * i.qty)
             FROM TransaksiItem i JOIN i.transaksi t
             WHERE t.sekolahId = :sekolahId
               AND t.status = com.asqi.scholia_kantin_be.enums.StatusTransaksi.SUKSES
