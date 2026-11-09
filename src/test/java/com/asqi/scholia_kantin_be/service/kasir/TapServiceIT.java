@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
@@ -40,6 +41,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * transaksi, idempotency, dan locking berjalan nyata.
  */
 @SpringBootTest
+@TestPropertySource(properties = "kantin.demo.enabled=false")
 @Import({TestcontainersConfig.class, TapServiceIT.FakePortConfig.class})
 @EnabledIfDockerAvailable
 class TapServiceIT {
@@ -53,6 +55,9 @@ class TapServiceIT {
 
     @Autowired
     private TapService tapService;
+
+    @Autowired
+    private SesiKasirService sesiKasirService;
 
     @Autowired
     private LedgerSaldoService ledgerSaldo;
@@ -195,6 +200,39 @@ class TapServiceIT {
         Integer jumlahTrx = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM transaksi WHERE idempotency_key = 'tap-dup'", Integer.class);
         assertThat(jumlahTrx).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("#277 tap menolak titik kasir milik sekolah lain tanpa membuat sesi atau transaksi")
+    void tapMenolakTitikKasirLintasTenant() {
+        long titikSekolahLain = 1001L;
+        jdbc.update("INSERT INTO titik_kasir (id, sekolah_id, nama, is_active, created_at, updated_at) "
+                + "VALUES (?, ?, 'Kasir sekolah lain', true, now(), now())", titikSekolahLain, 10L);
+
+        TapRequest req = request("tap-cross-tenant", 1, 0);
+        req.setTitikKasirId(titikSekolahLain);
+
+        assertThatThrownBy(() -> tapService.tap(SEKOLAH, petugas, req))
+                .isInstanceOf(com.asqi.scholia_kantin_be.component.exception.NotFoundEntity.class)
+                .hasMessageContaining("Titik kasir tidak ditemukan");
+
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM sesi_kasir", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM transaksi", Integer.class)).isZero();
+        assertThat(ledgerSaldo.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA)).isEqualTo(50_000L);
+        assertThat(ledgerStok.stok(SEKOLAH, MENU_NASI)).isEqualTo(20);
+    }
+
+    @Test
+    @DisplayName("#277 buka sesi eksplisit menolak titik kasir lintas tenant")
+    void bukaSesiMenolakTitikKasirLintasTenant() {
+        long titikSekolahLain = 1002L;
+        jdbc.update("INSERT INTO titik_kasir (id, sekolah_id, nama, is_active, created_at, updated_at) "
+                + "VALUES (?, ?, 'Kasir sekolah lain', true, now(), now())", titikSekolahLain, 10L);
+
+        assertThatThrownBy(() -> sesiKasirService.bukaSesi(SEKOLAH, titikSekolahLain))
+                .isInstanceOf(com.asqi.scholia_kantin_be.component.exception.NotFoundEntity.class)
+                .hasMessageContaining("Titik kasir tidak ditemukan");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM sesi_kasir", Integer.class)).isZero();
     }
 
     @Test

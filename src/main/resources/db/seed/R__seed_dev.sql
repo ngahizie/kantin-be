@@ -258,7 +258,9 @@ VALUES
   (900020, 1, 'KARTU_TAMU', 10, 'DEBIT',  'KOREKSI',      5000,  70000, NULL, 'seed-dev-kt10-koreksi', 'KOREKSI',   'BA-003',    'Koreksi kelebihan topup', 2, ((CURRENT_DATE - 1) + time '15:10') AT TIME ZONE 'Asia/Jakarta', now()),
   -- Sekolah 2: kartu 11 topup 75.000 → belanja 12.000 = 63.000
   (900030, 2, 'KARTU_TAMU', 11, 'KREDIT', 'TOPUP_TUNAI', 75000, 75000, NULL, 'seed-dev-s2kt1-topup',   'TOPUP',     'S2-TOPUP-001', 'Top up tunai di TU', 2, ((CURRENT_DATE - 1) + time '08:00') AT TIME ZONE 'Asia/Jakarta', now()),
-  (900031, 2, 'KARTU_TAMU', 11, 'DEBIT',  'PENJUALAN',    12000, 63000, 900110, 'seed-dev-s2kt1-trx',    'TRANSAKSI', '900110',    NULL, 4, ((CURRENT_DATE) + time '08:20') AT TIME ZONE 'Asia/Jakarta', now())
+  (900031, 2, 'KARTU_TAMU', 11, 'DEBIT',  'PENJUALAN',    12000, 63000, 900110, 'seed-dev-s2kt1-trx',    'TRANSAKSI', '900110',    NULL, 4, ((CURRENT_DATE) + time '08:20') AT TIME ZONE 'Asia/Jakarta', now()),
+  -- Siswa demo 107 (Abizard, UID 1831574427): topup tunai 100.000
+  (900050, 1, 'SISWA', 107, 'KREDIT', 'TOPUP_TUNAI', 100000, 100000, NULL, 'seed-dev-siswa107-topup', 'TOPUP', 'TOPUP-SISWA-107', 'Top up tunai siswa Abizard', 2, ((CURRENT_DATE - 1) + time '08:00') AT TIME ZONE 'Asia/Jakarta', now())
 ON CONFLICT DO NOTHING;
 
 -- ── Saldo cache (= saldo_setelah terakhir per subjek) ────────
@@ -273,7 +275,8 @@ VALUES ('KARTU_TAMU', 1, 1, 85000, now()),
        ('KARTU_TAMU', 8, 1, 25000, now()),
        ('KARTU_TAMU', 9, 1, 0,     now()),
        ('KARTU_TAMU', 10, 1, 70000, now()),
-       ('KARTU_TAMU', 11, 2, 63000, now())
+       ('KARTU_TAMU', 11, 2, 63000, now()),
+       ('SISWA',      107, 1, 100000, now())
 ON CONFLICT DO NOTHING;
 
 -- ── Pengaturan per kartu (layar "Kontrol Kartu") ─────────────
@@ -913,6 +916,7 @@ VALUES (1, 101, 'RFID-SISWA-101', '04A1B2C3D4', true),
        (1, 103, 'RFID-SISWA-103', '04C3D4E5F6', false),  -- kartu diblokir
        (1, 104, 'RFID-SISWA-104', '04D4E5F6A1', true),
        (1, 105, 'RFID-SISWA-105', '04E5F6A1B2', true),
+       (1, 107, 'RFID-SISWA-107', '1831574427', true),
        (10, 1001, 'RFID-SISWA-001', 'DA100001', true)
 ON CONFLICT DO NOTHING;
 

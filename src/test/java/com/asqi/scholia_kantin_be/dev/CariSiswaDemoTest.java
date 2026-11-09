@@ -38,7 +38,7 @@ class CariSiswaDemoTest {
     void tanpaKataKunciDaftarAwal() {
         List<InfoSiswa> hasil = cari.cari(1L, null, false, 50);
 
-        assertThat(hasil).hasSize(6);
+        assertThat(hasil).hasSize(7);
         assertThat(hasil).allSatisfy(s -> assertThat(s.getSaldo()).isEqualTo(25_000L));
     }
 
@@ -94,6 +94,19 @@ class CariSiswaDemoTest {
             assertThat(s.getNis()).isEqualTo("2026002");
             assertThat(s.getNama()).isEqualTo("Siti Rahmawati");
             assertThat(s.getKelas()).isEqualTo("XI IPS 2");
+        });
+    }
+
+    @Test
+    @DisplayName("#214: identitas Abizard konsisten dengan data demo frontend dan seed RFID")
+    void identitasAbizardSesuaiFrontend() {
+        List<InfoSiswa> hasil = cari.cari(1L, "2024007", false, 50);
+
+        assertThat(hasil).singleElement().satisfies(s -> {
+            assertThat(s.getSiswaId()).isEqualTo(107L);
+            assertThat(s.getNis()).isEqualTo("2024007");
+            assertThat(s.getNama()).isEqualTo("Abizard");
+            assertThat(s.getKelas()).isEqualTo("7A");
         });
     }
 
