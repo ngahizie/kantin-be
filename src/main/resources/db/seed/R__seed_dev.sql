@@ -525,9 +525,16 @@ CREATE TABLE IF NOT EXISTS dev_siswa_rfid (
     nomor_kartu VARCHAR(32) NOT NULL,
     rfid_uid VARCHAR(50) NOT NULL UNIQUE,
     aktif BOOLEAN NOT NULL DEFAULT true,
+    -- Nama & kelas hanya untuk tampilan struk saat demo; data asli milik pusat.
+    nama VARCHAR(100),
+    kelas VARCHAR(30),
     PRIMARY KEY (sekolah_id, siswa_id),
     UNIQUE (sekolah_id, nomor_kartu)
 );
+
+-- DB lokal yang dibuat sebelum kolom ini ada: tambahkan tanpa menghapus data.
+ALTER TABLE dev_siswa_rfid ADD COLUMN IF NOT EXISTS nama  VARCHAR(100);
+ALTER TABLE dev_siswa_rfid ADD COLUMN IF NOT EXISTS kelas VARCHAR(30);
 
 INSERT INTO dev_siswa_rfid (sekolah_id, siswa_id, nomor_kartu, rfid_uid, aktif)
 VALUES (10, 1001, 'RFID-SISWA-001', 'DA100001', true)
@@ -1020,3 +1027,40 @@ VALUES (1, 201, 'UJI-RFID-201', '04AA000201', true),
        (10, 3001, 'UJI-RFID-3001', '04BB003001', true),
        (10, 3002, 'UJI-RFID-3002', '04BB003002', true)
 ON CONFLICT DO NOTHING;
+
+-- ── Nama pemilik kartu (khusus tampilan struk demo) ───────────
+-- Identitas asli tetap milik pusat (ADR-0002); ini hanya pengganti sementara
+-- supaya struk menampilkan nama, bukan kosong.
+UPDATE dev_siswa_rfid d
+   SET nama = v.nama, kelas = v.kelas
+  FROM (VALUES
+    (1,  101,  'Raka Aditya Pratama', '7A'),
+    (1,  102,  'Nadia Safitri',       '7A'),
+    (1,  103,  'Bima Arya Nugraha',   '7B'),
+    (1,  104,  'Salsabila Putri',     '7B'),
+    (1,  105,  'Fajar Ramadhan',      '8A'),
+    (1,  106,  'Kirana Dewi Lestari', '8A'),
+    (1,  107,  'Abizard',             '8B'),
+    (1,  108,  'Yusuf Maulana',       '8B'),
+    (1,  109,  'Intan Permata',       '9A'),
+    (1,  110,  'Daffa Alfarizi',      '9A'),
+    (1,  12,   'Alya Rahmawati',      '7C'),
+    (1,  13,   'Bagas Saputra',       '7C'),
+    (2,  14,   'Rizky Hidayat',       '8A'),
+    (2,  15,   'Melati Anggraini',    '8B'),
+    (2,  2001, 'Nabila Zahra',        '7A'),
+    (10, 1001, 'Ahmad Fauzan',        '7A'),
+    (10, 1005, 'Citra Ayu Lestari',   '7A'),
+    (10, 1006, 'Dimas Prakoso',       '7B'),
+    (10, 1007, 'Eka Wulandari',       '7B'),
+    -- akun pengetesan RFID
+    (1,  201,  'Rangga Pratama',      '7A'),
+    (1,  202,  'Sinta Maharani',      '7B'),
+    (1,  203,  'Galih Purnomo',       '8A'),
+    (1,  204,  'Wulan Sari',          '8B'),
+    (1,  205,  'Hendra Wijaya',       '9A'),
+    (10, 3001, 'Anisa Rahma',         '7A'),
+    (10, 3002, 'Bayu Setiawan',       '7B')
+  ) AS v(sekolah_id, siswa_id, nama, kelas)
+ WHERE d.sekolah_id = v.sekolah_id
+   AND d.siswa_id = v.siswa_id;

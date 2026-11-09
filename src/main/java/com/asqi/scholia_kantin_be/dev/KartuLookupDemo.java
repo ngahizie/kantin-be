@@ -33,7 +33,12 @@ import org.springframework.stereotype.Component;
 @ConditionalOnProperty(prefix = "kantin.demo", name = "enabled", havingValue = "true")
 public class KartuLookupDemo extends KartuLookupKartuTamu {
 
-    record SiswaKartu(Long siswaId, boolean aktif) {}
+    record SiswaKartu(Long siswaId, boolean aktif, String nama, String kelas) {
+        /** Dipakai pengujian lama yang belum peduli nama. */
+        SiswaKartu(Long siswaId, boolean aktif) {
+            this(siswaId, aktif, null, null);
+        }
+    }
 
     private final JdbcTemplate jdbc;
 
@@ -56,9 +61,13 @@ public class KartuLookupDemo extends KartuLookupKartuTamu {
         // Fixture demo saja; identitas siswa tetap null sesuai ADR-0002.
         try {
             var list = jdbc.query(
-                    "SELECT siswa_id, aktif FROM dev_siswa_rfid "
+                    "SELECT siswa_id, aktif, nama, kelas FROM dev_siswa_rfid "
                             + "WHERE sekolah_id = ? AND UPPER(rfid_uid) = UPPER(?)",
-                    (rs, rowNum) -> new SiswaKartu(rs.getLong("siswa_id"), rs.getBoolean("aktif")),
+                    (rs, rowNum) -> new SiswaKartu(
+                            rs.getLong("siswa_id"),
+                            rs.getBoolean("aktif"),
+                            rs.getString("nama"),
+                            rs.getString("kelas")),
                     sekolahId, rfidUid.trim());
 
             if (!list.isEmpty()) {
@@ -68,6 +77,9 @@ public class KartuLookupDemo extends KartuLookupKartuTamu {
                         .diblokir(!sk.aktif())
                         .subjekTipe(SubjekTipe.SISWA)
                         .subjekId(sk.siswaId())
+                        // Nama/kelas hanya untuk tampilan struk demo; boleh null.
+                        .nama(sk.nama())
+                        .kelas(sk.kelas())
                         .build();
             }
         } catch (DataAccessException e) {
