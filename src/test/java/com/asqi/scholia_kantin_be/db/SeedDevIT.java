@@ -46,7 +46,9 @@ class SeedDevIT {
 
         Jumlah awal = hitung(jdbc);
         assertThat(awal.menu()).as("menu dari seed").isEqualTo(36);
-        assertThat(awal.kartuTamu()).as("kartu tamu dari seed").isEqualTo(19);
+        // Kartu Tamu sengaja dihapus dari seed demo: riwayat transaksi kini memakai
+        // siswa, dan alur tap memakai fixture dev_siswa_rfid.
+        assertThat(awal.kartuTamu()).as("kartu tamu dari seed").isZero();
         assertThat(awal.transaksi()).as("transaksi dari seed").isEqualTo(22);
 
         // Tenant default form login FE (sekolah_id=10) wajib punya data —
@@ -56,7 +58,7 @@ class SeedDevIT {
                 .as("menu tenant FE (sekolah 10)").isEqualTo(11);
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM kartu_tamu WHERE sekolah_id = 10", Integer.class))
-                .as("kartu tamu tenant FE").isEqualTo(4);
+                .as("kartu tamu tenant FE").isZero();
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM transaksi WHERE sekolah_id = 10", Integer.class))
                 .as("transaksi tenant FE").isEqualTo(5);
