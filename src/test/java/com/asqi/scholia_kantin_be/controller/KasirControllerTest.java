@@ -1,14 +1,17 @@
 package com.asqi.scholia_kantin_be.controller;
 
+import com.asqi.scholia_kantin_be.dto.CekKartuResponse;
 import com.asqi.scholia_kantin_be.dto.HalamanResponse;
 import com.asqi.scholia_kantin_be.dto.TapRequest;
 import com.asqi.scholia_kantin_be.dto.TapResponse;
 import com.asqi.scholia_kantin_be.dto.TransaksiKasirItem;
 import com.asqi.scholia_kantin_be.dto.VoidRequest;
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
+import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.security.IdentitasKantin;
 import com.asqi.scholia_kantin_be.security.TenantContext;
 import com.asqi.scholia_kantin_be.service.integrasi.BukuKasPostingService;
+import com.asqi.scholia_kantin_be.service.kasir.CekKartuService;
 import com.asqi.scholia_kantin_be.service.kasir.SesiKasirService;
 import com.asqi.scholia_kantin_be.service.kasir.TapService;
 import com.asqi.scholia_kantin_be.service.kasir.TransaksiKasirService;
@@ -53,6 +56,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class KasirControllerTest {
 
     private TapService tapService;
+    private CekKartuService cekKartuService;
     private VoidService voidService;
     private SesiKasirService sesiKasirService;
     private BukuKasPostingService bukuKasPosting;
@@ -77,13 +81,15 @@ class KasirControllerTest {
     @BeforeEach
     void setUp() {
         tapService = mock(TapService.class);
+        cekKartuService = mock(CekKartuService.class);
         voidService = mock(VoidService.class);
         sesiKasirService = mock(SesiKasirService.class);
         bukuKasPosting = mock(BukuKasPostingService.class);
         transaksiKasirService = mock(TransaksiKasirService.class);
 
         KasirController controller = new KasirController(
-                tapService, voidService, sesiKasirService, bukuKasPosting, transaksiKasirService);
+                tapService, cekKartuService, voidService, sesiKasirService, bukuKasPosting,
+                transaksiKasirService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setCustomArgumentResolvers(new PrincipalResolver())
                 .build();
@@ -133,24 +139,72 @@ class KasirControllerTest {
     }
 
     @Test
-    void voidMeneruskanAktorIdDariToken() throws Exception {
+    @DisplayName("cek kartu: identitas + saldo, tanpa memotong saldo")
+    void cekKartuMengembalikanIdentitas() throws Exception {
+        when(cekKartuService.cek(eq(7L), eq("04AA000201"))).thenReturn(new CekKartuResponse(
+                "04AA000201", SubjekTipe.SISWA, 201L, "Rangga Pratama", "7A", null,
+                46_000L, 0L, null, null, false, true, null));
+
+        mockMvc.perform(get("/api/kasir/kartu/04AA000201"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.nama").value("Rangga Pratama"))
+                .andExpect(jsonPath("$.data.kelas").value("7A"))
+                .andExpect(jsonPath("$.data.saldo").value(46000))
+                .andExpect(jsonPath("$.data.bisaBelanja").value(true));
+
+        verify(cekKartuService).cek(eq(7L), eq("04AA000201"));
+    }
+
+    @Test
+    void refundMeneruskanAktorIdDariToken() throws Exception {
         VoidRequest req = new VoidRequest();
         req.setAlasan("salah input");
+        req.setKodeStruk("TRX-20261109-55");
+
+        mockMvc.perform(post("/api/kasir/transaksi/55/refund")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(req)))
+                .andExpect(status().isOk());
+
+        // aktorId = 42 (dari token), sekolahId = 7 (tenant), kode struk ikut diteruskan.
+        verify(voidService).refundTransaksi(
+                eq(7L), eq(55L), eq(42L), eq("salah input"), eq("TRX-20261109-55"));
+    }
+
+    @Test
+    @DisplayName("endpoint lama /void tetap jalan (kompatibilitas) tapi wajib kode struk")
+    void endpointLamaVoidMasihJalan() throws Exception {
+        VoidRequest req = new VoidRequest();
+        req.setAlasan("salah input");
+        req.setKodeStruk("TRX-20261109-55");
 
         mockMvc.perform(post("/api/kasir/transaksi/55/void")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(mapper.writeValueAsString(req)))
                 .andExpect(status().isOk());
 
-        // aktorId = 42 (dari token), sekolahId = 7 (tenant).
-        verify(voidService).voidTransaksi(eq(7L), eq(55L), eq(42L), eq("salah input"));
+        verify(voidService).refundTransaksi(
+                eq(7L), eq(55L), eq(42L), eq("salah input"), eq("TRX-20261109-55"));
     }
 
     @Test
-    void voidTanpaAlasanDitolakValidasi() throws Exception {
-        VoidRequest req = new VoidRequest(); // alasan null
+    void refundTanpaAlasanDitolakValidasi() throws Exception {
+        VoidRequest req = new VoidRequest(); // alasan & kode struk null
+        req.setKodeStruk("TRX-20261109-55");
 
-        mockMvc.perform(post("/api/kasir/transaksi/55/void")
+        mockMvc.perform(post("/api/kasir/transaksi/55/refund")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(req)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("refund tanpa kode struk ditolak validasi (PRD §6.3)")
+    void refundTanpaKodeStrukDitolakValidasi() throws Exception {
+        VoidRequest req = new VoidRequest();
+        req.setAlasan("salah input"); // kode struk null
+
+        mockMvc.perform(post("/api/kasir/transaksi/55/refund")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(mapper.writeValueAsString(req)))
                 .andExpect(status().isBadRequest());

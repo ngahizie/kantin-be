@@ -7,6 +7,7 @@ import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.JenisNotifikasi;
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
+import com.asqi.scholia_kantin_be.helper.NomorStruk;
 import com.asqi.scholia_kantin_be.model.SesiKasir;
 import com.asqi.scholia_kantin_be.model.Transaksi;
 import com.asqi.scholia_kantin_be.model.TransaksiItem;
@@ -65,15 +66,21 @@ public class VoidService {
      * @param sekolahId tenant pemanggil
      * @param transaksiId transaksi yang dibatalkan
      * @param aktorId petugas yang membatalkan (audit)
-     * @param alasan alasan void (wajib)
+     * @param alasan alasan refund (wajib)
+     * @param kodeStruk kode struk transaksi (wajib, harus cocok)
      */
     @Transactional
-    public Transaksi voidTransaksi(Long sekolahId, Long transaksiId, Long aktorId, String alasan) {
+    public Transaksi refundTransaksi(Long sekolahId, Long transaksiId, Long aktorId,
+                                     String alasan, String kodeStruk) {
         if (alasan == null || alasan.isBlank()) {
-            throw new InvalidOperationException("Alasan void wajib diisi (PRD §6.3)");
+            throw new InvalidOperationException("Alasan refund wajib diisi (PRD §6.3)");
+        }
+        if (kodeStruk == null || kodeStruk.isBlank()) {
+            throw new InvalidOperationException("Kode struk wajib diisi (PRD §6.3)");
         }
 
         Transaksi trx = muatTransaksi(sekolahId, transaksiId);
+        pastikanKodeStrukCocok(trx, kodeStruk);
 
         // Hanya boleh void pada sesi yang masih terbuka (hari yang sama).
         SesiKasir sesi = sesiRepo.findById(trx.getSesiKasirId())
@@ -122,7 +129,21 @@ public class VoidService {
         return balikkan(sekolahId, trx, aktorId, alasan, true);
     }
 
-    /** Muat transaksi + guard tenant + pastikan belum di-void (PRD §11.4). */
+    /**
+     * Pastikan kode struk yang diketik kasir memang milik transaksi ini.
+     *
+     * <p>Perbandingan mengabaikan spasi di ujung dan besar-kecil huruf, karena
+     * kode bisa dipindai (scanner) atau diketik manual.
+     */
+    private void pastikanKodeStrukCocok(Transaksi trx, String kodeStruk) {
+        String seharusnya = NomorStruk.dari(trx.getId(), trx.getWaktu());
+        if (seharusnya == null || !seharusnya.equalsIgnoreCase(kodeStruk.trim())) {
+            throw new InvalidOperationException(
+                    "Kode struk tidak cocok dengan transaksi ini (PRD §6.3)");
+        }
+    }
+
+    /** Muat transaksi + guard tenant + pastikan belum di-refund (PRD §11.4). */
     private Transaksi muatTransaksi(Long sekolahId, Long transaksiId) {
         Transaksi trx = transaksiRepo.kunciUntukVoid(transaksiId)
                         .orElseThrow(() -> new NotFoundEntity("Transaksi tidak ditemukan"));
@@ -132,7 +153,7 @@ public class VoidService {
             throw new NotFoundEntity("Transaksi tidak ditemukan");
         }
         if (trx.getStatus() == StatusTransaksi.VOID) {
-            throw new InvalidOperationException("Transaksi sudah di-void");
+            throw new InvalidOperationException("Transaksi sudah di-refund");
         }
         return trx;
     }
@@ -158,7 +179,7 @@ public class VoidService {
 
         // 2) Kembalikan saldo penuh (kredit pembalik, key unik agar tak dobel).
         //    Void kasir → VOID_PENJUALAN; koreksi bendahara → KOREKSI (PRD §9.2).
-        String prefix = koreksi ? "KOREKSI-TRX-" : "VOID-";
+        String prefix = koreksi ? "KOREKSI-TRX-" : "REFUND-";
         JenisMutasiSaldo jenis = koreksi ? JenisMutasiSaldo.KOREKSI : JenisMutasiSaldo.VOID_PENJUALAN;
         ledgerSaldo.kredit(PerintahMutasiSaldo.builder()
                 .sekolahId(sekolahId)
@@ -170,7 +191,7 @@ public class VoidService {
                 .transaksiId(trx.getId())
                 .referensiTipe("TRANSAKSI")
                 .referensiId(String.valueOf(trx.getId()))
-                .keterangan((koreksi ? "Koreksi: " : "Void: ") + alasan)
+                .keterangan((koreksi ? "Koreksi: " : "Refund: ") + alasan)
                 .aktorId(aktorId)
                 .build());
 
@@ -184,12 +205,12 @@ public class VoidService {
 
         // 4) Audit (PRD §11.7).
         auditLogger.catat(aktorId, sekolahId,
-                koreksi ? "KOREKSI_TRANSAKSI_SESI_TERTUTUP" : "VOID_TRANSAKSI",
+                koreksi ? "KOREKSI_TRANSAKSI_SESI_TERTUTUP" : "REFUND_TRANSAKSI",
                 "Transaksi", String.valueOf(trx.getId()), alasan,
                 StatusTransaksi.SUKSES.name(), StatusTransaksi.VOID.name());
 
         log.info("{} transaksi id={} oleh={} alasan={}",
-                koreksi ? "Koreksi sesi tertutup" : "Void", trx.getId(), aktorId, alasan);
+                koreksi ? "Koreksi sesi tertutup" : "Refund", trx.getId(), aktorId, alasan);
 
         // Notifikasi ke ortu (PRD §8.4) — best-effort/fail-open: kegagalan
         // pengiriman TIDAK membatalkan pembalik yang sudah tercatat di ledger.

@@ -2,6 +2,7 @@ package com.asqi.scholia_kantin_be.service.integrasi;
 
 import com.asqi.scholia_kantin_be.dto.TapRequest;
 import com.asqi.scholia_kantin_be.dto.TapResponse;
+import com.asqi.scholia_kantin_be.helper.NomorStruk;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.JenisNotifikasi;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
@@ -130,7 +131,8 @@ class NotifikasiIntegrasiIT {
     @DisplayName("void → notifikasi VOID")
     void voidMemicuNotifikasi() {
         TapResponse tap = tap("tap-2", 1);
-        voidService.voidTransaksi(SEKOLAH, tap.getTransaksiId(), 555L, "salah input");
+        voidService.refundTransaksi(SEKOLAH, tap.getTransaksiId(), 555L, "salah input",
+                NomorStruk.dari(tap.getTransaksiId(), tap.getWaktu()));
 
         PerintahNotifikasi p = fakeNotifikasi.satu(JenisNotifikasi.VOID);
         assertThat(p.getSubjekId()).isEqualTo(SISWA);

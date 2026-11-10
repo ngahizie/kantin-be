@@ -2,6 +2,7 @@ package com.asqi.scholia_kantin_be.service.kasir;
 
 import com.asqi.scholia_kantin_be.dto.TapRequest;
 import com.asqi.scholia_kantin_be.dto.TapResponse;
+import com.asqi.scholia_kantin_be.helper.NomorStruk;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
@@ -104,14 +105,42 @@ class VoidServiceIT {
         return tapService.tap(SEKOLAH, petugas, r);
     }
 
+    /** Kode struk yang benar untuk transaksi hasil tap. */
+    private String kode(TapResponse tap) {
+        return NomorStruk.dari(tap.getTransaksiId(), tap.getWaktu());
+    }
+
     @Test
-    @DisplayName("void mengembalikan saldo & stok lewat mutasi pembalik")
+    @DisplayName("kode struk salah ditolak — uang tidak boleh kembali")
+    void kodeStrukSalahDitolak() {
+        TapResponse tap = tap("tap-kode-salah", 1);
+        long saldoSebelum = ledgerSaldo.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA);
+
+        assertThatThrownBy(() -> voidService.refundTransaksi(
+                SEKOLAH, tap.getTransaksiId(), 555L, "salah pilih", "TRX-19990101-1"))
+                .hasMessageContaining("Kode struk tidak cocok");
+
+        // Tidak ada uang yang kembali.
+        assertThat(ledgerSaldo.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA)).isEqualTo(saldoSebelum);
+    }
+
+    @Test
+    @DisplayName("kode struk kosong ditolak")
+    void kodeStrukKosongDitolak() {
+        TapResponse tap = tap("tap-kode-kosong", 1);
+        assertThatThrownBy(() -> voidService.refundTransaksi(
+                SEKOLAH, tap.getTransaksiId(), 555L, "alasan ada", "  "))
+                .hasMessageContaining("Kode struk wajib");
+    }
+
+    @Test
+    @DisplayName("refund mengembalikan saldo & stok lewat mutasi pembalik")
     void voidMengembalikan() {
         TapResponse tap = tap("tap-1", 2); // 2 × 8000 = 16.000
         assertThat(ledgerSaldo.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA)).isEqualTo(34_000L);
         assertThat(ledgerStok.stok(SEKOLAH, MENU_NASI)).isEqualTo(18);
 
-        var trx = voidService.voidTransaksi(SEKOLAH, tap.getTransaksiId(), 555L, "Kartu dipakai bukan pemiliknya");
+        var trx = voidService.refundTransaksi(SEKOLAH, tap.getTransaksiId(), 555L, "Kartu dipakai bukan pemiliknya", kode(tap));
 
         assertThat(trx.getStatus()).isEqualTo(StatusTransaksi.VOID);
         assertThat(trx.getAlasanVoid()).isEqualTo("Kartu dipakai bukan pemiliknya");
@@ -132,9 +161,9 @@ class VoidServiceIT {
     @DisplayName("void tanpa alasan ditolak")
     void voidTanpaAlasanDitolak() {
         TapResponse tap = tap("tap-2", 1);
-        assertThatThrownBy(() -> voidService.voidTransaksi(SEKOLAH, tap.getTransaksiId(), 555L, "  "))
+        assertThatThrownBy(() -> voidService.refundTransaksi(SEKOLAH, tap.getTransaksiId(), 555L, "  ", kode(tap)))
                 .isInstanceOf(com.asqi.scholia_kantin_be.component.exception.InvalidOperationException.class)
-                .hasMessageContaining("Alasan void wajib");
+                .hasMessageContaining("Alasan refund wajib");
     }
 
     @Test
@@ -158,8 +187,8 @@ class VoidServiceIT {
                 try {
                     mulai.await();
                     try {
-                        var trx = voidService.voidTransaksi(
-                                SEKOLAH, tap.getTransaksiId(), 555L, "void paralel #" + seq);
+                        var trx = voidService.refundTransaksi(
+                                SEKOLAH, tap.getTransaksiId(), 555L, "refund paralel #" + seq, kode(tap));
                         sukses.incrementAndGet();
                         return trx;
                     } catch (RuntimeException e) {
@@ -197,9 +226,9 @@ class VoidServiceIT {
     @DisplayName("void dua kali ditolak")
     void voidDuaKaliDitolak() {
         TapResponse tap = tap("tap-3", 1);
-        voidService.voidTransaksi(SEKOLAH, tap.getTransaksiId(), 555L, "salah");
-        assertThatThrownBy(() -> voidService.voidTransaksi(SEKOLAH, tap.getTransaksiId(), 555L, "lagi"))
-                .hasMessageContaining("sudah di-void");
+        voidService.refundTransaksi(SEKOLAH, tap.getTransaksiId(), 555L, "salah", kode(tap));
+        assertThatThrownBy(() -> voidService.refundTransaksi(SEKOLAH, tap.getTransaksiId(), 555L, "lagi", kode(tap)))
+                .hasMessageContaining("sudah di-refund");
     }
 
     @Test
@@ -210,7 +239,7 @@ class VoidServiceIT {
                 "SELECT sesi_kasir_id FROM transaksi WHERE id = ?", Long.class, tap.getTransaksiId());
         sesiKasir.tutupSesi(SEKOLAH, sesiId, 555L, false);
 
-        assertThatThrownBy(() -> voidService.voidTransaksi(SEKOLAH, tap.getTransaksiId(), 555L, "salah"))
+        assertThatThrownBy(() -> voidService.refundTransaksi(SEKOLAH, tap.getTransaksiId(), 555L, "salah", kode(tap)))
                 .hasMessageContaining("sudah ditutup");
     }
 
@@ -218,7 +247,7 @@ class VoidServiceIT {
     @DisplayName("void transaksi sekolah lain → 404")
     void voidTenantLain404() {
         TapResponse tap = tap("tap-5", 1);
-        assertThatThrownBy(() -> voidService.voidTransaksi(999L, tap.getTransaksiId(), 555L, "salah"))
+        assertThatThrownBy(() -> voidService.refundTransaksi(999L, tap.getTransaksiId(), 555L, "salah", kode(tap)))
                 .isInstanceOf(com.asqi.scholia_kantin_be.component.exception.NotFoundEntity.class);
     }
 
@@ -235,7 +264,7 @@ class VoidServiceIT {
         sesiKasir.tutupSesi(SEKOLAH, sesiId, 555L, false);
 
         // Void petugas ditolak pada sesi tertutup.
-        assertThatThrownBy(() -> voidService.voidTransaksi(SEKOLAH, tap.getTransaksiId(), 555L, "salah"))
+        assertThatThrownBy(() -> voidService.refundTransaksi(SEKOLAH, tap.getTransaksiId(), 555L, "salah", kode(tap)))
                 .hasMessageContaining("sudah ditutup");
 
         // Bendahara mengoreksi → saldo & stok kembali.
@@ -297,7 +326,7 @@ class VoidServiceIT {
         voidService.koreksiTransaksiSesiTertutup(SEKOLAH, tap.getTransaksiId(), 777L, "salah input");
         assertThatThrownBy(() -> voidService.koreksiTransaksiSesiTertutup(
                 SEKOLAH, tap.getTransaksiId(), 777L, "lagi"))
-                .hasMessageContaining("sudah di-void");
+                .hasMessageContaining("sudah di-refund");
     }
 
     @Test

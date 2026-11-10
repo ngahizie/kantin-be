@@ -3,7 +3,7 @@
 > **Single source of truth endpoint kantin-be.** Semua path berprefix `/api`.
 > Respons selalu dibungkus `Response<T>` (`{ responseCode, message, data, ... }`).
 >
-> **Sinkron terakhir:** 2026-11-09 · **Total: 100 endpoint** (99 di `controller/` + 1 shim dev)
+> **Sinkron terakhir:** 2026-11-10 · **Total: 102 endpoint** (101 di `controller/` + 1 shim dev)
 > di **15 controller**. Dijaga otomatis oleh `ApiEndpointsDocTest` — uji ini
 > **gagal** bila daftar di bawah tidak lagi sama persis dengan anotasi
 > `@…Mapping` di kode. Bila menambah/mengubah endpoint, perbarui dokumen ini.
@@ -35,7 +35,9 @@
 | `POST` | `/api/kasir/tap/{pendingId}/konfirmasi` | kasir | Konfirmasi tap "menunggu konfirmasi" (PRD §6.1) — di sini saldo/stok dipotong. Idempoten |
 | `POST` | `/api/kasir/tap/{pendingId}/batal` | kasir | Batalkan tap yang menunggu konfirmasi. Idempoten |
 | `GET` | `/api/kasir/tap/menunggu` | kasir | Daftar tap yang masih menunggu konfirmasi (tenant-scoped) |
-| `POST` | `/api/kasir/transaksi/{transaksiId}/void` | kasir | Void transaksi (PRD §6.3): kembalikan saldo & stok; wajib `alasan`; hanya sesi belum ditutup |
+| `GET` | `/api/kasir/kartu/{rfidUid}` | kasir | **Cek identitas kartu** (tanpa memotong saldo): `{nomorKartu, subjekTipe, subjekId, nama, kelas, fotoUrl, saldo, belanjaHariIni, limitHarian, sisaLimit, diblokir, bisaBelanja, waktuCek}` — untuk menampilkan identitas sebelum pembayaran |
+| `POST` | `/api/kasir/transaksi/{transaksiId}/refund` | kasir | **Refund transaksi** (PRD §6.3): kembalikan saldo & stok; wajib `alasan` **dan** `kodeStruk` yang cocok dengan transaksi; hanya sesi belum ditutup |
+| `POST` | `/api/kasir/transaksi/{transaksiId}/void` | kasir | *Deprecated* — alias lama dari `/refund`, aturan sama (wajib `alasan` + `kodeStruk`) |
 | `POST` | `/api/kasir/transaksi/{transaksiId}/koreksi` | TU | Koreksi transaksi pada **sesi tertutup** (PRD §6.3/§9.2) — mutasi pembalik beralasan + audit; wajib `alasan` |
 | `GET` | `/api/kasir/transaksi` | TU, admin, pengelola | Daftar transaksi untuk **koreksi bendahara** (PRD §6.3/§9.2, issue #212) — terbaru dulu, berhalaman; filter opsional `sesiId`, `tanggal` (`yyyy-MM-dd`, zona sekolah), `status` (`SUKSES`/`VOID`), `halaman` (0-based), `ukuran`. Tenant dari token |
 | `GET` | `/api/kasir/transaksi/sesi-tutup` | TU, admin, pengelola | Daftar transaksi **sesi tertutup** — kandidat koreksi bendahara (issue #230): hanya transaksi pada sesi `DITUTUP` milik tenant; filter & paginasi sama dengan `/api/kasir/transaksi`; `sesiId` bila diberikan wajib sesi tenant yang sudah ditutup (selain itu 404/invalid). Tenant dari token |

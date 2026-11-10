@@ -7,6 +7,7 @@ import com.asqi.scholia_kantin_be.dto.TapRequest;
 import com.asqi.scholia_kantin_be.dto.TapResponse;
 import com.asqi.scholia_kantin_be.dto.TransaksiKasirItem;
 import com.asqi.scholia_kantin_be.dto.TransaksiSesiItem;
+import com.asqi.scholia_kantin_be.dto.CekKartuResponse;
 import com.asqi.scholia_kantin_be.dto.VoidRequest;
 import com.asqi.scholia_kantin_be.enums.AktorKantin;
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
@@ -18,6 +19,7 @@ import com.asqi.scholia_kantin_be.security.IdentitasKantin;
 import com.asqi.scholia_kantin_be.security.PerluPeran;
 import com.asqi.scholia_kantin_be.security.TenantContext;
 import com.asqi.scholia_kantin_be.service.kasir.SesiKasirService;
+import com.asqi.scholia_kantin_be.service.kasir.CekKartuService;
 import com.asqi.scholia_kantin_be.service.kasir.TapService;
 import com.asqi.scholia_kantin_be.service.kasir.TransaksiKasirService;
 import com.asqi.scholia_kantin_be.service.kasir.VoidService;
@@ -56,6 +58,7 @@ import java.util.List;
 public class KasirController {
 
     private final TapService tapService;
+    private final CekKartuService cekKartuService;
     private final VoidService voidService;
     private final SesiKasirService sesiKasirService;
     private final BukuKasPostingService bukuKasPosting;
@@ -121,19 +124,58 @@ public class KasirController {
     }
 
     /**
-     * Batalkan (void) transaksi — kembalikan saldo &amp; stok (PRD §6.3).
-     * Hanya untuk transaksi pada sesi yang belum ditutup; wajib alasan.
+     * <b>Baca identitas kartu</b> untuk layar kasir — <b>tanpa</b> memotong
+     * saldo dan tanpa membuat transaksi.
+     *
+     * <p>Dipakai sebelum pembayaran: kasir menempelkan kartu, aplikasi
+     * menampilkan foto, nama, kelas, dan sisa saldo, lalu kasir memutuskan.
+     * Dengan begitu kartu tertukar bisa dicegah tanpa verifikasi teks.
+     *
+     * @param rfidUid UID kartu hasil pembacaan (path variable)
      */
     @PerluPeran({AktorKantin.PETUGAS_KANTIN})
-    @PostMapping("transaksi/{transaksiId}/void")
-    public ResponseEntity<Response<Transaksi>> voidTransaksi(
+    @GetMapping("kartu/{rfidUid}")
+    public ResponseEntity<Response<CekKartuResponse>> cekKartu(@PathVariable String rfidUid) {
+        CekKartuResponse hasil = cekKartuService.cek(TenantContext.sekolahIdWajib(), rfidUid);
+        return CommonResponse.data(hasil, "Identitas kartu");
+    }
+
+    /**
+     * Refund (pembatalan) transaksi — kembalikan saldo &amp; stok (PRD §6.3).
+     *
+     * <p>Hanya untuk transaksi pada sesi yang belum ditutup. Wajib <b>alasan</b>
+     * dan wajib <b>kode struk</b> yang cocok dengan transaksi — supaya kasir
+     * tidak salah membatalkan transaksi orang lain.
+     */
+    @PerluPeran({AktorKantin.PETUGAS_KANTIN})
+    @PostMapping("transaksi/{transaksiId}/refund")
+    public ResponseEntity<Response<Transaksi>> refundTransaksi(
             @PathVariable Long transaksiId,
             @Valid @RequestBody VoidRequest request,
             @AuthenticationPrincipal IdentitasKantin identitas) {
 
-        Transaksi trx = voidService.voidTransaksi(
-                TenantContext.sekolahIdWajib(), transaksiId, identitas.aktorIdWajib(), request.getAlasan());
-        return CommonResponse.data(trx, "Transaksi berhasil di-void");
+        Transaksi trx = voidService.refundTransaksi(
+                TenantContext.sekolahIdWajib(), transaksiId, identitas.aktorIdWajib(),
+                request.getAlasan(), request.getKodeStruk());
+        return CommonResponse.data(trx, "Transaksi berhasil di-refund");
+    }
+
+    /**
+     * @deprecated gunakan {@code POST transaksi/{id}/refund}. Dipertahankan agar
+     * aplikasi versi lama tidak langsung rusak; aturan kode struk tetap berlaku.
+     */
+    @Deprecated
+    @PerluPeran({AktorKantin.PETUGAS_KANTIN})
+    @PostMapping("transaksi/{transaksiId}/void")
+    public ResponseEntity<Response<Transaksi>> voidTransaksiLama(
+            @PathVariable Long transaksiId,
+            @Valid @RequestBody VoidRequest request,
+            @AuthenticationPrincipal IdentitasKantin identitas) {
+
+        Transaksi trx = voidService.refundTransaksi(
+                TenantContext.sekolahIdWajib(), transaksiId, identitas.aktorIdWajib(),
+                request.getAlasan(), request.getKodeStruk());
+        return CommonResponse.data(trx, "Transaksi berhasil di-refund");
     }
 
     /**
