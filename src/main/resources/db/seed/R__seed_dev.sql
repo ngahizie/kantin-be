@@ -1063,3 +1063,223 @@ UPDATE dev_siswa_rfid d
   ) AS v(sekolah_id, siswa_id, nama, kelas)
  WHERE d.sekolah_id = v.sekolah_id
    AND d.siswa_id = v.siswa_id;
+
+
+-- ════════════════════════════════════════════════════════════════
+-- Tren penjualan 7 hari terakhir (D-6 … hari ini)
+--
+-- Dashboard & laporan butuh pola naik-turun yang wajar, bukan 1–2 transaksi.
+-- Semua baris deterministik (id tetap) dan idempoten (ON CONFLICT DO NOTHING),
+-- jadi repeatable seed aman dijalankan berkali-kali.
+--
+-- Rentang id (tidak bertabrakan dengan blok seed lain):
+--   sesi 94xxxx · transaksi 96xxxx · item 97xxxx · mutasi 98xxxx · ledger 99xxxx
+--
+-- Cakupan: sekolah 1 (titik 1 & 2) + sekolah 2 (titik 3)
+--   15 transaksi/hari × 7 hari = 105 transaksi, 210 item,
+--   105 baris ledger, 210 baris mutasi stok.
+-- ════════════════════════════════════════════════════════════════
+
+DROP TABLE IF EXISTS seed_tren_tutup;
+DROP TABLE IF EXISTS seed_tren_item;
+DROP TABLE IF EXISTS seed_tren_trx;
+
+-- 0) Pastikan baris cache saldo ada, supaya trigger sinkron punya sasaran UPDATE.
+INSERT INTO saldo_cache (subjek_tipe, subjek_id, sekolah_id, saldo, updated_at)
+SELECT 'SISWA', v.siswa_id, v.sekolah_id, 0, now()
+  FROM (VALUES (1, 12), (1, 13), (1, 204), (2, 14), (2, 15)) AS v(sekolah_id, siswa_id)
+ON CONFLICT DO NOTHING;
+
+-- 1) Top up awal supaya saldo siswa cukup menutup 7 hari penjualan.
+INSERT INTO saldo_ledger (id, sekolah_id, subjek_tipe, subjek_id, arah, jenis,
+                          nominal, saldo_setelah, transaksi_id, idempotency_key,
+                          referensi_tipe, referensi_id, keterangan, aktor_id, waktu, created_at)
+SELECT 991000 + v.seq, v.sekolah_id, 'SISWA', v.siswa_id, 'KREDIT', 'TOPUP_TUNAI',
+       v.nominal,
+       COALESCE((SELECT sum(CASE WHEN l.arah = 'KREDIT' THEN l.nominal ELSE -l.nominal END)
+                   FROM saldo_ledger l
+                  WHERE l.subjek_tipe = 'SISWA'
+                    AND l.subjek_id = v.siswa_id
+                    AND l.sekolah_id = v.sekolah_id
+                    AND l.waktu < ((CURRENT_DATE - 6) + time '07:30') AT TIME ZONE 'Asia/Jakarta'), 0)
+         + v.nominal,
+       NULL, 'seed-tren-topup-' || v.siswa_id, 'TOPUP', 'TOPUP-TREN-' || v.siswa_id,
+       'Top up awal untuk data tren penjualan', 2,
+       ((CURRENT_DATE - 6) + time '07:30') AT TIME ZONE 'Asia/Jakarta', now()
+FROM (VALUES (1, 1, 12, 1000000), (2, 1, 13, 1000000), (3, 1, 204, 1000000),
+             (4, 2, 14, 700000), (5, 2, 15, 700000)
+     ) AS v(seq, sekolah_id, siswa_id, nominal)
+ON CONFLICT DO NOTHING;
+
+-- 2) Sesi kasir untuk setiap (tanggal, titik) di 7 hari terakhir.
+INSERT INTO sesi_kasir (id, sekolah_id, titik_kasir_id, tanggal, status,
+                        total_bruto, total_void, total_bersih, dibuka_at,
+                        ditutup_at, ditutup_oleh, auto_tutup,
+                        posting_buku_kas, created_at, updated_at)
+SELECT 940000 + d * 10 + t.idx, t.sekolah_id, t.titik_id, CURRENT_DATE - d,
+       CASE WHEN d = 0 THEN 'TERBUKA' ELSE 'DITUTUP' END,
+       0, 0, 0,
+       (((CURRENT_DATE - d) + time '07:00') AT TIME ZONE 'Asia/Jakarta'),
+       CASE WHEN d = 0 THEN NULL
+            ELSE (((CURRENT_DATE - d) + time '14:30') AT TIME ZONE 'Asia/Jakarta') END,
+       CASE WHEN d = 0 THEN NULL ELSE 4 END,
+       false, false, now(), now()
+FROM generate_series(0, 6) AS d
+CROSS JOIN (VALUES (1, 1, 1), (2, 1, 2), (3, 2, 3)) AS t(idx, sekolah_id, titik_id)
+ON CONFLICT DO NOTHING;
+
+-- 3) Rencana item: 2 item per transaksi (makanan/minuman utama + minuman).
+CREATE TEMP TABLE seed_tren_item AS
+WITH rencana AS (
+    SELECT d, t.idx, t.sekolah_id, t.titik_id, seq, k,
+           960000 + d * 100 + (t.idx - 1) * 20 + seq AS trx_id,
+           ((CURRENT_DATE - d) + time '13:10'
+             + ((seq * 4 + t.idx * 2) || ' minutes')::interval) AT TIME ZONE 'Asia/Jakarta' AS waktu,
+           CASE WHEN t.sekolah_id = 1 THEN ARRAY[1, 2, 5, 6, 7, 8, 9, 11]
+                ELSE ARRAY[101, 102, 103, 104] END AS utama_pool,
+           CASE WHEN t.sekolah_id = 1 THEN ARRAY[3, 4, 10, 12]
+                ELSE ARRAY[105, 106, 107] END AS minum_pool
+      FROM generate_series(0, 6) AS d
+      CROSS JOIN (VALUES (1, 1, 1), (2, 1, 2), (3, 2, 3)) AS t(idx, sekolah_id, titik_id)
+      CROSS JOIN generate_series(1, CASE t.idx WHEN 1 THEN 8 + (d % 3)
+                                             WHEN 2 THEN 4 + (d % 2)
+                                             ELSE 3 + (d % 2) END) AS seq
+      CROSS JOIN (VALUES (1), (2)) AS k(k)
+), pilih AS (
+    SELECT r.*,
+           CASE WHEN r.k = 1
+                THEN r.utama_pool[1 + ((r.d * 5 + r.seq * 3) % array_length(r.utama_pool, 1))]
+                ELSE r.minum_pool[1 + ((r.d * 2 + r.seq + r.idx) % array_length(r.minum_pool, 1))]
+           END AS menu_id,
+           CASE WHEN r.k = 1 AND (r.d * 3 + r.seq) % 4 = 0 THEN 2
+                WHEN r.k = 2 AND (r.d + r.seq) % 5 = 0 THEN 2
+                ELSE 1 END AS qty
+      FROM rencana r
+)
+SELECT 970000 + (p.trx_id - 960000) * 2 + (p.k - 1) AS item_id,
+       p.trx_id, p.sekolah_id, p.titik_id, p.waktu, p.k,
+       p.menu_id, m.nama, m.kategori_id, m.harga_jual AS harga, p.qty,
+       COALESCE(sc.hpp, 0) AS hpp,
+       m.harga_jual * p.qty AS subtotal,
+       COALESCE(sc.hpp, 0) * p.qty AS subtotal_hpp,
+       COALESCE(sc.stok, 0) AS stok_awal
+  FROM pilih p
+  JOIN menu m ON m.id = p.menu_id
+  LEFT JOIN stok_cache sc ON sc.menu_id = p.menu_id;
+
+-- 4) Rencana transaksi: agregat item + sesi + siswa + saldo awal + kartu.
+CREATE TEMP TABLE seed_tren_trx AS
+SELECT i.trx_id, i.sekolah_id, i.titik_id, i.waktu, s.id AS sesi_id,
+       (SELECT d.siswa_id
+          FROM (VALUES (1, 1, 12), (2, 1, 13), (3, 1, 204),
+                       (1, 2, 14), (2, 2, 15)) AS d(seq, sekolah_id, siswa_id)
+         WHERE d.sekolah_id = i.sekolah_id
+           AND d.seq = 1 + ((i.trx_id - 960000) % CASE WHEN i.sekolah_id = 1 THEN 3 ELSE 2 END)) AS subjek_id,
+       sum(i.subtotal) AS total, sum(i.subtotal_hpp) AS total_hpp
+  FROM seed_tren_item i
+  JOIN sesi_kasir s
+    ON s.titik_kasir_id = i.titik_id
+   AND s.tanggal = (i.waktu AT TIME ZONE 'Asia/Jakarta')::date
+ GROUP BY i.trx_id, i.sekolah_id, i.titik_id, i.waktu, s.id;
+
+ALTER TABLE seed_tren_trx ADD COLUMN saldo_awal bigint;
+ALTER TABLE seed_tren_trx ADD COLUMN rfid_uid text;
+
+UPDATE seed_tren_trx t
+   SET saldo_awal = COALESCE((SELECT c.saldo FROM saldo_cache c
+                               WHERE c.subjek_tipe = 'SISWA' AND c.subjek_id = t.subjek_id), 0);
+
+UPDATE seed_tren_trx t
+   SET rfid_uid = (SELECT d.rfid_uid FROM dev_siswa_rfid d
+                    WHERE d.sekolah_id = t.sekolah_id AND d.siswa_id = t.subjek_id);
+
+-- 5) Transaksi & item.
+INSERT INTO transaksi (id, idempotency_key, sekolah_id, sesi_kasir_id, titik_kasir_id,
+                       subjek_tipe, subjek_id, kartu_uid, petugas_id,
+                       total, total_hpp, status, alasan_void, void_at, void_oleh,
+                       waktu, created_at, updated_at)
+SELECT trx_id, 'seed-tren-' || trx_id, sekolah_id, sesi_id, titik_id,
+       'SISWA', subjek_id, rfid_uid, 4,
+       total, total_hpp, 'SUKSES', NULL, NULL, NULL, waktu, now(), now()
+  FROM seed_tren_trx
+ON CONFLICT DO NOTHING;
+
+INSERT INTO transaksi_item (id, transaksi_id, menu_id, nama_menu, kategori_id,
+                            harga_jual, qty, hpp_snapshot, subtotal, created_at)
+SELECT item_id, trx_id, menu_id, nama, kategori_id, harga, qty, hpp, subtotal, now()
+  FROM seed_tren_item
+ON CONFLICT DO NOTHING;
+
+-- 6) Mutasi stok KELUAR.
+--    stok_setelah dihitung dari SELURUH mutasi menu itu (baris seed lain + blok ini),
+--    supaya nilainya benar relatif terhadap riwayat yang sudah ada.
+INSERT INTO mutasi_stok (id, sekolah_id, menu_id, arah, jenis, qty, stok_setelah,
+                         hpp_snapshot, transaksi_id, referensi_tipe, referensi_id,
+                         alasan, aktor_id, aktor_nama, waktu, created_at,
+                         harga_beli_satuan)
+WITH baru AS (
+    SELECT 980000 + (i.item_id - 970000) AS id, i.sekolah_id, i.menu_id, i.waktu,
+           i.qty, i.hpp, i.trx_id
+      FROM seed_tren_item i
+     WHERE NOT EXISTS (SELECT 1 FROM mutasi_stok m
+                        WHERE m.id = 980000 + (i.item_id - 970000))
+), gabung AS (
+    SELECT m.id, m.menu_id, m.waktu,
+           CASE WHEN m.arah = 'MASUK' THEN m.qty ELSE -m.qty END AS delta
+      FROM mutasi_stok m
+     WHERE m.menu_id IN (SELECT DISTINCT menu_id FROM baru)
+    UNION ALL
+    SELECT b.id, b.menu_id, b.waktu, -b.qty FROM baru b
+), urut AS (
+    SELECT g.id, sum(g.delta) OVER (PARTITION BY g.menu_id ORDER BY g.waktu, g.id) AS stok_setelah
+      FROM gabung g
+)
+SELECT b.id, b.sekolah_id, b.menu_id, 'KELUAR', 'PENJUALAN', b.qty, u.stok_setelah,
+       b.hpp, b.trx_id, 'TRANSAKSI', b.trx_id::text, NULL, 4, 'Petugas Kasir',
+       b.waktu, now(), NULL
+  FROM baru b
+  JOIN urut u ON u.id = b.id;
+
+-- 7) Ledger DEBIT.
+--    saldo_setelah dihitung dari SELURUH baris ledger subjek (baris lama + blok ini).
+INSERT INTO saldo_ledger (id, sekolah_id, subjek_tipe, subjek_id, arah, jenis,
+                          nominal, saldo_setelah, transaksi_id, idempotency_key,
+                          referensi_tipe, referensi_id, keterangan, aktor_id, waktu, created_at)
+WITH baru AS (
+    SELECT 990000 + (t.trx_id - 960000) AS id, t.sekolah_id, t.subjek_id, t.waktu, t.total
+      FROM seed_tren_trx t
+     WHERE NOT EXISTS (SELECT 1 FROM saldo_ledger l
+                        WHERE l.id = 990000 + (t.trx_id - 960000))
+), gabung AS (
+    SELECT l.id, l.subjek_id, l.waktu,
+           CASE WHEN l.arah = 'KREDIT' THEN l.nominal ELSE -l.nominal END AS delta
+      FROM saldo_ledger l
+     WHERE l.subjek_tipe = 'SISWA'
+       AND l.sekolah_id IN (SELECT DISTINCT sekolah_id FROM baru)
+    UNION ALL
+    SELECT b.id, b.subjek_id, b.waktu, -b.total FROM baru b
+), urut AS (
+    SELECT g.id, sum(g.delta) OVER (PARTITION BY g.subjek_id ORDER BY g.waktu, g.id) AS saldo_setelah
+      FROM gabung g
+)
+SELECT b.id, b.sekolah_id, 'SISWA', b.subjek_id, 'DEBIT', 'PENJUALAN', b.total, u.saldo_setelah,
+       b.id - 990000 + 960000, 'seed-tren-trx-' || (b.id - 990000 + 960000), 'TRANSAKSI',
+       (b.id - 990000 + 960000)::text, NULL, 4, b.waktu, now()
+  FROM baru b
+  JOIN urut u ON u.id = b.id;
+
+-- 8) Selaraskan total sesi dengan transaksi (idempoten, memperbaiki drift).
+UPDATE sesi_kasir s
+   SET total_bruto  = COALESCE(a.bruto, 0),
+       total_void   = COALESCE(a.void, 0),
+       total_bersih = COALESCE(a.bruto, 0) - COALESCE(a.void, 0),
+       updated_at   = now()
+  FROM (SELECT sesi_kasir_id,
+               sum(total) FILTER (WHERE status = 'SUKSES') AS bruto,
+               sum(total) FILTER (WHERE status = 'VOID')   AS void
+          FROM transaksi GROUP BY sesi_kasir_id) a
+ WHERE a.sesi_kasir_id = s.id;
+
+DROP TABLE IF EXISTS seed_tren_tutup;
+DROP TABLE IF EXISTS seed_tren_item;
+DROP TABLE IF EXISTS seed_tren_trx;
