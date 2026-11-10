@@ -99,6 +99,22 @@ public interface SaldoLedgerRepository extends JpaRepository<SaldoLedger, Long>,
                                   @Param("sejak") OffsetDateTime sejak);
 
     /**
+     * Waktu mutasi terakhir per subjek untuk daftar siswa, dalam satu query
+     * batch. Tenant-scoped; subjek tanpa mutasi tidak muncul di hasil.
+     */
+    @Query("""
+            SELECT l.subjekId, MAX(l.waktu)
+            FROM SaldoLedger l
+            WHERE l.sekolahId = :sekolahId
+              AND l.subjekTipe = :subjekTipe
+              AND l.subjekId IN :subjekIds
+            GROUP BY l.subjekId
+            """)
+    List<Object[]> waktuTerakhirPerSubjek(@Param("sekolahId") Long sekolahId,
+                                          @Param("subjekTipe") SubjekTipe subjekTipe,
+                                          @Param("subjekIds") List<Long> subjekIds);
+
+    /**
      * Riwayat mutasi terbaru satu subjek (PRD §8.4) — urut id turun (id
      * sortable ≈ urut waktu). {@link Pageable} untuk membatasi jumlah.
      */

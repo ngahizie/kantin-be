@@ -35,6 +35,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -80,7 +81,15 @@ class LaporanServiceIT {
                 .thenAnswer(invocation -> {
                     long sekolahId = invocation.getArgument(0);
                     String q = invocation.getArgument(1);
-                    if (SEKOLAH != sekolahId || q == null || !q.equalsIgnoreCase("2024001")) {
+                    if (SEKOLAH != sekolahId || q == null) {
+                        return List.of();
+                    }
+                    if (q.equalsIgnoreCase("2024002")) {
+                        return List.of(InfoSiswa.builder()
+                                .siswaId(SISWA2).nis("2024002").nama("Siswa Tanpa Mutasi")
+                                .kelas("7B").saldo(0).build());
+                    }
+                    if (!q.equalsIgnoreCase("2024001")) {
                         return List.of();
                     }
                     return List.of(InfoSiswa.builder()
@@ -219,7 +228,15 @@ class LaporanServiceIT {
         assertThat(hasil.getFirst().nama()).isEqualTo("Budi Santoso");
         assertThat(hasil.getFirst().saldo()).isEqualTo(42_000);
         assertThat(hasil.getFirst().belanjaHariIni()).isEqualTo(8_000);
+        OffsetDateTime waktuLedgerTerakhir = jdbc.queryForObject(
+                "SELECT MAX(waktu) FROM saldo_ledger WHERE sekolah_id = ? AND subjek_tipe = 'SISWA' AND subjek_id = ?",
+                OffsetDateTime.class, SEKOLAH, SISWA);
+        assertThat(hasil.getFirst().terakhirTransaksi()).isEqualTo(waktuLedgerTerakhir);
         assertThat(laporan.saldoMengendapSiswa(SEKOLAH_LAIN, "2024001", 20)).isEmpty();
+
+        var tanpaMutasi = laporan.saldoMengendapSiswa(SEKOLAH, "2024002", 20);
+        assertThat(tanpaMutasi).hasSize(1);
+        assertThat(tanpaMutasi.getFirst().terakhirTransaksi()).isNull();
     }
 
     @Test
