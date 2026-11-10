@@ -1,14 +1,17 @@
 package com.asqi.scholia_kantin_be.controller;
 
+import com.asqi.scholia_kantin_be.dto.CekKartuResponse;
 import com.asqi.scholia_kantin_be.dto.HalamanResponse;
 import com.asqi.scholia_kantin_be.dto.TapRequest;
 import com.asqi.scholia_kantin_be.dto.TapResponse;
 import com.asqi.scholia_kantin_be.dto.TransaksiKasirItem;
 import com.asqi.scholia_kantin_be.dto.VoidRequest;
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
+import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.security.IdentitasKantin;
 import com.asqi.scholia_kantin_be.security.TenantContext;
 import com.asqi.scholia_kantin_be.service.integrasi.BukuKasPostingService;
+import com.asqi.scholia_kantin_be.service.kasir.CekKartuService;
 import com.asqi.scholia_kantin_be.service.kasir.SesiKasirService;
 import com.asqi.scholia_kantin_be.service.kasir.TapService;
 import com.asqi.scholia_kantin_be.service.kasir.TransaksiKasirService;
@@ -53,6 +56,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class KasirControllerTest {
 
     private TapService tapService;
+    private CekKartuService cekKartuService;
     private VoidService voidService;
     private SesiKasirService sesiKasirService;
     private BukuKasPostingService bukuKasPosting;
@@ -77,13 +81,15 @@ class KasirControllerTest {
     @BeforeEach
     void setUp() {
         tapService = mock(TapService.class);
+        cekKartuService = mock(CekKartuService.class);
         voidService = mock(VoidService.class);
         sesiKasirService = mock(SesiKasirService.class);
         bukuKasPosting = mock(BukuKasPostingService.class);
         transaksiKasirService = mock(TransaksiKasirService.class);
 
         KasirController controller = new KasirController(
-                tapService, voidService, sesiKasirService, bukuKasPosting, transaksiKasirService);
+                tapService, cekKartuService, voidService, sesiKasirService, bukuKasPosting,
+                transaksiKasirService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setCustomArgumentResolvers(new PrincipalResolver())
                 .build();
@@ -130,6 +136,23 @@ class KasirControllerTest {
 
         // Tenant WAJIB dari TenantContext (7), bukan dari body.
         verify(tapService).tap(eq(7L), any(IdentitasKantin.class), any(TapRequest.class));
+    }
+
+    @Test
+    @DisplayName("cek kartu: identitas + saldo, tanpa memotong saldo")
+    void cekKartuMengembalikanIdentitas() throws Exception {
+        when(cekKartuService.cek(eq(7L), eq("04AA000201"))).thenReturn(new CekKartuResponse(
+                "04AA000201", SubjekTipe.SISWA, 201L, "Rangga Pratama", "7A", null,
+                46_000L, 0L, null, null, false, true, null));
+
+        mockMvc.perform(get("/api/kasir/kartu/04AA000201"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.nama").value("Rangga Pratama"))
+                .andExpect(jsonPath("$.data.kelas").value("7A"))
+                .andExpect(jsonPath("$.data.saldo").value(46000))
+                .andExpect(jsonPath("$.data.bisaBelanja").value(true));
+
+        verify(cekKartuService).cek(eq(7L), eq("04AA000201"));
     }
 
     @Test

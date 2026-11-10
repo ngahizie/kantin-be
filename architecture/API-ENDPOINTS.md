@@ -3,7 +3,7 @@
 > **Single source of truth endpoint kantin-be.** Semua path berprefix `/api`.
 > Respons selalu dibungkus `Response<T>` (`{ responseCode, message, data, ... }`).
 >
-> **Sinkron terakhir:** 2026-11-10 · **Total: 101 endpoint** (100 di `controller/` + 1 shim dev)
+> **Sinkron terakhir:** 2026-11-10 · **Total: 102 endpoint** (101 di `controller/` + 1 shim dev)
 > di **15 controller**. Dijaga otomatis oleh `ApiEndpointsDocTest` — uji ini
 > **gagal** bila daftar di bawah tidak lagi sama persis dengan anotasi
 > `@…Mapping` di kode. Bila menambah/mengubah endpoint, perbarui dokumen ini.
@@ -35,6 +35,7 @@
 | `POST` | `/api/kasir/tap/{pendingId}/konfirmasi` | kasir | Konfirmasi tap "menunggu konfirmasi" (PRD §6.1) — di sini saldo/stok dipotong. Idempoten |
 | `POST` | `/api/kasir/tap/{pendingId}/batal` | kasir | Batalkan tap yang menunggu konfirmasi. Idempoten |
 | `GET` | `/api/kasir/tap/menunggu` | kasir | Daftar tap yang masih menunggu konfirmasi (tenant-scoped) |
+| `GET` | `/api/kasir/kartu/{rfidUid}` | kasir | **Cek identitas kartu** (tanpa memotong saldo): `{nomorKartu, subjekTipe, subjekId, nama, kelas, fotoUrl, saldo, belanjaHariIni, limitHarian, sisaLimit, diblokir, bisaBelanja, waktuCek}` — untuk menampilkan identitas sebelum pembayaran |
 | `POST` | `/api/kasir/transaksi/{transaksiId}/refund` | kasir | **Refund transaksi** (PRD §6.3): kembalikan saldo & stok; wajib `alasan` **dan** `kodeStruk` yang cocok dengan transaksi; hanya sesi belum ditutup |
 | `POST` | `/api/kasir/transaksi/{transaksiId}/void` | kasir | *Deprecated* — alias lama dari `/refund`, aturan sama (wajib `alasan` + `kodeStruk`) |
 | `POST` | `/api/kasir/transaksi/{transaksiId}/koreksi` | TU | Koreksi transaksi pada **sesi tertutup** (PRD §6.3/§9.2) — mutasi pembalik beralasan + audit; wajib `alasan` |

@@ -7,6 +7,7 @@ import com.asqi.scholia_kantin_be.dto.TapRequest;
 import com.asqi.scholia_kantin_be.dto.TapResponse;
 import com.asqi.scholia_kantin_be.dto.TransaksiKasirItem;
 import com.asqi.scholia_kantin_be.dto.TransaksiSesiItem;
+import com.asqi.scholia_kantin_be.dto.CekKartuResponse;
 import com.asqi.scholia_kantin_be.dto.VoidRequest;
 import com.asqi.scholia_kantin_be.enums.AktorKantin;
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
@@ -18,6 +19,7 @@ import com.asqi.scholia_kantin_be.security.IdentitasKantin;
 import com.asqi.scholia_kantin_be.security.PerluPeran;
 import com.asqi.scholia_kantin_be.security.TenantContext;
 import com.asqi.scholia_kantin_be.service.kasir.SesiKasirService;
+import com.asqi.scholia_kantin_be.service.kasir.CekKartuService;
 import com.asqi.scholia_kantin_be.service.kasir.TapService;
 import com.asqi.scholia_kantin_be.service.kasir.TransaksiKasirService;
 import com.asqi.scholia_kantin_be.service.kasir.VoidService;
@@ -56,6 +58,7 @@ import java.util.List;
 public class KasirController {
 
     private final TapService tapService;
+    private final CekKartuService cekKartuService;
     private final VoidService voidService;
     private final SesiKasirService sesiKasirService;
     private final BukuKasPostingService bukuKasPosting;
@@ -118,6 +121,23 @@ public class KasirController {
                 .map(tapService::keResponse)
                 .toList();
         return CommonResponse.data(daftar);
+    }
+
+    /**
+     * <b>Baca identitas kartu</b> untuk layar kasir — <b>tanpa</b> memotong
+     * saldo dan tanpa membuat transaksi.
+     *
+     * <p>Dipakai sebelum pembayaran: kasir menempelkan kartu, aplikasi
+     * menampilkan foto, nama, kelas, dan sisa saldo, lalu kasir memutuskan.
+     * Dengan begitu kartu tertukar bisa dicegah tanpa verifikasi teks.
+     *
+     * @param rfidUid UID kartu hasil pembacaan (path variable)
+     */
+    @PerluPeran({AktorKantin.PETUGAS_KANTIN})
+    @GetMapping("kartu/{rfidUid}")
+    public ResponseEntity<Response<CekKartuResponse>> cekKartu(@PathVariable String rfidUid) {
+        CekKartuResponse hasil = cekKartuService.cek(TenantContext.sekolahIdWajib(), rfidUid);
+        return CommonResponse.data(hasil, "Identitas kartu");
     }
 
     /**
