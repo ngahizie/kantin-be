@@ -232,7 +232,20 @@ public class LaporanService {
      */
     @Transactional(readOnly = true)
     public List<SiswaSaldoDetail> saldoMengendapSiswa(Long sekolahId, String search, int batas) {
-        return cariSiswaService.cari(sekolahId, search, false, batas).stream()
+        List<com.asqi.scholia_kantin_be.service.integrasi.InfoSiswa> siswaList =
+                cariSiswaService.cari(sekolahId, search, false, batas);
+        List<Long> siswaIds = siswaList.stream()
+                .map(com.asqi.scholia_kantin_be.service.integrasi.InfoSiswa::getSiswaId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        Map<Long, OffsetDateTime> waktuTerakhir = new HashMap<>();
+        if (!siswaIds.isEmpty()) {
+            saldoLedgerRepo.waktuTerakhirPerSubjek(sekolahId, SubjekTipe.SISWA, siswaIds)
+                    .forEach(baris -> waktuTerakhir.put(
+                            ((Number) baris[0]).longValue(), (OffsetDateTime) baris[1]));
+        }
+        return siswaList.stream()
                 .map(siswa -> {
                     Long siswaId = siswa.getSiswaId();
                     SaldoCache cache = saldoCacheRepo
@@ -249,7 +262,8 @@ public class LaporanService {
                             siswaId, siswa.getNis(), null, siswa.getNama(), siswa.getKelas(),
                             cache == null || cache.getSaldo() == null ? 0L : cache.getSaldo(),
                             ledgerSaldo.belanjaHariIni(sekolahId, SubjekTipe.SISWA, siswaId),
-                            limit, blokir != null && blokir.isDiblokir(), null, null, null);
+                            limit, blokir != null && blokir.isDiblokir(), null, null,
+                            waktuTerakhir.get(siswaId));
                 })
                 .toList();
     }
