@@ -1,6 +1,8 @@
 package com.asqi.scholia_kantin_be.service.integrasi;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -53,4 +55,21 @@ public interface CariSiswaPort {
      * @return identitas siswa bila tersedia; {@link Optional#empty()} bila tidak
      */
     Optional<InfoSiswa> cariBerdasarkanId(Long sekolahId, Long siswaId);
+
+    /**
+     * Ambil identitas <b>banyak</b> siswa sekaligus (issue #298).
+     *
+     * <p>Dipakai daftar kandidat refund: satu panggilan untuk seluruh kandidat,
+     * bukan satu panggilan per siswa (N+1 lintas layanan). Implementasi nyata
+     * mengirim daftar ID dalam satu permintaan (dipecah bila melebihi batas).
+     *
+     * <p><b>Fail-open.</b> Kegagalan integrasi → peta kosong; ID yang tidak
+     * ditemukan tidak muncul sebagai kunci (pemanggil memperlakukan sebagai
+     * "identitas tidak diketahui", bukan mengarang data).
+     *
+     * @param sekolahId tenant dari JWT
+     * @param siswaIds  ID siswa yang sudah terbukti milik tenant (boleh kosong)
+     * @return peta {@code siswaId → identitas}; tidak pernah {@code null}
+     */
+    Map<Long, InfoSiswa> cariBanyak(Long sekolahId, Collection<Long> siswaIds);
 }

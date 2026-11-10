@@ -9,6 +9,8 @@ import com.asqi.scholia_kantin_be.enums.JenisNotifikasi;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.model.SaldoCache;
 import com.asqi.scholia_kantin_be.repository.SaldoCacheRepository;
+import com.asqi.scholia_kantin_be.service.CariSiswaService;
+import com.asqi.scholia_kantin_be.service.integrasi.InfoSiswa;
 import com.asqi.scholia_kantin_be.service.integrasi.NotifikasiService;
 import com.asqi.scholia_kantin_be.service.integrasi.PerintahNotifikasi;
 import com.asqi.scholia_kantin_be.service.integrasi.StatusSiswaPort;
@@ -21,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Refund sisa saldo siswa keluar &amp; pemindahan ke saudara kandung
@@ -55,6 +58,7 @@ public class RefundSaldoService {
     private final StatusSiswaPort statusSiswa;
     private final AuditLogger auditLogger;
     private final NotifikasiService notifikasi;
+    private final CariSiswaService cariSiswaService;
 
     /**
      * Daftar kandidat refund/pindah: subjek SISWA yang masih bersisa saldo,
@@ -66,14 +70,40 @@ public class RefundSaldoService {
      */
     @Transactional(readOnly = true)
     public List<KandidatRefundItem> daftarKandidat(Long sekolahId, boolean hanyaTidakAktif) {
-        List<SaldoCache> baris = cacheRepo.findBySekolahIdAndSubjekTipe(sekolahId, SubjekTipe.SISWA);
-        return baris.stream()
+        List<SaldoCache> baris = cacheRepo.findBySekolahIdAndSubjekTipe(sekolahId, SubjekTipe.SISWA)
+                .stream()
                 .filter(c -> c.getSaldo() != null && c.getSaldo() > 0)
-                .map(c -> KandidatRefundItem.builder()
-                        .subjekId(c.getSubjekId())
-                        .saldo(c.getSaldo())
-                        .tidakAktif(statusSiswa.tidakAktif(sekolahId, c.getSubjekId()))
-                        .build())
+                .filter(c -> c.getSubjekId() != null)
+                .toList();
+        if (baris.isEmpty()) {
+            return List.of();
+        }
+
+        // Dua panggilan batch untuk SEMUA kandidat — bukan satu panggilan per siswa
+        // (issue #298: hindari N+1 lintas layanan).
+        List<Long> ids = baris.stream().map(SaldoCache::getSubjekId).distinct().toList();
+        Map<Long, InfoSiswa> identitas = cariSiswaService.identitasBanyak(sekolahId, ids);
+        Map<Long, Boolean> status = statusSiswa.tidakAktifBanyak(sekolahId, ids);
+
+        return baris.stream()
+                .map(c -> {
+                    InfoSiswa s = identitas.get(c.getSubjekId());
+                    Boolean tidakAktif = status.get(c.getSubjekId());
+                    // Port status tetap sumber utama; bila tidak tahu, pakai flag dari
+                    // data identitas admin-be. Tidak ada alasan (lulus/pindah/keluar)
+                    // yang dikarang — kontraknya belum tersedia.
+                    if (tidakAktif == null && s != null) {
+                        tidakAktif = s.getTidakAktif();
+                    }
+                    return KandidatRefundItem.builder()
+                            .subjekId(c.getSubjekId())
+                            .saldo(c.getSaldo())
+                            .nis(s == null ? null : s.getNis())
+                            .nama(s == null ? null : s.getNama())
+                            .kelas(s == null ? null : s.getKelas())
+                            .tidakAktif(tidakAktif)
+                            .build();
+                })
                 .filter(k -> !hanyaTidakAktif || Boolean.TRUE.equals(k.getTidakAktif()))
                 .toList();
     }

@@ -6,6 +6,8 @@ import com.asqi.scholia_kantin_be.dto.HasilRefundResponse;
 import com.asqi.scholia_kantin_be.dto.KandidatRefundItem;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
+import com.asqi.scholia_kantin_be.service.integrasi.CariSiswaPort;
+import com.asqi.scholia_kantin_be.service.integrasi.InfoSiswa;
 import com.asqi.scholia_kantin_be.service.integrasi.StatusSiswaPort;
 import com.asqi.scholia_kantin_be.service.kasir.LedgerSaldoService;
 import com.asqi.scholia_kantin_be.service.kasir.PerintahMutasiSaldo;
@@ -23,9 +25,13 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -77,6 +83,39 @@ class RefundSaldoServiceIT {
         }
     }
 
+    /** Fake identitas siswa (Q7): siswa yang punya identitas diatur per uji. */
+    static class FakeCariSiswa implements CariSiswaPort {
+        final Map<Long, InfoSiswa> data = new ConcurrentHashMap<>();
+        final AtomicInteger panggilanBatch = new AtomicInteger();
+        final AtomicInteger panggilanPerId = new AtomicInteger();
+
+        @Override
+        public List<InfoSiswa> cari(Long sekolahId, String kataKunci, boolean hanyaTidakAktif, int batas) {
+            return List.of();
+        }
+
+        @Override
+        public Optional<InfoSiswa> cariBerdasarkanId(Long sekolahId, Long siswaId) {
+            panggilanPerId.incrementAndGet();
+            return Optional.ofNullable(data.get(siswaId));
+        }
+
+        @Override
+        public Map<Long, InfoSiswa> cariBanyak(Long sekolahId, Collection<Long> siswaIds) {
+            panggilanBatch.incrementAndGet();
+            Map<Long, InfoSiswa> hasil = new java.util.LinkedHashMap<>();
+            if (siswaIds != null) {
+                for (Long id : siswaIds) {
+                    InfoSiswa s = data.get(id);
+                    if (s != null) {
+                        hasil.put(id, s);
+                    }
+                }
+            }
+            return hasil;
+        }
+    }
+
     @TestConfiguration
     static class FakeStatusConfig {
         @Bean
@@ -84,10 +123,19 @@ class RefundSaldoServiceIT {
         FakeStatusSiswa fakeStatusSiswa() {
             return new FakeStatusSiswa();
         }
+
+        @Bean
+        @Primary
+        FakeCariSiswa fakeCariSiswa() {
+            return new FakeCariSiswa();
+        }
     }
 
     @Autowired
     private FakeStatusSiswa status;
+
+    @Autowired
+    private FakeCariSiswa identitasSiswa;
 
     @BeforeEach
     void bersihkan() {
@@ -95,6 +143,9 @@ class RefundSaldoServiceIT {
         status.nonaktif.clear();
         status.diblokir.clear();
         status.nonaktif.add(SISWA_KELUAR);
+        identitasSiswa.data.clear();
+        identitasSiswa.panggilanBatch.set(0);
+        identitasSiswa.panggilanPerId.set(0);
     }
 
     private void isiSaldo(long siswaId, long nominal) {
@@ -236,6 +287,48 @@ class RefundSaldoServiceIT {
         assertThat(hanyaNonaktif).extracting(KandidatRefundItem::getSubjekId)
                 .containsExactly(SISWA_KELUAR);
         assertThat(hanyaNonaktif.get(0).getTidakAktif()).isTrue();
+    }
+
+    @Test
+    @DisplayName("#298: kandidat memuat NIS/nama/kelas; identitas hilang → null (tidak dikarang)")
+    void daftarKandidatIdentitas() {
+        isiSaldo(SISWA_KELUAR, 10_000);
+        isiSaldo(SISWA_SAUDARA, 5_000);
+        identitasSiswa.data.put(SISWA_KELUAR, InfoSiswa.builder()
+                .siswaId(SISWA_KELUAR).nis("2023001").nama("Maya Sari").kelas("9C")
+                .tidakAktif(true).saldo(10_000).build());
+        // SISWA_SAUDARA sengaja tidak punya identitas di admin-be.
+
+        List<KandidatRefundItem> hasil = service.daftarKandidat(SEKOLAH, false);
+
+        KandidatRefundItem keluar = hasil.stream()
+                .filter(k -> k.getSubjekId().equals(SISWA_KELUAR)).findFirst().orElseThrow();
+        assertThat(keluar.getNis()).isEqualTo("2023001");
+        assertThat(keluar.getNama()).isEqualTo("Maya Sari");
+        assertThat(keluar.getKelas()).isEqualTo("9C");
+        assertThat(keluar.getTidakAktif()).isTrue();
+
+        KandidatRefundItem saudara = hasil.stream()
+                .filter(k -> k.getSubjekId().equals(SISWA_SAUDARA)).findFirst().orElseThrow();
+        assertThat(saudara.getNis()).isNull();
+        assertThat(saudara.getNama()).isNull();
+        assertThat(saudara.getKelas()).isNull();
+        assertThat(saudara.getTidakAktif()).isFalse();   // dari port status, bukan tebakan
+    }
+
+    @Test
+    @DisplayName("#298: daftar kandidat memakai lookup batch — bukan N+1 per siswa")
+    void daftarKandidatTanpaNPlus1() {
+        isiSaldo(SISWA_KELUAR, 10_000);
+        isiSaldo(SISWA_SAUDARA, 5_000);
+        isiSaldo(SISWA_LAIN, 7_000);
+
+        service.daftarKandidat(SEKOLAH, false);
+
+        assertThat(identitasSiswa.panggilanBatch.get())
+                .as("identitas diambil sekali untuk semua kandidat").isEqualTo(1);
+        assertThat(identitasSiswa.panggilanPerId.get())
+                .as("tidak ada lookup identitas per siswa").isZero();
     }
 
     @Test

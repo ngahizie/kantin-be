@@ -1,5 +1,9 @@
 package com.asqi.scholia_kantin_be.service.integrasi;
 
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 /**
  * Port status siswa &amp; blokir kartu siswa ke admin-be (PRD §9.3, OPEN-QUESTIONS
  * <b>Q7</b>).
@@ -39,4 +43,28 @@ public interface StatusSiswaPort {
      * @param alasan alasan blokir (audit/log)
      */
     void blokirKartu(Long sekolahId, Long siswaId, String alasan);
+
+    /**
+     * Status keaktifan <b>banyak</b> siswa sekaligus (issue #298).
+     *
+     * <p>Default memanggil {@link #tidakAktif} per ID agar implementasi lama tetap
+     * benar. Adapter REST nyata <b>menimpa</b> method ini dengan satu permintaan
+     * batch, sehingga daftar kandidat refund tidak memicu N+1 panggilan.
+     *
+     * @param sekolahId tenant pemanggil
+     * @param siswaIds  daftar ID siswa (boleh kosong)
+     * @return peta {@code siswaId → tidakAktif}; nilai {@code null} = tidak diketahui
+     */
+    default Map<Long, Boolean> tidakAktifBanyak(Long sekolahId, Collection<Long> siswaIds) {
+        Map<Long, Boolean> hasil = new LinkedHashMap<>();
+        if (siswaIds == null) {
+            return hasil;
+        }
+        for (Long id : siswaIds) {
+            if (id != null) {
+                hasil.put(id, tidakAktif(sekolahId, id));
+            }
+        }
+        return hasil;
+    }
 }
