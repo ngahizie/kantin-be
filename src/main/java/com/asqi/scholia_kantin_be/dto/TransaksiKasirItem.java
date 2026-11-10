@@ -3,10 +3,13 @@ package com.asqi.scholia_kantin_be.dto;
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.model.Transaksi;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 
 /**
  * Satu baris <b>daftar transaksi kasir</b> (PRD §6.3, §9.2) untuk
@@ -68,6 +71,24 @@ public class TransaksiKasirItem {
 
     /** true bila transaksi masih dapat dikoreksi bendahara (belum VOID). */
     private boolean dapatDikoreksi;
+
+    /** Rincian ringkas item menu (mis. "2x Kopi Susu, Pisang Goreng"). */
+    private String ringkasanItem;
+
+    /** Daftar item rincian transaksi (snapshot menu & qty). */
+    private List<ItemSimple> items;
+
+    @Data
+    @Builder
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class ItemSimple {
+        private Long menuId;
+        private String namaMenu;
+        private Integer qty;
+        private Long hargaSatuan;
+        private Long subtotal;
+    }
 
     /** Proyeksi entitas → DTO (tanpa nama titik/subjek — diisi service batch). */
     public static TransaksiKasirItem dari(Transaksi t) {

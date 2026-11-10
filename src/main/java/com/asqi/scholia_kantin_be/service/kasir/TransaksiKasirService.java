@@ -147,11 +147,34 @@ public class TransaksiKasirService {
         Map<Long, String> namaTitik = namaTitikKasir(sekolahId, page.getContent());
         Map<Long, String> namaSubjek = namaPemegangKartu(sekolahId, page.getContent());
 
+        List<Long> trxIds = page.getContent().stream().map(Transaksi::getId).toList();
+        Map<Long, List<TransaksiItem>> itemByTrx = trxIds.isEmpty() ? Map.of()
+                : transaksiItemRepo.findByTransaksiIdIn(trxIds).stream()
+                .collect(Collectors.groupingBy(i -> i.getTransaksi().getId()));
+
         return HalamanResponse.<Transaksi, TransaksiKasirItem>dari(page, t -> {
             TransaksiKasirItem item = TransaksiKasirItem.dari(t);
             item.setTitikKasirNama(namaTitik.get(t.getTitikKasirId()));
             if (t.getSubjekTipe() == SubjekTipe.KARTU_TAMU) {
                 item.setSubjekNama(namaSubjek.get(t.getSubjekId()));
+            }
+
+            List<TransaksiItem> list = itemByTrx.getOrDefault(t.getId(), List.of());
+            if (!list.isEmpty()) {
+                String ringkasan = list.stream()
+                        .map(i -> (i.getQty() != null && i.getQty() > 1 ? i.getQty() + "x " : "") + i.getNamaMenu())
+                        .collect(Collectors.joining(", "));
+                item.setRingkasanItem(ringkasan);
+                List<TransaksiKasirItem.ItemSimple> simpleList = list.stream()
+                        .map(i -> new TransaksiKasirItem.ItemSimple(
+                                i.getMenuId(),
+                                i.getNamaMenu(),
+                                i.getQty(),
+                                i.getHargaJual(),
+                                i.getSubtotal()
+                        ))
+                        .toList();
+                item.setItems(simpleList);
             }
             return item;
         });
