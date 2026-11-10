@@ -13,6 +13,7 @@ import tools.jackson.databind.JsonNode;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Adapter REST nyata {@link CariSiswaPort} — pencarian siswa di <b>admin-be</b>
@@ -48,6 +49,13 @@ public class CariSiswaRestClient extends IntegrasiRestSupport implements CariSis
 
     /** Path default pencarian siswa (Q7). */
     public static final String PATH_DEFAULT = "/api/siswa/cari";
+
+    /**
+     * Path default lookup identitas satu siswa (issue #297). {@code {id}}
+     * diganti ID siswa; bisa ditimpa lewat
+     * {@code kantin.integrasi.cari-siswa.path-by-id}.
+     */
+    public static final String PATH_BY_ID_DEFAULT = "/api/siswa/{id}";
 
     private final LedgerSaldoService ledgerSaldo;
 
@@ -103,6 +111,48 @@ public class CariSiswaRestClient extends IntegrasiRestSupport implements CariSis
         log.debug("[CariSiswa] q='{}' hanyaTidakAktif={} → {} hasil (admin-be).",
                 q, hanyaTidakAktif, hasil.size());
         return List.copyOf(hasil);
+    }
+
+    /**
+     * Lookup identitas satu siswa berdasarkan ID (issue #297).
+     *
+     * <p>Berbeda dari {@link #cari} yang menarik daftar hasil: di sini ID sudah
+     * diketahui dari ledger, jadi satu permintaan tepat per ID. 404 / kegagalan
+     * integrasi diperlakukan sebagai "tidak ada identitas" (fail-open), bukan
+     * error, agar riwayat saldo tetap bisa ditampilkan.
+     */
+    @Override
+    public Optional<InfoSiswa> cariBerdasarkanId(Long sekolahId, Long siswaId) {
+        if (siswaId == null) {
+            return Optional.empty();
+        }
+        JsonNode isi;
+        try {
+            String json = coba("identitas siswa id=" + siswaId, () -> {
+                var spec = klien().get().uri(b -> b.path(pathById(siswaId)).build());
+                return beriHeader(spec, null).retrieve().body(String.class);
+            });
+            isi = data(JSON.readTree(json));
+        } catch (RestClientResponseException e) {
+            log.warn("[CariSiswa] admin-be menjawab HTTP {} untuk siswa id={} → identitas kosong.",
+                    e.getStatusCode().value(), siswaId);
+            return Optional.empty();
+        } catch (RuntimeException e) {
+            log.warn("[CariSiswa] Gagal mengambil identitas siswa id={} (dianggap kosong): {}",
+                    siswaId, e.getMessage());
+            return Optional.empty();
+        }
+        if (isi == null || isi.isNull() || !isi.isObject()) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(keInfo(sekolahId, isi));
+    }
+
+    /** Path lookup per ID: properti {@code path-by-id} bila diisi, selain itu default. */
+    private String pathById(Long siswaId) {
+        String p = konfigurasi().getPathById();
+        String pola = (p == null || p.isBlank()) ? PATH_BY_ID_DEFAULT : p;
+        return pola.replace("{id}", String.valueOf(siswaId));
     }
 
     /**

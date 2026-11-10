@@ -11,11 +11,13 @@ import java.util.List;
  * {@code saldo_ledger}, {@code transaksi}, {@code limit_harian},
  * {@code blokir_kartu}) — bukan query baru dari nol.
  *
- * <p><b>Batas data (ADR-0002).</b> Kantin-be tidak menyimpan data induk siswa:
- * {@code nis}, {@code nama}, {@code kelas}, {@code fotoUrl}, {@code parentName},
- * {@code parentPhone} berasal dari admin-be sehingga bernilai {@code null} sampai
- * integrasi siswa tersedia (Q7). FE sebaiknya menampilkan identitas dari
- * datanya sendiri; {@code siswaId} selalu ada.
+ * <p><b>Batas data (ADR-0002).</b> Kantin-be tidak menyimpan data induk siswa.
+ * Sejak issue #297, {@code nis}, {@code nama}, dan {@code kelas} diambil dari
+ * admin-be lewat lookup <b>per ID</b> ({@code CariSiswaPort#cariBerdasarkanId})
+ * dan tetap {@code null} bila integrasi belum aktif, siswa tidak ditemukan, atau
+ * integrasi gagal (fail-open) — riwayat saldo tidak boleh ikut gagal.
+ * {@code fotoUrl}, {@code parentName}, {@code parentPhone} masih {@code null}
+ * karena belum ada sumbernya; {@code siswaId} selalu ada.
  *
  * @param profil  identitas + posisi saldo/limit siswa saat ini
  * @param riwayat mutasi saldo dalam rentang, terbaru lebih dulu

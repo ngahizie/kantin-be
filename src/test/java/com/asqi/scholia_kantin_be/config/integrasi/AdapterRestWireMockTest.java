@@ -32,6 +32,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlPathMatching;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -534,6 +535,54 @@ class AdapterRestWireMockTest {
                                 ]}""")));
 
         assertThat(cariSiswa(ledger(0L)).cari(1L, "", false, 2)).hasSize(2);
+    }
+
+    @Test
+    @DisplayName("CariSiswa #297: lookup per ID → identitas + saldo lokal, satu request tepat")
+    void cariSiswaById() {
+        wm.stubFor(get(urlPathEqualTo("/api/siswa/101"))
+                .willReturn(aResponse().withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                                {"code":200,"message":"ok","data":
+                                  {"id":101,"nis":"2024001","namaLengkap":"Budi Santoso",
+                                   "kelas":{"namaKelas":"7A"},"tidakAktif":false}}""")));
+
+        var hasil = cariSiswa(ledger(15000L)).cariBerdasarkanId(1L, 101L);
+
+        assertThat(hasil).isPresent();
+        assertThat(hasil.get().getSiswaId()).isEqualTo(101L);
+        assertThat(hasil.get().getNis()).isEqualTo("2024001");
+        assertThat(hasil.get().getNama()).isEqualTo("Budi Santoso");
+        assertThat(hasil.get().getKelas()).isEqualTo("7A");
+        assertThat(hasil.get().getSaldo()).isEqualTo(15000L);
+        wm.verify(1, getRequestedFor(urlPathEqualTo("/api/siswa/101")));
+        wm.verify(0, getRequestedFor(urlPathEqualTo("/api/siswa/cari")));
+    }
+
+    @Test
+    @DisplayName("CariSiswa #297: 404 → Optional kosong (bukan error)")
+    void cariSiswaByIdTidakDitemukan() {
+        wm.stubFor(get(urlPathEqualTo("/api/siswa/999"))
+                .willReturn(aResponse().withStatus(404)));
+
+        assertThat(cariSiswa(ledger(0L)).cariBerdasarkanId(1L, 999L)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("CariSiswa #297: 5xx → Optional kosong (fail-open, riwayat tetap tampil)")
+    void cariSiswaByIdGagal() {
+        wm.stubFor(get(urlPathEqualTo("/api/siswa/101"))
+                .willReturn(aResponse().withStatus(503)));
+
+        assertThat(cariSiswa(ledger(0L)).cariBerdasarkanId(1L, 101L)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("CariSiswa #297: ID null → tidak memanggil admin-be")
+    void cariSiswaByIdNull() {
+        assertThat(cariSiswa(ledger(0L)).cariBerdasarkanId(1L, null)).isEmpty();
+        wm.verify(0, getRequestedFor(urlPathMatching("/api/siswa/.*")));
     }
 
     @Test

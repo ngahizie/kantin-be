@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Fallback default {@link CariSiswaPort} saat integrasi data siswa (Q7) belum
@@ -21,5 +22,12 @@ public class CariSiswaFallback implements CariSiswaPort {
         log.debug("Pencarian siswa belum dikonfigurasi (Q7). sekolah={} q={} → daftar kosong.",
                 sekolahId, kataKunci);
         return List.of();
+    }
+
+    @Override
+    public Optional<InfoSiswa> cariBerdasarkanId(Long sekolahId, Long siswaId) {
+        log.debug("Lookup identitas siswa belum dikonfigurasi (Q7). sekolah={} siswa={} → kosong.",
+                sekolahId, siswaId);
+        return Optional.empty();
     }
 }
