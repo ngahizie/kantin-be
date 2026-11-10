@@ -133,24 +133,55 @@ class KasirControllerTest {
     }
 
     @Test
-    void voidMeneruskanAktorIdDariToken() throws Exception {
+    void refundMeneruskanAktorIdDariToken() throws Exception {
         VoidRequest req = new VoidRequest();
         req.setAlasan("salah input");
+        req.setKodeStruk("TRX-20261109-55");
+
+        mockMvc.perform(post("/api/kasir/transaksi/55/refund")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(req)))
+                .andExpect(status().isOk());
+
+        // aktorId = 42 (dari token), sekolahId = 7 (tenant), kode struk ikut diteruskan.
+        verify(voidService).refundTransaksi(
+                eq(7L), eq(55L), eq(42L), eq("salah input"), eq("TRX-20261109-55"));
+    }
+
+    @Test
+    @DisplayName("endpoint lama /void tetap jalan (kompatibilitas) tapi wajib kode struk")
+    void endpointLamaVoidMasihJalan() throws Exception {
+        VoidRequest req = new VoidRequest();
+        req.setAlasan("salah input");
+        req.setKodeStruk("TRX-20261109-55");
 
         mockMvc.perform(post("/api/kasir/transaksi/55/void")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(mapper.writeValueAsString(req)))
                 .andExpect(status().isOk());
 
-        // aktorId = 42 (dari token), sekolahId = 7 (tenant).
-        verify(voidService).voidTransaksi(eq(7L), eq(55L), eq(42L), eq("salah input"));
+        verify(voidService).refundTransaksi(
+                eq(7L), eq(55L), eq(42L), eq("salah input"), eq("TRX-20261109-55"));
     }
 
     @Test
-    void voidTanpaAlasanDitolakValidasi() throws Exception {
-        VoidRequest req = new VoidRequest(); // alasan null
+    void refundTanpaAlasanDitolakValidasi() throws Exception {
+        VoidRequest req = new VoidRequest(); // alasan & kode struk null
+        req.setKodeStruk("TRX-20261109-55");
 
-        mockMvc.perform(post("/api/kasir/transaksi/55/void")
+        mockMvc.perform(post("/api/kasir/transaksi/55/refund")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(req)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("refund tanpa kode struk ditolak validasi (PRD §6.3)")
+    void refundTanpaKodeStrukDitolakValidasi() throws Exception {
+        VoidRequest req = new VoidRequest();
+        req.setAlasan("salah input"); // kode struk null
+
+        mockMvc.perform(post("/api/kasir/transaksi/55/refund")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(mapper.writeValueAsString(req)))
                 .andExpect(status().isBadRequest());

@@ -121,19 +121,41 @@ public class KasirController {
     }
 
     /**
-     * Batalkan (void) transaksi — kembalikan saldo &amp; stok (PRD §6.3).
-     * Hanya untuk transaksi pada sesi yang belum ditutup; wajib alasan.
+     * Refund (pembatalan) transaksi — kembalikan saldo &amp; stok (PRD §6.3).
+     *
+     * <p>Hanya untuk transaksi pada sesi yang belum ditutup. Wajib <b>alasan</b>
+     * dan wajib <b>kode struk</b> yang cocok dengan transaksi — supaya kasir
+     * tidak salah membatalkan transaksi orang lain.
      */
     @PerluPeran({AktorKantin.PETUGAS_KANTIN})
-    @PostMapping("transaksi/{transaksiId}/void")
-    public ResponseEntity<Response<Transaksi>> voidTransaksi(
+    @PostMapping("transaksi/{transaksiId}/refund")
+    public ResponseEntity<Response<Transaksi>> refundTransaksi(
             @PathVariable Long transaksiId,
             @Valid @RequestBody VoidRequest request,
             @AuthenticationPrincipal IdentitasKantin identitas) {
 
-        Transaksi trx = voidService.voidTransaksi(
-                TenantContext.sekolahIdWajib(), transaksiId, identitas.aktorIdWajib(), request.getAlasan());
-        return CommonResponse.data(trx, "Transaksi berhasil di-void");
+        Transaksi trx = voidService.refundTransaksi(
+                TenantContext.sekolahIdWajib(), transaksiId, identitas.aktorIdWajib(),
+                request.getAlasan(), request.getKodeStruk());
+        return CommonResponse.data(trx, "Transaksi berhasil di-refund");
+    }
+
+    /**
+     * @deprecated gunakan {@code POST transaksi/{id}/refund}. Dipertahankan agar
+     * aplikasi versi lama tidak langsung rusak; aturan kode struk tetap berlaku.
+     */
+    @Deprecated
+    @PerluPeran({AktorKantin.PETUGAS_KANTIN})
+    @PostMapping("transaksi/{transaksiId}/void")
+    public ResponseEntity<Response<Transaksi>> voidTransaksiLama(
+            @PathVariable Long transaksiId,
+            @Valid @RequestBody VoidRequest request,
+            @AuthenticationPrincipal IdentitasKantin identitas) {
+
+        Transaksi trx = voidService.refundTransaksi(
+                TenantContext.sekolahIdWajib(), transaksiId, identitas.aktorIdWajib(),
+                request.getAlasan(), request.getKodeStruk());
+        return CommonResponse.data(trx, "Transaksi berhasil di-refund");
     }
 
     /**

@@ -2,6 +2,7 @@ package com.asqi.scholia_kantin_be.service.kasir;
 
 import com.asqi.scholia_kantin_be.dto.TapRequest;
 import com.asqi.scholia_kantin_be.dto.TapResponse;
+import com.asqi.scholia_kantin_be.helper.NomorStruk;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.StatusSesiKasir;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
@@ -99,7 +100,8 @@ class SesiKasirServiceIT {
     void rekapSesi() {
         TapResponse t1 = tap("s1", 1); // 8.000
         tap("s2", 2);                  // 16.000
-        voidService.voidTransaksi(SEKOLAH, t1.getTransaksiId(), 555L, "salah");
+        voidService.refundTransaksi(SEKOLAH, t1.getTransaksiId(), 555L, "salah",
+                NomorStruk.dari(t1.getTransaksiId(), t1.getWaktu()));
 
         Long sesiId = jdbc.queryForObject(
                 "SELECT sesi_kasir_id FROM transaksi WHERE id = ?", Long.class, t1.getTransaksiId());
@@ -211,7 +213,8 @@ class SesiKasirServiceIT {
     void ambilSesiAktifDenganSesiTerbuka() {
         tap("s1", 1); // 8.000 — SUKSES
         TapResponse t2 = tap("s2", 1); // 8.000
-        voidService.voidTransaksi(SEKOLAH, t2.getTransaksiId(), 555L, "salah");
+        voidService.refundTransaksi(SEKOLAH, t2.getTransaksiId(), 555L, "salah",
+                NomorStruk.dari(t2.getTransaksiId(), t2.getWaktu()));
 
         LocalDate tanggalSesi = jdbc.queryForObject(
                 "SELECT tanggal FROM sesi_kasir WHERE titik_kasir_id = ?", LocalDate.class, TITIK);
