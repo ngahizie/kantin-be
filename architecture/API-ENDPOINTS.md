@@ -146,6 +146,7 @@
 | `PUT` | `/api/kontrol-kartu/limit-harian` | admin, ortu | Set/ubah limit belanja harian (nominal null = tanpa limit) |
 | `POST` | `/api/kontrol-kartu/blokir-item` | admin, ortu | Blokir / buka blokir item atau kategori untuk satu kartu |
 | `GET` | `/api/kontrol-kartu/{subjekTipe}/{subjekId}` | TU, admin, pengelola, kasir, ortu | Ringkasan kontrol satu subjek (blokir, limit, item diblokir) |
+| `GET` | `/api/kontrol-kartu/bulk` | TU, admin, pengelola, kasir, ortu | Ringkasan kontrol bulk subjek (query params: `subjekTipe`, `subjekIds`) — hindari N+1 |
 
 > **Q7** (anti-tabrakan `rfid_uid` dengan admin-be) tidak menghalangi penegakan
 > kontrol: penegakan dilakukan kantin-be atas data kartu yang sudah dikenali
