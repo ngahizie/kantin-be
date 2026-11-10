@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Pencarian siswa untuk layar TU/kantin (PRD §9.2) — issue #214.
@@ -37,5 +38,21 @@ public class CariSiswaService {
     public List<InfoSiswa> cari(Long sekolahId, String kataKunci, boolean hanyaTidakAktif, int batas) {
         int batasAman = Math.min(Math.max(batas, 1), BATAS_MAKS);
         return cariSiswaPort.cari(sekolahId, kataKunci, hanyaTidakAktif, batasAman);
+    }
+
+    /**
+     * Identitas satu siswa berdasarkan ID (issue #297) — dipakai profil riwayat
+     * saldo agar NIS/nama/kelas terisi tanpa memindai hasil pencarian.
+     *
+     * <p>Fail-open: ID kosong atau integrasi tidak tersedia → {@link Optional#empty()}.
+     *
+     * @param sekolahId tenant dari JWT
+     * @param siswaId   ID siswa yang sudah terbukti milik tenant
+     */
+    public Optional<InfoSiswa> identitas(Long sekolahId, Long siswaId) {
+        if (sekolahId == null || siswaId == null) {
+            return Optional.empty();
+        }
+        return cariSiswaPort.cariBerdasarkanId(sekolahId, siswaId);
     }
 }

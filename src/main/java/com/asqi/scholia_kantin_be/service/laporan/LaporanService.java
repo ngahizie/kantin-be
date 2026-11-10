@@ -18,6 +18,7 @@ import com.asqi.scholia_kantin_be.dto.RingkasanRekonsiliasi;
 import com.asqi.scholia_kantin_be.dto.RingkasanKerugianStok;
 import com.asqi.scholia_kantin_be.dto.RingkasanSaldoMengendap;
 import com.asqi.scholia_kantin_be.dto.SiswaSaldoDetail;
+import com.asqi.scholia_kantin_be.service.integrasi.InfoSiswa;
 import com.asqi.scholia_kantin_be.enums.ArahMutasi;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiStok;
@@ -47,6 +48,7 @@ import com.asqi.scholia_kantin_be.repository.TransaksiItemRepository;
 import com.asqi.scholia_kantin_be.repository.TransaksiRepository;
 import com.asqi.scholia_kantin_be.service.stok.HppService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -78,6 +80,7 @@ import java.util.stream.Collectors;
  * {@code Σ KREDIT − Σ DEBIT == saldo mengendap}. Bila tidak sama → peringatan.
  */
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class LaporanService {
 
@@ -604,8 +607,23 @@ public class LaporanService {
                 .orElse(0L);
         boolean diblokir = blokir != null && blokir.isDiblokir();
 
+        // Identitas siswa (NIS/nama/kelas) berasal dari admin-be lewat lookup per ID
+        // (issue #297). Fail-open: bila integrasi belum aktif / siswa tidak ditemukan,
+        // profil tetap dikembalikan dengan identitas null dan riwayat tetap tampil.
+        InfoSiswa identitas = null;
+        try {
+            identitas = cariSiswaService.identitas(sekolahId, siswaId).orElse(null);
+        } catch (RuntimeException e) {
+            log.warn("Identitas siswa {} tidak dapat diambil (riwayat tetap dikirim): {}",
+                    siswaId, e.getMessage());
+        }
+
         LaporanRiwayatSiswa.Profil profil = new LaporanRiwayatSiswa.Profil(
-                siswaId, null, null, null, null,
+                siswaId,
+                identitas == null ? null : identitas.getNis(),
+                identitas == null ? null : identitas.getNama(),
+                identitas == null ? null : identitas.getKelas(),
+                null,
                 cache.getSaldo() == null ? 0L : cache.getSaldo(),
                 ledgerSaldo.belanjaHariIni(sekolahId, SubjekTipe.SISWA, siswaId),
                 limit,

@@ -1,5 +1,6 @@
 package com.asqi.scholia_kantin_be.service.laporan;
 
+import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
 import com.asqi.scholia_kantin_be.dto.BarisKartuTamu;
 import com.asqi.scholia_kantin_be.dto.BarisKerugianStok;
 import com.asqi.scholia_kantin_be.dto.BarisPembatalanKasir;
@@ -37,6 +38,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -724,6 +726,69 @@ class LaporanServiceIT {
         assertThat(r.transaksi()).isEmpty();
         assertThat(r.mutasiSaldo()).isEmpty();
         assertThat(r.saldo()).isZero();
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // RIWAYAT SISWA — identitas dari admin-be (issue #297)
+    // ────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("#297: profil riwayat mengisi NIS/nama/kelas lewat lookup per ID")
+    void riwayatSiswaIdentitas() {
+        topup(SISWA, SubjekTipe.SISWA, 50_000, JenisMutasiSaldo.TOPUP_TUNAI);
+        org.mockito.Mockito.when(cariSiswaPort.cariBerdasarkanId(SEKOLAH, SISWA))
+                .thenReturn(Optional.of(InfoSiswa.builder()
+                        .siswaId(SISWA).nis("2024001").nama("Budi Santoso")
+                        .kelas("7A").saldo(50_000).build()));
+
+        var r = laporan.riwayatSiswa(SEKOLAH, SISWA, null, null);
+
+        assertThat(r.profil().siswaId()).isEqualTo(SISWA);
+        assertThat(r.profil().nis()).isEqualTo("2024001");
+        assertThat(r.profil().nama()).isEqualTo("Budi Santoso");
+        assertThat(r.profil().kelas()).isEqualTo("7A");
+        assertThat(r.riwayat()).isNotEmpty();
+        org.mockito.Mockito.verify(cariSiswaPort).cariBerdasarkanId(SEKOLAH, SISWA);
+    }
+
+    @Test
+    @DisplayName("#297: identitas tidak tersedia → profil tetap dikirim, identitas null")
+    void riwayatSiswaTanpaIdentitas() {
+        topup(SISWA, SubjekTipe.SISWA, 50_000, JenisMutasiSaldo.TOPUP_TUNAI);
+        org.mockito.Mockito.when(cariSiswaPort.cariBerdasarkanId(SEKOLAH, SISWA))
+                .thenReturn(Optional.empty());
+
+        var r = laporan.riwayatSiswa(SEKOLAH, SISWA, null, null);
+
+        assertThat(r.profil().nis()).isNull();
+        assertThat(r.profil().nama()).isNull();
+        assertThat(r.profil().kelas()).isNull();
+        assertThat(r.profil().saldo()).isEqualTo(50_000L);
+        assertThat(r.riwayat()).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("#297: integrasi gagal → riwayat tetap dikirim (fail-open)")
+    void riwayatSiswaIntegrasiGagal() {
+        topup(SISWA, SubjekTipe.SISWA, 50_000, JenisMutasiSaldo.TOPUP_TUNAI);
+        org.mockito.Mockito.when(cariSiswaPort.cariBerdasarkanId(SEKOLAH, SISWA))
+                .thenThrow(new IllegalStateException("admin-be down"));
+
+        var r = laporan.riwayatSiswa(SEKOLAH, SISWA, null, null);
+
+        assertThat(r.profil().nama()).isNull();
+        assertThat(r.riwayat()).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("#297: siswa sekolah lain → NotFound (identitas tidak bocor lintas tenant)")
+    void riwayatSiswaTenantScoping() {
+        topup(SISWA, SubjekTipe.SISWA, 50_000, JenisMutasiSaldo.TOPUP_TUNAI);
+
+        assertThatThrownBy(() -> laporan.riwayatSiswa(SEKOLAH_LAIN, SISWA, null, null))
+                .isInstanceOf(NotFoundEntity.class);
+        org.mockito.Mockito.verify(cariSiswaPort, org.mockito.Mockito.never())
+                .cariBerdasarkanId(SEKOLAH_LAIN, SISWA);
     }
 
     // ────────────────────────────────────────────────────────────────

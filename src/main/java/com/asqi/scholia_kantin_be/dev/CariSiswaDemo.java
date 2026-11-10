@@ -11,6 +11,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Locale;
 
 /**
@@ -72,5 +73,23 @@ public class CariSiswaDemo implements CariSiswaPort {
 
     /** Baris data siswa tiruan. */
     private record SiswaDemo(Long id, String nis, String nama, String kelas, boolean tidakAktif) {
+    }
+
+    @Override
+    public Optional<InfoSiswa> cariBerdasarkanId(Long sekolahId, Long siswaId) {
+        if (siswaId == null) {
+            return Optional.empty();
+        }
+        return DATA.stream()
+                .filter(s -> s.id().equals(siswaId))
+                .findFirst()
+                .map(s -> InfoSiswa.builder()
+                        .siswaId(s.id())
+                        .nis(s.nis())
+                        .nama(s.nama())
+                        .kelas(s.kelas())
+                        .tidakAktif(s.tidakAktif())
+                        .saldo(ledgerSaldo.saldo(sekolahId, SubjekTipe.SISWA, s.id()))
+                        .build());
     }
 }

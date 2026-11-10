@@ -94,6 +94,12 @@ public class IntegrasiRestProperties {
         /** Path endpoint relatif terhadap {@link #baseUrl}. */
         private String path = "";
 
+        /**
+         * Path alternatif untuk lookup <b>per ID</b> (issue #297), mis.
+         * {@code /api/siswa/{id}}. Kosong = pakai default adapter.
+         */
+        private String pathById = "";
+
         /** Timeout (ms) connect &amp; read. */
         private int timeoutMs = 3000;
 
