@@ -26,6 +26,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 /**
  * Endpoint kontrol kartu: blokir kartu, limit harian &amp; blokir item
  * (PRD §6.1, §8.3, issue <b>#40</b>).
@@ -120,5 +122,16 @@ public class KontrolKartuController {
             @PathVariable Long subjekId) {
         return CommonResponse.data(
                 service.kontrol(TenantContext.sekolahIdWajib(), subjekTipe, subjekId));
+    }
+
+    /** Ringkasan kontrol bulk subjek (blokir, limit, item diblokir). */
+    @PerluPeran({AktorKantin.PETUGAS_KANTIN, AktorKantin.PENGELOLA_KANTIN,
+            AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH})
+    @GetMapping("/bulk")
+    public ResponseEntity<Response<List<KontrolSubjekResponse>>> kontrolBulk(
+            @RequestParam SubjekTipe subjekTipe,
+            @RequestParam("subjekIds") List<Long> subjekIds) {
+        return CommonResponse.data(
+                service.kontrolBulk(TenantContext.sekolahIdWajib(), subjekTipe, subjekIds));
     }
 }

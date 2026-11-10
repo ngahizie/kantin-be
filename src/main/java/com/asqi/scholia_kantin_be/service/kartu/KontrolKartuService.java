@@ -22,7 +22,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Kontrol kartu: blokir kartu, limit harian &amp; blokir item
@@ -203,36 +205,46 @@ public class KontrolKartuService {
     // BACA
     // ────────────────────────────────────────────────────────────────
 
-    /** Ringkasan kontrol satu subjek (tenant-scoped). */
+    /** Ringkasan kontrol bulk satu subjek (tenant-scoped). */
     @Transactional(readOnly = true)
-    public KontrolSubjekResponse kontrol(Long sekolahId, SubjekTipe subjekTipe, Long subjekId) {
-        validasiSubjek(subjekTipe, subjekId);
+    public List<KontrolSubjekResponse> kontrolBulk(Long sekolahId, SubjekTipe subjekTipe, List<Long> subjekIds) {
+        if (subjekIds == null || subjekIds.isEmpty()) {
+            return List.of();
+        }
+        validasiSubjek(subjekTipe, null); // subjekId not needed for validation
 
-        BlokirKartu blokir = blokirRepo
-                .findBySekolahIdAndSubjekTipeAndSubjekId(sekolahId, subjekTipe, subjekId)
-                .orElse(null);
-        Long limit = limitRepo
-                .findBySekolahIdAndSubjekTipeAndSubjekId(sekolahId, subjekTipe, subjekId)
-                .map(LimitHarian::getNominal)
-                .orElse(null);
+        // fetch all records in batch
+        List<BlokirKartu> blokirList = blokirRepo.findAllBySekolahIdAndSubjekTipeAndSubjekIdIn(sekolahId, subjekTipe, subjekIds);
+        List<LimitHarian> limitList = limitRepo.findAllBySekolahIdAndSubjekTipeAndSubjekIdIn(sekolahId, subjekTipe, subjekIds);
+        List<BlokirItem> itemList = itemRepo.findAllBySekolahIdAndSubjekTipeAndSubjekIdIn(sekolahId, subjekTipe, subjekIds);
 
-        List<BlokirItem> item = itemRepo.cariAktif(sekolahId, subjekTipe, subjekId);
-        List<Long> menuDiblokir = item.stream()
-                .map(BlokirItem::getMenuId).filter(java.util.Objects::nonNull).distinct().toList();
-        List<Long> kategoriDiblokir = item.stream()
-                .map(BlokirItem::getKategoriId).filter(java.util.Objects::nonNull).distinct().toList();
+        // group by subjekId for easy lookup
+        var blokirMap = blokirList.stream().collect(Collectors.groupingBy(BlokirKartu::getSubjekId));
+        var limitMap = limitList.stream().collect(Collectors.groupingBy(LimitHarian::getSubjekId));
+        var itemMap = itemList.stream().collect(Collectors.groupingBy(BlokirItem::getSubjekId));
 
-        return KontrolSubjekResponse.builder()
-                .subjekTipe(subjekTipe.name())
-                .subjekId(subjekId)
-                .diblokir(blokir != null && blokir.isDiblokir())
-                .alasanBlokir(blokir == null ? null : blokir.getAlasan())
-                .limitHarian(limit)
-                .adaLimit(limit != null)
-                .menuDiblokir(menuDiblokir)
-                .kategoriDiblokir(kategoriDiblokir)
-                .item(item.stream().map(BlokirItemResponse::dari).toList())
-                .build();
+        return subjekIds.stream().map(subjekId -> {
+            List<BlokirKartu> blokirBaris = blokirMap.getOrDefault(subjekId, List.of());
+            BlokirKartu blokir = blokirBaris.isEmpty() ? null : blokirBaris.get(0);
+            List<LimitHarian> limitBaris = limitMap.getOrDefault(subjekId, List.of());
+            Long limit = limitBaris.isEmpty() ? null : limitBaris.get(0).getNominal();
+            List<BlokirItem> items = itemMap.getOrDefault(subjekId, List.of());
+
+            List<Long> menuDiblokir = items.stream().map(BlokirItem::getMenuId).filter(java.util.Objects::nonNull).distinct().toList();
+            List<Long> kategoriDiblokir = items.stream().map(BlokirItem::getKategoriId).filter(java.util.Objects::nonNull).distinct().toList();
+
+            return KontrolSubjekResponse.builder()
+                    .subjekTipe(subjekTipe.name())
+                    .subjekId(subjekId)
+                    .diblokir(blokir != null && blokir.isDiblokir())
+                    .alasanBlokir(blokir == null ? null : blokir.getAlasan())
+                    .limitHarian(limit)
+                    .adaLimit(limit != null)
+                    .menuDiblokir(menuDiblokir)
+                    .kategoriDiblokir(kategoriDiblokir)
+                    .item(items.stream().map(BlokirItemResponse::dari).toList())
+                    .build();
+        }).toList();
     }
 
     /**
@@ -301,8 +313,40 @@ public class KontrolKartuService {
         if (subjekTipe == null) {
             throw new InvalidOperationException("Tipe subjek wajib diisi (SISWA/KARTU_TAMU)");
         }
-        if (subjekId == null) {
-            throw new InvalidOperationException("ID subjek wajib diisi");
+        if (subjekId != null && subjekId <= 0) {
+            throw new InvalidOperationException("ID subjek harus positif");
         }
+    }
+
+    /** Ringkasan kontrol satu subjek (tenant-scoped). */
+    @Transactional(readOnly = true)
+    public KontrolSubjekResponse kontrol(Long sekolahId, SubjekTipe subjekTipe, Long subjekId) {
+        validasiSubjek(subjekTipe, subjekId);
+
+        BlokirKartu blokir = blokirRepo
+                .findBySekolahIdAndSubjekTipeAndSubjekId(sekolahId, subjekTipe, subjekId)
+                .orElse(null);
+        Long limit = limitRepo
+                .findBySekolahIdAndSubjekTipeAndSubjekId(sekolahId, subjekTipe, subjekId)
+                .map(LimitHarian::getNominal)
+                .orElse(null);
+
+        List<BlokirItem> item = itemRepo.cariAktif(sekolahId, subjekTipe, subjekId);
+        List<Long> menuDiblokir = item.stream()
+                .map(BlokirItem::getMenuId).filter(java.util.Objects::nonNull).distinct().toList();
+        List<Long> kategoriDiblokir = item.stream()
+                .map(BlokirItem::getKategoriId).filter(java.util.Objects::nonNull).distinct().toList();
+
+        return KontrolSubjekResponse.builder()
+                .subjekTipe(subjekTipe.name())
+                .subjekId(subjekId)
+                .diblokir(blokir != null && blokir.isDiblokir())
+                .alasanBlokir(blokir == null ? null : blokir.getAlasan())
+                .limitHarian(limit)
+                .adaLimit(limit != null)
+                .menuDiblokir(menuDiblokir)
+                .kategoriDiblokir(kategoriDiblokir)
+                .item(item.stream().map(BlokirItemResponse::dari).toList())
+                .build();
     }
 }

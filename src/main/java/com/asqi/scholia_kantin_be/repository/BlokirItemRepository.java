@@ -21,6 +21,9 @@ public interface BlokirItemRepository extends JpaRepository<BlokirItem, Long> {
     List<BlokirItem> findBySekolahIdAndSubjekTipeAndSubjekId(
             Long sekolahId, SubjekTipe subjekTipe, Long subjekId);
 
+    List<BlokirItem> findAllBySekolahIdAndSubjekTipeAndSubjekIdIn(
+            Long sekolahId, SubjekTipe subjekTipe, List<Long> subjekIds);
+
     Optional<BlokirItem> findBySekolahIdAndSubjekTipeAndSubjekIdAndMenuId(
             Long sekolahId, SubjekTipe subjekTipe, Long subjekId, Long menuId);
 
