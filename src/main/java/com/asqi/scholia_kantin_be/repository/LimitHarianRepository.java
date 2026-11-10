@@ -5,6 +5,7 @@ import com.asqi.scholia_kantin_be.model.LimitHarian;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -17,4 +18,7 @@ public interface LimitHarianRepository extends JpaRepository<LimitHarian, Long> 
 
     Optional<LimitHarian> findBySekolahIdAndSubjekTipeAndSubjekId(
             Long sekolahId, SubjekTipe subjekTipe, Long subjekId);
+
+    List<LimitHarian> findAllBySekolahIdAndSubjekTipeAndSubjekIdIn(
+            Long sekolahId, SubjekTipe subjekTipe, List<Long> subjekIds);
 }

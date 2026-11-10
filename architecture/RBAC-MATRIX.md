@@ -90,6 +90,7 @@ Batas per-subjek ditegakkan di dalam `KontrolKartuController#ubahBlokir`.
 | `POST` | `/api/kontrol-kartu/blokir-item` | admin, tu | §9.6 — *Kontrol Siswa: Admin (update)* | PRD diikuti |
 | `PUT` | `/api/kontrol-kartu/limit-harian` | admin, tu | §9.6 — *Kontrol Siswa: Admin (update)* | PRD diikuti |
 | `GET` | `/api/kontrol-kartu/{subjekTipe}/{subjekId}` | kasir, pengelola, tu, admin | §9.6 | di luar keputusan #250 — dipertahankan |
+| `GET` | `/api/kontrol-kartu/bulk` | kasir, pengelola, tu, admin | §9.6 — batch query kontrol subjek (hindari N+1) | di luar keputusan #250 — dipertahankan |
 | `GET` | `/api/laporan/ekspor` | pengelola, tu, admin, kepsek | §9.5 — *Semua laporan dapat diekspor; akses mengikuti laporan asal* | PRD diikuti |
 | `GET` | `/api/laporan/kartu-stok/{menuId}` | pengelola, tu | §9.5 — *Kartu stok per item: Pengelola, Bendahara* | PRD diikuti |
 | `GET` | `/api/laporan/kartu-tamu` | tu | §9.5 — *Kartu Tamu: TU, Bendahara* | PRD diikuti |
