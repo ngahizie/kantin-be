@@ -100,6 +100,13 @@ public class IntegrasiRestProperties {
          */
         private String pathById = "";
 
+        /**
+         * Path untuk lookup <b>batch</b> per daftar ID (issue #298), mis.
+         * {@code /api/siswa} dengan parameter {@code ids=1,2,3}. Kosong = pakai
+         * default adapter.
+         */
+        private String pathBanyak = "";
+
         /** Timeout (ms) connect &amp; read. */
         private int timeoutMs = 3000;
 

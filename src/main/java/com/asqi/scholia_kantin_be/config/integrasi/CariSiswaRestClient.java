@@ -12,7 +12,10 @@ import org.springframework.web.client.RestClientResponseException;
 import tools.jackson.databind.JsonNode;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -56,6 +59,16 @@ public class CariSiswaRestClient extends IntegrasiRestSupport implements CariSis
      * {@code kantin.integrasi.cari-siswa.path-by-id}.
      */
     public static final String PATH_BY_ID_DEFAULT = "/api/siswa/{id}";
+
+    /**
+     * Path default lookup batch (issue #298). Daftar ID dikirim sebagai
+     * parameter {@code ids=1,2,3}; bisa ditimpa lewat
+     * {@code kantin.integrasi.cari-siswa.path-banyak}.
+     */
+    public static final String PATH_BANYAK_DEFAULT = "/api/siswa";
+
+    /** Batas ID per permintaan batch agar URL tidak melebihi batas server. */
+    private static final int BATAS_BATCH = 100;
 
     private final LedgerSaldoService ledgerSaldo;
 
@@ -146,6 +159,57 @@ public class CariSiswaRestClient extends IntegrasiRestSupport implements CariSis
             return Optional.empty();
         }
         return Optional.ofNullable(keInfo(sekolahId, isi));
+    }
+
+    /**
+     * Lookup identitas banyak siswa dalam satu/beberapa permintaan (issue #298).
+     *
+     * <p>ID dipecah per {@value #BATAS_BATCH} agar URL tetap wajar. Kegagalan
+     * pada satu potongan tidak membatalkan potongan lain; siswa yang tidak
+     * ditemukan tidak muncul sebagai kunci (pemanggil menganggap "tidak diketahui").
+     */
+    @Override
+    public Map<Long, InfoSiswa> cariBanyak(Long sekolahId, Collection<Long> siswaIds) {
+        if (siswaIds == null || siswaIds.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> ids = siswaIds.stream().filter(java.util.Objects::nonNull).distinct().toList();
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, InfoSiswa> hasil = new LinkedHashMap<>();
+        for (int mulai = 0; mulai < ids.size(); mulai += BATAS_BATCH) {
+            List<Long> potong = ids.subList(mulai, Math.min(mulai + BATAS_BATCH, ids.size()));
+            String gabung = potong.stream().map(String::valueOf).collect(java.util.stream.Collectors.joining(","));
+            try {
+                String json = coba("identitas siswa batch n=" + potong.size(), () -> {
+                    var spec = klien().get().uri(b -> b.path(pathBanyak())
+                            .queryParam("ids", gabung)
+                            .build());
+                    return beriHeader(spec, null).retrieve().body(String.class);
+                });
+                for (JsonNode item : daftarSiswa(json)) {
+                    InfoSiswa siswa = keInfo(sekolahId, item);
+                    if (siswa != null && siswa.getSiswaId() != null) {
+                        hasil.put(siswa.getSiswaId(), siswa);
+                    }
+                }
+            } catch (RestClientResponseException e) {
+                log.warn("[CariSiswa] admin-be menjawab HTTP {} untuk batch {} siswa → potongan dilewati.",
+                        e.getStatusCode().value(), potong.size());
+            } catch (RuntimeException e) {
+                log.warn("[CariSiswa] Gagal mengambil batch {} siswa (dilewati): {}",
+                        potong.size(), e.getMessage());
+            }
+        }
+        log.debug("[CariSiswa] batch {} id → {} identitas.", ids.size(), hasil.size());
+        return hasil;
+    }
+
+    /** Path batch: properti {@code path-banyak} bila diisi, selain itu default. */
+    private String pathBanyak() {
+        String p = konfigurasi().getPathBanyak();
+        return (p == null || p.isBlank()) ? PATH_BANYAK_DEFAULT : p;
     }
 
     /** Path lookup per ID: properti {@code path-by-id} bila diisi, selain itu default. */

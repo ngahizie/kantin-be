@@ -354,6 +354,34 @@ class AdapterRestWireMockTest {
     }
 
     @Test
+    @DisplayName("StatusSiswa #298: batch — satu request untuk banyak ID")
+    void statusSiswaBanyak() {
+        wm.stubFor(get(urlPathEqualTo("/api/siswa/status"))
+                .willReturn(aResponse().withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                                {"code":200,"message":"ok","data":[
+                                  {"id":101,"isActive":true},
+                                  {"id":106,"isLulus":true}
+                                ]}""")));
+
+        var hasil = statusSiswa().tidakAktifBanyak(1L, java.util.List.of(101L, 106L));
+
+        assertThat(hasil).containsEntry(101L, Boolean.FALSE).containsEntry(106L, Boolean.TRUE);
+        wm.verify(1, getRequestedFor(urlPathEqualTo("/api/siswa/status"))
+                .withQueryParam("ids", equalTo("101,106")));
+    }
+
+    @Test
+    @DisplayName("StatusSiswa #298: batch gagal → peta kosong (semua 'tidak diketahui')")
+    void statusSiswaBanyakGagal() {
+        wm.stubFor(get(urlPathEqualTo("/api/siswa/status"))
+                .willReturn(aResponse().withStatus(500)));
+
+        assertThat(statusSiswa().tidakAktifBanyak(1L, java.util.List.of(101L))).isEmpty();
+    }
+
+    @Test
     @DisplayName("StatusSiswa: isActive=false → tidakAktif=true")
     void statusTidakAktif() {
         wm.stubFor(get(urlPathEqualTo("/api/siswa/get-by-id/9"))
@@ -535,6 +563,38 @@ class AdapterRestWireMockTest {
                                 ]}""")));
 
         assertThat(cariSiswa(ledger(0L)).cari(1L, "", false, 2)).hasSize(2);
+    }
+
+    @Test
+    @DisplayName("CariSiswa #298: batch — satu request untuk banyak ID, identitas terpetakan")
+    void cariSiswaBanyak() {
+        wm.stubFor(get(urlPathEqualTo("/api/siswa"))
+                .willReturn(aResponse().withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                                {"code":200,"message":"ok","data":[
+                                  {"id":101,"nis":"2024001","namaLengkap":"Budi Santoso","kelas":"7A"},
+                                  {"id":106,"nis":"2023006","namaLengkap":"Maya Sari","kelas":{"namaKelas":"9C"},
+                                   "tidakAktif":true}
+                                ]}""")));
+
+        var hasil = cariSiswa(ledger(0L)).cariBanyak(1L, java.util.List.of(101L, 106L));
+
+        assertThat(hasil).hasSize(2);
+        assertThat(hasil.get(101L).getNama()).isEqualTo("Budi Santoso");
+        assertThat(hasil.get(106L).getKelas()).isEqualTo("9C");
+        assertThat(hasil.get(106L).getTidakAktif()).isTrue();
+        wm.verify(1, getRequestedFor(urlPathEqualTo("/api/siswa"))
+                .withQueryParam("ids", equalTo("101,106")));
+    }
+
+    @Test
+    @DisplayName("CariSiswa #298: batch gagal → peta kosong (fail-open), tanpa melempar")
+    void cariSiswaBanyakGagal() {
+        wm.stubFor(get(urlPathEqualTo("/api/siswa"))
+                .willReturn(aResponse().withStatus(503)));
+
+        assertThat(cariSiswa(ledger(0L)).cariBanyak(1L, java.util.List.of(101L, 106L))).isEmpty();
     }
 
     @Test

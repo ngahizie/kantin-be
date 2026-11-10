@@ -9,6 +9,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClientResponseException;
 import tools.jackson.databind.JsonNode;
 
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -41,6 +44,12 @@ public class StatusSiswaRestClient extends IntegrasiRestSupport implements Statu
 
     /** Path default baca detail siswa (Q7). */
     public static final String PATH_DEFAULT = "/api/siswa/get-by-id/{id}";
+
+    /** Path default status batch (issue #298): {@code /api/siswa/status?ids=1,2,3}. */
+    public static final String PATH_BANYAK_DEFAULT = "/api/siswa/status";
+
+    /** Batas ID per permintaan batch. */
+    private static final int BATAS_BATCH = 100;
 
     private final IntegrasiRestProperties.StatusSiswa statusSiswaCfg;
 
@@ -80,7 +89,11 @@ public class StatusSiswaRestClient extends IntegrasiRestSupport implements Statu
         if (json == null || json.isBlank()) {
             return null;
         }
-        JsonNode d = data(JSON.readTree(json));
+        return tidakAktifDari(data(JSON.readTree(json)));
+    }
+
+    /** Terjemahkan satu node siswa admin-be menjadi status nonaktif. */
+    private Boolean tidakAktifDari(JsonNode d) {
         if (d == null || d.isNull() || !d.isObject()) {
             return null;
         }
@@ -107,6 +120,58 @@ public class StatusSiswaRestClient extends IntegrasiRestSupport implements Statu
             return Boolean.FALSE;
         }
         return null;
+    }
+
+    /**
+     * Status keaktifan banyak siswa dalam satu/beberapa permintaan (issue #298).
+     *
+     * <p>ID dipecah per {@value #BATAS_BATCH}; kegagalan satu potongan tidak
+     * membatalkan potongan lain. Siswa yang tidak muncul di respons tidak diberi
+     * kunci (pemanggil menganggap "tidak diketahui"), bukan dianggap aktif.
+     */
+    @Override
+    public Map<Long, Boolean> tidakAktifBanyak(Long sekolahId, Collection<Long> siswaIds) {
+        if (siswaIds == null || siswaIds.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> ids = siswaIds.stream().filter(java.util.Objects::nonNull).distinct().toList();
+        Map<Long, Boolean> hasil = new LinkedHashMap<>();
+        for (int mulai = 0; mulai < ids.size(); mulai += BATAS_BATCH) {
+            List<Long> potong = ids.subList(mulai, Math.min(mulai + BATAS_BATCH, ids.size()));
+            String gabung = potong.stream().map(String::valueOf)
+                    .collect(java.util.stream.Collectors.joining(","));
+            try {
+                String json = coba("status siswa batch n=" + potong.size(), () -> {
+                    var spec = klien().get().uri(b -> b.path(pathBanyakStatus())
+                            .queryParam("ids", gabung)
+                            .build());
+                    return beriHeader(spec, null).retrieve().body(String.class);
+                });
+                JsonNode isi = data(JSON.readTree(json));
+                if (isi != null && isi.isArray()) {
+                    for (JsonNode item : isi) {
+                        JsonNode id = item.get("id");
+                        if (id != null && !id.isNull()) {
+                            hasil.put(id.asLong(), tidakAktifDari(item));
+                        }
+                    }
+                }
+            } catch (RestClientResponseException e) {
+                log.warn("[StatusSiswa] admin-be menjawab HTTP {} untuk batch {} siswa → potongan dilewati.",
+                        e.getStatusCode().value(), potong.size());
+            } catch (RuntimeException e) {
+                log.warn("[StatusSiswa] Gagal batch status {} siswa (dilewati): {}",
+                        potong.size(), e.getMessage());
+            }
+        }
+        log.debug("[StatusSiswa] batch {} id → {} status.", ids.size(), hasil.size());
+        return hasil;
+    }
+
+    /** Path batch status: properti {@code path-banyak} bila diisi, selain itu default. */
+    private String pathBanyakStatus() {
+        String p = statusSiswaCfg.getPathBanyak();
+        return (p == null || p.isBlank()) ? PATH_BANYAK_DEFAULT : p;
     }
 
     @Override

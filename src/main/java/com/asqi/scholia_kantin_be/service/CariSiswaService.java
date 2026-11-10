@@ -5,7 +5,9 @@ import com.asqi.scholia_kantin_be.service.integrasi.InfoSiswa;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -54,5 +56,20 @@ public class CariSiswaService {
             return Optional.empty();
         }
         return cariSiswaPort.cariBerdasarkanId(sekolahId, siswaId);
+    }
+
+    /**
+     * Identitas banyak siswa dalam satu panggilan (issue #298) — dipakai daftar
+     * kandidat refund agar tidak terjadi N+1 lintas layanan.
+     *
+     * @param sekolahId tenant dari JWT
+     * @param siswaIds  ID siswa milik tenant (boleh kosong)
+     * @return peta {@code siswaId → identitas}; kosong bila tidak ada data
+     */
+    public Map<Long, InfoSiswa> identitasBanyak(Long sekolahId, Collection<Long> siswaIds) {
+        if (sekolahId == null || siswaIds == null || siswaIds.isEmpty()) {
+            return Map.of();
+        }
+        return cariSiswaPort.cariBanyak(sekolahId, siswaIds);
     }
 }

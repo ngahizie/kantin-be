@@ -3,7 +3,9 @@ package com.asqi.scholia_kantin_be.service.integrasi;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -29,5 +31,12 @@ public class CariSiswaFallback implements CariSiswaPort {
         log.debug("Lookup identitas siswa belum dikonfigurasi (Q7). sekolah={} siswa={} → kosong.",
                 sekolahId, siswaId);
         return Optional.empty();
+    }
+
+    @Override
+    public Map<Long, InfoSiswa> cariBanyak(Long sekolahId, java.util.Collection<Long> siswaIds) {
+        log.debug("Lookup batch identitas siswa belum dikonfigurasi (Q7). sekolah={} jumlah={} → kosong.",
+                sekolahId, siswaIds == null ? 0 : siswaIds.size());
+        return Map.of();
     }
 }

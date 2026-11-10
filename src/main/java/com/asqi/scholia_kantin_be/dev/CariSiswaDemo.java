@@ -10,9 +10,12 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 /**
  * Implementasi {@link CariSiswaPort} untuk <b>profil demo</b> (issue #214).
@@ -91,5 +94,22 @@ public class CariSiswaDemo implements CariSiswaPort {
                         .tidakAktif(s.tidakAktif())
                         .saldo(ledgerSaldo.saldo(sekolahId, SubjekTipe.SISWA, s.id()))
                         .build());
+    }
+
+    @Override
+    public Map<Long, InfoSiswa> cariBanyak(Long sekolahId, Collection<Long> siswaIds) {
+        if (siswaIds == null || siswaIds.isEmpty()) {
+            return Map.of();
+        }
+        return DATA.stream()
+                .filter(s -> siswaIds.contains(s.id()))
+                .collect(Collectors.toMap(SiswaDemo::id, s -> InfoSiswa.builder()
+                        .siswaId(s.id())
+                        .nis(s.nis())
+                        .nama(s.nama())
+                        .kelas(s.kelas())
+                        .tidakAktif(s.tidakAktif())
+                        .saldo(ledgerSaldo.saldo(sekolahId, SubjekTipe.SISWA, s.id()))
+                        .build()));
     }
 }
