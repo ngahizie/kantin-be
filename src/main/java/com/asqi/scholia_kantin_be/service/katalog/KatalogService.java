@@ -120,7 +120,7 @@ public class KatalogService {
         KategoriMenu kategori = kategoriRepo.findByIdAndSekolahId(kategoriId, sekolahId)
                 .orElseThrow(() -> new NotFoundEntity("Kategori tidak ditemukan"));
 
-        long dipakai = menuRepo.countByKategoriIdAndIsActiveTrue(kategoriId);
+        long dipakai = menuRepo.countByKategoriIdAndIsActiveTrueAndDeletedAtIsNull(kategoriId);
         if (dipakai > 0) {
             throw new InvalidOperationException(
                     "Kategori masih dipakai " + dipakai + " item aktif — nonaktifkan item dahulu");
@@ -145,7 +145,7 @@ public class KatalogService {
 
     @Transactional(readOnly = true)
     public Menu lihatMenu(Long sekolahId, Long menuId) {
-        return menuRepo.findByIdAndSekolahId(menuId, sekolahId)
+        return menuRepo.findByIdAndSekolahIdAndDeletedAtIsNull(menuId, sekolahId)
                 .orElseThrow(() -> new NotFoundEntity("Menu tidak ditemukan"));
     }
 
@@ -220,7 +220,7 @@ public class KatalogService {
     public Menu ubahMenu(Long sekolahId, Long menuId, Long kategoriId, String nama,
                          Long hargaJual, SatuanMenu satuan, String fotoUrl,
                          Integer stokMinimum, Boolean aktif, Long aktorId) {
-        Menu menu = menuRepo.findByIdAndSekolahId(menuId, sekolahId)
+        Menu menu = menuRepo.findByIdAndSekolahIdAndDeletedAtIsNull(menuId, sekolahId)
                 .orElseThrow(() -> new NotFoundEntity("Menu tidak ditemukan"));
 
         if (nama != null && !nama.isBlank()) {
@@ -265,16 +265,34 @@ public class KatalogService {
         return tersimpan;
     }
 
-    /** Nonaktifkan item (soft delete) — item nonaktif tidak bisa dijual (PRD §7.1). */
+    /** Nonaktifkan item sementara — item nonaktif tetap ada di katalog namun tidak bisa dijual (PRD §7.1). */
     @Transactional
     public Menu nonaktifkanMenu(Long sekolahId, Long menuId, Long aktorId) {
-        Menu menu = menuRepo.findByIdAndSekolahId(menuId, sekolahId)
+        Menu menu = menuRepo.findByIdAndSekolahIdAndDeletedAtIsNull(menuId, sekolahId)
                 .orElseThrow(() -> new NotFoundEntity("Menu tidak ditemukan"));
         menu.setIsActive(false);
         menu.setUpdatedAt(jam.sekarang());
         Menu tersimpan = menuRepo.save(menu);
         auditLogger.catat(aktorId, sekolahId, "MENU_DINONAKTIFKAN", "Menu",
                 String.valueOf(menuId), null, "aktif=true", "aktif=false");
+        return tersimpan;
+    }
+
+    /**
+     * Hapus item dari daftar katalog via soft-delete ({@code deletedAt}), sehingga
+     * hilang dari katalog, kasir POS, dan stok menipis namun riwayat transaksi/stok tetap utuh.
+     */
+    @Transactional
+    public Menu hapusMenu(Long sekolahId, Long menuId, Long aktorId) {
+        Menu menu = menuRepo.findByIdAndSekolahIdAndDeletedAtIsNull(menuId, sekolahId)
+                .orElseThrow(() -> new NotFoundEntity("Menu tidak ditemukan"));
+        var sekarang = jam.sekarang();
+        menu.setIsActive(false);
+        menu.setDeletedAt(sekarang);
+        menu.setUpdatedAt(sekarang);
+        Menu tersimpan = menuRepo.save(menu);
+        auditLogger.catat(aktorId, sekolahId, "MENU_DIHAPUS", "Menu",
+                String.valueOf(menuId), null, "deletedAt=null", "deletedAt=" + sekarang);
         return tersimpan;
     }
 

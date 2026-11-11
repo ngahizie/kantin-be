@@ -3,6 +3,7 @@ package com.asqi.scholia_kantin_be.service.katalog;
 import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
 import com.asqi.scholia_kantin_be.enums.SatuanMenu;
+import com.asqi.scholia_kantin_be.repository.StokCacheRepository;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoMenu;
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;
 import com.asqi.scholia_kantin_be.support.TestcontainersConfig;
@@ -37,6 +38,9 @@ class KatalogServiceIT {
 
     @Autowired
     private MenuLookupKatalogAdapter lookup;
+
+    @Autowired
+    private StokCacheRepository cacheRepo;
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -206,5 +210,33 @@ class KatalogServiceIT {
         Integer min = jdbc.queryForObject(
                 "SELECT stok_minimum FROM stok_cache WHERE menu_id = ?", Integer.class, menu.getId());
         assertThat(min).isEqualTo(10);
+    }
+
+    @Test
+    @DisplayName("hapus menu: hilang dari daftar, stok menipis, & nonaktifkan kategori, namun lookup riwayat tetap aman")
+    void hapusMenuSoftDeleteViaDeletedAt() {
+        var kategori = katalog.buatKategori(SEKOLAH, "Snack", 1, 1L);
+        var menu = katalog.buatMenu(SEKOLAH, kategori.getId(), "Risoles",
+                3_000L, SatuanMenu.PCS, null, 5, 1L);
+
+        katalog.hapusMenu(SEKOLAH, menu.getId(), 1L);
+
+        assertThat(katalog.daftarMenu(SEKOLAH, null, false)).isEmpty();
+        assertThat(cacheRepo.stokMenipis(SEKOLAH)).isEmpty();
+        assertThatThrownBy(() -> katalog.lihatMenu(SEKOLAH, menu.getId()))
+                .isInstanceOf(NotFoundEntity.class);
+        assertThatThrownBy(() -> katalog.ubahMenu(SEKOLAH, menu.getId(), null, "Baru",
+                null, null, null, null, true, 1L))
+                .isInstanceOf(NotFoundEntity.class);
+
+        // Kategori bisa dinonaktifkan karena satu-satunya itemnya sudah dihapus.
+        var katNonaktif = katalog.nonaktifkanKategori(SEKOLAH, kategori.getId(), 1L);
+        assertThat(katNonaktif.getIsActive()).isFalse();
+
+        // Lookup riwayat transaksi lama tetap mempertahankan nama sambil menandai nonaktif.
+        InfoMenu info = lookup.cari(SEKOLAH, menu.getId());
+        assertThat(info).isNotNull();
+        assertThat(info.isAktif()).isFalse();
+        assertThat(info.getNama()).isEqualTo("Risoles");
     }
 }

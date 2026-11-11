@@ -415,7 +415,7 @@ public class StokOperasiService {
      * atau menu sekolah lain — dijawab 404, bukan 403.
      */
     private void pastikanMenuMilikSekolah(Long sekolahId, Long menuId) {
-        if (menuId == null || !menuRepo.existsByIdAndSekolahId(menuId, sekolahId)) {
+        if (menuId == null || !menuRepo.existsByIdAndSekolahIdAndDeletedAtIsNull(menuId, sekolahId)) {
             throw new NotFoundEntity("Menu tidak ditemukan");
         }
     }

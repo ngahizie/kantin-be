@@ -25,6 +25,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -171,5 +172,20 @@ class KatalogControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value(99))
                 .andExpect(jsonPath("$.data.stokBerjalan").value(7));
+    }
+
+    @Test
+    @DisplayName("DELETE /api/katalog/menu/{id} memanggil hapusMenu dengan tenant & aktor")
+    void hapusMenuMenggunakanDeletedAt() throws Exception {
+        Menu menu = Menu.builder().id(88L).sekolahId(7L).nama("Kue")
+                .hargaJual(2_000L).satuan(SatuanMenu.PCS).stokMinimum(0).isActive(false).build();
+        when(katalog.hapusMenu(7L, 88L, 42L)).thenReturn(menu);
+
+        mockMvc.perform(delete("/api/katalog/menu/88"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(88))
+                .andExpect(jsonPath("$.message").value("Menu dihapus"));
+
+        verify(katalog).hapusMenu(7L, 88L, 42L);
     }
 }
