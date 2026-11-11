@@ -136,11 +136,12 @@ Jika tidak cocok, laporan menampilkan **peringatan merah**.
 - Semua penjualan wajib dipilih dari daftar menu — **tidak ada input nominal bebas**.
 - Siswa tanpa foto tetap bisa membeli, dengan tanda peringatan di layar.
 
-### 6.2 Membatalkan transaksi (void)
+### 6.2 Membatalkan transaksi (refund)
 
 **Pelaku:** Petugas Kantin
 
 - Hanya untuk transaksi **hari ini** yang kasirnya **belum ditutup**.
+- **Wajib memasukkan kode struk** yang tertera di struk pembayaran, supaya tidak salah membatalkan transaksi milik pembeli lain.
 - Wajib memilih/menulis alasan.
 - Saldo kembali penuh, stok kembali, jatah limit harian kembali, orang tua mendapat notifikasi.
 - Transaksi yang kasirnya sudah ditutup hanya bisa dibetulkan oleh **Bendahara** (§6.10).
@@ -264,7 +265,7 @@ Modal baru = (10 × 3.000 + 20 × 3.300) ÷ 30 = **Rp3.200/pcs**.
 | Layar | Isi pokok |
 |---|---|
 | Transaksi | Daftar menu (dengan foto/kategori/tanda habis), keranjang & total, area hasil tempel kartu (sukses/gagal, foto, tombol Batalkan) |
-| Riwayat hari ini | Transaksi sesi ini + tombol Batalkan (void) |
+| Riwayat hari ini | Transaksi sesi ini + tombol Batalkan (refund) |
 | Tutup kasir | Ringkasan sesi + tombol Tutup |
 | Tanda offline | Banner "Offline — transaksi tidak tersedia" bila internet putus |
 
