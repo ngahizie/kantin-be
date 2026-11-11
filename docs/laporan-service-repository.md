@@ -50,12 +50,12 @@ com.asqi.scholia_kantin_be
 ├── service/
 │   ├── kasir/
 │   │   ├── LedgerSaldoService     KREDIT/DEBIT atomik + idempotency + anti-minus
-│   │   ├── LedgerStokService      barang masuk/penjualan/void/opname
+│   │   ├── LedgerStokService      barang masuk/penjualan/refund/opname
 │   │   ├── HppService             rata-rata tertimbang (murni, mudah diuji)
-│   │   ├── SesiKasirService       buka/tutup kasir + rekap bruto/void/bersih
+│   │   ├── SesiKasirService       buka/tutup kasir + rekap bruto/refund/bersih
 │   │   ├── TapValidator           6 tahap validasi (PRD §6.1)
 │   │   ├── TapService             orkestrasi tap (TransactionTemplate)
-│   │   └── VoidService            void + kompensasi pembalik
+│   │   └── VoidService            refund + kompensasi pembalik
 │   ├── stok/
 │   │   ├── LedgerStokService      (lihat di atas)
 │   │   └── HppService
@@ -110,7 +110,7 @@ Satu panggilan = **satu transaksi DB** (dibungkus `TransactionTemplate`):
 - **Anti-minus:** diperiksa di service (409, pesan jelas) + dijaga CHECK DB.
 - **Idempotency:** `idempotency_key` UNIQUE; key sama → hasil lama.
 - `belanjaHariIni` dihitung **net** (Σ DEBIT `PENJUALAN` − Σ KREDIT
-  `VOID_PENJUALAN`) agar transaksi yang di-void tidak lagi memakan jatah limit.
+  `VOID_PENJUALAN`) agar transaksi yang di-refund tidak lagi memakan jatah limit.
 
 ### 3.3 Ledger stok & HPP — `LedgerStokService` + `HppService` (PRD §7.2–7.4)
 
@@ -118,7 +118,7 @@ Satu panggilan = **satu transaksi DB** (dibungkus `TransactionTemplate`):
   `HPP baru = (stok×HPP + qtyMasuk×hargaBeli) / (stok + qtyMasuk)` (HALF_UP, rupiah).
 - **Penjualan** → stok turun, memakai HPP berjalan sebagai **snapshot** (disimpan
   di `transaksi_item.hpp_snapshot` & `mutasi_stok.hpp_snapshot`).
-- **Void** → stok kembali memakai HPP snapshot transaksi → HPP rata-rata **tidak**
+- **Refund** → stok kembali memakai HPP snapshot transaksi → HPP rata-rata **tidak**
   berubah (konsisten).
 - **Opname** → selisih dicatat sebagai mutasi MASUK/KELUAR dengan **alasan wajib**;
   HPP tidak berubah.
@@ -127,8 +127,8 @@ Satu panggilan = **satu transaksi DB** (dibungkus `TransactionTemplate`):
 
 - Satu titik kasir = satu sesi per tanggal (UNIQUE). Tap pertama otomatis membuka sesi.
 - **Rekap:** `totalBersih = Σ transaksi SUKSES` (diposting ke Buku Kas saat tutup),
-  `totalVoid = Σ transaksi VOID`, `totalBruto = bersih + void`.
-- **Tutup sesi** mengunci transaksi sesi itu → void setelah tutup ditolak
+  `totalVoid = Σ transaksi VOID`, `totalBruto = bersih + refund`.
+- **Tutup sesi** mengunci transaksi sesi itu → refund setelah tutup ditolak
   (koreksi hanya oleh bendahara).
 - **Posting Buku Kas** (`BukuKasPostingService`, PRD §13 poin 7 / INTEGRATIONS §3):
   saat sesi ditutup (manual, auto-tutup per-sekolah, atau auto-tutup lintas-tenant)
@@ -136,7 +136,7 @@ Satu panggilan = **satu transaksi DB** (dibungkus `TransactionTemplate`):
   flag `posting_buku_kas` + `referensi_buku_kas` UNIQUE. Kegagalan posting **tidak**
   menggagalkan penutupan sesi (dicatat untuk retry via `POST /kasir/sesi/{id}/posting-buku-kas`).
 
-### 3.5 Void — `VoidService` (PRD §6.3)
+### 3.5 Refund transaksi — `VoidService` (PRD §6.3)
 
 - Wajib **alasan**; hanya untuk sesi **belum ditutup**.
 - Saldo dikembalikan penuh + stok dikembalikan (HPP snapshot) lewat **mutasi
@@ -173,8 +173,8 @@ Satu panggilan = **satu transaksi DB** (dibungkus `TransactionTemplate`):
 | `LedgerSaldoServiceIT` (5) | append-only (trigger DB menolak UPDATE/DELETE), idempotency, saldo tak minus, **race** debit bersamaan (5 sukses / 3 gagal dari 8 paralel), hitung ulang dari ledger |
 | `LedgerStokServiceIT` (6) | HPP rata-rata tertimbang, snapshot penjualan, stok tak minus saat race, opname tanpa selisih, append-only |
 | `TapServiceIT` (4) | tap sukses (saldo+stok+snapshot HPP), idempotency tap ganda, saldo kurang & stok kurang **tidak mengubah apa pun** |
-| `VoidServiceIT` (5) | saldo+stok kembali via mutasi pembalik, alasan wajib, void ganda ditolak, sesi tertutup ditolak, tenant lain → 404 |
-| `SesiKasirServiceIT` (4) | rekap bruto/void/bersih, tutup sesi mengunci & menyimpan rekap, auto-tutup, auto-tutup lintas-tenant (hanya sesi tertinggal) |
+| `VoidServiceIT` (5) | saldo+stok kembali via mutasi pembalik, alasan wajib, refund ganda ditolak, sesi tertutup ditolak, tenant lain → 404 |
+| `SesiKasirServiceIT` (4) | rekap bruto/refund/bersih, tutup sesi mengunci & menyimpan rekap, auto-tutup, auto-tutup lintas-tenant (hanya sesi tertinggal) |
 | `BukuKasPostingServiceIT` (5) | posting pendapatan saat tutup sesi, idempotency (flag + ref unik) dobel-tutup & retry, nominal 0 dilewati, gagal-posting tak menggagalkan tutup, fallback fail-safe `DILEWATI` |
 
 **Hasil:** `Tests run: 72, Failures: 0, Errors: 0` → **BUILD SUCCESS**.
