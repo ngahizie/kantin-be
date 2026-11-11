@@ -132,6 +132,7 @@ Batas per-subjek ditegakkan di dalam `KontrolKartuController#ubahBlokir`.
 | `GET` | `/api/saldo/setoran-tu/rekap` | tu | §9.2 & §9.5 — *Setoran kas TU: Bendahara* | PRD diikuti |
 | `POST` | `/api/saldo/topup` | tu | §9.2 & §9.6 — *Top-up Tunai: TU, Bendahara (create, read)* | PRD diikuti |
 | `GET` | `/api/siswa/` | pengelola, tu, admin, kepsek | — | di luar keputusan #250 — dipertahankan |
+| `GET` | `/api/siswa/{siswaId}/rfid` | tu, admin | §9.6 + Q7 — UID kartu sensitif: hanya pendaftaran/penugasan kartu (TU/Bendahara & Admin sekolah), #301 | di luar keputusan #250 — dipertahankan |
 | `POST` | `/api/stok/barang-masuk` | pengelola | §9.6 — *Barang Masuk & Stok Opname: Pengelola (create, read), Bendahara (read)* | PRD diikuti |
 | `POST` | `/api/stok/barang-masuk-pembalik` | pengelola | §9.6 — *Barang Masuk & Stok Opname: Pengelola (create, read), Bendahara (read)* | PRD diikuti |
 | `GET` | `/api/stok/menipis` | kasir, pengelola, tu, admin | §9.6 (read stok) | di luar keputusan #250 — dipertahankan |

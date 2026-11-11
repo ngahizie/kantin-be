@@ -1,5 +1,6 @@
 package com.asqi.scholia_kantin_be.controller;
 
+import com.asqi.scholia_kantin_be.dto.UidSiswaResponse;
 import com.asqi.scholia_kantin_be.enums.AktorKantin;
 import com.asqi.scholia_kantin_be.payload.response.CommonResponse;
 import com.asqi.scholia_kantin_be.payload.response.Response;
@@ -10,6 +11,7 @@ import com.asqi.scholia_kantin_be.service.integrasi.InfoSiswa;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -52,5 +54,31 @@ public class SiswaController {
 
         return CommonResponse.data(
                 cariSiswaService.cari(TenantContext.sekolahIdWajib(), q, hanyaTidakAktif, batas));
+    }
+
+    /**
+     * UID kartu RFID <b>satu</b> siswa (issue #301) — lookup khusus, bukan
+     * bagian daftar siswa.
+     *
+     * <p><b>Kenapa dibatasi.</b> UID kartu bersifat sensitif (dapat dipakai
+     * memalsukan tap), jadi hanya admin sekolah dan TU/Bendahara — peran yang
+     * menangani pendaftaran/penugasan kartu — yang boleh membacanya. Daftar
+     * siswa {@code GET /api/siswa} sengaja <b>tidak</b> memuat UID.
+     *
+     * <p><b>Fail-open.</b> Bila admin-be belum menyediakan UID atau siswa tidak
+     * ditemukan, respons tetap 200 dengan {@code rfidUid=null} dan
+     * {@code ditemukan=false} — UID tidak dikarang.
+     */
+    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH})
+    @GetMapping("/{siswaId}/rfid")
+    public ResponseEntity<Response<UidSiswaResponse>> uidSiswa(@PathVariable Long siswaId) {
+        var uid = cariSiswaService.uidKartu(TenantContext.sekolahIdWajib(), siswaId);
+        UidSiswaResponse data = UidSiswaResponse.builder()
+                .siswaId(siswaId)
+                .rfidUid(uid.orElse(null))
+                .ditemukan(uid.isPresent())
+                .build();
+        return CommonResponse.data(data,
+                uid.isPresent() ? "UID kartu siswa" : "UID kartu siswa tidak tersedia");
     }
 }

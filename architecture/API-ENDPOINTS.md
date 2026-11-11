@@ -3,7 +3,7 @@
 > **Single source of truth endpoint kantin-be.** Semua path berprefix `/api`.
 > Respons selalu dibungkus `Response<T>` (`{ responseCode, message, data, ... }`).
 >
-> **Sinkron terakhir:** 2026-11-10 · **Total: 103 endpoint** (102 di `controller/` + 1 shim dev)
+> **Sinkron terakhir:** 2026-11-10 · **Total: 104 endpoint** (103 di `controller/` + 1 shim dev)
 > di **15 controller**. Dijaga otomatis oleh `ApiEndpointsDocTest` — uji ini
 > **gagal** bila daftar di bawah tidak lagi sama persis dengan anotasi
 > `@…Mapping` di kode. Bila menambah/mengubah endpoint, perbarui dokumen ini.
@@ -305,6 +305,7 @@
 | Method | Path | Auth | Keterangan |
 |---|---|---|---|
 | `GET` | `/api/siswa` | TU, admin, pengelola, kepsek (read) | Cari siswa (nama/NIS) + saldo dari ledger lokal. Query: `q` (nama/NIS), `hanyaTidakAktif` (refund §9.3), `batas` (default 20, maks 50) |
+| `GET` | `/api/siswa/{siswaId}/rfid` | TU, admin | UID kartu RFID satu siswa (lookup khusus, #301). UID **tidak** disertakan pada daftar siswa; bila tidak tersedia → `rfidUid=null`, `ditemukan=false` (200) |
 
 ---
 

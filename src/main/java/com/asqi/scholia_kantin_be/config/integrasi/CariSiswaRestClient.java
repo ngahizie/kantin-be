@@ -206,6 +206,49 @@ public class CariSiswaRestClient extends IntegrasiRestSupport implements CariSis
         return hasil;
     }
 
+    /**
+     * Lookup UID kartu satu siswa (issue #301).
+     *
+     * <p>Memakai path identitas yang sama dengan #297
+     * ({@code /api/siswa/{id}}) dan hanya membaca field {@code rfidUid}
+     * (toleran terhadap {@code rfid_uid}). UID <b>tidak</b> diambil dari
+     * endpoint daftar agar tidak ikut terkirim ke konsumen yang tidak
+     * membutuhkannya.
+     *
+     * <p>Fail-open: 404, field tidak ada, atau integrasi gagal →
+     * {@link Optional#empty()} (bukan tebakan, bukan error).
+     */
+    @Override
+    public Optional<String> cariUidSiswa(Long sekolahId, Long siswaId) {
+        if (siswaId == null) {
+            return Optional.empty();
+        }
+        JsonNode isi;
+        try {
+            String json = coba("uid siswa id=" + siswaId, () -> {
+                var spec = klien().get().uri(b -> b.path(pathById(siswaId)).build());
+                return beriHeader(spec, null).retrieve().body(String.class);
+            });
+            isi = data(JSON.readTree(json));
+        } catch (RestClientResponseException e) {
+            log.warn("[CariSiswa] admin-be menjawab HTTP {} untuk UID siswa id={} → kosong.",
+                    e.getStatusCode().value(), siswaId);
+            return Optional.empty();
+        } catch (RuntimeException e) {
+            log.warn("[CariSiswa] Gagal mengambil UID siswa id={} (dianggap kosong): {}",
+                    siswaId, e.getMessage());
+            return Optional.empty();
+        }
+        if (isi == null || isi.isNull() || !isi.isObject()) {
+            return Optional.empty();
+        }
+        String uid = teks(isi, "rfidUid");
+        if (uid == null) {
+            uid = teks(isi, "rfid_uid");
+        }
+        return (uid == null || uid.isBlank()) ? Optional.empty() : Optional.of(uid.trim());
+    }
+
     /** Path batch: properti {@code path-banyak} bila diisi, selain itu default. */
     private String pathBanyak() {
         String p = konfigurasi().getPathBanyak();

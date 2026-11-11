@@ -646,6 +646,59 @@ class AdapterRestWireMockTest {
     }
 
     @Test
+    @DisplayName("CariSiswa #301: UID kartu per siswa dibaca dari field rfidUid")
+    void cariUidSiswa() {
+        wm.stubFor(get(urlPathEqualTo("/api/siswa/101"))
+                .willReturn(aResponse().withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                                {"code":200,"message":"ok","data":
+                                  {"id":101,"nis":"2024001","namaLengkap":"Budi Santoso",
+                                   "rfidUid":"DA100001"}}""")));
+
+        assertThat(cariSiswa(ledger(0L)).cariUidSiswa(1L, 101L)).contains("DA100001");
+        wm.verify(1, getRequestedFor(urlPathEqualTo("/api/siswa/101")));
+        // UID tidak boleh diambil dari endpoint daftar.
+        wm.verify(0, getRequestedFor(urlPathEqualTo("/api/siswa/cari")));
+    }
+
+    @Test
+    @DisplayName("CariSiswa #301: toleran terhadap field snake_case rfid_uid")
+    void cariUidSiswaSnakeCase() {
+        wm.stubFor(get(urlPathEqualTo("/api/siswa/102"))
+                .willReturn(aResponse().withStatus(200)
+                        .withBody("{\"data\":{\"id\":102,\"rfid_uid\":\"DA100002\"}}")));
+
+        assertThat(cariSiswa(ledger(0L)).cariUidSiswa(1L, 102L)).contains("DA100002");
+    }
+
+    @Test
+    @DisplayName("CariSiswa #301: admin-be tidak mengirim UID → Optional kosong (tidak dikarang)")
+    void cariUidSiswaTidakAdaField() {
+        wm.stubFor(get(urlPathEqualTo("/api/siswa/103"))
+                .willReturn(aResponse().withStatus(200)
+                        .withBody("{\"data\":{\"id\":103,\"namaLengkap\":\"Andi Wijaya\"}}")));
+
+        assertThat(cariSiswa(ledger(0L)).cariUidSiswa(1L, 103L)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("CariSiswa #301: 404 → Optional kosong (bukan error)")
+    void cariUidSiswaTidakDitemukan() {
+        wm.stubFor(get(urlPathEqualTo("/api/siswa/999"))
+                .willReturn(aResponse().withStatus(404)));
+
+        assertThat(cariSiswa(ledger(0L)).cariUidSiswa(1L, 999L)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("CariSiswa #301: ID null → tidak memanggil admin-be")
+    void cariUidSiswaIdNull() {
+        assertThat(cariSiswa(ledger(0L)).cariUidSiswa(1L, null)).isEmpty();
+        wm.verify(0, getRequestedFor(urlPathMatching("/api/siswa/.*")));
+    }
+
+    @Test
     @DisplayName("CariSiswa: 5xx → daftar kosong (fail-open, layar TU tidak error)")
     void cariSiswaGagal() {
         wm.stubFor(get(urlPathEqualTo("/api/siswa/cari"))

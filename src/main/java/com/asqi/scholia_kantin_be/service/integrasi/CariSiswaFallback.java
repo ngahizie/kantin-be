@@ -39,4 +39,11 @@ public class CariSiswaFallback implements CariSiswaPort {
                 sekolahId, siswaIds == null ? 0 : siswaIds.size());
         return Map.of();
     }
+
+    @Override
+    public Optional<String> cariUidSiswa(Long sekolahId, Long siswaId) {
+        log.debug("Lookup UID siswa belum dikonfigurasi (Q7/#301). sekolah={} siswa={} → kosong.",
+                sekolahId, siswaId);
+        return Optional.empty();
+    }
 }
