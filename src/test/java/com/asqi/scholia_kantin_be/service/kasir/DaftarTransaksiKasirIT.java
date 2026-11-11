@@ -94,6 +94,13 @@ class DaftarTransaksiKasirIT {
         // id=5: SEKOLAH LAIN — tidak boleh bocor ke tenant SEKOLAH
         trx(5L, SEKOLAH_LAIN, SESI_LAIN, TITIK_LAIN, "KARTU_TAMU", 102L, 44L, 9000L,
                 "SUKSES", "2026-10-16T11:00:00+07:00");
+
+        // Rincian item — dipakai uji "rincian item terbawa".
+        // trx 1: 2x Kopi Susu (qty>1 → ringkasan menulis "2x ") + 1x Pisang Goreng.
+        item(1L, 1L, 900L, "Kopi Susu", 100L, 8000L, 2, 16000L);
+        item(2L, 1L, 901L, "Pisang Goreng", 100L, 15000L, 1, 15000L);
+        // trx 4: satu item tanpa qty>1 → ringkasan tidak menulis "1x ".
+        item(3L, 4L, 902L, "Air Mineral", 100L, 4000L, 1, 4000L);
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -256,6 +263,47 @@ class DaftarTransaksiKasirIT {
                 .allSatisfy(t -> assertThat(t.isDapatDikoreksi()).isTrue());
     }
 
+    @Test
+    @DisplayName("rincian item terbawa (items[] + ringkasanItem) — bendahara perlu tahu apa yang dibeli")
+    void rincianItemTerbawa() {
+        HalamanResponse<TransaksiKasirItem> hasil =
+                service.daftar(SEKOLAH, null, null, null, 0, 20);
+
+        // trx 1: dua baris item, qty>1 pada baris pertama.
+        assertThat(hasil.getItems())
+                .filteredOn(t -> t.getId().equals(1L))
+                .singleElement()
+                .satisfies(t -> {
+                    assertThat(t.getItems()).hasSize(2);
+                    assertThat(t.getItems())
+                            .extracting(TransaksiKasirItem.Item::nama)
+                            .containsExactly("Kopi Susu", "Pisang Goreng");
+                    assertThat(t.getItems().get(0).qty()).isEqualTo(2);
+                    assertThat(t.getItems().get(0).harga()).isEqualTo(8000L);
+                    assertThat(t.getItems().get(0).subtotal()).isEqualTo(16000L);
+                    // qty>1 ditulis, qty=1 tidak (ringkasan tetap ringkas).
+                    assertThat(t.getRingkasanItem()).isEqualTo("2x Kopi Susu, Pisang Goreng");
+                });
+
+        // trx 4: satu item, qty=1 → ringkasan tanpa "1x ".
+        assertThat(hasil.getItems())
+                .filteredOn(t -> t.getId().equals(4L))
+                .singleElement()
+                .satisfies(t -> {
+                    assertThat(t.getItems()).hasSize(1);
+                    assertThat(t.getRingkasanItem()).isEqualTo("Air Mineral");
+                });
+
+        // Transaksi tanpa item (trx 2): items[] kosong — bukan null, FE aman render.
+        assertThat(hasil.getItems())
+                .filteredOn(t -> t.getId().equals(2L))
+                .singleElement()
+                .satisfies(t -> {
+                    assertThat(t.getItems()).isEmpty();
+                    assertThat(t.getRingkasanItem()).isNull();
+                });
+    }
+
     // ────────────────────────────────────────────────────────────────
     // Helper seed
     // ────────────────────────────────────────────────────────────────
@@ -296,5 +344,15 @@ class DaftarTransaksiKasirIT {
                 diVoid ? waktu : null,
                 diVoid ? petugasId : null,
                 waktu);
+    }
+
+    /** Baris {@code transaksi_item} (snapshot nama &amp; harga saat transaksi). */
+    private void item(long id, long transaksiId, long menuId, String namaMenu, long kategoriId,
+                      long hargaJual, int qty, long subtotal) {
+        jdbc.update("""
+                INSERT INTO transaksi_item (id, transaksi_id, menu_id, nama_menu, kategori_id,
+                                            harga_jual, qty, hpp_snapshot, subtotal)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)
+                """, id, transaksiId, menuId, namaMenu, kategoriId, hargaJual, qty, subtotal);
     }
 }

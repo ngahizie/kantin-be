@@ -7,6 +7,7 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 
 /**
  * Satu baris <b>daftar transaksi kasir</b> (PRD §6.3, §9.2) untuk
@@ -68,6 +69,39 @@ public class TransaksiKasirItem {
 
     /** true bila transaksi masih dapat dikoreksi bendahara (belum VOID). */
     private boolean dapatDikoreksi;
+
+    /**
+     * Ringkasan item belanja dalam satu kalimat — mis. {@code "2x Kopi Susu, Pisang Goreng"}.
+     *
+     * <p>Disisi <b>batch</b> oleh service (satu query untuk seluruh baris halaman),
+     * bukan per transaksi. Berguna untuk tampilan ringkas (mis. dashboard) yang
+     * tidak perlu merinci tiap baris item.
+     */
+    private String ringkasanItem;
+
+    /**
+     * Rincian item belanja (snapshot nama menu &amp; harga saat transaksi).
+     *
+     * <p>Kosong (bukan {@code null}) bila transaksi tidak punya baris item —
+     * FE aman merender tanpa cek {@code null}.
+     */
+    private List<Item> items;
+
+    /**
+     * Satu baris rincian item belanja.
+     *
+     * <p><b>Nama field</b> {@code nama}/{@code harga} disamakan dengan
+     * {@link LaporanRiwayatSiswa.Item} (endpoint laporan) dan dengan bentuk
+     * yang sudah dipakai FE untuk endpoint ini — sehingga FE bisa membaca
+     * {@code items[]} dari daftar transaksi &amp; laporan tanpa dua bentuk data.
+     */
+    public record Item(
+            Long menuId,
+            String nama,
+            Integer qty,
+            Long harga,
+            Long subtotal) {
+    }
 
     /** Proyeksi entitas → DTO (tanpa nama titik/subjek — diisi service batch). */
     public static TransaksiKasirItem dari(Transaksi t) {
