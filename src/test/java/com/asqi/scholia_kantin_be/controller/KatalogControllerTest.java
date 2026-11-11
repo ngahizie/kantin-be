@@ -28,6 +28,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -73,22 +74,51 @@ class KatalogControllerTest {
         req.setHargaJual(15_000L);
         req.setSatuan(SatuanMenu.PORSI);
         req.setStokMinimum(5);
+        req.setKodeBarcode("8996001300112");
 
         Menu menu = Menu.builder().id(99L).sekolahId(7L).nama("Nasi Goreng")
+                .kodeBarcode("8996001300112")
                 .hargaJual(15_000L).satuan(SatuanMenu.PORSI).stokMinimum(5).isActive(true).build();
         when(katalog.buatMenu(eq(7L), eq(null), eq("Nasi Goreng"), eq(15_000L),
-                eq(SatuanMenu.PORSI), eq(null), eq(5), eq(42L))).thenReturn(menu);
+                eq(SatuanMenu.PORSI), eq(null), eq(5), eq("8996001300112"), eq(42L))).thenReturn(menu);
 
         mockMvc.perform(post("/api/katalog/menu")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(mapper.writeValueAsString(req)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value(99))
+                .andExpect(jsonPath("$.data.kodeBarcode").value("8996001300112"))
                 .andExpect(jsonPath("$.data.hargaJual").value(15000))
                 .andExpect(jsonPath("$.data.aktif").value(true));
 
         verify(katalog).buatMenu(eq(7L), eq(null), eq("Nasi Goreng"), eq(15_000L),
-                eq(SatuanMenu.PORSI), eq(null), eq(5), eq(42L));
+                eq(SatuanMenu.PORSI), eq(null), eq(5), eq("8996001300112"), eq(42L));
+    }
+
+    @Test
+    @DisplayName("PUT /api/katalog/menu/{id} meneruskan kodeBarcode dari request")
+    void ubahMenuMeneruskanKodeBarcode() throws Exception {
+        MenuRequest req = new MenuRequest();
+        req.setNama("Teh Botol");
+        req.setHargaJual(4_500L);
+        req.setSatuan(SatuanMenu.BOTOL);
+        req.setKodeBarcode("8996001309999");
+
+        Menu menu = Menu.builder().id(18L).sekolahId(7L).nama("Teh Botol")
+                .kodeBarcode("8996001309999").hargaJual(4_500L)
+                .satuan(SatuanMenu.BOTOL).stokMinimum(0).isActive(true).build();
+        when(katalog.ubahMenu(eq(7L), eq(18L), eq(null), eq("Teh Botol"), eq(4_500L),
+                eq(SatuanMenu.BOTOL), eq(null), eq(null), eq(null), eq("8996001309999"), eq(42L)))
+                .thenReturn(menu);
+        when(katalog.stokBerjalan(7L, 18L)).thenReturn(15);
+
+        mockMvc.perform(put("/api/katalog/menu/18")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(18))
+                .andExpect(jsonPath("$.data.kodeBarcode").value("8996001309999"))
+                .andExpect(jsonPath("$.data.stokBerjalan").value(15));
     }
 
     @Test

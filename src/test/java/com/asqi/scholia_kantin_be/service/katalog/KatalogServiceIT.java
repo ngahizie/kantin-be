@@ -1,5 +1,6 @@
 package com.asqi.scholia_kantin_be.service.katalog;
 
+import com.asqi.scholia_kantin_be.component.exception.ConflictException;
 import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
 import com.asqi.scholia_kantin_be.enums.SatuanMenu;
@@ -238,5 +239,43 @@ class KatalogServiceIT {
         assertThat(info).isNotNull();
         assertThat(info.isAktif()).isFalse();
         assertThat(info.getNama()).isEqualTo("Risoles");
+    }
+
+    @Test
+    @DisplayName("kodeBarcode: unik per sekolah pada item aktif, boleh NULL, dan dapat dipakai ulang setelah hapus")
+    void kodeBarcodeUnikPerSekolahDanReuseSetelahHapus() {
+        var m1 = katalog.buatMenu(SEKOLAH, null, "Teh Botol",
+                4_500L, SatuanMenu.BOTOL, null, 5, " 8996001300112 ", 1L);
+        assertThat(m1.getKodeBarcode()).isEqualTo("8996001300112");
+
+        // Banyak menu tanpa barcode diperbolehkan.
+        var mKosong1 = katalog.buatMenu(SEKOLAH, null, "Gorengan",
+                1_500L, SatuanMenu.PCS, null, 0, "", 1L);
+        var mKosong2 = katalog.buatMenu(SEKOLAH, null, "Lontong",
+                2_000L, SatuanMenu.PCS, null, 0, null, 1L);
+        assertThat(mKosong1.getKodeBarcode()).isNull();
+        assertThat(mKosong2.getKodeBarcode()).isNull();
+
+        // Duplikat di sekolah sama ditolak.
+        assertThatThrownBy(() -> katalog.buatMenu(SEKOLAH, null, "Teh Botol Duplikat",
+                5_000L, SatuanMenu.BOTOL, null, 0, "8996001300112", 1L))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("8996001300112");
+
+        // Sekolah lain boleh memakai kode barcode yang sama.
+        var mLain = katalog.buatMenu(SEKOLAH_LAIN, null, "Teh Botol",
+                4_500L, SatuanMenu.BOTOL, null, 0, "8996001300112", 1L);
+        assertThat(mLain.getKodeBarcode()).isEqualTo("8996001300112");
+
+        // Setelah dihapus (soft delete), barcode dapat dipakai ulang pada menu baru.
+        katalog.hapusMenu(SEKOLAH, m1.getId(), 1L);
+        var mBaru = katalog.buatMenu(SEKOLAH, null, "Teh Botol Baru",
+                5_000L, SatuanMenu.BOTOL, null, 5, "8996001300112", 1L);
+        assertThat(mBaru.getKodeBarcode()).isEqualTo("8996001300112");
+
+        // Mengirim string kosong saat ubahMenu membersihkan kodeBarcode.
+        var dikosongkan = katalog.ubahMenu(SEKOLAH, mBaru.getId(), null, null, null, null,
+                null, null, null, "", 1L);
+        assertThat(dikosongkan.getKodeBarcode()).isNull();
     }
 }

@@ -1,5 +1,6 @@
 package com.asqi.scholia_kantin_be.service.katalog;
 
+import com.asqi.scholia_kantin_be.component.exception.ConflictException;
 import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
 import com.asqi.scholia_kantin_be.component.logging.AuditLogger;
@@ -180,10 +181,22 @@ public class KatalogService {
     @Transactional
     public Menu buatMenu(Long sekolahId, Long kategoriId, String nama, Long hargaJual,
                          SatuanMenu satuan, String fotoUrl, Integer stokMinimum, Long aktorId) {
+        return buatMenu(sekolahId, kategoriId, nama, hargaJual, satuan, fotoUrl, stokMinimum,
+                null, aktorId);
+    }
+
+    @Transactional
+    public Menu buatMenu(Long sekolahId, Long kategoriId, String nama, Long hargaJual,
+                         SatuanMenu satuan, String fotoUrl, Integer stokMinimum,
+                         String kodeBarcode, Long aktorId) {
         String bersih = normalisasiNama(nama);
+        String barcodeBersih = normalisasiKodeBarcode(kodeBarcode);
         validasiHarga(hargaJual);
         if (kategoriId != null) {
             pastikanKategoriMilikSekolah(sekolahId, kategoriId);
+        }
+        if (barcodeBersih != null) {
+            pastikanKodeBarcodeUnik(sekolahId, barcodeBersih, null);
         }
 
         var sekarang = jam.sekarang();
@@ -192,6 +205,7 @@ public class KatalogService {
                 .sekolahId(sekolahId)
                 .kategoriId(kategoriId)
                 .nama(bersih)
+                .kodeBarcode(barcodeBersih)
                 .hargaJual(hargaJual)
                 .satuan(satuan == null ? SatuanMenu.PCS : satuan)
                 .fotoUrl(fotoUrl)
@@ -220,11 +234,30 @@ public class KatalogService {
     public Menu ubahMenu(Long sekolahId, Long menuId, Long kategoriId, String nama,
                          Long hargaJual, SatuanMenu satuan, String fotoUrl,
                          Integer stokMinimum, Boolean aktif, Long aktorId) {
+        return ubahMenu(sekolahId, menuId, kategoriId, nama, hargaJual, satuan, fotoUrl,
+                stokMinimum, aktif, null, aktorId);
+    }
+
+    /**
+     * Ubah item termasuk kode barcode opsional. Jika {@code kodeBarcode == null},
+     * barcode lama dipertahankan; jika string kosong/spasi, barcode dikosongkan.
+     */
+    @Transactional
+    public Menu ubahMenu(Long sekolahId, Long menuId, Long kategoriId, String nama,
+                         Long hargaJual, SatuanMenu satuan, String fotoUrl,
+                         Integer stokMinimum, Boolean aktif, String kodeBarcode, Long aktorId) {
         Menu menu = menuRepo.findByIdAndSekolahIdAndDeletedAtIsNull(menuId, sekolahId)
                 .orElseThrow(() -> new NotFoundEntity("Menu tidak ditemukan"));
 
         if (nama != null && !nama.isBlank()) {
             menu.setNama(normalisasiNama(nama));
+        }
+        if (kodeBarcode != null) {
+            String barcodeBersih = normalisasiKodeBarcode(kodeBarcode);
+            if (barcodeBersih != null) {
+                pastikanKodeBarcodeUnik(sekolahId, barcodeBersih, menuId);
+            }
+            menu.setKodeBarcode(barcodeBersih);
         }
         if (kategoriId != null) {
             pastikanKategoriMilikSekolah(sekolahId, kategoriId);
@@ -320,5 +353,26 @@ public class KatalogService {
             throw new InvalidOperationException("Nama maksimal 150 karakter");
         }
         return bersih;
+    }
+
+    private String normalisasiKodeBarcode(String kodeBarcode) {
+        if (kodeBarcode == null || kodeBarcode.isBlank()) {
+            return null;
+        }
+        String bersih = kodeBarcode.trim();
+        if (bersih.length() > 64) {
+            throw new InvalidOperationException("Kode barcode maksimal 64 karakter");
+        }
+        return bersih;
+    }
+
+    private void pastikanKodeBarcodeUnik(Long sekolahId, String kodeBarcode, Long kecualikanMenuId) {
+        boolean sudahDipakai = kecualikanMenuId == null
+                ? menuRepo.existsBySekolahIdAndKodeBarcodeAndDeletedAtIsNull(sekolahId, kodeBarcode)
+                : menuRepo.existsBySekolahIdAndKodeBarcodeAndIdNotAndDeletedAtIsNull(
+                        sekolahId, kodeBarcode, kecualikanMenuId);
+        if (sudahDipakai) {
+            throw new ConflictException("Kode barcode '" + kodeBarcode + "' sudah digunakan oleh menu lain");
+        }
     }
 }

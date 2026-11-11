@@ -58,6 +58,9 @@ public class Menu implements Persistable<Long> {
     @Column(name = "nama", nullable = false, length = 150)
     private String nama;
 
+    @Column(name = "kode_barcode", length = 64)
+    private String kodeBarcode;
+
     /** Harga jual per unit, rupiah integer (PRD §11.6). */
     @Column(name = "harga_jual", nullable = false)
     private Long hargaJual;

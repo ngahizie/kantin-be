@@ -63,4 +63,11 @@ public interface MenuRepository extends JpaRepository<Menu, Long>, JpaSpecificat
 
     /** Jumlah item aktif dan belum dihapus dalam satu kategori. */
     long countByKategoriIdAndIsActiveTrueAndDeletedAtIsNull(Long kategoriId);
+
+    /** Apakah kode barcode sudah dipakai menu lain yang belum dihapus dalam tenant ini. */
+    boolean existsBySekolahIdAndKodeBarcodeAndDeletedAtIsNull(Long sekolahId, String kodeBarcode);
+
+    /** Apakah kode barcode sudah dipakai menu selain {@code id} dalam tenant ini. */
+    boolean existsBySekolahIdAndKodeBarcodeAndIdNotAndDeletedAtIsNull(
+            Long sekolahId, String kodeBarcode, Long id);
 }
