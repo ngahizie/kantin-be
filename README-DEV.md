@@ -58,7 +58,7 @@ Artinya saat `./mvnw spring-boot:run`, Flyway menerapkan 23 migrasi **lalu**
 14 Kartu Tamu, 12 transaksi, 5 titik kasir, sesi kasir terbuka & tertutup,
 saldo/HPP/stok, koreksi saldo, setoran TU, pengaturan kantin) supaya FE
 **tidak perlu mock**. Tenant `sekolah_id = 10` ikut diisi karena form login
-`kantin-fe` mengirim angka itu secara hardcoded — tanpa data di tenant tersebut
+`kantin-fe` mengirim angka itu langsung di kode — tanpa data di tenant tersebut
 semua layar FE tampak kosong walau endpoint sudah membalas 200.
 
 Idempoten: start berulang tidak menggandakan baris dan tidak menimpa data yang
@@ -162,7 +162,7 @@ docker build -t kantin-be:local .
 
 ### Catatan Git Bash (MSYS) di Windows
 
-Wrapper `./mvnw` versi shell bisa gagal dengan
+Pembungkus `./mvnw` versi shell bisa gagal dengan
 `ClassNotFoundException: org.codehaus.plexus.classworlds.launcher.Launcher`
 karena MSYS mengubah path. Pakai salah satu:
 

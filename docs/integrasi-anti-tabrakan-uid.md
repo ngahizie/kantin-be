@@ -44,7 +44,7 @@ Header:
 
 - **Rahasia:** `KANTIN_INTERNAL_SECRET` (terpisah dari `KANTIN_WEBHOOK_SECRET`).
 - **Anti-replay:** timestamp di luar `±kantin.internal.tolerance-seconds` (default 300s) → **401**.
-- **Fail-closed:** rahasia kosong / endpoint dinonaktifkan → **503**.
+- **Gagal-tertutup:** rahasia kosong / endpoint dinonaktifkan → **503**.
 - **Allowlist IP** opsional (`kantin.internal.allowed-ips`).
 
 **Respons (200):**
@@ -68,7 +68,7 @@ GET /api/internal/siswa/cek-uid?rfidUid=<UID>&sekolahId=<ID>
 ```
 
 Selama belum ada, `UidSiswaFallback` mengembalikan `null` (“tidak diketahui”) →
-kantin-be **fail-open** (tidak menolak keliru).
+kantin-be **gagal-terbuka** (tidak menolak keliru).
 
 ---
 
@@ -77,7 +77,7 @@ kantin-be **fail-open** (tidak menolak keliru).
 | Sisi | Aksi | Status di kode |
 |---|---|---|
 | kantin-be (lokal) | Tolak UID yang sudah dipakai Kartu Tamu lain | ✅ `existsByRfidUidExcluding` |
-| kantin-be → admin-be | Tolak UID yang sudah dipakai **siswa** | ✅ `UidSiswaPort` (fallback fail-open sampai Q7) |
+| kantin-be → admin-be | Tolak UID yang sudah dipakai **siswa** | ✅ `UidSiswaPort` (fallback gagal-terbuka sampai Q7) |
 | admin-be → kantin-be | Tolak `rfid_uid` yang sudah dipakai **Kartu Tamu** | ✅ endpoint internal disediakan; **⏳ admin-be memanggilnya di `SiswaService`** |
 
 **Semantik:** saat bind/ubah UID pada salah satu sistem, panggil cek sisi lain;

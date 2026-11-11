@@ -209,7 +209,7 @@ Integration**. Semua sudah ditindaklanjuti kecuali yang ditandai menunggu.
   - `CommonResponse.tooManyRequests` + `ResponseCode.TOO_MANY_REQUESTS`.
   - Terdaftar di chain **sebelum** JWT filter (tolak banjir sebelum verifikasi kripto mahal).
   - Tes: `RateLimiterRedisTest` (6), `RateLimitFilterTest` (6).
-- **Keputusan desain — FAIL-OPEN default:** Redis mati ⇒ request tetap dilayani. Alasannya: melumpuhkan seluruh transaksi kantin karena infra cache rusak lebih merugikan daripada melewatkan sebagian limit. Bisa diubah ke fail-closed via `KANTIN_RATE_LIMIT_FAIL_CLOSED=true` bila kebijakan menuntut.
+- **Keputusan desain — Gagal-terbuka default:** Redis mati ⇒ request tetap dilayani. Alasannya: melumpuhkan seluruh transaksi kantin karena infra cache rusak lebih merugikan daripada melewatkan sebagian limit. Bisa diubah ke gagal-tertutup via `KANTIN_RATE_LIMIT_FAIL_CLOSED=true` bila kebijakan menuntut.
 - **Belajar (`/bug-hunter`):** hitung pakai `INCR` + `EXPIRE` **harus atomik** (Lua) — bila dipisah, request paralel bisa lolos tanpa TTL → kunci bocor permanen.
 - ⚠️ **DILARANG** memakai Redis untuk cache status blokir kartu (PRD §11.11) — tetap diperiksa di DB setiap tap.
 
@@ -223,7 +223,7 @@ Integration**. Semua sudah ditindaklanjuti kecuali yang ditandai menunggu.
   - `AuthController.cabut` — `POST /api/auth/cabut` (`@PerluPeran` ADMIN_SEKOLAH/TU_SEKOLAH).
   - Tes: `SidikJariTest` (4), `TokenBlacklistRedisTest` (7), `AuthControllerTest` (4).
 - **Konteks penting (ADR-0002):** kantin-be tidak punya login/logout sendiri; endpoint `/cabut` untuk mencabut token yang **dikelola platform** (akun nonaktif, token bocor, sesi dipaksa berakhir).
-- **Fail-open:** Redis mati ⇒ token dianggap belum dicabut. Konsisten dengan kebijakan rate limit (B27).
+- **Gagal-terbuka:** Redis mati ⇒ token dianggap belum dicabut. Konsisten dengan kebijakan rate limit (B27).
 - **Belajar (`/bug-hunter`):** (1) simpan **hash**, bukan token mentah — bila Redis bocor, penyerang tak langsung dapat token yang bisa dipakai. (2) Periksa blacklist **setelah** verifikasi signature, agar token palsu tidak menghabiskan query Redis.
 
 ## B29 — (audit) Dokumen arsitektur basi vs kondisi kode
@@ -233,7 +233,7 @@ Integration**. Semua sudah ditindaklanjuti kecuali yang ditandai menunggu.
   1. **ADR-0001, 0002, 0003 masih "Diusulkan"** padahal sudah diimplementasi & teruji → diubah jadi **"Diterima"** dengan bukti implementasi.
   2. **`OPEN-QUESTIONS.md` Q9 & Q12 masih 🟡** padahal sudah diputuskan (Java 25; locking pessimistic ADR-0003) → **🟢**.
   3. **`API-ENDPOINTS.md` §6.5** masih menulis "rate limit & blacklist token belum aktif" → **sudah aktif** (B27 & B28).
-- **Hasil audit kode (bersih):** tidak ada TODO/FIXME; semua request DTO `@Valid`; semua 11 repository tenant-scoped; indeks DB lengkap untuk query panas; `ddl-auto=none` + `open-in-view=false`; tanpa secret hardcoded; `VoidService` memvalidasi tenant + status sesi + audit (diperiksa manual).
+- **Hasil audit kode (bersih):** tidak ada TODO/FIXME; semua request DTO `@Valid`; semua 11 repository tenant-scoped; indeks DB lengkap untuk query panas; `ddl-auto=none` + `open-in-view=false`; tanpa rahasia yang ditulis langsung di kode; `VoidService` memvalidasi tenant + status sesi + audit (diperiksa manual).
 - **Catatan:** `SesiKasirService.tutupSesi` **tidak** mengubah status transaksi individual — "mengunci" ditegakkan lewat status **sesi** (`VoidService` menolak void bila sesi tidak terbuka). Javadoc diringkas agar tidak menyesatkan.
 - **Pelajaran:** dokumentasi adalah bagian dari DoD. Setiap commit fitur **wajib** memperbarui ADR/OPEN-QUESTIONS/API-ENDPOINTS sekaligus — bukan menyusul.
 
@@ -290,15 +290,15 @@ Integration**. Semua sudah ditindaklanjuti kecuali yang ditandai menunggu.
 ## B34 — (audit keamanan) Endpoint webhook `permitAll` tanpa verifikasi signature
 
 - **Konteks:** `WebSecurityConfig` membuka `/api/webhook/**` dengan `permitAll` (agar SKOOLIA bisa memanggil tanpa token user), tetapi **belum ada** controller yang menanganinya. Celah ini menjadi **nyata** begitu webhook diimplementasikan: `permitAll` berarti tanpa autentikasi apa pun, sehingga siapa pun bisa memalsukan event (mis. memalsukan pembayaran/saldo). PR #6 (B33) menyisakan temuan ini sebagai pekerjaan lanjutan.
-- **Perbaikan (fail-closed, berlapis):**
+- **Perbaikan (gagal-tertutup, berlapis):**
   1. **Verifikasi HMAC-SHA256 wajib.** `WebhookSignatureFilter` menolak setiap request `/api/webhook/**` tanpa tanda tangan sah. Skema: `signature = hex(HMAC-SHA256(rahasia, timestamp + "." + badan_mentah))` — timestamp ikut ditandatangani agar tak bisa digeser. Perbandingan **konstan-waktu** (`MessageDigest.isEqual`) untuk mencegah timing attack.
-  2. **Rahasia dari environment, bukan hardcode.** `kantin.webhook.secret` ← `KANTIN_WEBHOOK_SECRET`. Bila **kosong**, endpoint menjawab **503** (bukan terbuka) — lupa konfigurasi tidak pernah membuka celah.
+  2. **Rahasia dari environment, bukan ditulis langsung di kode.** `kantin.webhook.secret` ← `KANTIN_WEBHOOK_SECRET`. Bila **kosong**, endpoint menjawab **503** (bukan terbuka) — lupa konfigurasi tidak pernah membuka celah.
   3. **Anti-replay.** Header `X-Webhook-Timestamp` (epoch detik) wajib dalam jendela `±kantin.webhook.tolerance-seconds` (default 300 dtk) → di luar itu **401** walau signature sah.
   4. **Allowlist IP opsional.** `kantin.webhook.allowed-ips` (IP/CIDR) → di luar daftar **403**. XFF hanya dipercaya dari proxy tepercaya (`kantin.webhook.trusted-proxies`) — pola anti-spoof sama dengan B33.
-  5. **Idempotency per event id.** Migrasi **`V12`** tabel `webhook_event` + UNIQUE `(sumber, event_id)`. Retry event yang sama → **tidak diproses ulang** (dijawab sebagai `replay=true`); event id sama dengan payload berbeda → **409**. Tabel append-only (trigger `tolak_perubahan_ledger`).
+  5. **Idempotency per event id.** Migrasi **`V12`** tabel `webhook_event` + UNIQUE `(sumber, event_id)`. Retry event yang sama → **tidak diproses ulang** (dijawab sebagai `replay=true`); event id sama dengan isi permintaan berbeda → **409**. Tabel append-only (trigger `tolak_perubahan_ledger`).
   6. **Batas ukuran badan** (`kantin.webhook.max-body-bytes`, default 1 MiB) → lewat batas **413** (mencegah HMAC atas badan raksasa).
 - **Perluasan kontrak:** handler event (top-up online Q4, sinkronisasi kartu Q7) masuk lewat port `WebhookHandlerPort`; belum ada implementasi → event dicatat `DIABAIKAN` (pipa keamanan tak terblokir menunggu kontrak).
-- **Uji:** `WebhookSignatureVerifierTest` (8), `WebhookSignatureFilterTest` (9 — signature salah ⇒ 401, replay ⇒ 401, rahasia kosong ⇒ 503, IP luar allowlist ⇒ 403), `TandaTanganWebhookTest` (4), `IpAllowlistTest` (6), `WebhookControllerTest` (3), `WebhookServiceIT` (5 — Testcontainers: retry ⇒ handler dipanggil **sekali**, payload beda ⇒ 409, jurnal append-only). Semua GAGAL dulu (repro) / kini hijau.
+- **Uji:** `WebhookSignatureVerifierTest` (8), `WebhookSignatureFilterTest` (9 — signature salah ⇒ 401, replay ⇒ 401, rahasia kosong ⇒ 503, IP luar allowlist ⇒ 403), `TandaTanganWebhookTest` (4), `IpAllowlistTest` (6), `WebhookControllerTest` (3), `WebhookServiceIT` (5 — Testcontainers: retry ⇒ handler dipanggil **sekali**, isi permintaan beda ⇒ 409, jurnal append-only). Semua GAGAL dulu (repro) / kini hijau.
 - **Catatan:** `FilterRegistrationBean.setEnabled(false)` mencegah filter ber-`@Component` didaftarkan **dua kali** (rantai servlet + rantai Security) — kelas masalah urutan ganda yang sama dengan B33.
 
 ## B35 — (audit integrasi Q1) Token staf admin-be ditolak & `user_id` terbaca `"42.0"`
@@ -327,7 +327,7 @@ Integration**. Semua sudah ditindaklanjuti kecuali yang ditandai menunggu.
 - **Dampak:** `PENGELOLA_KANTIN` punya hak lebih tinggi daripada `PETUGAS_KANTIN` (katalog, stok, HPP, laporan). Kasir ber-token `PETUGAS_KANTIN` akan **mendapat hak pengelola** — **eskalasi hak istimewa** (melanggar PRD §11.5). Bug **laten**: admin-be saat ini belum punya role bernama mengandung "KANTIN" (role-nya `ADMIN`/`TU`/`BENDAHARA`/`KEPSEK`/`GURU`/dll.), jadi baru aktif begitu role kantin ditambahkan.
 - **Perbaikan:** pindahkan cek `contains("PETUGAS")`/`contains("KASIR")` ke **atas** cek generik `contains("KANTIN")`; sisa urutan dipertahankan agar perilaku peran lain tak berubah.
 - **Bukti:** `KlaimResolverPeranTest` — `PETUGAS_KANTIN → PETUGAS_KANTIN` (sebelumnya `PENGELOLA_KANTIN`) + 18 kasus pemetaan peran lain. Pemetaan peran **sebelumnya tak teruji**; uji ini jadi guard regresi.
-- **Catatan positif:** pemisahan peran lain sudah benar (`ADMIN`→`ADMIN_SEKOLAH`, `TU`/`BENDAHARA`→`TU_SEKOLAH`, `ORANG_TUA`/`ORTU`→`ORANG_TUA`, tak dikenal→`TIDAK_DIKENAL` fail-closed).
+- **Catatan positif:** pemisahan peran lain sudah benar (`ADMIN`→`ADMIN_SEKOLAH`, `TU`/`BENDAHARA`→`TU_SEKOLAH`, `ORANG_TUA`/`ORTU`→`ORANG_TUA`, tak dikenal→`TIDAK_DIKENAL` gagal-tertutup).
 
 
 

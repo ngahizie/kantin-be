@@ -23,7 +23,7 @@ Anda bergabung mengerjakan **backend modul kantin cashless SKOOLIA**. Ini proyek
 | Alat | Versi wajib | Catatan |
 |---|---|---|
 | **JDK** | **25 (Temurin 25+36 LTS)** | **WAJIB parity `admin-be` (`zulu-openjdk-alpine:25`). JDK 21 TIDAK cukup.** |
-| **Maven** | *tidak perlu global* | Pakai **Maven Wrapper** `./mvnw` (Maven 3.9.12, `distributionType=only-script`) |
+| **Maven** | *tidak perlu global* | Pakai **Maven Pembungkus** `./mvnw` (Maven 3.9.12, `distributionType=only-script`) |
 | Docker + Compose | terbaru (uji: Docker 29.8.0 / Compose 5.5.1) | PostgreSQL + Redis dev |
 | PostgreSQL (client) | 18.x | opsional, untuk `psql` manual |
 | Git | terbaru | akses SSH ke GitHub |
@@ -44,7 +44,7 @@ echo $JAVA_HOME      # HARUS menunjuk ke JDK 25
 
 ### ⚠️ Jebakan #2 — Maven tidak ada global
 
-Tidak perlu install Maven. Semua perintah pakai **wrapper** — file `mvnw` + `.mvn/wrapper/maven-wrapper.properties` **wajib ada** di repo (disalin dari `admin-be`). Wrapper akan mengunduh Maven 3.9.12 sendiri ke `~/.m2/wrapper/`.
+Tidak perlu install Maven. Semua perintah pakai **pembungkus** — file `mvnw` + `.mvn/wrapper/maven-wrapper.properties` **wajib ada** di repo (disalin dari `admin-be`). Pembungkus akan mengunduh Maven 3.9.12 sendiri ke `~/.m2/wrapper/`.
 
 Cek cepat (harus menampilkan **Java version: 25**):
 ```bash

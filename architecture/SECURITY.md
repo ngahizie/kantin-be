@@ -10,7 +10,7 @@
 1. **Tanpa login sendiri** (ADR-0002). `kantin-be` tidak punya `/login`,
    `/refresh`, `/logout`, tabel user, atau password. Identitas **hanya** dari
    JWT yang diterbitkan `admin-be` (staf) & `mobile-be` (ortu).
-2. **Fail-closed.** Ragu = tolak. Token tanpa identitas valid → 401.
+2. **Gagal-tertutup.** Ragu = tolak. Token tanpa identitas valid → 401.
    Peran tak dikenal → `TIDAK_DIKENAL` (tak punya hak apa pun).
 3. **Keamanan di backend** (PRD §11.5). Menyembunyikan tombol di FE **bukan**
    pengaman. Setiap endpoint wajib dijaga di server.
@@ -99,7 +99,7 @@ Controller (tipis) ──► Service (aturan bisnis) ──► DB
 
 `permitAll` di `/api/webhook/**` **bukan** berarti tanpa autentikasi: token user
 memang tidak dipakai (SKOOLIA tidak login), tetapi setiap request **wajib**
-membawa HMAC sah. `WebhookSignatureFilter` menegakkan, **fail-closed**:
+membawa HMAC sah. `WebhookSignatureFilter` menegakkan, **gagal-tertutup**:
 
 ```
 POST /api/webhook/{sumber}
@@ -116,7 +116,7 @@ POST /api/webhook/{sumber}
 | Badan melebihi `kantin.webhook.max-body-bytes` | **413** |
 | `kantin.webhook.secret` **dan** `kantin.webhook.secret-previous` kosong (belum dikonfigurasi) | **503** |
 
-- **Rahasia dari environment** (`KANTIN_WEBHOOK_SECRET`), bukan hardcode.
+- **Rahasia dari environment** (`KANTIN_WEBHOOK_SECRET`), bukan ditulis langsung di kode.
 - **Rotasi tanpa downtime** — verifikasi menerima signature yang cocok dengan
   `KANTIN_WEBHOOK_SECRET` **atau** `KANTIN_WEBHOOK_SECRET_PREVIOUS`
   (`WebhookProperties.daftarRahasia()`; nilai kosong dibuang, duplikat dihilangkan).
@@ -126,9 +126,9 @@ POST /api/webhook/{sumber}
   endpoint internal (`KANTIN_INTERNAL_SECRET` / `KANTIN_INTERNAL_SECRET_PREVIOUS`).
 - **Idempotency** per `(sumber, eventId)` (tabel `webhook_event`, migrasi V12):
   retry event sama ⇒ tidak diproses ulang (respons `replay=true`); event id sama
-  dengan payload berbeda ⇒ **409**.
+  dengan isi permintaan berbeda ⇒ **409**.
 - Perbandingan signature **konstan-waktu**; timestamp ikut ditandatangani.
-- Handler per jenis event lewat `WebhookHandlerPort` (kontrak payload menunggu
+- Handler per jenis event lewat `WebhookHandlerPort` (kontrak isi permintaan menunggu
   Q4/Q7) — event yang belum ditangani dicatat `DIABAIKAN`.
 
 ---
@@ -152,23 +152,23 @@ Lihat `BUGS-DITEMUKAN.md` B6–B8 tentang perbaikan status 403 dari `admin-be`.
 ## 7. Yang Belum & Menunggu
 
 - 🔴 **Q1/Q2**: public key RS256 + format klaim JWT (admin & mobile). Decoder
-  saat ini **fail-closed** bila key kosong — semua request → 401.
+  saat ini **gagal-tertutup** bila key kosong — semua request → 401.
 - ✅ **CORS** — sudah diperbaiki (B11): origin eksplisit dari
   `kantin.cors.allowed-origins` (tanpa wildcard saat kredensial aktif). Set
   daftar origin production sebelum rilis.
 - ✅ **Rate limit Redis** (B27, SECURITY.md §7) — fixed-window atomik (Lua),
   per kategori: `auth` 20/menit, mutasi non-auth yang sensitif (kasir/saldo/stok/katalog)
   60/menit, request baca umum (`GET`/`HEAD`, termasuk POS) 600/menit, `umum` lainnya
-  600/menit. **Fail-open** default (`kantin.rate-limit.fail-closed=false`):
+  600/menit. **Gagal-terbuka** default (`kantin.rate-limit.fail-closed=false`):
   Redis mati ⇒ request tetap dilayani agar kantin tidak lumpuh. Balas **429** +
   `Retry-After` + `X-RateLimit-Limit`.
 - ✅ **Cabut token (blacklist Redis)** (B28) — `POST /api/auth/cabut` (admin/TU).
   Token disimpan sebagai SHA-256 (bukan mentah) dengan TTL = sisa umur token.
-  Filter menolak token tercabut **setelah** signature valid. **Fail-open**: Redis
+  Filter menolak token tercabut **setelah** signature valid. **Gagal-terbuka**: Redis
   mati ⇒ token dianggap belum dicabut (gangguan infra tidak melumpuhkan kantin).
 - ✅ **Webhook masuk diamankan (B34)** — `/api/webhook/{sumber}` wajib HMAC-SHA256
   sah + anti-replay (timestamp) + allowlist IP opsional; rahasia dari
-  `KANTIN_WEBHOOK_SECRET` (kosong ⇒ 503, fail-closed). Idempotency per event id
+  `KANTIN_WEBHOOK_SECRET` (kosong ⇒ 503, gagal-tertutup). Idempotency per event id
   (tabel `webhook_event`, V12). **Isi `KANTIN_WEBHOOK_SECRET` sebelum endpoint
   webhook dipakai di produksi.**
   Allowlist IP **kosong = allow-all** — keputusan pilot: kontrol utama adalah
@@ -177,7 +177,7 @@ Lihat `BUGS-DITEMUKAN.md` B6–B8 tentang perbaikan status 403 dari `admin-be`.
 - ✅ **Endpoint internal (mesin-ke-mesin, #29)** — `/api/internal/**` (mis. admin-be
   cek UID Kartu Tamu untuk anti-tabrakan) diamankan `InternalSignatureFilter`
   dengan **rahasia TERPISAH** `KANTIN_INTERNAL_SECRET` (kosong/disabled ⇒ 503,
-  fail-closed) + anti-replay + allowlist IP opsional (kosong = allow-all, alasan
+  gagal-tertutup) + anti-replay + allowlist IP opsional (kosong = allow-all, alasan
   sama seperti webhook). Rotasi memakai `KANTIN_INTERNAL_SECRET_PREVIOUS`. Lihat
   `docs/integrasi-anti-tabrakan-uid.md`.
 - ✅ **Audit lengkap** (B18) — `audit_log` ditulis untuk: top-up (tunai/online), refund transaksi, koreksi saldo,

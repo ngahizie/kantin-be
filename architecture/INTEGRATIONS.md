@@ -40,7 +40,7 @@
   | `mobile-be` | orang tua | ⛔ **PERLU KONFIRMASI** (repo belum ada di clone) |
 - Verifikasi pakai `jjwt` 0.12.6, algoritma **RS256**. **Fallback HS256 DILARANG** di production.
 - Klaim yang dipakai: `user_id`, `sekolah_id`, `role` (bentuk persisnya diadaptasi lewat `KlaimResolver`).
-- Implementasi: `KantinJwtDecoder` (RS256, fail-closed bila key kosong) + filter JWT.
+- Implementasi: `KantinJwtDecoder` (RS256, gagal-tertutup bila key kosong) + filter JWT.
 
 > 🟡 **DIIMPLEMENTASI (adaptasi Q1/Q2).** Fondasi auth **sudah jalan** — decoder
 > toleran terhadap klaim yang tersedia & memanggil `GET /api/auth/me` admin-be untuk
@@ -81,7 +81,7 @@ BukuKasService.catatTransaksi(
 > **KREDIT** (menambah saldo siswa) menurunkan pendapatan kantin → `KELUAR`;
 > koreksi **DEBIT** (mengurangi saldo) → `MASUK`. Metode `NON_TUNAI` (jalur
 > saldo/dana titipan, bukan uang fisik). refId deterministik
-> `KANTIN-KOR-<berita acara>` → idempoten; fail-open (kegagalan posting tidak
+> `KANTIN-KOR-<berita acara>` → idempoten; gagal-terbuka (kegagalan posting tidak
 > membatalkan koreksi saldo). Diimplementasikan di
 > `BukuKasPostingService.postingKoreksiSaldo()` (issue #32).
 
@@ -97,7 +97,7 @@ BukuKasService.catatTransaksi(
 
 ### 3.6 Retry posting tertunggak (issue #33)
 
-Karena posting bersifat **fail-open** (poin §3.4-2): bila admin-be sempat
+Karena posting bersifat **gagal-terbuka** (poin §3.4-2): bila admin-be sempat
 gangguan, sesi tetap `DITUTUP` dengan `posting_buku_kas=false` sehingga entri
 Buku Kas tertunggak. `RetryPostingBukuKasScheduler` (cron `0 */15 * * * *`,
 dapat dimatikan lewat `kantin.scheduler.retry-posting.enabled=false`) menyapu
@@ -146,13 +146,13 @@ Optional<Siswa> findByRfidUid(String rfidUid);
 - Refund/pindah saldo siswa keluar (PRD §9.3) butuh dua hal dari admin-be: **(a)** status keaktifan siswa (lulus/pindah/keluar) untuk daftar kandidat & validasi tujuan, dan **(b)** **pemblokiran kartu** siswa setelah saldo 0.
 - Kontraknya belum final (Q7), jadi dipisah sebagai port `service/integrasi/StatusSiswaPort` dengan implementasi sementara `StatusSiswaFallback`:
   - `tidakAktif(sekolahId, siswaId)` → `null` ("tidak diketahui") — daftar kandidat tetap tampil (tanpa filter), pemindahan tidak diblokir keliru;
-  - `blokirKartu(...)` → **best-effort** (hanya log) — perpindahan uang di ledger tetap sah &amp; idempoten, tidak dibatalkan kegagalan integrasi.
+  - `blokirKartu(...)` → **sebisanya** (hanya log) — perpindahan uang di ledger tetap sah &amp; idempoten, tidak dibatalkan kegagalan integrasi.
 - Saat Q7 terjawab: tambahkan implementasi nyata (mis. `SiswaKartuClient`) &amp; tandai `@Primary`. Status blokir **tidak boleh** di-cache (§11.11).
 
 ### 4.5 Port pencarian siswa (`CariSiswaPort`, issue #214)
 - Layar TU butuh **mencari siswa berdasarkan nama/NIS** (PRD §9.2 top-up tunai, §9.6 kontrol siswa, §9.3 kandidat refund). Master siswa **milik admin-be** — kantin-be tidak menyimpannya.
 - Dipisah sebagai port `service/integrasi/CariSiswaPort` (kontrak Q7 belum final):
-  - `CariSiswaFallback` → daftar **kosong** (fail-open, bukan error) saat integrasi belum dikonfigurasi;
+  - `CariSiswaFallback` → daftar **kosong** (gagal-terbuka, bukan error) saat integrasi belum dikonfigurasi;
   - `CariSiswaDemo` → data siswa tiruan saat profil `demo` aktif, agar FE/alur TU bisa diuji tanpa data SKOOLIA.
 - Saldo tiap hasil diambil dari **ledger lokal** kantin-be (`LedgerSaldoService`), bukan dari admin-be — sehingga angka konsisten dengan data tap/top-up.
 - Endpoint: `GET /api/siswa` (`q`, `hanyaTidakAktif`, `batas`).
@@ -162,9 +162,9 @@ Optional<Siswa> findByRfidUid(String rfidUid);
 - **Keputusan kontrak (Q7 lanjutan).** UID kartu **tidak** disertakan pada daftar siswa (`GET /api/siswa` / `InfoSiswa`) karena UID dapat dipakai memalsukan tap. UID hanya diberikan lewat **lookup khusus per siswa**.
 - **Sumber data.** admin-be: `GET /api/siswa/{id}` → field `rfidUid` (toleran `rfid_uid`); path sama dengan lookup identitas #297 dan dapat ditimpa lewat `kantin.integrasi.cari-siswa.path-by-id`.
 - **Peran yang boleh akses.** Hanya `ADMIN_SEKOLAH` dan `TU_SEKOLAH` — `GET /api/siswa/{siswaId}/rfid`. Peran lain tidak memerlukan UID.
-- **Fail-open (PRD §8.4).** 404, field tidak ada, atau integrasi gagal → `rfidUid=null` &amp; `ditemukan=false` (HTTP 200). UID **tidak dikarang**.
+- **Gagal-terbuka (PRD §8.4).** 404, field tidak ada, atau integrasi gagal → `rfidUid=null` &amp; `ditemukan=false` (HTTP 200). UID **tidak dikarang**.
 - **Demo.** `CariSiswaDemo` membaca fixture seed lokal `dev_siswa_rfid` (bukan identitas produksi), sehingga perilaku kontrak sama tanpa data palsu.
-- **Sisa koordinasi admin-be.** Pastikan field `rfidUid` benar-benar ada pada payload `/api/siswa/{id}` untuk peran mesin kantin-be; bila belum, endpoint tetap berjalan dengan `ditemukan=false`.
+- **Sisa koordinasi admin-be.** Pastikan field `rfidUid` benar-benar ada pada isi permintaan `/api/siswa/{id}` untuk peran mesin kantin-be; bila belum, endpoint tetap berjalan dengan `ditemukan=false`.
 
 ---
 
@@ -199,15 +199,15 @@ POST /api/webhook/{sumber}   (mis. CALLBACK_BE)
   berbeda.
 - **Fail-safe saat kontrak belum final (Q4):** jenis event & tipe subjek default
   dibuat **konfigurabel** (`kantin.webhook.topup.event-types`,
-  `kantin.webhook.topup.subjek-tipe-default`); field payload dibaca lewat
+  `kantin.webhook.topup.subjek-tipe-default`); field isi permintaan dibaca lewat
   **alias** lazim (`refId`/`orderId`/`trxId`, `nominal`/`amount`, dst). Jenis
   event yang tidak dikenal cukup dicatat `DIABAIKAN` (tanpa efek), bukan
   diproses keliru.
 - **Audit** (§11.7): aksi `TOPUP_ONLINE` dicatat untuk mutasi baru (bukan replay).
 - Diuji `TopUpOnlineWebhookIT` (Testcontainers PostgreSQL): saldo bertambah,
-  duplikat idempoten (event & refId), isolasi lintas tenant, validasi payload.
+  duplikat idempoten (event & refId), isolasi lintas tenant, validasi isi permintaan.
 
-> ⛔ **BLOCKING (tersisa):** nama pasti jenis event & bentuk field payload dari
+> ⛔ **BLOCKING (tersisa):** nama pasti jenis event & bentuk field isi permintaan dari
 > `callback-be` perlu dikonfirmasi. Lihat Q4. Selama itu, sesuaikan hanya lewat
 > konfigurasi/alias — kode keamanan tidak berubah.
 
@@ -217,7 +217,7 @@ POST /api/webhook/{sumber}   (mis. CALLBACK_BE)
 
 - Push ke ortu untuk: belanja, refund transaksi, top-up online berhasil, top-up tunai TU, refund saldo/pindah saldo.
 - Contoh: `"Budi belanja Rp8.000 di Kantin: Nasi Uduk, Es Jeruk"`.
-- Implementasi: `NotifikasiPort` (fallback fail-open + adapter REST `NotifikasiRestClient` + demo `NotifikasiDemo`).
+- Implementasi: `NotifikasiPort` (fallback gagal-terbuka + adapter REST `NotifikasiRestClient` + demo `NotifikasiDemo`).
 
 > 🟡 **ADAPTER SIAP; TINGGAL AKTIVASI.** Kontrak ditetapkan (`POST /api/internal/notifikasi`
 > ke mobile-be, lihat Q5) — adapter REST + uji kontrak WireMock sudah ada, **default nonaktif**.
@@ -233,7 +233,7 @@ POST /api/webhook/{sumber}   (mis. CALLBACK_BE)
 - Laporan fee per sekolah per periode.
 
 > 🟡 **ADAPTER SIAP; TINGGAL AKTIVASI.** Kontrak ditetapkan (Q6) — `AktivasiModulFilter`
-> menegakkan toggle (sekolah nonaktif → 409, fail-open bila status tak diketahui),
+> menegakkan toggle (sekolah nonaktif → 409, gagal-terbuka bila status tak diketahui),
 > adapter REST + demo tersedia. Toggle tetap **milik internal-be** (bukan tugas
 > kantin-be). Aktivasi produksi menunggu endpoint/kredensial
 > ([#164](https://github.com/ngahizie/kantin-be/issues/164)).
@@ -247,7 +247,7 @@ Sebelum mulai Fase 3 (auth) & Fase 6 (fitur yang posting/notif):
 - [ ] **Q1** Format klaim JWT staf + public key RS256 admin-be
 - [ ] **Q2** Public key RS256 mobile-be + format klaim ortu
 - [ ] **Q3** Tambah `refModul` kantin ke `migrateBukuKas()` admin-be (atau konfirmasi pakai `null`)
-- [ ] **Q4** Kontrak payload callback top-up (refId PG)
+- [ ] **Q4** Kontrak isi permintaan callback top-up (refId PG)
 - [ ] **Q5** Endpoint & format push notification mobile-be
 - [ ] **Q6** Kontrak API aktivasi modul & fee (internal-be)
 - [ ] **Q7** Mekanisme lookup kartu: API internal vs akses langsung; SLA latency

@@ -111,7 +111,7 @@ atau lingkungan staging dengan kredensial SKOOLIA.
 |---|---|---|---|---|---|
 | U26 | Tenant scoping | akses data sekolah lain | **404** (bukan 403) | `IsolasiTenantLockIT`, `KontrolKartuServiceIT` | ⬜ |
 | U27 | RBAC backend | peran tanpa hak memanggil endpoint | ditolak (403) | `PeranAspectTest`, `RbacKepsekGuardTest` | ⬜ |
-| U28 | Webhook tanpa signature | POST tanpa HMAC sah | **401** (fail-closed) | `WebhookSignatureFilterTest` | ⬜ |
+| U28 | Webhook tanpa signature | POST tanpa HMAC sah | **401** (gagal-tertutup) | `WebhookSignatureFilterTest` | ⬜ |
 | U29 | Cabut token | `POST /api/auth/cabut` | token tercabut ditolak | `TokenBlacklistRedisTest` | ⬜ |
 
 > **Menjalankan bukti otomatis:** `./mvnw verify` (butuh Docker) menjalankan
@@ -144,7 +144,7 @@ atau lingkungan staging dengan kredensial SKOOLIA.
 | U25 | Ekspor Excel | ✅ | berkas `.xlsx` valid (`Microsoft Excel 2007+`) |
 | U26 | Tenant scoping | ✅ | akses sekolah lain → **404** (bukan 403) |
 | U27 | RBAC backend | ✅ | petugas akses laporan → 403 |
-| U28 | Webhook tanpa signature | ✅ | 503 (fail-closed, secret belum diisi — sesuai desain) |
+| U28 | Webhook tanpa signature | ✅ | 503 (gagal-tertutup, secret belum diisi — sesuai desain) |
 | U29 | Cabut token | ✅ | token tercabut → 401 |
 
 **Ringkas:** **18/29** skenario diverifikasi langsung end-to-end. Sisa (U6, U7,
@@ -202,7 +202,7 @@ Pelengkap DoD per fitur ([`AGENTS.md`](../architecture/AGENTS.md) §9). Sebuah
 ### 4.4 Keamanan & konfigurasi
 - [ ] Checklist pra-rilis produksi tercentang semua ([`checklist-pra-rilis.md`](checklist-pra-rilis.md)).
       — keputusan 🟡 sudah **ditetapkan** (CORS eksplisit, allowlist allow-all,
-      `trusted-proxies` kondisional, rate limit fail-open; rincian #274); item 🟠 yang
+      `trusted-proxies` kondisional, rate limit gagal-terbuka; rincian #274); item 🟠 yang
       butuh kredensial tim lain **tetap menunggu #164**.
 - [ ] Rahasia (webhook/internal/JWT) terisi; profil dev **nonaktif**.
 - [ ] Proteksi branch `main` **aktif** (#171).

@@ -33,3 +33,19 @@
 | **RBAC** | Role-Based Access Control; dicek di backend tiap endpoint. |
 | **ADR** | Architecture Decision Record — catatan keputusan arsitektur. Lihat [`adr/`](./adr/). |
 | **DoD** | Definition of Done — syarat sebuah tugas dianggap selesai. |
+
+## Padanan istilah teknis (dokumen → kode)
+
+Dokumen memakai istilah Indonesia di bawah ini. **Nama kelas, field, config, dan
+endpoint di kode tidak diterjemahkan** — kolom kanan hanya untuk memetakan kembali.
+
+| Istilah di dokumen | Padanan di kode / istilah asing |
+|---|---|
+| **gagal-terbuka** | *fail-open* — dependensi bermasalah ⇒ layanan tetap jalan (mis. rate limit dilewati). Config: `KANTIN_RATE_LIMIT_FAIL_CLOSED=false`. |
+| **gagal-tertutup** | *fail-closed* — dependensi bermasalah ⇒ permintaan ditolak (401/503). |
+| **isi permintaan** | *payload* — badan data yang dikirim pada request webhook/API. |
+| **pembungkus** | *wrapper* — skrip/kelas yang membungkus perintah lain (mis. `mvnw`). |
+| **sebisanya** | *best-effort* — dicoba, tetapi kegagalannya tidak membatalkan proses utama. |
+| **ditulis langsung di kode** | *hard-coded* — nilai tetap di kode, bukan dari konfigurasi/environment. |
+| **usang** | *deprecated* — masih dilayani demi kompatibilitas, tidak dipakai untuk fitur baru. |
+| **solusi sementara** | *workaround* — perbaikan sementara sebelum akar masalah dibereskan. |

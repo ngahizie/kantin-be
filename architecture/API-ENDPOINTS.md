@@ -37,7 +37,7 @@
 | `GET` | `/api/kasir/tap/menunggu` | kasir | Daftar tap yang masih menunggu konfirmasi (tenant-scoped) |
 | `GET` | `/api/kasir/kartu/{rfidUid}` | kasir | **Cek identitas kartu** (tanpa memotong saldo): `{nomorKartu, subjekTipe, subjekId, nama, kelas, fotoUrl, saldo, belanjaHariIni, limitHarian, sisaLimit, diblokir, bisaBelanja, waktuCek}` — untuk menampilkan identitas sebelum pembayaran |
 | `POST` | `/api/kasir/transaksi/{transaksiId}/refund` | kasir | **Refund transaksi** (PRD §6.3): kembalikan saldo & stok; wajib `alasan` **dan** `kodeStruk` yang cocok dengan transaksi; hanya sesi belum ditutup. Respons `TransaksiRefundResponse` (`id`, `nomorStruk`, `waktu`, `subjekTipe`, `subjekId`, `kartuUid`, `total`, `status`, `voidAlasan`, `voidAt`, `voidOleh`) — bukan entity, agar tidak ada siklus `items`↔`transaksi` di JSON |
-| `POST` | `/api/kasir/transaksi/{transaksiId}/void` | kasir | *Deprecated* — alias lama dari `/refund`, aturan & bentuk respons sama (wajib `alasan` + `kodeStruk`) |
+| `POST` | `/api/kasir/transaksi/{transaksiId}/void` | kasir | *Usang* — alias lama dari `/refund`, aturan & bentuk respons sama (wajib `alasan` + `kodeStruk`) |
 | `POST` | `/api/kasir/transaksi/{transaksiId}/koreksi` | TU | Koreksi transaksi pada **sesi tertutup** (PRD §6.3/§9.2) — mutasi pembalik beralasan + audit; wajib `alasan`. Respons `TransaksiRefundResponse` (sama dengan refund) |
 | `GET` | `/api/kasir/transaksi` | TU, admin, pengelola | Daftar transaksi untuk **koreksi bendahara** (PRD §6.3/§9.2, issue #212) — terbaru dulu, berhalaman; filter opsional `sesiId`, `tanggal` (`yyyy-MM-dd`, zona sekolah), `status` (`SUKSES`/`VOID`), `halaman` (0-based), `ukuran`. Setiap baris memuat `items[]` rincian belanja (`menuId`, `nama`, `qty`, `harga`, `subtotal`) + `ringkasanItem` ringkas. Tenant dari token |
 | `GET` | `/api/kasir/transaksi/sesi-tutup` | TU, admin, pengelola | Daftar transaksi **sesi tertutup** — kandidat koreksi bendahara (issue #230): hanya transaksi pada sesi `DITUTUP` milik tenant; filter & paginasi sama dengan `/api/kasir/transaksi` (termasuk `items[]` + `ringkasanItem`); `sesiId` bila diberikan wajib sesi tenant yang sudah ditutup (selain itu 404/invalid). Tenant dari token |
@@ -230,7 +230,7 @@
 | `PUT` | `/api/pengaturan-kantin/titik-kasir/{titikId}` | admin | Ubah titik kasir (nama, kode, aktif) |
 | `DELETE` | `/api/pengaturan-kantin/titik-kasir/{titikId}` | admin | Nonaktifkan titik kasir (soft delete; tolak bila ada sesi terbuka) |
 | `PATCH` | `/api/pengaturan-kantin/titik-kasir/{titikId}/toggle` | admin | Balik status aktif titik kasir (issue #228). Body opsional `{"aktif": true\|false}`; body kosong membalik status sekarang. Idempoten; tolak 409 bila masih ada sesi terbuka |
-| `GET` | `/api/pengaturan-kantin/aktivasi-modul` | TU, admin, pengelola | **#42/Q6** — status aktivasi modul & fee (fail-open via `AktivasiModulPort`) |
+| `GET` | `/api/pengaturan-kantin/aktivasi-modul` | TU, admin, pengelola | **#42/Q6** — status aktivasi modul & fee (gagal-terbuka via `AktivasiModulPort`) |
 
 > **Jam tutup otomatis** dipakai penjadwal `JamTutupKasirScheduler` yang menutup
 > sesi **hari ini** begitu jam tutup sekolah terlewati. **Aktivasi/fee platform
@@ -262,7 +262,7 @@
 > | `X-Webhook-Signature` | `sha256=<hex HMAC-SHA256(rahasia, timestamp + "." + body_mentah)>` |
 > | `X-Webhook-Id` | id event unik (kunci idempotency; boleh dari field body `eventId`) |
 >
-> `WebhookSignatureFilter` menolak **fail-closed**: signature salah / timestamp
+> `WebhookSignatureFilter` menolak **gagal-tertutup**: signature salah / timestamp
 > kedaluwarsa / header kurang ⇒ **401**; IP di luar `kantin.webhook.allowed-ips`
 > ⇒ **403**; badan > batas ⇒ **413**; `KANTIN_WEBHOOK_SECRET` kosong ⇒ **503**.
 > Respons sukses memuat `{ sumber, eventId, eventType, status, replay }`.
@@ -271,7 +271,7 @@
 
 > Dipanggil SKOOLIA (mis. admin-be) **bukan** oleh user. Autentikasi:
 > **HMAC-SHA256 + anti-replay** (`InternalSignatureFilter`), rahasia **terpisah**
-> `KANTIN_INTERNAL_SECRET`. Kosong/disabled ⇒ **503** (fail-closed). Lihat
+> `KANTIN_INTERNAL_SECRET`. Kosong/disabled ⇒ **503** (gagal-tertutup). Lihat
 > `docs/integrasi-anti-tabrakan-uid.md`.
 
 | Method | Path | Keterangan |
@@ -315,7 +315,7 @@
 2. **Semua mutasi wajib idempotency key** (`referensiId`), agar retry jaringan tidak menggandakan efek (Aturan Emas §3.3).
 3. **Operasi tulis stok** harus lewat `StokOperasiService` (pembuka transaksi), karena `LedgerStokService` `propagation = MANDATORY`.
 4. **Endpoint file upload/view** (`/api/storage/*`) — prefix tenant `sekolah-<id>/` dipaksa di `StorageService` (B19).
-5. **Rate limit & cabut token** (Redis) **sudah aktif** (B27 & B28, `SECURITY.md` §7). Rate limit **fail-open**: Redis mati ⇒ request tetap dilayani.
+5. **Rate limit & cabut token** (Redis) **sudah aktif** (B27 & B28, `SECURITY.md` §7). Rate limit **gagal-terbuka**: Redis mati ⇒ request tetap dilayani.
 6. **Menjaga dokumen ini tetap segar:** `ApiEndpointsDocTest` membandingkan daftar di sini dengan anotasi `@…Mapping` di kode. Jalankan `./mvnw test -Dtest=ApiEndpointsDocTest` setelah mengubah controller.
 
 ---
@@ -326,7 +326,7 @@
 |---|---|---|
 | ~~Laporan ekspor PDF~~ | **Tidak diperlukan** — PRD §9.5 hanya meminta ekspor **Excel `.xlsx`**, dan itu sudah ada (`GET /api/laporan/ekspor`, 15 jenis `JenisLaporan`). Q3 & Q5 sudah terjawab (tidak terkait PDF) | — |
 | Aktivasi & fee | toggle modul, fee platform | status dibaca (#42); **toggle tetap milik internal-be** (Q6) — bukan tugas kantin-be |
-| Top-up online | handler webhook **sudah ada** (`POST /api/webhook/{sumber}`); sisa = **aktivasi adapter/kredensial callback-be** | Q4 — kontrak payload (OPEN-QUESTIONS) |
+| Top-up online | handler webhook **sudah ada** (`POST /api/webhook/{sumber}`); sisa = **aktivasi adapter/kredensial callback-be** | Q4 — kontrak isi permintaan (OPEN-QUESTIONS) |
 
 > Lihat `MODULE-MAP.md` §1 untuk urutan fase & `OPEN-QUESTIONS.md` untuk Q1–Q7.
 > **Catatan (2026-10-12):** 6 adapter REST integrasi nyata sudah ada di

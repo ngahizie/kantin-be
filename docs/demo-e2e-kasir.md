@@ -121,7 +121,7 @@ echo "$TOKEN" | head -c 20; echo "…"
 ```
 
 Role, `userId`, dan `sekolah_id` diambil **dari akun**, bukan dari body request —
-klien tidak bisa memilih identitas sendiri, dan `sekolah_id` pada payload FE lama
+klien tidak bisa memilih identitas sendiri, dan `sekolah_id` pada isi permintaan FE lama
 diabaikan. Bentuk respons:
 `{"code":200,"message":"…","data":{"token":"…","user":{…}}}`.
 

@@ -11,7 +11,7 @@ Versi yang **diverifikasi jalan** di lingkungan pengembangan referensi:
 | Komponen | Versi teruji | Sumber |
 |---|---|---|
 | **JDK** | **Temurin 25+36 LTS** (`openjdk version "25" 2025-09-16 LTS`) | `~/.sdkman/candidates/java/25-tem` |
-| **Maven** | **3.9.12** via wrapper (`distributionType=only-script`) | `.mvn/wrapper/maven-wrapper.properties` |
+| **Maven** | **3.9.12** via pembungkus (`distributionType=only-script`) | `.mvn/wrapper/maven-wrapper.properties` |
 | Docker Engine | 29.8.0 | daemon lokal |
 | Docker Compose | 5.5.1 | plugin |
 | PostgreSQL (client) | 18.6 | opsional |
@@ -29,7 +29,7 @@ Container acuan (harus sama dengan `admin-be`):
 
 1. **JDK = 25.** Jangan 21, jangan 26. `pom.xml` memakai `<java.version>25</java.version>` yang identik dengan `admin-be`.
 2. **Jangan install Maven global.** Selalu `./mvnw ...`.
-3. **Jangan ubah file wrapper** (`mvnw`, `mvnw.cmd`, `.mvn/wrapper/maven-wrapper.properties`) tanpa ADR.
+3. **Jangan ubah file pembungkus** (`mvnw`, `mvnw.cmd`, `.mvn/wrapper/maven-wrapper.properties`) tanpa ADR.
 4. **Timezone `Asia/Jakarta`** untuk container & DB (logika reset limit harian mengikuti zona sekolah).
 5. **`.sdkmanrc` di root repo** (bila memakai SDKMAN) — memaksa `sdk env` memilih `25-tem`.
 
@@ -124,7 +124,7 @@ Pastikan `~/.sdkman/candidates/java/current/bin/java` berada **paling depan** di
 
 ---
 
-## 5. Struktur Wrapper yang Wajib Ada di Repo
+## 5. Struktur Pembungkus yang Wajib Ada di Repo
 
 Disalin **apa adanya** dari `admin-be`:
 
@@ -143,7 +143,7 @@ distributionType=only-script
 distributionUrl=https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.12/apache-maven-3.9.12-bin.zip
 ```
 
-> `distributionType=only-script` berarti Maven diunduh **sekali** ke `~/.m2/wrapper/dists/` — tidak ada JAR wrapper yang di-commit. Ringan & cepat.
+> `distributionType=only-script` berarti Maven diunduh **sekali** ke `~/.m2/wrapper/dists/` — tidak ada JAR pembungkus yang di-commit. Ringan & cepat.
 
 ---
 
@@ -173,7 +173,7 @@ docker compose ps      # pastikan keduanya healthy
 
 - **Jangan pernah commit** `application-local.properties` (berisi kredensial).
 - Yang di-commit hanya `application-local.properties.example` (template).
-- Secret (JWT public key, DB pass, MinIO key) → **environment variable**, bukan hardcode.
+- Secret (JWT public key, DB pass, MinIO key) → **environment variable**, bukan ditulis langsung di kode.
 
 ```bash
 cp src/main/resources/application-local.properties.example \

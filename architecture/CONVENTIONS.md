@@ -35,7 +35,7 @@ controller  →  service  →  repository  →  model
 - Controller **tipis**: `@RequestBody` → panggil service → bungkus `CommonResponse`. Tanpa logika bisnis.
 - Service = tempat semua aturan bisnis & transaksi (`@Transactional`).
 - Repository = akses data. Query kompleks pakai `@Query`. Ledger pakai locking.
-- Entity **tidak** keluar dari layer service — selalu konversi ke DTO/payload.
+- Entity **tidak** keluar dari layer service — selalu konversi ke DTO/isi respons.
 
 ---
 

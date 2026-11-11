@@ -47,7 +47,7 @@ agar tim RFID/FE melihat postur yang aktif sekarang.
 |---|---|
 | Tunggu spesifikasi final sebelum coding | Menahan modul tap padahal kantin-be belum rilis penuh (demo) |
 | Pilih WebHID/WebSerial langsung | Bergantung dukungan perangkat yang belum diketahui |
-| Hard-code asumsi di kode | Sulit diubah; melanggar prinsip konfigurasi (12-factor) |
+| Ditulis tetap di kode asumsi di kode | Sulit diubah; melanggar prinsip konfigurasi (12-factor) |
 
 ## Konsekuensi
 
