@@ -11,7 +11,7 @@
 | 1 | [**AGENTS.md**](./AGENTS.md) | **KONTRAK KERJA** — aturan emas, stack, DoD, larangan. Baca pertama. |
 | 2 | [**ONBOARDING.md**](./ONBOARDING.md) | Anggota baru: alat, setup, checklist hari pertama. |
 | 3 | [**ENVIRONMENT.md**](./ENVIRONMENT.md) | 🖥️ Toolchain & versi teruji, cara pasang JDK 25, fix shell fish, troubleshooting. |
-| 4 | [**GLOSSARY.md**](./GLOSSARY.md) | Istilah domain (saldo, void, HPP, dsb). |
+| 4 | [**GLOSSARY.md**](./GLOSSARY.md) | Istilah domain (saldo, refund, modal, dsb). |
 | 5 | [**MODULE-MAP.md**](./MODULE-MAP.md) | PRD → kode: peta modul + urutan fase pengerjaan. |
 | 6 | [**INTEGRATIONS.md**](./INTEGRATIONS.md) | Cara nyambung ke SKOOLIA (JWT, Buku Kas, RFID, callback). |
 | 7 | [**CONVENTIONS.md**](./CONVENTIONS.md) | Gaya kode, penamaan, response, ledger, testing, toolchain. |

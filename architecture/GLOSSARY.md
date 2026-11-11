@@ -14,7 +14,7 @@
 | **Tutup kasir** | Aksi menutup sesi; total bersih diposting ke Buku Kas. Auto pada jam konfigurasi (default 23:59). |
 | **Mutasi** | Satu baris pencatatan perubahan saldo **atau** stok (append-only). |
 | **Ledger** | Kumpulan mutasi; sumber kebenaran saldo/stok. Append-only. |
-| **Void** | Pembatalan transaksi oleh petugas pada sesi yang masih terbuka. |
+| **Refund transaksi** | Pembatalan transaksi oleh petugas pada sesi yang masih terbuka; wajib kode struk. Status internal tetap `VOID`. |
 | **HPP** | Harga Pokok Penjualan — biaya perolehan per unit item terjual. Metode: rata-rata tertimbang. |
 | **HPP snapshot** | HPP yang berlaku **saat transaksi**, disimpan agar laba lama tidak berubah. |
 | **Stok opname** | Penghitungan fisik stok untuk menyesuaikan stok sistem. Selisih wajib beralasan. |

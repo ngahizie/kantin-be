@@ -180,7 +180,7 @@ Lihat `BUGS-DITEMUKAN.md` B6–B8 tentang perbaikan status 403 dari `admin-be`.
   fail-closed) + anti-replay + allowlist IP opsional (kosong = allow-all, alasan
   sama seperti webhook). Rotasi memakai `KANTIN_INTERNAL_SECRET_PREVIOUS`. Lihat
   `docs/integrasi-anti-tabrakan-uid.md`.
-- ✅ **Audit lengkap** (B18) — `audit_log` ditulis untuk: top-up (tunai/online), void, koreksi saldo,
+- ✅ **Audit lengkap** (B18) — `audit_log` ditulis untuk: top-up (tunai/online), refund transaksi, koreksi saldo,
   barang masuk & pembaliknya, opname, **ubah harga jual** (`UBAH_HARGA_JUAL`), **blokir/buka kartu**
   (`BLOKIR_KARTU`/`BUKA_BLOKIR_KARTU`), **blokir/buka item** (`BLOKIR_ITEM`/`BUKA_BLOKIR_ITEM`),
   **ubah limit harian** (`SET_LIMIT_HARIAN`), perubahan pengaturan/kebijakan/titik kasir, dan
