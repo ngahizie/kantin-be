@@ -141,7 +141,15 @@ public class TransaksiKasirService {
         return keHalaman(sekolahId, page);
     }
 
-    /** Halaman {@code Transaksi} → {@code HalamanResponse<TransaksiKasirItem>} (nama batch). */
+    /**
+     * Halaman {@code Transaksi} → {@code HalamanResponse<TransaksiKasirItem>} (nama batch).
+     *
+     * <p><b>Rincian item ikut dibawa</b> (PRD §9.2): bendahara memilih transaksi
+     * yang akan dikoreksi, jadi harus melihat <b>apa yang dibeli</b> — tanpa
+     * {@code items[]} layar koreksi hanya menampilkan total rupiah. Diambil
+     * dalam <b>satu query</b> untuk seluruh baris halaman
+     * ({@code findByTransaksiIdIn}) — bukan per transaksi (hindari N+1).
+     */
     private HalamanResponse<TransaksiKasirItem> keHalaman(Long sekolahId, Page<Transaksi> page) {
         // Nama untuk tampilan — diambil BATCH (satu query per jenis), bukan per baris.
         Map<Long, String> namaTitik = namaTitikKasir(sekolahId, page.getContent());
@@ -160,24 +168,33 @@ public class TransaksiKasirService {
             }
 
             List<TransaksiItem> list = itemByTrx.getOrDefault(t.getId(), List.of());
-            if (!list.isEmpty()) {
-                String ringkasan = list.stream()
-                        .map(i -> (i.getQty() != null && i.getQty() > 1 ? i.getQty() + "x " : "") + i.getNamaMenu())
-                        .collect(Collectors.joining(", "));
-                item.setRingkasanItem(ringkasan);
-                List<TransaksiKasirItem.ItemSimple> simpleList = list.stream()
-                        .map(i -> new TransaksiKasirItem.ItemSimple(
-                                i.getMenuId(),
-                                i.getNamaMenu(),
-                                i.getQty(),
-                                i.getHargaJual(),
-                                i.getSubtotal()
-                        ))
-                        .toList();
-                item.setItems(simpleList);
-            }
+            item.setItems(list.stream()
+                    .map(i -> new TransaksiKasirItem.Item(
+                            i.getMenuId(),
+                            i.getNamaMenu(),
+                            i.getQty(),
+                            i.getHargaJual(),
+                            i.getSubtotal()))
+                    .toList());
+            item.setRingkasanItem(ringkasanItem(list));
             return item;
         });
+    }
+
+    /**
+     * Ringkasan item satu baris — mis. {@code "2x Kopi Susu, Pisang Goreng"}.
+     *
+     * <p>Qty ditulis hanya bila lebih dari 1 agar ringkasan tetap ringkas
+     * ({@code "Kopi Susu"} lebih enak dibaca daripada {@code "1x Kopi Susu"}).
+     */
+    private static String ringkasanItem(List<TransaksiItem> list) {
+        if (list.isEmpty()) {
+            return null;
+        }
+        return list.stream()
+                .map(i -> (i.getQty() != null && i.getQty() > 1 ? i.getQty() + "x " : "")
+                        + i.getNamaMenu())
+                .collect(Collectors.joining(", "));
     }
 
     /**

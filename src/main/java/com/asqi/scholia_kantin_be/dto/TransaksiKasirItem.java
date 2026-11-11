@@ -3,10 +3,8 @@ package com.asqi.scholia_kantin_be.dto;
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.model.Transaksi;
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -72,22 +70,37 @@ public class TransaksiKasirItem {
     /** true bila transaksi masih dapat dikoreksi bendahara (belum VOID). */
     private boolean dapatDikoreksi;
 
-    /** Rincian ringkas item menu (mis. "2x Kopi Susu, Pisang Goreng"). */
+    /**
+     * Ringkasan item belanja dalam satu kalimat — mis. {@code "2x Kopi Susu, Pisang Goreng"}.
+     *
+     * <p>Disisi <b>batch</b> oleh service (satu query untuk seluruh baris halaman),
+     * bukan per transaksi. Berguna untuk tampilan ringkas (mis. dashboard) yang
+     * tidak perlu merinci tiap baris item.
+     */
     private String ringkasanItem;
 
-    /** Daftar item rincian transaksi (snapshot menu & qty). */
-    private List<ItemSimple> items;
+    /**
+     * Rincian item belanja (snapshot nama menu &amp; harga saat transaksi).
+     *
+     * <p>Kosong (bukan {@code null}) bila transaksi tidak punya baris item —
+     * FE aman merender tanpa cek {@code null}.
+     */
+    private List<Item> items;
 
-    @Data
-    @Builder
-    @AllArgsConstructor
-    @NoArgsConstructor
-    public static class ItemSimple {
-        private Long menuId;
-        private String namaMenu;
-        private Integer qty;
-        private Long hargaSatuan;
-        private Long subtotal;
+    /**
+     * Satu baris rincian item belanja.
+     *
+     * <p><b>Nama field</b> {@code nama}/{@code harga} disamakan dengan
+     * {@link LaporanRiwayatSiswa.Item} (endpoint laporan) dan dengan bentuk
+     * yang sudah dipakai FE untuk endpoint ini — sehingga FE bisa membaca
+     * {@code items[]} dari daftar transaksi &amp; laporan tanpa dua bentuk data.
+     */
+    public record Item(
+            Long menuId,
+            String nama,
+            Integer qty,
+            Long harga,
+            Long subtotal) {
     }
 
     /** Proyeksi entitas → DTO (tanpa nama titik/subjek — diisi service batch). */
