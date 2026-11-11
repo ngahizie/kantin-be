@@ -1283,3 +1283,35 @@ UPDATE sesi_kasir s
 DROP TABLE IF EXISTS seed_tren_tutup;
 DROP TABLE IF EXISTS seed_tren_item;
 DROP TABLE IF EXISTS seed_tren_trx;
+
+-- 9) Contoh kode_barcode untuk item kemasan & alat tulis pada data dev/seed.
+--    Idempoten: hanya mengisi baris yang kode_barcode-nya masih NULL agar tidak
+--    menimpa barcode yang sudah diubah manual oleh pengelola.
+UPDATE menu
+   SET kode_barcode = v.kode_barcode,
+       updated_at   = now()
+  FROM (VALUES
+          (4::bigint,    '8992761135017'::varchar),
+          (6::bigint,    '8992753101015'::varchar),
+          (8::bigint,    '8998009010012'::varchar),
+          (9::bigint,    '8993988010094'::varchar),
+          (10::bigint,   '8993988010100'::varchar),
+          (15::bigint,   '8996001300155'::varchar),
+          (17::bigint,   '8993988010179'::varchar),
+          (18::bigint,   '8996001300018'::varchar),
+          (105::bigint,  '8998009010105'::varchar),
+          (107::bigint,  '8993988010107'::varchar),
+          (1004::bigint, '8992761135104'::varchar),
+          (1006::bigint, '8992753101106'::varchar),
+          (1008::bigint, '8993988011008'::varchar)
+       ) AS v(id, kode_barcode)
+ WHERE menu.id = v.id
+   AND menu.kode_barcode IS NULL
+   AND menu.deleted_at IS NULL
+   AND NOT EXISTS (
+         SELECT 1
+           FROM menu x
+          WHERE x.sekolah_id = menu.sekolah_id
+            AND x.kode_barcode = v.kode_barcode
+            AND x.deleted_at IS NULL
+       );
