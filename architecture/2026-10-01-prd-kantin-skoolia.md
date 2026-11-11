@@ -52,7 +52,7 @@ Sekolah pelanggan SKOOLIA ingin kantin sekolahnya tanpa uang tunai. SKOOLIA suda
 | **Titik kasir** | Satu perangkat kasir (tablet/laptop + reader). Satu kantin dapat memiliki lebih dari satu |
 | **Sesi kasir** | Periode transaksi satu titik kasir dalam satu hari, diakhiri dengan tutup kasir |
 | **Mutasi** | Satu baris pencatatan perubahan saldo atau stok |
-| **Void** | Pembatalan transaksi belanja oleh petugas pada sesi yang masih terbuka |
+| **Refund transaksi** | Pembatalan transaksi belanja oleh petugas pada sesi yang masih terbuka (wajib kode struk). Status internal di sistem tetap `VOID` |
 | **HPP** | Harga Pokok Penjualan — biaya perolehan per unit item yang terjual |
 | **Stok opname** | Penghitungan fisik stok untuk menyesuaikan stok sistem |
 
@@ -63,7 +63,7 @@ Sekolah pelanggan SKOOLIA ingin kantin sekolahnya tanpa uang tunai. SKOOLIA suda
 | Orang tua | mobile-fe (layar kantin memanggil kantin-be) | Top-up, limit harian, blokir item, blokir kartu, riwayat & notifikasi |
 | Siswa | Kartu RFID (sudah ada) | Tap untuk bayar; tidak membutuhkan aplikasi |
 | Guru, staf & tamu | Kartu Tamu | Tap untuk bayar; isi saldo tunai di TU |
-| Petugas kantin | **kantin-fe — Web kasir** + RFID reader USB | Transaksi, void, tutup kasir |
+| Petugas kantin | **kantin-fe — Web kasir** + RFID reader USB | Transaksi, refund, tutup kasir |
 | Pengelola kantin | kantin-fe — Back office | Menu, kategori, harga, barang masuk, stok opname, laporan stok & laba |
 | Bendahara / TU | kantin-fe — Back office | Top-up tunai, kelola Kartu Tamu, koreksi, refund saldo, laporan keuangan |
 | Admin sekolah | kantin-fe — Back office | Pengaturan kantin, titik kasir, kontrol siswa atas nama ortu |
@@ -145,13 +145,13 @@ Dana fisik top-up mengendap di Saldo Sekolah (SekolahBalance) / kas TU.
 
 ```
 Σ top-up masuk − Σ refund (siswa keluar & Kartu Tamu dikembalikan)
-  = Σ saldo siswa + Σ saldo Kartu Tamu + Σ penjualan kantin (bersih setelah void & koreksi)
+  = Σ saldo siswa + Σ saldo Kartu Tamu + Σ penjualan kantin (bersih setelah refund & koreksi)
 ```
 
 **Invariant stok (per item):**
 
 ```
-Stok sistem = Σ barang masuk − Σ terjual + Σ void − Σ penyesuaian opname (keluar) + Σ penyesuaian opname (masuk)
+Stok sistem = Σ barang masuk − Σ terjual + Σ refund − Σ penyesuaian opname (keluar) + Σ penyesuaian opname (masuk)
 ```
 
 **Laba kotor** = penjualan bersih − Σ HPP item terjual.
@@ -183,7 +183,7 @@ Stok sistem = Σ barang masuk − Σ terjual + Σ void − Σ penyesuaian opname
    | 6 | Saldo ≥ total | **"Saldo kurang Rp X"** (X = total − saldo) |
 
 4. **Bila lolos, transaksi langsung tercatat tanpa klik konfirmasi:** saldo terpotong, stok berkurang, kasir berbunyi **beep sukses**, dan notifikasi dikirim ke ortu. Bila gagal, kasir berbunyi **beep gagal** (nada berbeda) dan pesan tampil besar berwarna merah.
-5. Setelah sukses, layar menampilkan **foto, nama, dan kelas siswa** dalam ukuran besar selama **3 detik** (dapat dikonfigurasi) beserta tombol **Batalkan**. Jika wajah tidak cocok dengan pembeli, petugas menekan Batalkan → transaksi di-void dengan alasan otomatis "Kartu dipakai bukan pemiliknya" dan kartu ditahan untuk dikembalikan ke TU. Untuk Kartu Tamu, layar menampilkan nomor kartu dan label pemegang.
+5. Setelah sukses, layar menampilkan **foto, nama, dan kelas siswa** dalam ukuran besar selama **3 detik** (dapat dikonfigurasi) beserta tombol **Batalkan**. Jika wajah tidak cocok dengan pembeli, petugas menekan Batalkan → layar meminta **kode struk** sebagai konfirmasi → transaksi di-refund dengan alasan otomatis "Kartu dipakai bukan pemiliknya" dan kartu ditahan untuk dikembalikan ke TU. Untuk Kartu Tamu, layar menampilkan nomor kartu dan label pemegang.
 6. Keranjang dikosongkan otomatis, siap untuk pembeli berikutnya.
 
 Sekolah dapat mengaktifkan kembali **langkah konfirmasi manual** (petugas menekan "Konfirmasi" sebelum transaksi tercatat) di pengaturan — default **nonaktif**.
@@ -204,16 +204,21 @@ Sekolah dapat mengaktifkan kembali **langkah konfirmasi manual** (petugas meneka
 - Setiap transaksi menyimpan: siswa atau Kartu Tamu, kartu yang dipakai, titik kasir, akun petugas, sesi kasir, daftar item (nama, harga jual, kategori, qty, **HPP per unit saat itu** — *snapshot*), total, dan waktu.
 - **Tidak ada item manual / nominal bebas.** Semua penjualan wajib dari katalog agar stok dan HPP terlacak.
 
-### 6.3 Void
+### 6.3 Refund transaksi (pembatalan)
+
+> Istilah yang dipakai pengguna adalah **refund**. Status internal transaksi tetap `VOID` agar data lama tetap terbaca.
 
 - Hanya untuk transaksi pada **sesi yang belum ditutup** (hari yang sama).
+- **Wajib kode struk** yang cocok dengan transaksi (format `TRX-yyyyMMdd-<id>`, tercetak di struk). Fungsinya mencegah petugas membatalkan transaksi milik pembeli lain. Kode kosong atau tidak cocok **ditolak sebelum saldo dikembalikan**.
 - Wajib alasan. Saldo dikembalikan penuh, **stok dikembalikan**, dan belanja hari ini (untuk limit) ikut berkurang.
-- Ortu menerima notifikasi void.
+- Transaksi yang sudah di-refund tidak dapat di-refund ulang.
+- Ortu menerima notifikasi refund.
 - Koreksi transaksi pada sesi yang sudah ditutup hanya dapat dilakukan bendahara (§9.2) dan tercatat di audit log.
+- Endpoint: `POST /api/kasir/transaksi/{id}/refund` (jalur lama `/void` tetap dilayani sebagai alias agar aplikasi versi sebelumnya tidak langsung rusak).
 
 ### 6.4 Tutup kasir
 
-- Petugas menutup sesi harian per titik kasir; sistem menampilkan rekap: jumlah transaksi, total bruto, total void, **total bersih**.
+- Petugas menutup sesi harian per titik kasir; sistem menampilkan rekap: jumlah transaksi, total bruto, total refund, **total bersih**.
 - Setelah ditutup, transaksi pada sesi tersebut terkunci dan total bersih diposting ke Buku Kas (§5.1).
 - Sesi yang tidak ditutup akan **ditutup otomatis** pada jam yang dikonfigurasi sekolah (default 23:59).
 - Sesi baru terbuka otomatis pada transaksi pertama hari berikutnya.
@@ -262,7 +267,7 @@ HPP baru = (stok sekarang × HPP sekarang + qty masuk × harga beli) ÷ (stok se
 
 - Dihitung ulang setiap ada barang masuk; dibulatkan ke rupiah terdekat.
 - Penjualan memakai HPP yang berlaku **saat transaksi** dan menyimpannya sebagai snapshot.
-- Void mengembalikan stok dengan HPP snapshot transaksi tersebut.
+- Refund mengembalikan stok dengan HPP snapshot transaksi tersebut.
 - Bila stok sekarang 0, HPP baru = harga beli barang masuk.
 
 ### 7.5 Peringatan stok
@@ -295,8 +300,8 @@ HPP baru = (stok sekarang × HPP sekarang + qty masuk × harga beli) ÷ (stok se
 
 ### 8.4 Riwayat & notifikasi
 
-- Push notification untuk: belanja (contoh: "Budi belanja Rp8.000 di Kantin: Nasi Uduk, Es Jeruk"), void, top-up online berhasil, top-up tunai oleh TU, refund/pindah saldo.
-- Riwayat dengan filter tanggal dan jenis (belanja / top-up / void / refund / koreksi), detail item per transaksi.
+- Push notification untuk: belanja (contoh: "Budi belanja Rp8.000 di Kantin: Nasi Uduk, Es Jeruk"), refund transaksi, top-up online berhasil, top-up tunai oleh TU, refund saldo/pindah saldo.
+- Riwayat dengan filter tanggal dan jenis (belanja / top-up / refund transaksi / refund saldo / koreksi), detail item per transaksi.
 
 ### 8.5 Batasan
 
@@ -350,14 +355,14 @@ Kartu Tamu adalah kartu RFID fisik milik kantin yang dipakai siapa pun yang buka
 
 | Laporan | Isi | Akses |
 |---|---|---|
-| Rekonsiliasi harian | Invariant saldo §5: top-up (online + tunai), penjualan, void, koreksi, refund, saldo mengendap. **Peringatan mencolok** bila tidak seimbang | Bendahara, Kepsek, Admin |
+| Rekonsiliasi harian | Invariant saldo §5: top-up (online + tunai), penjualan, refund transaksi, koreksi, refund saldo, saldo mengendap. **Peringatan mencolok** bila tidak seimbang | Bendahara, Kepsek, Admin |
 | Saldo mengendap | Total dana titipan siswa + Kartu Tamu (kewajiban sekolah) | Bendahara, Kepsek, Admin |
 | Kartu Tamu | Daftar kartu, pemegang, saldo, status, riwayat per kartu | TU, Bendahara |
 | Pembatalan kasir | Transaksi yang dibatalkan lewat tombol Batalkan ("Kartu dipakai bukan pemiliknya") per siswa | Bendahara, Admin |
 | Penjualan | Per item, kategori, titik kasir, petugas, periode | Bendahara, Kepsek, Admin, Pengelola |
 | **Laba kotor** | Penjualan bersih − HPP, per item/kategori/periode | Bendahara, Kepsek, Pengelola |
 | **Stok** | Stok sekarang, nilai persediaan (stok × HPP), stok menipis | Pengelola, Bendahara |
-| **Kartu stok per item** | Riwayat mutasi: masuk, terjual, void, penyesuaian, saldo berjalan | Pengelola, Bendahara |
+| **Kartu stok per item** | Riwayat mutasi: masuk, terjual, refund, penyesuaian, saldo berjalan | Pengelola, Bendahara |
 | **Kerugian stok** | Penyesuaian opname per alasan beserta nilainya | Pengelola, Bendahara, Kepsek |
 | Barang masuk | Pembelian per periode/pemasok | Pengelola, Bendahara |
 | Per siswa | Riwayat lengkap satu siswa (untuk komplain ortu) | Bendahara, Admin |
@@ -403,7 +408,7 @@ Implementasi bebas dirancang tim pelaksana, **tetapi poin berikut tidak boleh di
 4. **Tenant scoping** pada setiap query: kartu, siswa, transaksi, menu, stok wajib divalidasi milik sekolah user (dari klaim JWT). Data sekolah lain dijawab **404**, bukan 403. *(Pelajaran dari review endpoint RFID Absensi, 28 Sep 2026.)*
 5. **RBAC dicek di backend** pada setiap endpoint — menyembunyikan tombol di FE bukan pengaman.
 6. **Nominal uang disimpan sebagai integer rupiah** (`BIGINT`), bukan float/double. Qty stok berupa integer.
-7. **Audit log** untuk: void, koreksi, refund/pindah saldo, perubahan harga jual, barang masuk & pembaliknya, penyesuaian stok, perubahan limit/blokir (siapa, kapan, nilai lama → baru).
+7. **Audit log** untuk: refund transaksi, koreksi, refund saldo/pindah saldo, perubahan harga jual, barang masuk & pembaliknya, penyesuaian stok, perubahan limit/blokir (siapa, kapan, nilai lama → baru).
 8. **Performa tap:** validasi + debit **≤ 1 detik (p95)** pada jam istirahat, termasuk lookup kartu ke data SKOOLIA.
 9. **Zona waktu** mengikuti zona waktu sekolah untuk reset limit harian, tutup kasir otomatis, dan laporan harian.
 10. **JWT RS256 wajib** di production untuk token yang diterima kantin-be.
