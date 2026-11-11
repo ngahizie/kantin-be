@@ -71,8 +71,8 @@ atau lingkungan staging dengan kredensial SKOOLIA.
 | U5 | Kartu diblokir instan | blokir → tap sedetik kemudian | ditolak "Kartu diblokir" | `KontrolKartuServiceIT` | ⬜ |
 | U6 | Limit harian | belanja melebihi limit | ditolak "Melebihi limit harian (sisa Rp X)" | `KontrolKartuServiceIT` | ⬜ |
 | U7 | Blokir item/kategori | ortu blokir item → tap item itu | ditolak "Item … diblokir oleh orang tua" | `KontrolKartuServiceIT` | ⬜ |
-| U8 | Void | batalkan transaksi sesi terbuka + alasan | saldo & stok kembali, belanja harian berkurang, notifikasi void | `VoidServiceIT` | ⬜ |
-| U9 | Tutup kasir | tutup sesi | rekap bruto/void/bersih, sesi terkunci, posting Buku Kas | `SesiKasirServiceIT`, `DemoE2EIT` | ⬜ |
+| U8 | Refund transaksi | batalkan transaksi sesi terbuka + alasan | saldo & stok kembali, belanja harian berkurang, notifikasi refund | `VoidServiceIT` | ⬜ |
+| U9 | Tutup kasir | tutup sesi | rekap bruto/refund/bersih, sesi terkunci, posting Buku Kas | `SesiKasirServiceIT`, `DemoE2EIT` | ⬜ |
 | U10 | Tutup otomatis | lewati jam tutup | sesi tertutup otomatis + posting | `JamTutupKasirSchedulerTest`, `SesiKasirSchedulerTest` | ⬜ |
 
 ### 2.2 Saldo, Top-up & Kartu Tamu
@@ -133,7 +133,7 @@ atau lingkungan staging dengan kredensial SKOOLIA.
 | U3 | Stok tidak cukup | ✅ | 409 `"Stok Mie Ayam tidak cukup (sisa 1000)"` |
 | U4 | Idempotency tap ganda | ✅ | `transaksiId` sama, saldo tetap 76.000 |
 | U5 | Blokir kartu instan | ✅ | blokir → tap → 409 `"Kartu diblokir"` |
-| U8 | Void (sesi tertutup) | ✅ | 400 `"Sesi kasir sudah ditutup — koreksi hanya oleh bendahara"` (PRD §6.3) |
+| U8 | Refund transaksi (sesi tertutup) | ✅ | 400 `"Sesi kasir sudah ditutup — koreksi hanya oleh bendahara"` (PRD §6.3) |
 | U9 | Tutup kasir | ✅ | rekap `totalBersih=24000`, `postingBukuKas=true`, ref `DEMO-BK-KANTIN-SESI-1` |
 | U11 | Top-up tunai (TU) | ✅ | saldo 100.000→150.000 |
 | U13 | Batas saldo maksimum | ✅ | 409 `"saldo akan melebihi batas maksimum Rp200000"` |
@@ -152,7 +152,7 @@ U10, U12, U15, U16, U18–U21, U23) tercakup oleh **integration test otomatis**
 (`*IT`, lihat kolom "Bukti otomatis") yang berjalan hijau di `./mvnw verify` /
 CI — dijalankan via skenario terkontrol Testcontainers.
 
-> Catatan: U8 pada sesi **terbuka** (void sukses) & U10 (tutup otomatis) diuji
+> Catatan: U8 pada sesi **terbuka** (refund sukses) & U10 (tutup otomatis) diuji
 > lewat `VoidServiceIT` & `SesiKasirSchedulerTest`/`JamTutupKasirSchedulerTest`
 > (butuh kontrol waktu; tidak praktis via API manual dalam satu hari).
 
@@ -250,7 +250,7 @@ Diukur pada lingkungan uji / 3 bulan setelah rilis pilot. Isi kolom **Hasil**.
 | Ortu siswa aktif pernah top-up via app | ≥ 50% | `saldo_ledger` jenis `TOPUP_ONLINE` unik per siswa | _tbd_ |
 | Laporan rekonsiliasi harian seimbang | **selalu** (selisih = 0) | `GET /api/laporan/rekonsiliasi` → `seimbang=true` | _tbd_ |
 | Selisih stok saat opname | < 2% nilai persediaan / bulan | `GET /api/laporan/kerugian-stok` vs nilai persediaan | _tbd_ |
-| Komplain saldo terpotong ganda | < 0,1% transaksi | audit `void` + laporan pembatalan | _tbd_ |
+| Komplain saldo terpotong ganda | < 0,1% transaksi | audit `refund` + laporan pembatalan | _tbd_ |
 | Waktu respons tap (p95) | ≤ 1 dtk | k6 / metrik Prometheus (runner target) | _tbd_ |
 
 > Saat dijalankan di lokal `demo`, U22 (rekonsiliasi) & U25 (ekspor) dapat dipakai

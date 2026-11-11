@@ -7,7 +7,7 @@
 
 ## 0. List Tugas (bagian ini)
 
-- Menulis alur logika bisnis utama (tap, ledger saldo, ledger stok/HPP, sesi kasir, void)
+- Menulis alur logika bisnis utama (tap, ledger saldo, ledger stok/HPP, sesi kasir, refund)
 - Mengelola lapisan layanan (Service Layer) dengan satu transaksi DB atomik
 - Membuat lapisan akses data (Repository) + JPQL agregat & native query
 - Memetakan entitas JPA/Hibernate selaras skema Flyway (tanpa `ddl-auto`)
@@ -58,7 +58,7 @@
 ### 2.2 Repository — `repository/`
 | Repository | Query kunci |
 |---|---|
-| `SaldoLedgerRepository` | JPQL `Σ kredit − Σ debit` (hitung ulang saldo dari ledger); belanja harian **net** (DEBIT penjualan − KREDIT void) untuk limit tap |
+| `SaldoLedgerRepository` | JPQL `Σ kredit − Σ debit` (hitung ulang saldo dari ledger); belanja harian **net** (DEBIT penjualan − KREDIT refund) untuk limit tap |
 | `SaldoCacheRepository` | native `INSERT .. ON CONFLICT DO NOTHING` (buat baris cache tanpa race); `findById` + lock |
 | `MutasiStokRepository` | JPQL `Σ masuk − Σ keluar` |
 | `StokCacheRepository` | native `INSERT .. ON CONFLICT DO NOTHING`; query stok menipis |
@@ -71,12 +71,12 @@
 | Service | Tanggung jawab |
 |---|---|
 | `kasir/LedgerSaldoService` | KREDIT/DEBIT atomik + idempotency + anti saldo-minus; lock `saldo_cache`; tulis `saldo_setelah` (running balance) |
-| `kasir/LedgerStokService` | barang masuk / penjualan / void / opname; HPP snapshot; anti stok-minus |
+| `kasir/LedgerStokService` | barang masuk / penjualan / refund / opname; HPP snapshot; anti stok-minus |
 | `kasir/HppService` | rata-rata tertimbang (murni, mudah diuji): `HPP' = (stok·HPP + qtyMasuk·hargaBeli) / (stok+qtyMasuk)` |
-| `kasir/SesiKasirService` | buka/tutup sesi; rekap `bruto = bersih + void`; tutup mengunci transaksi sesi |
+| `kasir/SesiKasirService` | buka/tutup sesi; rekap `bruto = bersih + refund`; tutup mengunci transaksi sesi |
 | `kasir/TapValidator` | 6 tahap validasi (PRD §6.1) — murni, tanpa I/O |
 | `kasir/TapService` | orkestrasi tap, 1 transaksi DB, idempotency tahan balapan |
-| `kasir/VoidService` | void beralasan + kompensasi pembalik (saldo & stok) |
+| `kasir/VoidService` | refund beralasan + kompensasi pembalik (saldo & stok) |
 | `saldo/SaldoTopUpService` | top-up saldo (KREDIT) |
 | `integrasi/KartuLookupPort`, `MenuLookupPort` (+ `*Fallback`) | lookup kartu/menu (Q7 & Fase 5) |
 
@@ -98,17 +98,17 @@ Satu panggilan = **satu transaksi DB**:
 - **Locking** `saldo_cache` `FOR UPDATE` (ADR-0003).
 - **Anti-minus** cek service (409) + CHECK DB.
 - **Idempotency** `idempotency_key` UNIQUE.
-- **Belanja harian net** → transaksi yang di-void tak lagi memakan jatah limit.
+- **Belanja harian net** → transaksi yang di-refund tak lagi memakan jatah limit.
 
 ### 3.3 Ledger Stok & HPP — `LedgerStokService` + `HppService` (PRD §7.2–7.4)
 - **Masuk** → stok naik, HPP rata-rata dihitung ulang (HALF_UP, rupiah).
 - **Penjualan** → stok turun, HPP berjalan jadi **snapshot** (`transaksi_item.hpp_snapshot`, `mutasi_stok.hpp_snapshot`).
-- **Void** → stok kembali pakai HPP snapshot → rata-rata **tidak** berubah.
+- **Refund** → stok kembali pakai HPP snapshot → rata-rata **tidak** berubah.
 - **Opname** → selisih dicatat mutasi MASUK/KELUAR, **alasan wajib**; HPP tidak berubah.
 
 ### 3.4 Sesi Kasir — `SesiKasirService` (PRD §6.4)
 - Satu titik = satu sesi per tanggal (UNIQUE); tap pertama otomatis buka.
-- `totalBersih = Σ SUKSES` · `totalVoid = Σ VOID` · `totalBruto = bersih + void`.
+- `totalBersih = Σ SUKSES` · `totalVoid = Σ VOID` · `totalBruto = bersih + refund`.
 - Tutup sesi mengunci transaksi sesi → void setelah tutup ditolak.
 
 ### 3.5 Void — `VoidService` (PRD §6.3)
@@ -130,8 +130,8 @@ Satu panggilan = **satu transaksi DB**:
 | 4 | `LedgerSaldoServiceIT` (5) — append-only (trigger tolak UPDATE/DELETE), idempotency, saldo tak minus, **race** 8 debit paralel (5 sukses/3 gagal), hitung ulang dari ledger | ✅ |
 | 5 | `LedgerStokServiceIT` (6) — HPP rata-rata, snapshot penjualan, stok tak minus saat race, opname tanpa selisih, append-only | ✅ |
 | 6 | `TapServiceIT` (4) — tap sukses (saldo+stok+snapshot), tap ganda idempotent, saldo/stok kurang **tak mengubah apa pun** | ✅ |
-| 7 | `VoidServiceIT` (5) — saldo+stok kembali via pembalik, alasan wajib, void ganda & sesi tertutup ditolak, tenant lain → 404 | ✅ |
-| 8 | `SesiKasirServiceIT` (3) — rekap bruto/void/bersih, tutup sesi mengunci & simpan rekap, auto-tutup | ✅ |
+| 7 | `VoidServiceIT` (5) — saldo+stok kembali via pembalik, alasan wajib, refund ganda & sesi tertutup ditolak, tenant lain → 404 | ✅ |
+| 8 | `SesiKasirServiceIT` (3) — rekap bruto/refund/bersih, tutup sesi mengunci & simpan rekap, auto-tutup | ✅ |
 
 **Total: 40 test (17 unit + 23 integrasi), Failures: 0, Errors: 0.**
 

@@ -45,7 +45,7 @@ Indeks: `(sekolah_id, subjek_tipe, subjek_id, id)`, `(sekolah_id, waktu)`, debit
 Sama polanya untuk stok: `arah` = `MASUK` \| `KELUAR`, `qty`, `stok_setelah`, `hpp_snapshot` (untuk HPP/laba), `alasan` (wajib untuk koreksi).
 
 ### `transaksi`, `transaksi_item`, `titik_kasir`, `sesi_kasir`
-- `transaksi`: header penjualan; `subjek_tipe` = `SISWA`|`KARTU_TAMU`; `status` = `SUKSES`|`VOID`; CHECK **void wajib beralasan** (`alasan_void`, `void_at`); `total_hpp` untuk laba.
+- `transaksi`: header penjualan; `subjek_tipe` = `SISWA`|`KARTU_TAMU`; `status` = `SUKSES`|`VOID`; CHECK **refund wajib beralasan** (`alasan_void`, `void_at`); `total_hpp` untuk laba.
 - `transaksi_item`: baris item + `hpp_satuan` (snapshot HPP saat jual).
 - `titik_kasir`: titik kasir per sekolah (bisa >1).
 - `sesi_kasir`: buka/tutup kasir, total penjualan tunai vs saldo, status posting Buku Kas.
