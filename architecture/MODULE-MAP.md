@@ -24,7 +24,7 @@ FASE 2  Infra Dev Lokal     →  PostgreSQL+Redis, application-local           �
 FASE 3  Auth & Tenant       →  JWT RS256, TenantContext, SekolahGuard, RBAC  ✅ selesai (Q1,Q2,Q7 diadaptasi)
 FASE 4  Ledger Inti         →  saldo_ledger, mutasi_stok, locking, test      ✅ selesai
 FASE 5  Katalog & Stok/HPP  →  menu, kategori, barang masuk, opname          ✅ selesai
-FASE 6  Kasir (tap/void)    →  validasi 6 tahap, transaksi, sesi, tutup      ✅ selesai (lookup kartu: fallback/demo)
+FASE 6  Kasir (tap/refund)    →  validasi 6 tahap, transaksi, sesi, tutup      ✅ selesai (lookup kartu: fallback/demo)
 FASE 7  Saldo & Kartu Tamu  →  top-up tunai, refund, limit, blokir, kartu    ✅ selesai (topup online: webhook siap)
 FASE 8  Integrasi & Laporan →  BukuKasClient, notifikasi, laporan Excel      🟡 laporan ✅; adapter REST ✅ (#160); kredensial ⏳ (#164)
 FASE 9  Aktivasi & Fee      →  toggle modul, fee platform                    🟡 status dibaca; toggle milik internal-be (#164)
@@ -49,7 +49,7 @@ endpoint/kunci produksi; jalur demo tersedia. Menunggu kredensial/kontrak tim SK
 | Ledger stok | §11.1, §7.4 | `service/stok` | `mutasi_stok` | append-only |
 | Kasir / tap | §6.1–6.2 | `service/kasir` | `transaksi`, `transaksi_item` | idempoten, atomik |
 | Sesi & tutup kasir | §6.4 | `service/kasir` | `sesi_kasir`, `titik_kasir` | posting Buku Kas |
-| Void | §6.3 | `service/kasir` | `transaksi` (status) | + audit |
+| Refund transaksi | §6.3 | `service/kasir` | `transaksi` (status) | + audit |
 | Katalog menu | §7.1 | `service/katalog` | `menu`, `kategori` | soft delete |
 | Barang masuk | §7.2 | `service/stok` | `barang_masuk`, `barang_masuk_pembalik` | update HPP |
 | Stok opname | §7.3 | `service/stok` | `stok_opname`, `penyesuaian_stok` | alasan wajib |
@@ -77,7 +77,7 @@ endpoint/kunci produksi; jalur demo tersedia. Menunggu kredensial/kontrak tim SK
 ```
 Auth/Tenant ──┬─→ semua modul (wajib duluan)
               │
-Ledger ───────┼─→ Kasir ──→ Void
+Ledger ───────┼─→ Kasir ──→ Refund
               │      │
               │      └─→ Sesi/Tutup Kasir ──→ Buku Kas integrasi
               │

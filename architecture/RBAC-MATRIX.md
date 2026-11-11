@@ -24,7 +24,7 @@ Audit silang PRD §9.5/§9.6 vs anotasi `@PerluPeran` menemukan **over-grant** d
 | # | Kelompok | Keputusan | Konsekuensi |
 |---|---|---|---|
 | 1 | Aksi uang — top-up, refund, pindah-saldo, koreksi saldo & koreksi sesi tertutup | **PRD diikuti** | Hanya `tu` (TU + Bendahara) |
-| 2 | Aksi kasir — tap, konfirmasi/batal, buka/tutup sesi, void | **PRD diikuti** | Hanya `kasir` |
+| 2 | Aksi kasir — tap, konfirmasi/batal, buka/tutup sesi, refund | **PRD diikuti** | Hanya `kasir` |
 | 3 | Katalog & kategori (mutasi), Kartu Tamu (CRUD/refund/pindah-saldo), stok (barang masuk & opname) | **PRD diikuti** | Katalog & stok → `pengelola`; Kartu Tamu → `tu` |
 | 4 | Titik kasir toggle & kontrol kartu | **PRD diikuti** | `toggle` → `admin`; kontrol kartu → `admin`/`tu` sesuai subjek |
 | 5 | Laporan (read-only) | **PRD diikuti** | Kolom *Akses* §9.5 menjadi acuan |

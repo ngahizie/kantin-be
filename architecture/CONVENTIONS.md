@@ -81,7 +81,7 @@ throw new ForbiddenException("...");
 ## 6. Audit Log
 
 Tulis entri audit untuk aksi (PRD §11.7):
-`void`, `koreksi`, `refund/pindah saldo`, `ubah harga jual`, `barang masuk & pembalik`, `penyesuaian stok`, `ubah limit/blokir`.
+`refund transaksi` (status `VOID_PENJUALAN`), `koreksi`, `refund saldo/pindah saldo`, `ubah harga jual`, `barang masuk & pembalik`, `penyesuaian stok`, `ubah limit/blokir`.
 
 Field minimum: `aktor_id`, `sekolah_id`, `aksi`, `entitas`, `entitas_id`, `nilai_lama`, `nilai_baru`, `alasan`, `waktu`.
 
@@ -111,7 +111,7 @@ Field minimum: `aktor_id`, `sekolah_id`, `aksi`, `entitas`, `entitas_id`, `nilai
 |---|---|---|
 | Unit | Aturan murni (HPP, validasi) | JUnit + Mockito |
 | Integration | DB, ledger, locking, idempotency | Testcontainers PostgreSQL |
-| e2e (FE) | Alur tap, void, blokir instan | Playwright |
+| e2e (FE) | Alur tap, refund, blokir instan | Playwright |
 
 - Coverage wajib untuk `KasirService`, ledger, HPP.
 - Setiap bug yang diperbaiki → tambah test regresi.

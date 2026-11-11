@@ -77,7 +77,7 @@ BukuKasService.catatTransaksi(
 | **Top-up** | ❌ **TIDAK diposting** | — | — | — |
 
 > **Arah koreksi saldo (dijaga invariant PRD §5).** Karena `Σ top-up − Σ refund
-> = Σ saldo + Σ penjualan kantin (bersih setelah void & koreksi)`, koreksi
+> = Σ saldo + Σ penjualan kantin (bersih setelah refund & koreksi)`, koreksi
 > **KREDIT** (menambah saldo siswa) menurunkan pendapatan kantin → `KELUAR`;
 > koreksi **DEBIT** (mengurangi saldo) → `MASUK`. Metode `NON_TUNAI` (jalur
 > saldo/dana titipan, bukan uang fisik). refId deterministik
@@ -207,7 +207,7 @@ POST /api/webhook/{sumber}   (mis. CALLBACK_BE)
 
 ## 6. Notifikasi (mobile-be)
 
-- Push ke ortu untuk: belanja, void, top-up online berhasil, top-up tunai TU, refund/pindah.
+- Push ke ortu untuk: belanja, refund transaksi, top-up online berhasil, top-up tunai TU, refund saldo/pindah saldo.
 - Contoh: `"Budi belanja Rp8.000 di Kantin: Nasi Uduk, Es Jeruk"`.
 - Implementasi: `NotifikasiPort` (fallback fail-open + adapter REST `NotifikasiRestClient` + demo `NotifikasiDemo`).
 

@@ -51,7 +51,8 @@ tap ─► validasi 1..6 ─► GAGAL di N ─► beep gagal (nada berbeda) + pe
 beep sukses ─► overlay foto 3 dtk ─► petugas lihat wajah TIDAK cocok ─► tekan Batalkan
                                               │
                                               ▼
-                       void (alasan otomatis "Kartu dipakai bukan pemiliknya")
+                       refund transaksi (alasan otomatis "Kartu dipakai bukan pemiliknya")
+                       kode struk dikonfirmasi petugas sebelum saldo dikembalikan
                        saldo kembali · stok kembali · limit kembali · notif ortu
                        kartu ditahan → diserahkan ke TU
 ```

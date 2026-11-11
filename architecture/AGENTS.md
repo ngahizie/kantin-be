@@ -57,7 +57,7 @@ Diangkat dari **PRD teknis §11** — pelanggaran = PR ditolak.
 4. **Tenant scoping** di setiap query. Data sekolah lain → **404, bukan 403**.
 5. **RBAC dicek di backend** tiap endpoint. Menyembunyikan tombol di FE bukan pengaman.
 6. **Nominal uang = integer rupiah (`BIGINT`)**, bukan float/double. Qty = integer.
-7. **Audit log** untuk: void, koreksi, refund/pindah saldo, ubah harga, barang masuk & pembalik, opname, ubah limit/blokir (siapa, kapan, lama→baru).
+7. **Audit log** untuk: refund transaksi, koreksi, refund saldo/pindah saldo, ubah harga, barang masuk & pembalik, opname, ubah limit/blokir (siapa, kapan, lama→baru).
 8. **Performa tap ≤ 1 detik (p95).**
 9. **Zona waktu sekolah** untuk reset limit, tutup kasir otomatis, laporan.
 10. **JWT RS256 wajib** di production.
@@ -137,7 +137,7 @@ main            ← production-ready, dilindungi (protected). Satu-satunya branc
 | Peran | Fokus | Modul utama |
 |---|---|---|
 | **BE-1 · Fondasi** | Auth JWT, tenant scoping, RBAC, infra | `config/security`, `security`, `component` |
-| **BE-2 · Ledger & Kasir** | Ledger append-only, tap, void, sesi kasir | `service/kasir`, `model/*Ledger*` |
+| **BE-2 · Ledger & Kasir** | Ledger append-only, tap, refund, sesi kasir | `service/kasir`, `model/*Ledger*` |
 | **BE-3 · Katalog & Stok** | Menu, barang masuk, opname, HPP | `service/katalog`, `service/stok` |
 | **BE-4 · Saldo & Kartu** | Top-up tunai, Kartu Tamu, refund, limit/blokir | `service/saldo`, `service/kartu` |
 | **BE-5 · Integrasi & Laporan** | BukuKasClient, notifikasi, laporan Excel | `service/integrasi`, `service/laporan` |

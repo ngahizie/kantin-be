@@ -44,7 +44,7 @@
 | `GET` | `/api/kasir/transaksi/sesi` | TU, admin, pengelola, kasir | Riwayat **satu sesi kasir** untuk panel POS (issue #229): `sesiId` wajib, tanpa paginasi, terbaru dulu, memuat `items[]` rincian belanja + status VOID & alasannya. Sesi sekolah lain → 404 |
 | `POST` | `/api/kasir/sesi/buka` | kasir | Ambil sesi terbuka hari ini atau buka baru (idempoten per sekolah+titik+hari). Body `BukaSesiRequest` (`titikKasirId`) |
 | `GET` | `/api/kasir/sesi/aktif` | kasir | Sesi **TERBUKA hari ini** per titik kasir (issue #222): data `SesiKasirData` untuk layar POS (`titikKasirNama`, `totalTransaksi` terisi). `titikKasirId` wajib. Belum ada sesi terbuka → **200 + `data: null`** (bukan 404) — FE lanjut ke `sesi/buka`. Titik kasir sekolah lain → 404. Tenant dari token |
-| `GET` | `/api/kasir/sesi/{sesiId}/rekap` | kasir | Pratinjau rekap (bruto/void/bersih) |
+| `GET` | `/api/kasir/sesi/{sesiId}/rekap` | kasir | Pratinjau rekap (bruto/refund/bersih) |
 | `POST` | `/api/kasir/sesi/{sesiId}/tutup` | kasir | Tutup sesi: hitung rekap, tandai DITUTUP, kunci transaksi |
 | `GET` | `/api/kasir/sesi/{sesiId}` | kasir | Detail sesi kasir |
 | `POST` | `/api/kasir/sesi/{sesiId}/posting-buku-kas` | TU, admin, pengelola | Posting ulang rekap sesi DITUTUP ke Buku Kas (idempoten; untuk integrasi yang tertunda) |
@@ -163,7 +163,7 @@
 
 | Method | Path | Peran | Keterangan |
 |---|---|---|---|
-| `GET` | `/api/laporan/penjualan` | TU, admin, pengelola, kepsek | Ringkasan: jumlah transaksi, bruto, HPP, **laba kotor**, void |
+| `GET` | `/api/laporan/penjualan` | TU, admin, pengelola, kepsek | Ringkasan: jumlah transaksi, bruto, refund, modal, **laba**, margin — field `jumlahRefund`, `nilaiRefund`, `totalModal`, `laba`, `marginPersen` |
 | `GET` | `/api/laporan/penjualan/item` | TU, admin, pengelola, kepsek | Penjualan per item (terlaris dulu): qty & nilai |
 | `GET` | `/api/laporan/penjualan/kategori` | TU, admin, pengelola, kepsek | Penjualan per kategori |
 | `GET` | `/api/laporan/saldo-mengendap` | TU, admin, kepsek | Dana titipan: Σ saldo siswa + Kartu Tamu (kewajiban sekolah) |
@@ -172,7 +172,7 @@
 | `GET` | `/api/laporan/stok` | TU, pengelola | Stok + nilai persediaan; `menipis` dari `menu.stok_minimum`. Query: `hanyaMenipis`. **Tanpa kepsek** (§9.5) |
 | `GET` | `/api/laporan/kerugian-stok` | TU, pengelola, kepsek | Opname keluar & barang rusak: qty + nilai kerugian |
 | `GET` | `/api/laporan/kerugian-stok/ringkasan` | TU, pengelola, kepsek | **Agregat kerugian stok** (#226): total kerugian/qty/kejadian dan pemisahan opname vs barang rusak; periode sama dengan daftar |
-| `GET` | `/api/laporan/pembatalan` | TU, admin | **Pembatalan kasir** (#114): daftar transaksi di-void per subjek pada periode |
+| `GET` | `/api/laporan/pembatalan` | TU, admin | **Pembatalan kasir** (#114): daftar transaksi di-refund per subjek pada periode |
 | `GET` | `/api/laporan/kartu-tamu` | TU | **Kartu Tamu** (#115): daftar kartu + pemegang + saldo + status |
 | `GET` | `/api/laporan/saldo-mengendap/kartu-tamu` | TU | **Saldo mengendap per kartu tamu** (issue #225): `{id, nomorKartu, uid, labelPemegang, saldo, status (ACTIVE/BLOCKED), createdAt}` — bentuk yang dipakai FE; data sama dengan `kartu-tamu` |
 | `GET` | `/api/laporan/penjualan/titik` | TU, admin, pengelola, kepsek | **Penjualan per titik kasir** (#116): transaksi, nilai, HPP, laba kotor per titik |
@@ -197,7 +197,7 @@
 > **Invariant rekonsiliasi (PRD §5).** `selisih = (Σ KREDIT − Σ DEBIT) − saldo
 > mengendap` **harus 0**; `seimbang=false` menandakan ledger & cache tidak
 > sinkron. Laba kotor = penjualan bersih − Σ HPP snapshot item terjual;
-> transaksi **void dipisah** (tidak masuk bruto).
+> transaksi **refund dipisah** (tidak masuk bruto).
 
 ## 9. Konfigurasi Kantin & Solusi Demo (KonfigurasiKantinController) — `/api/konfigurasi`
 
