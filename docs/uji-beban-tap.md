@@ -263,14 +263,14 @@ Perubahan ini menyentuh **jalur uang**, jadi diverifikasi ketat:
 
 SLO ini *termasuk* lookup kartu. Kontrak lookup **siswa** ke admin-be masih
 terbuka (OPEN-QUESTIONS **Q7**, ADR-0004) → implementasi nyata belum ada, dan
-`KartuLookupFallback` bersifat **fail-closed** ("kartu tidak dikenal").
+`KartuLookupFallback` bersifat **gagal-tertutup** ("kartu tidak dikenal").
 
 Agar uji beban tetap bisa menembus jalur sukses **tanpa** menunggu Q7, profil
 `loadtest` mengaktifkan `KartuLookupLoadTest`: lookup ke tabel **Kartu Tamu**
 (data milik kantin-be sendiri, PRD §9.4), bukan ke siswa. Saat Q7 terjawab:
 
 1. Tambahkan `SiswaKartuClient` (REST) dengan **timeout ≤ 250 ms** dan
-   **fail-closed** bila admin-be tak merespons (jangan diam-diam meloloskan).
+   **gagal-tertutup** bila admin-be tak merespons (jangan diam-diam meloloskan).
 2. Jalankan skrip k6 yang sama (tanpa perubahan) — kini lookup memanggil
    admin-be nyata, sehingga SLO terukur end-to-end.
 

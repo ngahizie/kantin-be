@@ -16,7 +16,7 @@ cp .env.example .env    # lalu isi nilai <GANTI_...>
 
 Keterangan penanda:
 
-- 🔴 **Fail-closed** — bila kosong, fitur mati / endpoint balas **503**. **Wajib** diisi.
+- 🔴 **Gagal-tertutup** — bila kosong, fitur mati / endpoint balas **503**. **Wajib** diisi.
 - 🟡 **Keputusan** — perlu ditetapkan tim (tidak ada nilai default yang benar).
 - 🟠 **Terblokir pihak lain** — menunggu kredensial/endpoint tim lain (lihat #164).
 - ✅ **Diputuskan** (tinjauan 2026-10-30) — keputusan sudah diambil & didokumentasikan;
@@ -122,7 +122,7 @@ postur ini tidak membuka akses tanpa autentikasi. `fail-closed` hanya dipakai bi
 keamanan sekolah mensyaratkannya, dan konsekuensinya harus diterima: Redis mati ⇒ semua
 request **429** ⇒ kantin berhenti melayani.
 
-- [x] `KANTIN_RATE_LIMIT_FAIL_CLOSED=false` (**fail-open**) ✅ — nilai default kode
+- [x] `KANTIN_RATE_LIMIT_FAIL_CLOSED=false` (**gagal-terbuka**) ✅ — nilai default kode
       (`kantin.rate-limit.fail-closed=${KANTIN_RATE_LIMIT_FAIL_CLOSED:false}`)
 - [x] `KANTIN_RATE_LIMIT_ENABLED=true` ✅
 - [x] Ambang ditinjau & disetujui ✅:
@@ -178,7 +178,7 @@ request **429** ⇒ kantin berhenti melayani.
 >
 > **Keputusan lingkungan (🟡 → ✅, tinjauan 2026-10-30)** — CORS origin eksplisit,
 > allowlist webhook/internal kosong (allow-all), `trusted-proxies` hanya bila ada
-> reverse proxy, dan postur rate limit **fail-open** untuk pilot — dirinci beserta
+> reverse proxy, dan postur rate limit **gagal-terbuka** untuk pilot — dirinci beserta
 > alasannya di **issue #274**. Nilai literal (domain FE, IP, daftar proxy) tetap
 > diisi di tiket deploy.
 >

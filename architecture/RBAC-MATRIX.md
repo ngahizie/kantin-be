@@ -69,7 +69,7 @@ Batas per-subjek ditegakkan di dalam `KontrolKartuController#ubahBlokir`.
 | `POST` | `/api/kasir/transaksi/{transaksiId}/koreksi` | tu | §9.2 & §9.6 — *Refund & Koreksi: Bendahara (create, read)* | PRD diikuti |
 | `GET` | `/api/kasir/kartu/{rfidUid}` | kasir | §9.6 — *Kasir: Petugas kantin (read)* | PRD diikuti |
 | `POST` | `/api/kasir/transaksi/{transaksiId}/refund` | kasir | §9.6 — *Kasir: Petugas kantin (create, read)* | PRD diikuti |
-| `POST` | `/api/kasir/transaksi/{transaksiId}/void` | kasir | §9.6 — alias deprecated `/refund` | PRD diikuti |
+| `POST` | `/api/kasir/transaksi/{transaksiId}/void` | kasir | §9.6 — alias usang `/refund` | PRD diikuti |
 | `GET` | `/api/katalog/kategori` | kasir, pengelola, tu, admin | §9.6 (baca katalog untuk POS) | di luar keputusan #250 — dipertahankan |
 | `POST` | `/api/katalog/kategori` | pengelola | §9.6 — *Menu & Kategori: Pengelola (CRUD)* | PRD diikuti |
 | `DELETE` | `/api/katalog/kategori/{kategoriId}` | pengelola | §9.6 — *Menu & Kategori: Pengelola (CRUD)* | PRD diikuti |

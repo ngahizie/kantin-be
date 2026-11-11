@@ -11,11 +11,11 @@ untuk 7 port integrasi lintas-repo. Tujuannya: begitu endpoint nyata tersedia
    berubah** dan tidak ada panggilan keluar tak terduga.
 2. **@Primary.** Saat ON, adapter menang atas fallback pada injeksi yang sama.
 3. **Configurable.** URL/header/timeout/retry semuanya properti, bukan
-   hard-code. Kontrak default mengikuti keputusan tim BE
+   ditulis langsung di kode. Kontrak default mengikuti keputusan tim BE
    (`architecture/OPEN-QUESTIONS.md` Q3–Q8).
-4. **Fail-open / fail-safe eksplisit** — lihat tabel di bawah.
+4. **Gagal-terbuka / fail-safe eksplisit** — lihat tabel di bawah.
 5. **Teruji kontrak.** `AdapterRestWireMockTest` (WireMock embedded, tanpa
-   Docker) membuktikan pemetaan sukses / 5xx / timeout / payload salah untuk
+   Docker) membuktikan pemetaan sukses / 5xx / timeout / isi permintaan salah untuk
    tiap adapter.
 
 ## Tabel adapter
@@ -23,18 +23,18 @@ untuk 7 port integrasi lintas-repo. Tujuannya: begitu endpoint nyata tersedia
 | Port | Adapter | Endpoint default | Arah | Perilaku gagal |
 |------|---------|------------------|------|----------------|
 | BukuKasPort | `BukuKasRestClient` | `POST /api/buku-kas/catat` | → admin-be | GAGAL (sesi tak dibatalkan) |
-| NotifikasiPort | `NotifikasiRestClient` | `POST /api/internal/notifikasi` | → mobile-be | fail-open (best-effort) |
+| NotifikasiPort | `NotifikasiRestClient` | `POST /api/internal/notifikasi` | → mobile-be | gagal-terbuka (sebisanya) |
 | KartuLookupPort | `KartuLookupRestClient` | `GET /api/siswa/cek-kartu/{rfidUid}` | → admin-be | tidak dikenal |
-| AktivasiModulPort | `AktivasiModulRestClient` | `GET /api/internal/modul-kantin/status` | → internal-be | fail-open (anggap aktif) |
+| AktivasiModulPort | `AktivasiModulRestClient` | `GET /api/internal/modul-kantin/status` | → internal-be | gagal-terbuka (anggap aktif) |
 | StatusSiswaPort | `StatusSiswaRestClient` | `GET /api/siswa/get-by-id/{id}` | → admin-be | `null` (tidak diketahui) |
-| UidSiswaPort | `UidSiswaRestClient` | `GET /api/internal/siswa/cek-uid` | → admin-be | `null` (fail-open) |
-| CariSiswaPort | `CariSiswaRestClient` | `GET /api/siswa/cari?q=&batas=&hanyaTidakAktif=` | → admin-be | daftar kosong (fail-open) |
+| UidSiswaPort | `UidSiswaRestClient` | `GET /api/internal/siswa/cek-uid` | → admin-be | `null` (gagal-terbuka) |
+| CariSiswaPort | `CariSiswaRestClient` | `GET /api/siswa/cari?q=&batas=&hanyaTidakAktif=` | → admin-be | daftar kosong (gagal-terbuka) |
 
 Catatan `KartuLookupRestClient`: **kartu tamu lokal dicek lebih dulu** (tabel
 `kartu_tamu`), baru jatuh ke admin-be. **Status blokir tidak di-cache** — selalu
 dibaca segar (anti-tabrakan UID, lihat `docs/integrasi-anti-tabrakan-uid.md`).
 
-Catatan `StatusSiswaRestClient.blokirKartu` bersifat **best-effort** — kegagalan
+Catatan `StatusSiswaRestClient.blokirKartu` bersifat **sebisanya** — kegagalan
 tidak melempar (blokir lokal tetap berlaku).
 
 ## Retry
@@ -71,7 +71,7 @@ Atau via environment (lihat `.env.example`).
 Untuk memastikan **tidak ada `*Fallback` yang dipakai di staging/produksi**,
 `PemeriksaIntegrasiProduksi` berjalan saat aplikasi siap
 (`ApplicationReadyEvent`). Bila `kantin.integrasi.wajib-aktif=true`, start
-**DIGAGALKAN** (fail-closed) ketika:
+**DIGAGALKAN** (gagal-tertutup) ketika:
 
 - salah satu dari **6 adapter** belum aktif (`…enabled=false` → masih `*Fallback`);
 - adapter aktif tetapi `base-url` kosong;
