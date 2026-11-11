@@ -6,6 +6,7 @@ import com.asqi.scholia_kantin_be.dto.SesiKasirAktifData;
 import com.asqi.scholia_kantin_be.dto.TapRequest;
 import com.asqi.scholia_kantin_be.dto.TapResponse;
 import com.asqi.scholia_kantin_be.dto.TransaksiKasirItem;
+import com.asqi.scholia_kantin_be.dto.TransaksiRefundResponse;
 import com.asqi.scholia_kantin_be.dto.TransaksiSesiItem;
 import com.asqi.scholia_kantin_be.dto.CekKartuResponse;
 import com.asqi.scholia_kantin_be.dto.VoidRequest;
@@ -149,7 +150,7 @@ public class KasirController {
      */
     @PerluPeran({AktorKantin.PETUGAS_KANTIN})
     @PostMapping("transaksi/{transaksiId}/refund")
-    public ResponseEntity<Response<Transaksi>> refundTransaksi(
+    public ResponseEntity<Response<TransaksiRefundResponse>> refundTransaksi(
             @PathVariable Long transaksiId,
             @Valid @RequestBody VoidRequest request,
             @AuthenticationPrincipal IdentitasKantin identitas) {
@@ -157,7 +158,7 @@ public class KasirController {
         Transaksi trx = voidService.refundTransaksi(
                 TenantContext.sekolahIdWajib(), transaksiId, identitas.aktorIdWajib(),
                 request.getAlasan(), request.getKodeStruk());
-        return CommonResponse.data(trx, "Transaksi berhasil di-refund");
+        return CommonResponse.data(TransaksiRefundResponse.dari(trx), "Transaksi berhasil di-refund");
     }
 
     /**
@@ -167,7 +168,7 @@ public class KasirController {
     @Deprecated
     @PerluPeran({AktorKantin.PETUGAS_KANTIN})
     @PostMapping("transaksi/{transaksiId}/void")
-    public ResponseEntity<Response<Transaksi>> voidTransaksiLama(
+    public ResponseEntity<Response<TransaksiRefundResponse>> voidTransaksiLama(
             @PathVariable Long transaksiId,
             @Valid @RequestBody VoidRequest request,
             @AuthenticationPrincipal IdentitasKantin identitas) {
@@ -175,7 +176,7 @@ public class KasirController {
         Transaksi trx = voidService.refundTransaksi(
                 TenantContext.sekolahIdWajib(), transaksiId, identitas.aktorIdWajib(),
                 request.getAlasan(), request.getKodeStruk());
-        return CommonResponse.data(trx, "Transaksi berhasil di-refund");
+        return CommonResponse.data(TransaksiRefundResponse.dari(trx), "Transaksi berhasil di-refund");
     }
 
     /**
@@ -186,14 +187,15 @@ public class KasirController {
      */
     @PerluPeran({AktorKantin.TU_SEKOLAH})
     @PostMapping("transaksi/{transaksiId}/koreksi")
-    public ResponseEntity<Response<Transaksi>> koreksiTransaksiSesiTertutup(
+    public ResponseEntity<Response<TransaksiRefundResponse>> koreksiTransaksiSesiTertutup(
             @PathVariable Long transaksiId,
             @Valid @RequestBody VoidRequest request,
             @AuthenticationPrincipal IdentitasKantin identitas) {
 
         Transaksi trx = voidService.koreksiTransaksiSesiTertutup(
                 TenantContext.sekolahIdWajib(), transaksiId, identitas.aktorIdWajib(), request.getAlasan());
-        return CommonResponse.data(trx, "Transaksi sesi tertutup berhasil dikoreksi");
+        return CommonResponse.data(TransaksiRefundResponse.dari(trx),
+                "Transaksi sesi tertutup berhasil dikoreksi");
     }
 
     /**

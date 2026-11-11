@@ -8,6 +8,8 @@ import com.asqi.scholia_kantin_be.dto.TransaksiKasirItem;
 import com.asqi.scholia_kantin_be.dto.VoidRequest;
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
+import com.asqi.scholia_kantin_be.model.Transaksi;
+import com.asqi.scholia_kantin_be.model.TransaksiItem;
 import com.asqi.scholia_kantin_be.security.IdentitasKantin;
 import com.asqi.scholia_kantin_be.security.TenantContext;
 import com.asqi.scholia_kantin_be.service.integrasi.BukuKasPostingService;
@@ -32,6 +34,7 @@ import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.method.support.ModelAndViewContainer;
 
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -169,6 +172,100 @@ class KasirControllerTest {
         // aktorId = 42 (dari token), sekolahId = 7 (tenant), kode struk ikut diteruskan.
         verify(voidService).refundTransaksi(
                 eq(7L), eq(55L), eq(42L), eq("salah input"), eq("TRX-20261109-55"));
+    }
+
+    @Test
+    @DisplayName("refund: respons berupa DTO — siklus items↔transaksi tidak boleh masuk JSON")
+    void refundMengembalikanDtoTanpaSiklus() throws Exception {
+        VoidRequest req = new VoidRequest();
+        req.setAlasan("salah input");
+        req.setKodeStruk("TRX-20261109-55");
+
+        // Entity dengan relasi dua arah: item menunjuk balik ke transaksinya.
+        // Sebelum diperbaiki, Jackson menelusuri siklus ini tanpa henti dan
+        // berhenti di "Document nesting depth (501)" -> klien menerima 500
+        // padahal refund sudah terjadi di server.
+        Transaksi trx = Transaksi.builder()
+                .id(55L)
+                .waktu(OffsetDateTime.parse("2026-11-09T10:15:00+07:00"))
+                .subjekTipe(SubjekTipe.SISWA)
+                .subjekId(201L)
+                .kartuUid("04AA000201")
+                .total(15000L)
+                .status(StatusTransaksi.VOID)
+                .alasanVoid("salah input")
+                .voidOleh(42L)
+                .build();
+        trx.tambahItem(TransaksiItem.builder()
+                .id(551L)
+                .transaksi(trx)
+                .menuId(10L)
+                .namaMenu("Nasi Goreng")
+                .kategoriId(100L)
+                .hargaJual(15000L)
+                .qty(1)
+                .hppSnapshot(9000L)
+                .subtotal(15000L)
+                .build());
+
+        when(voidService.refundTransaksi(eq(7L), eq(55L), eq(42L), eq("salah input"),
+                eq("TRX-20261109-55"))).thenReturn(trx);
+
+        mockMvc.perform(post("/api/kasir/transaksi/55/refund")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Transaksi berhasil di-refund"))
+                .andExpect(jsonPath("$.data.id").value(55))
+                .andExpect(jsonPath("$.data.nomorStruk").value("TRX-20261109-55"))
+                .andExpect(jsonPath("$.data.status").value("VOID"))
+                .andExpect(jsonPath("$.data.total").value(15000))
+                .andExpect(jsonPath("$.data.subjekTipe").value("SISWA"))
+                .andExpect(jsonPath("$.data.voidAlasan").value("salah input"))
+                // Entity tidak boleh ikut terserialisasi.
+                .andExpect(jsonPath("$.data.items").doesNotExist())
+                .andExpect(jsonPath("$.data.transaksi").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("koreksi bendahara: respons juga memakai DTO (tanpa siklus entity)")
+    void koreksiMengembalikanDto() throws Exception {
+        VoidRequest req = new VoidRequest();
+        req.setAlasan("salah input");
+        req.setKodeStruk("TRX-20261109-55");
+
+        Transaksi trx = Transaksi.builder()
+                .id(55L)
+                .waktu(OffsetDateTime.parse("2026-11-09T10:15:00+07:00"))
+                .subjekTipe(SubjekTipe.KARTU_TAMU)
+                .subjekId(9L)
+                .total(7000L)
+                .status(StatusTransaksi.VOID)
+                .alasanVoid("salah input")
+                .voidOleh(42L)
+                .build();
+        trx.tambahItem(TransaksiItem.builder()
+                .id(552L)
+                .transaksi(trx)
+                .menuId(11L)
+                .namaMenu("Es Teh Manis")
+                .hargaJual(7000L)
+                .qty(1)
+                .hppSnapshot(2000L)
+                .subtotal(7000L)
+                .build());
+
+        when(voidService.koreksiTransaksiSesiTertutup(eq(7L), eq(55L), eq(42L), eq("salah input")))
+                .thenReturn(trx);
+
+        mockMvc.perform(post("/api/kasir/transaksi/55/koreksi")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Transaksi sesi tertutup berhasil dikoreksi"))
+                .andExpect(jsonPath("$.data.nomorStruk").value("TRX-20261109-55"))
+                .andExpect(jsonPath("$.data.subjekTipe").value("KARTU_TAMU"))
+                .andExpect(jsonPath("$.data.items").doesNotExist());
     }
 
     @Test
