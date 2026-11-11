@@ -8,6 +8,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Primary;
+import org.springframework.dao.DataAccessException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import java.util.Collection;
@@ -48,6 +50,7 @@ public class CariSiswaDemo implements CariSiswaPort {
             new SiswaDemo(109L, "2024009", "Citra Kirana", "8A", false));
 
     private final LedgerSaldoService ledgerSaldo;
+    private final JdbcTemplate jdbc;
 
     @Override
     public List<InfoSiswa> cari(Long sekolahId, String kataKunci, boolean hanyaTidakAktif, int batas) {
@@ -111,5 +114,37 @@ public class CariSiswaDemo implements CariSiswaPort {
                         .tidakAktif(s.tidakAktif())
                         .saldo(ledgerSaldo.saldo(sekolahId, SubjekTipe.SISWA, s.id()))
                         .build()));
+    }
+
+    /**
+     * UID kartu siswa dari fixture demo {@code dev_siswa_rfid} (issue #301).
+     *
+     * <p>Kontrak sama dengan adapter REST: UID <b>tidak</b> ikut pada daftar
+     * siswa ({@link #cari}/{@link #cariBanyak}), hanya diberikan lewat lookup
+     * per siswa. Fixture demo adalah data seed lokal (bukan identitas
+     * produksi), sehingga tidak ada UID yang dikarang.
+     *
+     * <p>Fail-open: tabel fixture belum dimuat / query gagal → {@link Optional#empty()}.
+     */
+    @Override
+    public Optional<String> cariUidSiswa(Long sekolahId, Long siswaId) {
+        if (sekolahId == null || siswaId == null) {
+            return Optional.empty();
+        }
+        try {
+            List<String> uid = jdbc.query(
+                    "SELECT rfid_uid FROM dev_siswa_rfid WHERE sekolah_id = ? AND siswa_id = ?",
+                    (rs, rowNum) -> rs.getString("rfid_uid"),
+                    sekolahId, siswaId);
+            if (uid.isEmpty()) {
+                return Optional.empty();
+            }
+            String nilai = uid.get(0);
+            return (nilai == null || nilai.isBlank()) ? Optional.empty() : Optional.of(nilai.trim());
+        } catch (DataAccessException e) {
+            log.debug("[DEMO] Fixture UID siswa tidak tersedia (sekolah={}, siswa={}): {}",
+                    sekolahId, siswaId, e.getMessage());
+            return Optional.empty();
+        }
     }
 }

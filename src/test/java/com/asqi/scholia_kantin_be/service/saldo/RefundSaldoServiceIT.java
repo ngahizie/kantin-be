@@ -114,6 +114,11 @@ class RefundSaldoServiceIT {
             }
             return hasil;
         }
+
+        @Override
+        public Optional<String> cariUidSiswa(Long sekolahId, Long siswaId) {
+            return Optional.empty();
+        }
     }
 
     @TestConfiguration

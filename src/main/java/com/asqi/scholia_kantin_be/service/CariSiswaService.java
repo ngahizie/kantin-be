@@ -72,4 +72,21 @@ public class CariSiswaService {
         }
         return cariSiswaPort.cariBanyak(sekolahId, siswaIds);
     }
+
+    /**
+     * UID kartu RFID satu siswa (issue #301).
+     *
+     * <p>Hanya dipanggil dari endpoint berperan admin sekolah/TU — UID tidak
+     * ikut pada daftar siswa. Fail-open: ID kosong, siswa tidak ditemukan, atau
+     * integrasi gagal → {@link Optional#empty()} (bukan tebakan).
+     *
+     * @param sekolahId tenant dari JWT
+     * @param siswaId   ID siswa yang sudah terbukti milik tenant
+     */
+    public Optional<String> uidKartu(Long sekolahId, Long siswaId) {
+        if (sekolahId == null || siswaId == null) {
+            return Optional.empty();
+        }
+        return cariSiswaPort.cariUidSiswa(sekolahId, siswaId);
+    }
 }

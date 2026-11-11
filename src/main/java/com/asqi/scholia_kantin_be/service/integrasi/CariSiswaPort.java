@@ -72,4 +72,26 @@ public interface CariSiswaPort {
      * @return peta {@code siswaId → identitas}; tidak pernah {@code null}
      */
     Map<Long, InfoSiswa> cariBanyak(Long sekolahId, Collection<Long> siswaIds);
+
+    /**
+     * Ambil UID kartu RFID <b>satu</b> siswa (issue #301).
+     *
+     * <p><b>Kenapa lookup terpisah.</b> UID kartu bersifat sensitif (dapat
+     * dipakai memalsukan tap), sehingga <b>tidak</b> ikut pada
+     * {@link #cari} / {@link #cariBanyak}. Pemanggil yang berhak (admin
+     * sekolah, TU) meminta UID hanya untuk siswa yang benar-benar dipilih.
+     *
+     * <p><b>Sumber kontrak.</b> admin-be: {@code GET /api/siswa/{id}} → field
+     * {@code rfidUid} (path sama dengan lookup identitas #297). Bila admin-be
+     * tidak mengirim field tersebut, hasilnya {@link Optional#empty()} — bukan
+     * tebakan.
+     *
+     * <p><b>Fail-open (PRD §8.4).</b> 404, timeout, atau kegagalan integrasi →
+     * {@link Optional#empty()}; layar kasir/TU tetap berfungsi tanpa UID.
+     *
+     * @param sekolahId tenant dari JWT (wajib)
+     * @param siswaId   ID siswa yang sudah divalidasi milik tenant
+     * @return UID kartu bila tersedia; {@link Optional#empty()} bila tidak
+     */
+    Optional<String> cariUidSiswa(Long sekolahId, Long siswaId);
 }

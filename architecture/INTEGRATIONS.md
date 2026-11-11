@@ -158,6 +158,14 @@ Optional<Siswa> findByRfidUid(String rfidUid);
 - Endpoint: `GET /api/siswa` (`q`, `hanyaTidakAktif`, `batas`).
 - Saat Q7 terjawab: tambahkan implementasi REST nyata (mis. `CariSiswaRestClient`) &amp; tandai `@Primary`, lalu daftarkan di `PemeriksaIntegrasiProduksi` bila perlu.
 
+### 4.6 UID kartu siswa (`CariSiswaPort#cariUidSiswa`, issue #301)
+- **Keputusan kontrak (Q7 lanjutan).** UID kartu **tidak** disertakan pada daftar siswa (`GET /api/siswa` / `InfoSiswa`) karena UID dapat dipakai memalsukan tap. UID hanya diberikan lewat **lookup khusus per siswa**.
+- **Sumber data.** admin-be: `GET /api/siswa/{id}` → field `rfidUid` (toleran `rfid_uid`); path sama dengan lookup identitas #297 dan dapat ditimpa lewat `kantin.integrasi.cari-siswa.path-by-id`.
+- **Peran yang boleh akses.** Hanya `ADMIN_SEKOLAH` dan `TU_SEKOLAH` — `GET /api/siswa/{siswaId}/rfid`. Peran lain tidak memerlukan UID.
+- **Fail-open (PRD §8.4).** 404, field tidak ada, atau integrasi gagal → `rfidUid=null` &amp; `ditemukan=false` (HTTP 200). UID **tidak dikarang**.
+- **Demo.** `CariSiswaDemo` membaca fixture seed lokal `dev_siswa_rfid` (bukan identitas produksi), sehingga perilaku kontrak sama tanpa data palsu.
+- **Sisa koordinasi admin-be.** Pastikan field `rfidUid` benar-benar ada pada payload `/api/siswa/{id}` untuk peran mesin kantin-be; bila belum, endpoint tetap berjalan dengan `ditemukan=false`.
+
 ---
 
 ## 5. Top-up Online (callback-be)

@@ -5,13 +5,20 @@ import com.asqi.scholia_kantin_be.service.integrasi.InfoSiswa;
 import com.asqi.scholia_kantin_be.service.kasir.LedgerSaldoService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -26,7 +33,8 @@ import static org.mockito.Mockito.when;
 class CariSiswaDemoTest {
 
     private final LedgerSaldoService ledger = mock(LedgerSaldoService.class);
-    private final CariSiswaDemo cari = new CariSiswaDemo(ledger);
+    private final JdbcTemplate jdbc = mock(JdbcTemplate.class);
+    private final CariSiswaDemo cari = new CariSiswaDemo(ledger, jdbc);
 
     CariSiswaDemoTest() {
         // Saldo demo: semua subjek SISWA bernilai tetap agar mudah diperiksa.
@@ -146,5 +154,43 @@ class CariSiswaDemoTest {
         cari.cari(7L, "Budi", false, 50);
 
         org.mockito.Mockito.verify(ledger).saldo(eq(7L), eq(SubjekTipe.SISWA), anyLong());
+    }
+
+    // ── UID kartu per siswa (issue #301) ─────────────────────────────
+
+    @Test
+    @DisplayName("#301: UID siswa diambil dari fixture dev_siswa_rfid (bukan dikarang)")
+    void uidSiswaDitemukan() {
+        doReturn(List.of("DA100001")).when(jdbc)
+                .query(anyString(), any(RowMapper.class), any(), any());
+
+        Optional<String> uid = cari.cariUidSiswa(10L, 1001L);
+
+        assertThat(uid).contains("DA100001");
+    }
+
+    @Test
+    @DisplayName("#301: UID tidak ada di fixture → Optional kosong, bukan error")
+    void uidSiswaTidakDitemukan() {
+        doReturn(List.of()).when(jdbc)
+                .query(anyString(), any(RowMapper.class), any(), any());
+
+        assertThat(cari.cariUidSiswa(10L, 999L)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("#301: fixture belum dimuat / query gagal → fail-open (kosong)")
+    void uidSiswaGagalAksesData() {
+        doThrow(new DataAccessResourceFailureException("tabel fixture tidak ada")).when(jdbc)
+                .query(anyString(), any(RowMapper.class), any(), any());
+
+        assertThat(cari.cariUidSiswa(10L, 1001L)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("#301: sekolah/siswa null → kosong tanpa menyentuh DB")
+    void uidSiswaParameterKosong() {
+        assertThat(cari.cariUidSiswa(null, 1001L)).isEmpty();
+        assertThat(cari.cariUidSiswa(10L, null)).isEmpty();
     }
 }
