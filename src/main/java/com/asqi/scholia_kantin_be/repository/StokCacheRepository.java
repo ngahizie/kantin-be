@@ -55,8 +55,14 @@ public interface StokCacheRepository extends JpaRepository<StokCache, Long> {
     List<StokCache> findBySekolahIdAndMenuIdIn(@Param("sekolahId") Long sekolahId,
                                                @Param("menuIds") Collection<Long> menuIds);
 
-    /** Item "stok menipis": stok ≤ stok_minimum (PRD §7.5). */
-    @Query("SELECT s FROM StokCache s WHERE s.sekolahId = :sekolahId AND s.stok <= s.stokMinimum")
+    /** Item "stok menipis": stok ≤ stok_minimum untuk menu yang belum dihapus (PRD §7.5). */
+    @Query("""
+            SELECT s FROM StokCache s
+            JOIN Menu m ON m.id = s.menuId
+            WHERE s.sekolahId = :sekolahId
+              AND m.deletedAt IS NULL
+              AND s.stok <= s.stokMinimum
+            """)
     List<StokCache> stokMenipis(@Param("sekolahId") Long sekolahId);
 
     /**

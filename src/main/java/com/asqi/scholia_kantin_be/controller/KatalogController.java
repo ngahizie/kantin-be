@@ -146,14 +146,14 @@ public class KatalogController {
                 katalog.stokBerjalan(TenantContext.sekolahIdWajib(), menuId)), "Menu diperbarui");
     }
 
-    /** Nonaktifkan item (soft delete) — item nonaktif tidak bisa dijual. */
+    /** Hapus item dari katalog (soft delete tersembunyi via deletedAt) — riwayat transaksi tetap utuh. */
     @PerluPeran({AktorKantin.PENGELOLA_KANTIN})
     @DeleteMapping("menu/{menuId}")
-    public ResponseEntity<Response<MenuResponse>> nonaktifkanMenu(
+    public ResponseEntity<Response<MenuResponse>> hapusMenu(
             @PathVariable Long menuId,
             @AuthenticationPrincipal IdentitasKantin identitas) {
-        var menu = katalog.nonaktifkanMenu(
+        var menu = katalog.hapusMenu(
                 TenantContext.sekolahIdWajib(), menuId, identitas.aktorIdWajib());
-        return CommonResponse.data(MenuResponse.dari(menu), "Menu dinonaktifkan");
+        return CommonResponse.data(MenuResponse.dari(menu), "Menu dihapus");
     }
 }

@@ -31,6 +31,7 @@ public interface MenuRepository extends JpaRepository<Menu, Long>, JpaSpecificat
         return (root, query, cb) -> {
             List<Predicate> syarat = new ArrayList<>();
             syarat.add(cb.equal(root.get("sekolahId"), sekolahId)); // tenant-scoped
+            syarat.add(cb.isNull(root.get("deletedAt")));
             if (kategoriId != null) {
                 syarat.add(cb.equal(root.get("kategoriId"), kategoriId));
             }
@@ -45,12 +46,21 @@ public interface MenuRepository extends JpaRepository<Menu, Long>, JpaSpecificat
     /** Cari per id <b>dalam tenant</b> — sekolah lain ⇒ kosong (jadi 404). */
     Optional<Menu> findByIdAndSekolahId(Long id, Long sekolahId);
 
+    /** Cari per id yang belum dihapus dalam tenant. */
+    Optional<Menu> findByIdAndSekolahIdAndDeletedAtIsNull(Long id, Long sekolahId);
+
     /** Apakah menu ada <b>dan</b> milik sekolah pemanggil (validasi tenant). */
     boolean existsByIdAndSekolahId(Long id, Long sekolahId);
+
+    /** Apakah menu aktif/nonaktif ada (belum dihapus) dan milik sekolah pemanggil. */
+    boolean existsByIdAndSekolahIdAndDeletedAtIsNull(Long id, Long sekolahId);
 
     /** Apakah ada item (aktif atau tidak) yang memakai kategori ini. */
     boolean existsByKategoriId(Long kategoriId);
 
     /** Jumlah item aktif dalam satu kategori — validasi nonaktifkan kategori. */
     long countByKategoriIdAndIsActiveTrue(Long kategoriId);
+
+    /** Jumlah item aktif dan belum dihapus dalam satu kategori. */
+    long countByKategoriIdAndIsActiveTrueAndDeletedAtIsNull(Long kategoriId);
 }

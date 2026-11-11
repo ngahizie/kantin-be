@@ -43,7 +43,7 @@ public class MenuLookupKatalogAdapter implements MenuLookupPort {
                 .nama(m.getNama())
                 .hargaJual(m.getHargaJual())
                 .kategoriId(m.getKategoriId())
-                .aktif(Boolean.TRUE.equals(m.getIsActive()))
+                .aktif(Boolean.TRUE.equals(m.getIsActive()) && m.getDeletedAt() == null)
                 .build();
     }
 }

@@ -85,6 +85,9 @@ public class Menu implements Persistable<Long> {
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
 
+    @Column(name = "deleted_at")
+    private OffsetDateTime deletedAt;
+
     @Override
     public Long getId() {
         return id;
