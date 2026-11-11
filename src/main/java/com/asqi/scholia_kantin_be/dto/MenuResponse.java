@@ -19,6 +19,7 @@ public class MenuResponse {
     private Long id;
     private Long kategoriId;
     private String nama;
+    private String kodeBarcode;
     private long hargaJual;
     private String satuan;
     private String fotoUrl;
@@ -47,6 +48,7 @@ public class MenuResponse {
                 .id(m.getId())
                 .kategoriId(m.getKategoriId())
                 .nama(m.getNama())
+                .kodeBarcode(m.getKodeBarcode())
                 .hargaJual(m.getHargaJual())
                 .satuan(m.getSatuan() == null ? null : m.getSatuan().name())
                 .fotoUrl(m.getFotoUrl())

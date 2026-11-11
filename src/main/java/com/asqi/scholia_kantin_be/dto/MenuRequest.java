@@ -15,6 +15,10 @@ public class MenuRequest {
     @Size(max = 150, message = "Nama menu maksimal 150 karakter")
     private String nama;
 
+    /** Kode barcode produk (opsional; kosongkan jika menu tidak ber-barcode). */
+    @Size(max = 64, message = "Kode barcode maksimal 64 karakter")
+    private String kodeBarcode;
+
     @NotNull(message = "Harga jual wajib diisi")
     @Min(value = 0, message = "Harga jual tidak boleh negatif")
     private Long hargaJual;

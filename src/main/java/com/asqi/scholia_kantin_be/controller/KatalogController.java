@@ -128,7 +128,7 @@ public class KatalogController {
         var menu = katalog.buatMenu(
                 TenantContext.sekolahIdWajib(), request.getKategoriId(), request.getNama(),
                 request.getHargaJual(), request.getSatuan(), request.getFotoUrl(),
-                request.getStokMinimum(), identitas.aktorIdWajib());
+                request.getStokMinimum(), request.getKodeBarcode(), identitas.aktorIdWajib());
         return CommonResponse.data(MenuResponse.dari(menu), "Menu dibuat");
     }
 
@@ -141,7 +141,8 @@ public class KatalogController {
         var menu = katalog.ubahMenu(
                 TenantContext.sekolahIdWajib(), menuId, request.getKategoriId(), request.getNama(),
                 request.getHargaJual(), request.getSatuan(), request.getFotoUrl(),
-                request.getStokMinimum(), request.getAktif(), identitas.aktorIdWajib());
+                request.getStokMinimum(), request.getAktif(), request.getKodeBarcode(),
+                identitas.aktorIdWajib());
         return CommonResponse.data(MenuResponse.dari(menu,
                 katalog.stokBerjalan(TenantContext.sekolahIdWajib(), menuId)), "Menu diperbarui");
     }
