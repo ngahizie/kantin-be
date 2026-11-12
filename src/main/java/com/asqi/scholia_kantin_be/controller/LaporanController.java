@@ -306,9 +306,11 @@ public class LaporanController {
     @PerluPeran({AktorKantin.TU_SEKOLAH})
     @GetMapping("setoran-tu")
     public ResponseEntity<Response<List<RekapSetoranItem>>> setoranTu(
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tanggal) {
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tanggal,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime dari,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime sampai) {
         return CommonResponse.data(
-                laporan.laporanSetoran(TenantContext.sekolahIdWajib(), tanggal));
+                laporan.laporanSetoran(TenantContext.sekolahIdWajib(), tanggal, dari, sampai));
     }
 
     /**

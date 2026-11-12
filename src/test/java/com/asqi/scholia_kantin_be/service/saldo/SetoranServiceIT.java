@@ -21,6 +21,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -204,5 +205,50 @@ class SetoranServiceIT {
         topUpTunai(PETUGAS_A, 80_000); // sekolah 1
 
         assertThat(setoranService.rekap(2L, jam.hariIni())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("rekap rentang: mengelompokkan top-up & status setoran per tanggal dan petugas")
+    void rekapRentangMultiHari() {
+        LocalDate hariIni = jam.hariIni();
+        LocalDate kemarin = hariIni.minusDays(1);
+        OffsetDateTime waktuKemarin = kemarin.atTime(10, 0).atZone(jam.zona()).toOffsetDateTime();
+
+        // Top-up hari ini lewat service, dan sisipkan 1 top-up kemarin langsung di ledger
+        topUpTunai(PETUGAS_A, 60_000);
+        long subjekKemarin = subjekBerikut++;
+        FixtureInduk.siswa(jdbc, SEKOLAH, subjekKemarin);
+        jdbc.update("""
+                INSERT INTO mutasi_saldo (id, sekolah_id, siswa_id, arah, jenis,
+                                          nominal, saldo_setelah, referensi_id, keterangan,
+                                          aktor_id, waktu)
+                VALUES (?, ?, ?, 'KREDIT', 'TOPUP_TUNAI', ?, ?, ?, ?, ?, ?)
+                """, 990_001L, SEKOLAH, subjekKemarin, 40_000L, 40_000L,
+                "TOPUP-KEMARIN-1", "Top-up tunai kemarin", PETUGAS_B, waktuKemarin);
+
+        setoranService.konfirmasi(SEKOLAH, kemarin, PETUGAS_B, 40_000, "BA-RENTANG-1", null, BENDAHARA);
+
+        OffsetDateTime dari = kemarin.atStartOfDay(jam.zona()).toOffsetDateTime();
+        OffsetDateTime sampai = hariIni.plusDays(1).atStartOfDay(jam.zona()).toOffsetDateTime();
+
+        List<RekapSetoranItem> hasil = setoranService.rekap(SEKOLAH, null, dari, sampai);
+
+        assertThat(hasil).hasSize(2);
+        // Terbaru lebih dulu (hari ini, lalu kemarin)
+        assertThat(hasil.get(0).getTanggal()).isEqualTo(hariIni);
+        assertThat(hasil.get(0).getPetugasId()).isEqualTo(PETUGAS_A);
+        assertThat(hasil.get(0).getTotalTopup()).isEqualTo(60_000);
+        assertThat(hasil.get(0).getReferensiId()).isNull();
+
+        assertThat(hasil.get(1).getTanggal()).isEqualTo(kemarin);
+        assertThat(hasil.get(1).getPetugasId()).isEqualTo(PETUGAS_B);
+        assertThat(hasil.get(1).getTotalTopup()).isEqualTo(40_000);
+        assertThat(hasil.get(1).getJumlahDisetor()).isEqualTo(40_000);
+        assertThat(hasil.get(1).getSelisih()).isZero();
+        assertThat(hasil.get(1).getReferensiId()).isEqualTo("BA-RENTANG-1");
+
+        // Rentang terbalik ditolak
+        assertThatThrownBy(() -> setoranService.rekap(SEKOLAH, null, sampai, dari))
+                .isInstanceOf(InvalidOperationException.class);
     }
 }

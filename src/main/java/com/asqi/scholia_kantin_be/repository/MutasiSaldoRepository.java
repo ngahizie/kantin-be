@@ -234,6 +234,36 @@ public interface MutasiSaldoRepository extends JpaRepository<MutasiSaldo, Long>,
 
         Long getTotal();
     }
+
+    /**
+     * Daftar mutasi top-up tunai per petugas pada rentang waktu {@code [sejak, sampai)}
+     * untuk agregasi harian (per tanggal zona sekolah) pada rekap setoran multi-hari.
+     */
+    @Query("""
+            SELECT l.aktorId AS petugasId, l.waktu AS waktu, l.nominal AS nominal
+            FROM MutasiSaldo l
+            WHERE l.sekolahId = :sekolahId
+              AND l.jenis = :jenis
+              AND l.arah = :kredit
+              AND l.aktorId IS NOT NULL
+              AND l.waktu >= :sejak
+              AND l.waktu < :sampai
+            ORDER BY l.waktu DESC, l.aktorId ASC
+            """)
+    List<TopupTunaiBaris> daftarTopupTunaiPetugas(@Param("sekolahId") Long sekolahId,
+                                                  @Param("jenis") JenisMutasiSaldo jenis,
+                                                  @Param("kredit") ArahMutasi kredit,
+                                                  @Param("sejak") OffsetDateTime sejak,
+                                                  @Param("sampai") OffsetDateTime sampai);
+
+    /** Proyeksi baris top-up tunai petugas untuk pengelompokan per hari zona sekolah. */
+    interface TopupTunaiBaris {
+        Long getPetugasId();
+
+        OffsetDateTime getWaktu();
+
+        Long getNominal();
+    }
     /**
      * Riwayat mutasi saldo keseluruhan (seluruh subjek) pada rentang waktu, urut terbaru dulu.
      */
