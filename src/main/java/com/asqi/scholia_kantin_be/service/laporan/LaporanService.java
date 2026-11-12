@@ -322,7 +322,7 @@ public class LaporanService {
     @Transactional(readOnly = true)
     public List<BarisStok> laporanStok(Long sekolahId, boolean hanyaMenipis) {
         // Sumber kebenaran nama, kategori & stok minimum = katalog menu (PRD §7.1).
-        // (stok_cache.stok_minimum tidak disinkron dari menu, jadi jangan dipakai.)
+        // (stok.stok_minimum tidak disinkron dari menu, jadi jangan dipakai.)
         Map<Long, com.asqi.scholia_kantin_be.model.Menu> menuById = new HashMap<>();
         menuRepo.findAll(MenuRepository.daftarSpec(sekolahId, null, false)).forEach(m -> menuById.put(m.getId(), m));
 

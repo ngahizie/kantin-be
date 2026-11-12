@@ -216,7 +216,7 @@ public class KatalogService {
                 .build();
 
         Menu tersimpan = menuRepo.save(menu);
-        // Ambang stok menipis ikut tersinkron ke stok_cache lewat trigger DB
+        // Ambang stok menipis ikut tersinkron ke stok lewat trigger DB
         // trg_menu_sinkron_stok_minimum (V23, issue #196) — tidak lagi bergantung
         // pada panggilan manual di sini, sehingga jalur tulis lain (seed, SQL
         // langsung, update massal) pun tetap sinkron.

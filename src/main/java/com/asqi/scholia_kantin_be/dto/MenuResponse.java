@@ -8,7 +8,7 @@ import lombok.Data;
  * Proyeksi item menu untuk respons HTTP — menyembunyikan kolom internal dan
  * menegaskan tipe (rupiah integer, status aktif).
  *
- * <p><b>stokBerjalan</b> diisi dari {@code stok_cache} (bukan kolom {@code menu})
+ * <p><b>stokBerjalan</b> diisi dari {@code stok} (bukan kolom {@code menu})
  * agar FE bisa menampilkan total stok per item pada tabel katalog <b>tanpa</b>
  * memanggil {@code GET /api/stok/{menuId}} satu per satu (hindari N+1).
  */
@@ -25,7 +25,7 @@ public class MenuResponse {
     private String fotoUrl;
     private int stokMinimum;
 
-    /** Stok berjalan dari {@code stok_cache} (0 bila belum ada baris stok). */
+    /** Stok berjalan dari {@code stok} (0 bila belum ada baris stok). */
     private int stokBerjalan;
 
     /**
