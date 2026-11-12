@@ -1,10 +1,7 @@
 package com.asqi.scholia_kantin_be.model;
 
-import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
 import jakarta.persistence.Table;
@@ -20,18 +17,18 @@ import java.time.OffsetDateTime;
 import java.util.Objects;
 
 /**
- * Saldo berjalan (cache) per subjek — <b>hot row</b> yang dikunci
+ * Saldo berjalan (cache) per siswa — <b>hot row</b> yang dikunci
  * ({@code SELECT ... FOR UPDATE}) saat debit (ADR-0003).
  *
  * <p>Turunan yang <b>selalu</b> dapat dihitung ulang dari {@link MutasiSaldo}
  * (PRD §11.1). Nilainya bukan sumber kebenaran — ledger-lah sumbernya.
  *
- * <p>PK gabungan {@code (subjek_tipe, subjek_id)} via {@link IdClass}.
+ * <p>PK gabungan {@code (sekolah_id, siswa_id)} via {@link IdClass}.
  * Entity ini <b>mutable</b> (satu-satunya kolom berubah: {@code saldo}) karena
  * memang cache, bukan ledger.
  */
 @Entity
-@Table(name = "saldo_cache")
+@Table(name = "saldo")
 @IdClass(Saldo.SaldoId.class)
 @Getter
 @Setter
@@ -41,16 +38,12 @@ import java.util.Objects;
 public class Saldo {
 
     @Id
-    @Enumerated(EnumType.STRING)
-    @Column(name = "subjek_tipe", nullable = false, length = 20)
-    private SubjekTipe subjekTipe;
-
-    @Id
-    @Column(name = "subjek_id", nullable = false)
-    private Long subjekId;
-
     @Column(name = "sekolah_id", nullable = false)
     private Long sekolahId;
+
+    @Id
+    @Column(name = "siswa_id", nullable = false)
+    private Long siswaId;
 
     /** Saldo berjalan (rupiah integer). Tidak boleh minus (CHECK di DB). */
     @Column(name = "saldo", nullable = false)
@@ -59,16 +52,16 @@ public class Saldo {
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
 
-    /** Kunci gabungan {@code (subjek_tipe, subjek_id)}. */
+    /** Kunci gabungan {@code (sekolah_id, siswa_id)}. */
     @Getter
     @Setter
     @NoArgsConstructor
     @AllArgsConstructor
     public static class SaldoId implements Serializable {
 
-        private SubjekTipe subjekTipe;
+        private Long sekolahId;
 
-        private Long subjekId;
+        private Long siswaId;
 
         @Override
         public boolean equals(Object o) {
@@ -78,12 +71,12 @@ public class Saldo {
             if (!(o instanceof SaldoId other)) {
                 return false;
             }
-            return subjekTipe == other.subjekTipe && Objects.equals(subjekId, other.subjekId);
+            return Objects.equals(sekolahId, other.sekolahId) && Objects.equals(siswaId, other.siswaId);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(subjekTipe, subjekId);
+            return Objects.hash(sekolahId, siswaId);
         }
     }
 }

@@ -21,7 +21,7 @@ public class TopUpRequest {
     private SubjekTipe subjekTipe;
 
     @NotNull(message = "ID subjek wajib diisi")
-    private Long subjekId;
+    private Long siswaId;
 
     @Min(value = 1, message = "Nominal top-up harus > 0")
     private long nominal;

@@ -33,7 +33,8 @@ public class PengaturanKantinResponse {
     /** Batas saldo maksimum per siswa; {@code null} = tanpa batas. */
     private Long batasSaldoSiswa;
     /** Batas saldo maksimum per Kartu Tamu; {@code null} = tanpa batas. */
-    private Long batasSaldoKartuTamu;
+    private String kebijakanSaldoMengendap;
+    private Integer ambangHari;
 
     /** Apakah baris pengaturan sudah benar-benar tersimpan (bukan default). */
     private boolean disimpan;
@@ -51,7 +52,8 @@ public class PengaturanKantinResponse {
                 .minTopup(c.getMinTopup())
                 .maksTopup(c.getMaksTopup())
                 .batasSaldoSiswa(c.getBatasSaldoSiswa())
-                .batasSaldoKartuTamu(c.getBatasSaldoKartuTamu())
+                .kebijakanSaldoMengendap(c.getKebijakanSaldoMengendap())
+                .ambangHari(c.getAmbangHari())
                 .disimpan(true)
                 .updatedAt(c.getUpdatedAt())
                 .build();

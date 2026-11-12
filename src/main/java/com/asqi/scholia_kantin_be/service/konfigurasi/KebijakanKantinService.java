@@ -1,11 +1,11 @@
 package com.asqi.scholia_kantin_be.service.konfigurasi;
 
-import com.asqi.scholia_kantin_be.component.logging.AuditLogger;
 import com.asqi.scholia_kantin_be.dto.KebijakanKantinResponse;
+import com.asqi.scholia_kantin_be.component.logging.AuditLogger;
 import com.asqi.scholia_kantin_be.enums.KebijakanSaldoMengendap;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
-import com.asqi.scholia_kantin_be.model.KebijakanKantin;
-import com.asqi.scholia_kantin_be.repository.KebijakanKantinRepository;
+import com.asqi.scholia_kantin_be.model.PengaturanKantin;
+import com.asqi.scholia_kantin_be.repository.PengaturanKantinRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,7 +32,7 @@ public class KebijakanKantinService {
     /** Default ambang hari: 90 hari setelah lulus. */
     private static final int DEFAULT_AMBANG_HARI = 90;
 
-    private final KebijakanKantinRepository kebijakanRepo;
+    private final PengaturanKantinRepository kebijakanRepo;
     private final JamKantin jam;
     private final AuditLogger auditLogger;
 
@@ -61,19 +61,24 @@ public class KebijakanKantinService {
         KebijakanSaldoMengendap baru = (kebijakan == null) ? DEFAULT_KEBIJAKAN : kebijakan;
         int ambang = Math.max(0, ambangHari);
 
-        KebijakanKantin baris = kebijakanRepo.findById(sekolahId)
-                .orElseGet(() -> KebijakanKantin.builder()
+        PengaturanKantin baris = kebijakanRepo.findById(sekolahId)
+                .orElseGet(() -> PengaturanKantin.builder()
                         .sekolahId(sekolahId)
+                        .jamTutupOtomatis(PengaturanKantinService.DEFAULT_JAM_TUTUP)
+                        .konfirmasiManual(false)
+                        .durasiFotoDetik(PengaturanKantinService.DEFAULT_DURASI_FOTO_DETIK)
+                        .kebijakanSaldoMengendap(DEFAULT_KEBIJAKAN.name())
+                        .ambangHari(DEFAULT_AMBANG_HARI)
+                        .createdAt(jam.sekarang())
                         .build());
         String lama = baris.getKebijakanSaldoMengendap();
         baris.setKebijakanSaldoMengendap(baru.name());
         baris.setAmbangHari(ambang);
-        baris.setCatatan(catatan);
         baris.setDiperbaruiOleh(aktorId);
         baris.setUpdatedAt(jam.sekarang());
         kebijakanRepo.save(baris);
 
-        auditLogger.catat(aktorId, sekolahId, "UBAH_KEBIJAKAN_KANTIN", "KebijakanKantin",
+        auditLogger.catat(aktorId, sekolahId, "UBAH_KEBIJAKAN_KANTIN", "PengaturanKantin",
                 String.valueOf(sekolahId), catatan,
                 lama == null ? DEFAULT_KEBIJAKAN.name() : lama, baru.name());
         log.info("Kebijakan kantin sekolah={} diubah → saldoMengendap={} ambangHari={}",

@@ -2,7 +2,6 @@ package com.asqi.scholia_kantin_be.repository;
 
 import com.asqi.scholia_kantin_be.enums.ArahMutasi;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
-import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.model.MutasiSaldo;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -65,12 +64,10 @@ public interface MutasiSaldoRepository extends JpaRepository<MutasiSaldo, Long>,
             SELECT COALESCE(SUM(CASE WHEN l.arah = :kredit THEN l.nominal ELSE -l.nominal END), 0)
             FROM MutasiSaldo l
             WHERE l.sekolahId = :sekolahId
-              AND l.subjekTipe = :subjekTipe
-              AND l.subjekId = :subjekId
+              AND l.siswaId = :siswaId
             """)
     Long hitungSaldoDariLedger(@Param("sekolahId") Long sekolahId,
-                               @Param("subjekTipe") SubjekTipe subjekTipe,
-                               @Param("subjekId") Long subjekId,
+                               @Param("siswaId") Long siswaId,
                                @Param("kredit") ArahMutasi kredit);
 
     /**
@@ -86,14 +83,12 @@ public interface MutasiSaldoRepository extends JpaRepository<MutasiSaldo, Long>,
             SELECT COALESCE(SUM(CASE WHEN l.arah = :debit THEN l.nominal ELSE -l.nominal END), 0)
             FROM MutasiSaldo l
             WHERE l.sekolahId = :sekolahId
-              AND l.subjekTipe = :subjekTipe
-              AND l.subjekId = :subjekId
+              AND l.siswaId = :siswaId
               AND l.jenis IN :jenis
               AND l.waktu >= :sejak
             """)
     Long hitungBelanjaBersihSejak(@Param("sekolahId") Long sekolahId,
-                                  @Param("subjekTipe") SubjekTipe subjekTipe,
-                                  @Param("subjekId") Long subjekId,
+                                  @Param("siswaId") Long siswaId,
                                   @Param("debit") ArahMutasi debit,
                                   @Param("jenis") java.util.Collection<JenisMutasiSaldo> jenis,
                                   @Param("sejak") OffsetDateTime sejak);
@@ -103,16 +98,14 @@ public interface MutasiSaldoRepository extends JpaRepository<MutasiSaldo, Long>,
      * batch. Tenant-scoped; subjek tanpa mutasi tidak muncul di hasil.
      */
     @Query("""
-            SELECT l.subjekId, MAX(l.waktu)
+            SELECT l.siswaId, MAX(l.waktu)
             FROM MutasiSaldo l
             WHERE l.sekolahId = :sekolahId
-              AND l.subjekTipe = :subjekTipe
-              AND l.subjekId IN :subjekIds
-            GROUP BY l.subjekId
+              AND l.siswaId IN :siswaIds
+            GROUP BY l.siswaId
             """)
     List<Object[]> waktuTerakhirPerSubjek(@Param("sekolahId") Long sekolahId,
-                                          @Param("subjekTipe") SubjekTipe subjekTipe,
-                                          @Param("subjekIds") List<Long> subjekIds);
+                                          @Param("siswaIds") List<Long> siswaIds);
 
     /**
      * Riwayat mutasi terbaru satu subjek (PRD §8.4) — urut id turun (id
@@ -121,13 +114,11 @@ public interface MutasiSaldoRepository extends JpaRepository<MutasiSaldo, Long>,
     @Query("""
             SELECT l FROM MutasiSaldo l
             WHERE l.sekolahId = :sekolahId
-              AND l.subjekTipe = :subjekTipe
-              AND l.subjekId = :subjekId
+              AND l.siswaId = :siswaId
             ORDER BY l.id DESC
             """)
     List<MutasiSaldo> riwayatTerbaru(@Param("sekolahId") Long sekolahId,
-                                     @Param("subjekTipe") SubjekTipe subjekTipe,
-                                     @Param("subjekId") Long subjekId,
+                                     @Param("siswaId") Long siswaId,
                                      Pageable pageable);
 
     /**
@@ -176,14 +167,12 @@ public interface MutasiSaldoRepository extends JpaRepository<MutasiSaldo, Long>,
     @Query("""
             SELECT l FROM MutasiSaldo l
             WHERE l.sekolahId = :sekolahId
-              AND l.subjekTipe = :subjekTipe
-              AND l.subjekId = :subjekId
+              AND l.siswaId = :siswaId
               AND l.waktu >= :dari AND l.waktu < :sampai
             ORDER BY l.id ASC
             """)
     List<MutasiSaldo> padaRentangSubjek(@Param("sekolahId") Long sekolahId,
-                                        @Param("subjekTipe") SubjekTipe subjekTipe,
-                                        @Param("subjekId") Long subjekId,
+                                        @Param("siswaId") Long siswaId,
                                         @Param("dari") OffsetDateTime dari,
                                         @Param("sampai") OffsetDateTime sampai);
 

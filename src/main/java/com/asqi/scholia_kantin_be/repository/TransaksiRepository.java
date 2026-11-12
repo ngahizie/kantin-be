@@ -49,8 +49,8 @@ public interface TransaksiRepository extends JpaRepository<Transaksi, Long>,
     Page<Transaksi> findBySesiKasirIdAndStatus(Long sesiKasirId, StatusTransaksi status, Pageable pageable);
 
     /** Riwayat transaksi per subjek (siswa / kartu tamu) untuk ortu &amp; laporan. */
-    Page<Transaksi> findBySekolahIdAndSubjekTipeAndSubjekIdOrderByIdDesc(
-            Long sekolahId, com.asqi.scholia_kantin_be.enums.SubjekTipe subjekTipe, Long subjekId, Pageable pageable);
+    Page<Transaksi> findBySekolahIdAndSiswaIdOrderByIdDesc(
+            Long sekolahId, Long siswaId, Pageable pageable);
 
     /**
      * Rekap sesi: jumlah transaksi &amp; total per status.
@@ -192,14 +192,12 @@ public interface TransaksiRepository extends JpaRepository<Transaksi, Long>,
     @Query("""
             SELECT t FROM Transaksi t
             WHERE t.sekolahId = :sekolahId
-              AND t.subjekTipe = :subjekTipe
-              AND t.subjekId = :subjekId
+              AND t.siswaId = :siswaId
               AND t.waktu >= :dari AND t.waktu < :sampai
             ORDER BY t.waktu ASC
             """)
     List<Transaksi> transaksiSubjekRentang(@Param("sekolahId") Long sekolahId,
-                                           @Param("subjekTipe") com.asqi.scholia_kantin_be.enums.SubjekTipe subjekTipe,
-                                           @Param("subjekId") Long subjekId,
+                                           @Param("siswaId") Long siswaId,
                                            @Param("dari") OffsetDateTime dari,
                                            @Param("sampai") OffsetDateTime sampai);
 }

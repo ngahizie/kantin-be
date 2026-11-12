@@ -70,10 +70,10 @@ public class RefundSaldoService {
      */
     @Transactional(readOnly = true)
     public List<KandidatRefundItem> daftarKandidat(Long sekolahId, boolean hanyaTidakAktif) {
-        List<Saldo> baris = cacheRepo.findBySekolahIdAndSubjekTipe(sekolahId, SubjekTipe.SISWA)
+        List<Saldo> baris = cacheRepo.findBySekolahId(sekolahId)
                 .stream()
                 .filter(c -> c.getSaldo() != null && c.getSaldo() > 0)
-                .filter(c -> c.getSubjekId() != null)
+                .filter(c -> c.getSiswaId() != null)
                 .toList();
         if (baris.isEmpty()) {
             return List.of();
@@ -81,14 +81,14 @@ public class RefundSaldoService {
 
         // Dua panggilan batch untuk SEMUA kandidat — bukan satu panggilan per siswa
         // (issue #298: hindari N+1 lintas layanan).
-        List<Long> ids = baris.stream().map(Saldo::getSubjekId).distinct().toList();
+        List<Long> ids = baris.stream().map(Saldo::getSiswaId).distinct().toList();
         Map<Long, InfoSiswa> identitas = cariSiswaService.identitasBanyak(sekolahId, ids);
         Map<Long, Boolean> status = statusSiswa.tidakAktifBanyak(sekolahId, ids);
 
         return baris.stream()
                 .map(c -> {
-                    InfoSiswa s = identitas.get(c.getSubjekId());
-                    Boolean tidakAktif = status.get(c.getSubjekId());
+                    InfoSiswa s = identitas.get(c.getSiswaId());
+                    Boolean tidakAktif = status.get(c.getSiswaId());
                     // Port status tetap sumber utama; bila tidak tahu, pakai flag dari
                     // data identitas admin-be. Tidak ada alasan (lulus/pindah/keluar)
                     // yang dikarang — kontraknya belum tersedia.
@@ -96,7 +96,7 @@ public class RefundSaldoService {
                         tidakAktif = s.getTidakAktif();
                     }
                     return KandidatRefundItem.builder()
-                            .subjekId(c.getSubjekId())
+                            .siswaId(c.getSiswaId())
                             .saldo(c.getSaldo())
                             .nis(s == null ? null : s.getNis())
                             .nama(s == null ? null : s.getNama())
@@ -132,8 +132,7 @@ public class RefundSaldoService {
 
         HasilMutasiSaldo hasil = ledgerSaldo.debitSisaPenuh(PerintahMutasiSaldo.builder()
                 .sekolahId(sekolahId)
-                .subjekTipe(SubjekTipe.SISWA)
-                .subjekId(siswaId)
+                .siswaId(siswaId)
                 .jenis(JenisMutasiSaldo.REFUND)
                 .nominal(0L)
                 .idempotencyKey("REFUND-" + referensiId)
@@ -146,9 +145,8 @@ public class RefundSaldoService {
         long nominal = hasil.getMutasi().getNominal() == null ? 0L : hasil.getMutasi().getNominal();
         boolean diblokir = false;
         if (!hasil.isIdempotentReplay()) {
-            auditLogger.catat(aktorId, sekolahId, AKSI_REFUND, "Saldo",
-                    SubjekTipe.SISWA + ":" + siswaId, catatan,
-                    String.valueOf(nominal), "0");
+            auditLogger.catat(aktorId, sekolahId, AKSI_REFUND, "Saldo", String.valueOf(siswaId),
+                    catatan, String.valueOf(nominal), "0");
             if (hasil.getSaldoSetelah() == 0) {
                 statusSiswa.blokirKartu(sekolahId, siswaId, "Siswa keluar — saldo di-refund");
                 diblokir = true;
@@ -160,8 +158,7 @@ public class RefundSaldoService {
             notifikasi.kirim(PerintahNotifikasi.builder()
                     .sekolahId(sekolahId)
                     .jenis(JenisNotifikasi.REFUND)
-                    .subjekTipe(SubjekTipe.SISWA)
-                    .subjekId(siswaId)
+                    .siswaId(siswaId)
                     .nominal(nominal)
                     .saldoSetelah(hasil.getSaldoSetelah())
                     .referensiId(referensiId)
@@ -171,7 +168,7 @@ public class RefundSaldoService {
         }
 
         return HasilRefundResponse.builder()
-                .subjekId(siswaId)
+                .siswaId(siswaId)
                 .nominal(nominal)
                 .referensiId(referensiId)
                 .saldoSetelah(hasil.getSaldoSetelah())
@@ -210,15 +207,13 @@ public class RefundSaldoService {
         String keterangan = "Pindah saldo ke saudara " + tujuanId
                 + (catatan == null || catatan.isBlank() ? "" : " — " + catatan);
 
-        HasilMutasiSaldo hasil = ledgerSaldo.pindahSaldo(sekolahId, SubjekTipe.SISWA,
-                sumberId, tujuanId, referensiId, keterangan, aktorId);
+        HasilMutasiSaldo hasil = ledgerSaldo.pindahSaldo(sekolahId, sumberId, tujuanId, referensiId, keterangan, aktorId);
 
         long nominal = hasil.getMutasi().getNominal() == null ? 0L : hasil.getMutasi().getNominal();
         boolean diblokir = false;
         if (!hasil.isIdempotentReplay()) {
-            auditLogger.catat(aktorId, sekolahId, AKSI_PINDAH, "Saldo",
-                    SubjekTipe.SISWA + ":" + sumberId, catatan,
-                    String.valueOf(nominal), "0");
+            auditLogger.catat(aktorId, sekolahId, AKSI_PINDAH, "Saldo", String.valueOf(sumberId),
+                    catatan, String.valueOf(nominal), "0");
             if (hasil.getSaldoSetelah() == 0) {
                 statusSiswa.blokirKartu(sekolahId, sumberId, "Siswa keluar — saldo dipindah ke saudara");
                 diblokir = true;
@@ -230,8 +225,7 @@ public class RefundSaldoService {
             notifikasi.kirim(PerintahNotifikasi.builder()
                     .sekolahId(sekolahId)
                     .jenis(JenisNotifikasi.PINDAH_SALDO)
-                    .subjekTipe(SubjekTipe.SISWA)
-                    .subjekId(sumberId)
+                    .siswaId(sumberId)
                     .nominal(nominal)
                     .saldoSetelah(hasil.getSaldoSetelah())
                     .referensiId(referensiId)
@@ -242,7 +236,7 @@ public class RefundSaldoService {
         }
 
         return HasilRefundResponse.builder()
-                .subjekId(sumberId)
+                .siswaId(sumberId)
                 .tujuanSubjekId(tujuanId)
                 .nominal(nominal)
                 .referensiId(referensiId)

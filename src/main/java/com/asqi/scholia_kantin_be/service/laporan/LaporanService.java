@@ -1,6 +1,5 @@
 package com.asqi.scholia_kantin_be.service.laporan;
 
-import com.asqi.scholia_kantin_be.dto.BarisKartuTamu;
 import com.asqi.scholia_kantin_be.dto.BarisKerugianStok;
 import com.asqi.scholia_kantin_be.dto.BarisPembatalanKasir;
 import com.asqi.scholia_kantin_be.dto.BarisPenjualanDimensi;
@@ -8,7 +7,6 @@ import com.asqi.scholia_kantin_be.dto.BarisPenjualanKasir;
 import com.asqi.scholia_kantin_be.dto.BarisPenjualan;
 import com.asqi.scholia_kantin_be.dto.BarisStok;
 import com.asqi.scholia_kantin_be.dto.KartuStokItem;
-import com.asqi.scholia_kantin_be.dto.KartuTamuSaldoDetail;
 import com.asqi.scholia_kantin_be.dto.LaporanPerSiswa;
 import com.asqi.scholia_kantin_be.dto.LaporanRiwayatKeseluruhanItem;
 import com.asqi.scholia_kantin_be.dto.LaporanRiwayatSiswa;
@@ -26,8 +24,8 @@ import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
-import com.asqi.scholia_kantin_be.model.BlokirKartu;
-import com.asqi.scholia_kantin_be.model.LimitHarian;
+import com.asqi.scholia_kantin_be.enums.JenisPembatasan;
+import com.asqi.scholia_kantin_be.model.Pembatasan;
 import com.asqi.scholia_kantin_be.model.KategoriMenu;
 import com.asqi.scholia_kantin_be.model.Menu;
 import com.asqi.scholia_kantin_be.model.RiwayatStok;
@@ -37,8 +35,7 @@ import com.asqi.scholia_kantin_be.model.Stok;
 import com.asqi.scholia_kantin_be.model.Transaksi;
 import com.asqi.scholia_kantin_be.model.TransaksiItem;
 import com.asqi.scholia_kantin_be.repository.KategoriMenuRepository;
-import com.asqi.scholia_kantin_be.repository.BlokirKartuRepository;
-import com.asqi.scholia_kantin_be.repository.LimitHarianRepository;
+import com.asqi.scholia_kantin_be.repository.PembatasanRepository;
 import com.asqi.scholia_kantin_be.repository.MenuRepository;
 import com.asqi.scholia_kantin_be.repository.RiwayatStokRepository;
 import com.asqi.scholia_kantin_be.repository.SaldoRepository;
@@ -101,12 +98,10 @@ public class LaporanService {
     private final StokRepository stokCacheRepo;
     private final MenuRepository menuRepo;
     private final KategoriMenuRepository kategoriRepo;
-    private final com.asqi.scholia_kantin_be.repository.KartuTamuRepository kartuTamuRepo;
     private final com.asqi.scholia_kantin_be.repository.TitikKasirRepository titikKasirRepo;
     private final HppService hppService;
     private final JamKantin jam;
-    private final BlokirKartuRepository blokirRepo;
-    private final LimitHarianRepository limitRepo;
+    private final PembatasanRepository pembatasanRepo;
     private final com.asqi.scholia_kantin_be.service.kasir.LedgerSaldoService ledgerSaldo;
     private final com.asqi.scholia_kantin_be.service.saldo.SetoranService setoranTuService;
     private final com.asqi.scholia_kantin_be.service.CariSiswaService cariSiswaService;
@@ -208,25 +203,15 @@ public class LaporanService {
     // Saldo mengendap (PRD §9.5)
     // ────────────────────────────────────────────────────────────────
 
-    /** Total dana titipan (kewajiban sekolah) — siswa + Kartu Tamu. */
+    /** Total dana titipan (kewajiban sekolah) — seluruhnya saldo siswa. */
     @Transactional(readOnly = true)
     public RingkasanSaldoMengendap saldoMengendap(Long sekolahId) {
-        long saldoSiswa = 0, saldoKartuTamu = 0, jumlahSiswa = 0, jumlahKartuTamu = 0;
-        for (Object[] b : saldoCacheRepo.totalMengendapPerTipe(sekolahId)) {
-            SubjekTipe tipe = (SubjekTipe) b[0];
-            long total = ((Number) b[1]).longValue();
-            long jumlah = ((Number) b[2]).longValue();
-            if (tipe == SubjekTipe.SISWA) {
-                saldoSiswa = total;
-                jumlahSiswa = jumlah;
-            } else if (tipe == SubjekTipe.KARTU_TAMU) {
-                saldoKartuTamu = total;
-                jumlahKartuTamu = jumlah;
-            }
+        long saldo = 0, jumlah = 0;
+        for (Object[] b : saldoCacheRepo.totalMengendap(sekolahId)) {
+            saldo = ((Number) b[0]).longValue();
+            jumlah = ((Number) b[1]).longValue();
         }
-        return new RingkasanSaldoMengendap(
-                saldoSiswa, saldoKartuTamu, saldoSiswa + saldoKartuTamu,
-                jumlahSiswa, jumlahKartuTamu);
+        return new RingkasanSaldoMengendap(saldo, saldo, jumlah);
     }
 
     /**
@@ -244,7 +229,7 @@ public class LaporanService {
                 .toList();
         Map<Long, OffsetDateTime> waktuTerakhir = new HashMap<>();
         if (!siswaIds.isEmpty()) {
-            saldoLedgerRepo.waktuTerakhirPerSubjek(sekolahId, SubjekTipe.SISWA, siswaIds)
+            saldoLedgerRepo.waktuTerakhirPerSubjek(sekolahId, siswaIds)
                     .forEach(baris -> waktuTerakhir.put(
                             ((Number) baris[0]).longValue(), (OffsetDateTime) baris[1]));
         }
@@ -252,20 +237,22 @@ public class LaporanService {
                 .map(siswa -> {
                     Long siswaId = siswa.getSiswaId();
                     Saldo cache = saldoCacheRepo
-                            .findBySekolahIdAndSubjekTipeAndSubjekId(sekolahId, SubjekTipe.SISWA, siswaId)
+                            .findBySekolahIdAndSiswaId(sekolahId, siswaId)
                             .orElse(null);
-                    BlokirKartu blokir = blokirRepo
-                            .findBySekolahIdAndSubjekTipeAndSubjekId(sekolahId, SubjekTipe.SISWA, siswaId)
-                            .orElse(null);
-                    Long limit = limitRepo
-                            .findBySekolahIdAndSubjekTipeAndSubjekId(sekolahId, SubjekTipe.SISWA, siswaId)
-                            .map(LimitHarian::getNominal)
+                    List<Pembatasan> pembatasan = pembatasanRepo
+                            .findBySekolahIdAndSiswaId(sekolahId, siswaId);
+                    boolean diblokir = pembatasan.stream()
+                            .anyMatch(x -> x.getJenis() == JenisPembatasan.BLOKIR_SISWA && x.isAktif());
+                    Long limit = pembatasan.stream()
+                            .filter(x -> x.getJenis() == JenisPembatasan.LIMIT_HARIAN && x.isAktif())
+                            .map(Pembatasan::getNominal)
+                            .findFirst()
                             .orElse(null);
                     return new SiswaSaldoDetail(
                             siswaId, siswa.getNis(), null, siswa.getNama(), siswa.getKelas(),
                             cache == null || cache.getSaldo() == null ? 0L : cache.getSaldo(),
-                            ledgerSaldo.belanjaHariIni(sekolahId, SubjekTipe.SISWA, siswaId),
-                            limit, blokir != null && blokir.isDiblokir(), null, null,
+                            ledgerSaldo.belanjaHariIni(sekolahId, siswaId),
+                            limit, diblokir, null, null,
                             waktuTerakhir.get(siswaId));
                 })
                 .toList();
@@ -499,40 +486,6 @@ public class LaporanService {
     }
 
     /**
-     * Laporan <b>Kartu Tamu</b> (PRD §9.5, issue #115): daftar kartu +
-     * label pemegang + saldo + status. Riwayat per kartu disediakan terpisah
-     * ({@code GET /api/kartu-tamu/{kartuId}/riwayat}). Tenant-scoped.
-     */
-    @Transactional(readOnly = true)
-    public List<BarisKartuTamu> laporanKartuTamu(Long sekolahId) {
-        Map<Long, Long> saldoByKartu = new HashMap<>();
-        for (var c : saldoCacheRepo.findBySekolahIdAndSubjekTipe(sekolahId, SubjekTipe.KARTU_TAMU)) {
-            saldoByKartu.put(c.getSubjekId(), c.getSaldo() == null ? 0L : c.getSaldo());
-        }
-        return kartuTamuRepo.findAllBySekolah(sekolahId, false).stream()
-                .map(k -> BarisKartuTamu.builder()
-                        .kartuId(k.getId())
-                        .nomorKartu(k.getNomorKartu())
-                        .labelPemegang(k.getLabelPemegang())
-                        .rfidUid(k.getRfidUid())
-                        .aktif(Boolean.TRUE.equals(k.getAktif()))
-                        .saldo(saldoByKartu.getOrDefault(k.getId(), 0L))
-                        .dibuatPada(k.getDibuatPada())
-                        .build())
-                .toList();
-    }
-
-    /**
-     * Laporan <b>Saldo mengendap — kartu tamu</b> (issue #225): bentuk yang
-     * dipakai FE {@code LaporanSaldoMengendapPage}. Isinya memetakan ulang
-     * {@link #laporanKartuTamu(Long)} — tidak ada query baru.
-     */
-    @Transactional(readOnly = true)
-    public List<KartuTamuSaldoDetail> laporanSaldoKartuTamu(Long sekolahId) {
-        return laporanKartuTamu(sekolahId).stream().map(KartuTamuSaldoDetail::dari).toList();
-    }
-
-    /**
      * Riwayat satu siswa untuk komplain orang tua (issue #223): profil + seluruh
      * mutasi saldo pada rentang, terbaru lebih dulu, dengan rincian belanja.
      *
@@ -547,15 +500,14 @@ public class LaporanService {
     @Transactional(readOnly = true)
     public LaporanRiwayatSiswa riwayatSiswa(Long sekolahId, Long siswaId,
                                             OffsetDateTime dari, OffsetDateTime sampai) {
-        Saldo cache = saldoCacheRepo.findBySubjekTipeAndSubjekId(SubjekTipe.SISWA, siswaId)
-                .filter(c -> sekolahId.equals(c.getSekolahId()))
+        Saldo cache = saldoCacheRepo.findBySekolahIdAndSiswaId(sekolahId, siswaId)
                 .orElseThrow(() -> new NotFoundEntity("Siswa " + siswaId + " tidak ditemukan"));
 
         OffsetDateTime akhir = sampai != null ? sampai : OffsetDateTime.now(jam.zona());
         OffsetDateTime awal = dari != null ? dari : akhir.minusDays(HARI_RIWAYAT_DEFAULT);
 
         List<MutasiSaldo> mutasi = new ArrayList<>(
-                saldoLedgerRepo.padaRentangSubjek(sekolahId, SubjekTipe.SISWA, siswaId, awal, akhir));
+                saldoLedgerRepo.padaRentangSubjek(sekolahId, siswaId, awal, akhir));
         mutasi.sort(Comparator.comparing(MutasiSaldo::getWaktu).reversed()
                 .thenComparing(MutasiSaldo::getId, Comparator.reverseOrder()));
 
@@ -598,14 +550,17 @@ public class LaporanService {
                     items);
         }).toList();
 
-        BlokirKartu blokir = blokirRepo
-                .findBySekolahIdAndSubjekTipeAndSubjekId(sekolahId, SubjekTipe.SISWA, siswaId)
-                .orElse(null);
-        long limit = limitRepo
-                .findBySekolahIdAndSubjekTipeAndSubjekId(sekolahId, SubjekTipe.SISWA, siswaId)
-                .map(LimitHarian::getNominal)
+        List<Pembatasan> pembatasan = pembatasanRepo
+                .findBySekolahIdAndSiswaId(sekolahId, siswaId);
+        long limit = pembatasan.stream()
+                .filter(x -> x.getJenis() == JenisPembatasan.LIMIT_HARIAN && x.isAktif())
+                .map(Pembatasan::getNominal)
+                .findFirst()
                 .orElse(0L);
-        boolean diblokir = blokir != null && blokir.isDiblokir();
+        Pembatasan blokir = pembatasan.stream()
+                .filter(x -> x.getJenis() == JenisPembatasan.BLOKIR_SISWA && x.isAktif())
+                .findFirst().orElse(null);
+        boolean diblokir = blokir != null;
 
         // Identitas siswa (NIS/nama/kelas) berasal dari admin-be lewat lookup per ID
         // (issue #297). Fail-open: bila integrasi belum aktif / siswa tidak ditemukan,
@@ -623,12 +578,13 @@ public class LaporanService {
                 identitas == null ? null : identitas.getNis(),
                 identitas == null ? null : identitas.getNama(),
                 identitas == null ? null : identitas.getKelas(),
-                null,
+                identitas == null ? null : identitas.getFotoUrl(),
                 cache.getSaldo() == null ? 0L : cache.getSaldo(),
-                ledgerSaldo.belanjaHariIni(sekolahId, SubjekTipe.SISWA, siswaId),
+                ledgerSaldo.belanjaHariIni(sekolahId, siswaId),
                 limit,
                 diblokir,
-                null, null,
+                identitas == null ? null : identitas.getNamaOrangTua(),
+                identitas == null ? null : identitas.getTeleponOrangTua(),
                 diblokir ? blokir.getAlasan() : null);
 
         return new LaporanRiwayatSiswa(profil, riwayat);
@@ -691,9 +647,9 @@ public class LaporanService {
                             i.getQty(), i.getHargaJual(), i.getSubtotal()))
                     .toList();
 
-            Long sId = l.getSubjekId();
+            Long sId = l.getSiswaId();
             com.asqi.scholia_kantin_be.service.integrasi.InfoSiswa info =
-                    (l.getSubjekTipe() == SubjekTipe.SISWA && sId != null) ? siswaById.get(sId) : null;
+                    sId != null ? siswaById.get(sId) : null;
             String siswaNama = info != null ? info.getNama() : null;
             String siswaNis = info != null ? info.getNis() : null;
             String siswaKelas = info != null ? info.getKelas() : null;
@@ -814,11 +770,11 @@ public class LaporanService {
      * mutasi saldo. Untuk menjawab komplain orang tua. Tenant-scoped.
      */
     @Transactional(readOnly = true)
-    public LaporanPerSiswa laporanPerSiswa(Long sekolahId, SubjekTipe subjekTipe, Long subjekId,
+    public LaporanPerSiswa laporanPerSiswa(Long sekolahId, Long siswaId,
                                            LocalDate tanggal, OffsetDateTime dari, OffsetDateTime sampai) {
         OffsetDateTime[] r = rentang(tanggal, dari, sampai);
-        List<Transaksi> trx = transaksiRepo.transaksiSubjekRentang(sekolahId, subjekTipe, subjekId, r[0], r[1]);
-        List<MutasiSaldo> mutasi = saldoLedgerRepo.padaRentangSubjek(sekolahId, subjekTipe, subjekId, r[0], r[1]);
+        List<Transaksi> trx = transaksiRepo.transaksiSubjekRentang(sekolahId, siswaId, r[0], r[1]);
+        List<MutasiSaldo> mutasi = saldoLedgerRepo.padaRentangSubjek(sekolahId, siswaId, r[0], r[1]);
 
         long jmlSukses = 0, nilaiSukses = 0, jmlVoid = 0, nilaiVoid = 0, totalHpp = 0, totalTopup = 0;
         for (Transaksi t : trx) {
@@ -837,12 +793,11 @@ public class LaporanService {
             }
         }
 
-        long saldo = saldoCacheRepo.findBySubjekTipeAndSubjekId(subjekTipe, subjekId)
-                .filter(c -> c.getSekolahId().equals(sekolahId))
+        long saldo = saldoCacheRepo.findBySekolahIdAndSiswaId(sekolahId, siswaId)
                 .map(c -> c.getSaldo() == null ? 0L : c.getSaldo())
                 .orElse(0L);
 
-        return new LaporanPerSiswa(subjekTipe, subjekId, saldo, label(r),
+        return new LaporanPerSiswa(SubjekTipe.SISWA, siswaId, saldo, label(r),
                 new LaporanPerSiswa.Ringkasan(jmlSukses, nilaiSukses, jmlVoid, nilaiVoid, totalTopup, totalHpp),
                 trx.stream().map(LaporanPerSiswa.BarisTransaksi::dari).toList(),
                 mutasi.stream().map(LaporanPerSiswa.BarisMutasi::dari).toList());

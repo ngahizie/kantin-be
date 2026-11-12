@@ -19,7 +19,7 @@ import java.time.OffsetDateTime;
  *
  * <p>PK = {@code sekolah_id} (satu baris per sekolah). Menyimpan: nama kantin,
  * jam tutup kasir otomatis, konfirmasi manual, durasi foto, min/maks top-up,
- * serta batas saldo maksimum per siswa &amp; per Kartu Tamu.
+ * serta batas saldo maksimum per siswa dan kebijakan saldo mengendap.
  *
  * <p>Entity <b>mutable</b> — pengaturan boleh berubah; setiap perubahan dicatat
  * di {@code audit_log} (PRD §11.7).
@@ -28,7 +28,7 @@ import java.time.OffsetDateTime;
  * itu milik internal-be (OPEN-QUESTIONS Q6), diakses lewat port.
  */
 @Entity
-@Table(name = "sekolah_kantin_config")
+@Table(name = "pengaturan_kantin")
 @Getter
 @Setter
 @Builder
@@ -67,9 +67,17 @@ public class PengaturanKantin {
     @Column(name = "batas_saldo_siswa")
     private Long batasSaldoSiswa;
 
-    /** Batas saldo maksimum per Kartu Tamu (rupiah); {@code null} = tanpa batas. */
-    @Column(name = "batas_saldo_kartu_tamu")
-    private Long batasSaldoKartuTamu;
+    /**
+     * Kebijakan saldo mengendap siswa lulus/keluar (nama enum
+     * {@link com.asqi.scholia_kantin_be.enums.KebijakanSaldoMengendap}).
+     * Default {@code REFUND} (PRD §9.3, Q16).
+     */
+    @Column(name = "kebijakan_saldo_mengendap", nullable = false, length = 30)
+    private String kebijakanSaldoMengendap;
+
+    /** Ambang hari tindak lanjut saldo mengendap (default 90 hari). */
+    @Column(name = "ambang_hari", nullable = false)
+    private Integer ambangHari;
 
     @Column(name = "diperbarui_oleh")
     private Long diperbaruiOleh;

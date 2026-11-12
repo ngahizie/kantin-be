@@ -1,6 +1,6 @@
 package com.asqi.scholia_kantin_be.dto;
 
-import com.asqi.scholia_kantin_be.model.KebijakanKantin;
+import com.asqi.scholia_kantin_be.model.PengaturanKantin;
 import lombok.Builder;
 import lombok.Data;
 
@@ -20,12 +20,12 @@ public class KebijakanKantinResponse {
     private OffsetDateTime updatedAt;
 
     /** Proyeksi entitas → DTO. */
-    public static KebijakanKantinResponse dari(KebijakanKantin k) {
+    public static KebijakanKantinResponse dari(PengaturanKantin k) {
         return KebijakanKantinResponse.builder()
                 .sekolahId(k.getSekolahId())
                 .kebijakanSaldoMengendap(k.getKebijakanSaldoMengendap())
                 .ambangHari(k.getAmbangHari())
-                .catatan(k.getCatatan())
+                .catatan(null)
                 .updatedAt(k.getUpdatedAt())
                 .build();
     }

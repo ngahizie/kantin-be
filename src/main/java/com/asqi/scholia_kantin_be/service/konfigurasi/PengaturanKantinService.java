@@ -37,6 +37,12 @@ public class PengaturanKantinService {
     /** Default durasi tampil foto setelah transaksi (PRD §6.1). */
     public static final int DEFAULT_DURASI_FOTO_DETIK = 3;
 
+    /** Default kebijakan saldo mengendap: kembalikan ke ortu (PRD §9.3). */
+    public static final String KEBIJAKAN_DEFAULT = "REFUND";
+
+    /** Default ambang hari tindak lanjut saldo mengendap. */
+    public static final int AMBANG_HARI_DEFAULT = 90;
+
     private final PengaturanKantinRepository repo;
     private final JamKantin jam;
     private final AuditLogger auditLogger;
@@ -84,6 +90,8 @@ public class PengaturanKantinService {
                         .jamTutupOtomatis(DEFAULT_JAM_TUTUP)
                         .konfirmasiManual(false)
                         .durasiFotoDetik(DEFAULT_DURASI_FOTO_DETIK)
+                        .kebijakanSaldoMengendap(KEBIJAKAN_DEFAULT)
+                        .ambangHari(AMBANG_HARI_DEFAULT)
                         .createdAt(now)
                         .build());
 
@@ -112,8 +120,11 @@ public class PengaturanKantinService {
         if (request.getBatasSaldoSiswa() != null) {
             baris.setBatasSaldoSiswa(request.getBatasSaldoSiswa());
         }
-        if (request.getBatasSaldoKartuTamu() != null) {
-            baris.setBatasSaldoKartuTamu(request.getBatasSaldoKartuTamu());
+        if (request.getKebijakanSaldoMengendap() != null) {
+            baris.setKebijakanSaldoMengendap(request.getKebijakanSaldoMengendap().trim().toUpperCase());
+        }
+        if (request.getAmbangHari() != null) {
+            baris.setAmbangHari(Math.max(0, request.getAmbangHari()));
         }
         baris.setDiperbaruiOleh(aktorId);
         baris.setUpdatedAt(now);
@@ -134,6 +145,7 @@ public class PengaturanKantinService {
                 + ";minTopup=" + c.getMinTopup()
                 + ";maksTopup=" + c.getMaksTopup()
                 + ";batasSaldoSiswa=" + c.getBatasSaldoSiswa()
-                + ";batasSaldoKartuTamu=" + c.getBatasSaldoKartuTamu();
+                + ";kebijakanSaldoMengendap=" + c.getKebijakanSaldoMengendap()
+                + ";ambangHari=" + c.getAmbangHari();
     }
 }

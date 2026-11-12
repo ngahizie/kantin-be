@@ -68,7 +68,7 @@ public class SaldoController {
             @AuthenticationPrincipal IdentitasKantin identitas) {
 
         HasilMutasiSaldo hasil = topUpService.topUpTunai(
-                TenantContext.sekolahIdWajib(), request.getSubjekTipe(), request.getSubjekId(),
+                TenantContext.sekolahIdWajib(), request.getSubjekTipe(), request.getSiswaId(),
                 request.getNominal(), request.getPenyetor(), request.getReferensiId(),
                 identitas.aktorIdWajib());
         return CommonResponse.data(hasil, "Top-up berhasil");
@@ -85,7 +85,7 @@ public class SaldoController {
             @AuthenticationPrincipal IdentitasKantin identitas) {
 
         HasilMutasiSaldo hasil = topUpService.koreksi(
-                TenantContext.sekolahIdWajib(), request.getSubjekTipe(), request.getSubjekId(),
+                TenantContext.sekolahIdWajib(), request.getSubjekTipe(), request.getSiswaId(),
                 request.getArah(), request.getNominal(), request.getAlasan(),
                 request.getReferensiId(), identitas.aktorIdWajib());
         return CommonResponse.data(hasil, "Koreksi saldo berhasil");
@@ -98,7 +98,7 @@ public class SaldoController {
      * dulu, berhalaman.
      *
      * <p>Filter opsional: {@code tanggal} ({@code yyyy-MM-dd}, menurut zona waktu
-     * sekolah), {@code subjekTipe}, {@code subjekId}. Tenant selalu dari token
+     * sekolah), {@code siswaId}. Tenant selalu dari token
      * (PRD §11.4), bukan parameter klien. Kepsek boleh (read-only).
      */
     @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.KEPSEK})
@@ -106,13 +106,12 @@ public class SaldoController {
     public ResponseEntity<Response<HalamanResponse<MutasiKoreksiItem>>> daftarKoreksi(
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tanggal,
-            @RequestParam(required = false) SubjekTipe subjekTipe,
-            @RequestParam(required = false) Long subjekId,
+                        @RequestParam(required = false) Long siswaId,
             @RequestParam(defaultValue = "0") int halaman,
             @RequestParam(defaultValue = "20") int ukuran) {
 
         return CommonResponse.data(operasi.daftarKoreksi(
-                TenantContext.sekolahIdWajib(), tanggal, subjekTipe, subjekId, halaman, ukuran));
+                TenantContext.sekolahIdWajib(), tanggal, siswaId, halaman, ukuran));
     }
 
     /** Saldo berjalan + belanja hari ini + mutasi terbaru (PRD §9.3). */
@@ -120,23 +119,21 @@ public class SaldoController {
             AktorKantin.PENGELOLA_KANTIN, AktorKantin.ADMIN_SEKOLAH})
     @GetMapping
     public ResponseEntity<Response<SaldoResponse>> lihat(
-            @RequestParam SubjekTipe subjekTipe,
-            @RequestParam Long subjekId,
+            @RequestParam Long siswaId,
             @RequestParam(defaultValue = "20") int batasMutasi) {
 
         return CommonResponse.data(operasi.lihat(
-                TenantContext.sekolahIdWajib(), subjekTipe, subjekId, batasMutasi));
+                TenantContext.sekolahIdWajib(), siswaId, batasMutasi));
     }
 
     /** Rekonsiliasi: hitung ulang saldo dari ledger (harus sama dengan cache). */
     @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
     @GetMapping("rekonsiliasi")
     public ResponseEntity<Response<Long>> rekonsiliasi(
-            @RequestParam SubjekTipe subjekTipe,
-            @RequestParam Long subjekId) {
+            @RequestParam Long siswaId) {
 
         long dariLedger = operasi.hitungUlangDariLedger(
-                TenantContext.sekolahIdWajib(), subjekTipe, subjekId);
+                TenantContext.sekolahIdWajib(), siswaId);
         return CommonResponse.data(dariLedger, "Saldo hasil hitung ulang ledger");
     }
 
@@ -173,7 +170,7 @@ public class SaldoController {
             @AuthenticationPrincipal IdentitasKantin identitas) {
 
         HasilRefundResponse hasil = refundService.refund(
-                TenantContext.sekolahIdWajib(), request.getSubjekId(), request.getReferensiId(),
+                TenantContext.sekolahIdWajib(), request.getSiswaId(), request.getReferensiId(),
                 request.getCatatan(), identitas.aktorIdWajib());
         return CommonResponse.data(hasil, "Refund saldo berhasil");
     }

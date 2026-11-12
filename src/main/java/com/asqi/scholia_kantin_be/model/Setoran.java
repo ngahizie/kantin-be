@@ -31,7 +31,7 @@ import java.time.OffsetDateTime;
  * dari aplikasi ({@code IdGenerator}), bukan autoincrement.
  */
 @Entity
-@Table(name = "setoran_tu")
+@Table(name = "setoran")
 @Immutable
 @Getter
 @Builder

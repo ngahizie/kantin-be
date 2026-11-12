@@ -8,8 +8,6 @@ import com.asqi.scholia_kantin_be.config.ratelimit.RateLimitFilter;
 import com.asqi.scholia_kantin_be.config.ratelimit.RateLimitProperties;
 import com.asqi.scholia_kantin_be.config.security.jwt.JwtAuthTokenFilter;
 import com.asqi.scholia_kantin_be.config.security.jwt.JwtAuthenticationEntryPoint;
-import com.asqi.scholia_kantin_be.config.webhook.WebhookProperties;
-import com.asqi.scholia_kantin_be.config.webhook.WebhookSignatureFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -45,12 +43,12 @@ import java.util.List;
  *       ({@code @PreAuthorize}) di controller — dicek di backend (PRD §11.5).</li>
  * </ul>
  *
- * <p>Endpoint publik yang dikecualikan: health/actuator + webhook dari SKOOLIA
- * (callback top-up, sinkronisasi kartu). Webhook <b>bukan</b> endpoint tanpa
- * autentikasi: {@code permitAll} hanya mematikan cek token user, sementara
- * {@link WebhookSignatureFilter} mewajibkan <b>HMAC-SHA256 sah + anti-replay</b>
- * (SECURITY.md §5, BUGS-DITEMUKAN B34). Tanpa rahasia webhook terkonfigurasi,
- * endpoint itu fail-closed (503).
+ * <p>Endpoint publik yang dikecualikan: health/actuator dan endpoint internal
+ * antar-layanan. Endpoint internal <b>bukan</b> endpoint tanpa autentikasi:
+ * {@code permitAll} hanya mematikan cek token user, sementara
+ * {@link InternalSignatureFilter} mewajibkan <b>HMAC-SHA256 sah + anti-replay</b>
+ * (SECURITY.md §5). Tanpa rahasia internal terkonfigurasi, endpoint itu
+ * fail-closed (503).
  */
 @Configuration
 @EnableWebSecurity
@@ -58,7 +56,6 @@ import java.util.List;
 @EnableConfigurationProperties({JwtProperties.class,
         com.asqi.scholia_kantin_be.config.security.jwt.JwtConfigValues.class,
         RateLimitProperties.class,
-        WebhookProperties.class,
         com.asqi.scholia_kantin_be.dev.DevLoginProperties.class,
         com.asqi.scholia_kantin_be.config.KantinProfilProperties.class,
         com.asqi.scholia_kantin_be.config.TopologiProperties.class,
@@ -70,7 +67,6 @@ public class WebSecurityConfig {
     private final JwtAuthTokenFilter jwtAuthTokenFilter;
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     private final RateLimitFilter rateLimitFilter;
-    private final WebhookSignatureFilter webhookSignatureFilter;
     private final InternalSignatureFilter internalSignatureFilter;
     private final AktivasiModulFilter aktivasiModulFilter;
 
@@ -78,7 +74,6 @@ public class WebSecurityConfig {
     private static final String[] PUBLIC_ENDPOINTS = {
             "/actuator/health/**",
             "/actuator/info",
-            "/api/webhook/**",
             "/api/internal/**",
             "/error"
     };
@@ -116,7 +111,7 @@ public class WebSecurityConfig {
 
         java.util.List<String> publik = new java.util.ArrayList<>(java.util.Arrays.asList(
                 devLoginEnabled
-                        ? new String[]{"/actuator/health/**", "/actuator/info", "/api/webhook/**",
+                        ? new String[]{"/actuator/health/**", "/actuator/info",
                                 "/api/internal/**", "/error", "/api/v1/auth/login"}
                         : PUBLIC_ENDPOINTS));
         // Metrik Prometheus (issue #146) — publik bila diaktifkan agar bisa
@@ -145,7 +140,7 @@ public class WebSecurityConfig {
                 ex.authenticationEntryPoint(jwtAuthenticationEntryPoint));
 
         // Urutan filter: JWT dulu agar identitas (sekolah:user) tersedia untuk
-        // rate limit, lalu verifikasi signature webhook (khusus /api/webhook/**),
+        // rate limit, lalu verifikasi signature internal (khusus /api/internal/**),
         // lalu rate limit sebelum pemrosesan request.
         // Ketiga filter didaftarkan manual di sini; auto-registrasi servlet
         // container dimatikan lewat FilterRegistrationBean di bawah (B33/#13).
@@ -154,9 +149,8 @@ public class WebSecurityConfig {
         http.addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class);
         http.addFilterBefore(aktivasiModulFilter, RateLimitFilter.class);
         http.addFilterBefore(jwtAuthTokenFilter, AktivasiModulFilter.class);
-        http.addFilterAfter(webhookSignatureFilter, JwtAuthTokenFilter.class);
         // Endpoint internal (mesin-ke-mesin, issue #29) — verifikasi HMAC terpisah.
-        http.addFilterAfter(internalSignatureFilter, WebhookSignatureFilter.class);
+        http.addFilterAfter(internalSignatureFilter, JwtAuthTokenFilter.class);
 
         return http.build();
     }
@@ -201,28 +195,6 @@ public class WebSecurityConfig {
         return reg;
     }
 
-    /**
-     * Matikan auto-registrasi {@link WebhookSignatureFilter} oleh servlet
-     * container (Spring Boot mendaftarkan setiap bean {@code Filter}).
-     *
-     * <p>Tanpa ini, filter ber-{@code @Component} ikut dipasang di rantai
-     * servlet <b>dan</b> di rantai Spring Security → verifikasi HMAC berjalan
-     * dua kali (pemborosan + risiko baca badan dua kali). Ini adalah masalah
-     * urutan ganda yang sama dengan catatan B33; di sini dicegah sejak awal.
-     */
-    @Bean
-    public FilterRegistrationBean<WebhookSignatureFilter>
-    webhookSignatureFilterRegistration(WebhookSignatureFilter filter) {
-        FilterRegistrationBean<WebhookSignatureFilter> reg = new FilterRegistrationBean<>(filter);
-        reg.setEnabled(false);
-        return reg;
-    }
-
-    /**
-     * Matikan auto-registrasi {@link InternalSignatureFilter} oleh servlet
-     * container (masalah urutan ganda yang sama dengan B33) — filter hanya
-     * dipasang sekali di rantai Spring Security.
-     */
     @Bean
     public FilterRegistrationBean<InternalSignatureFilter>
     internalSignatureFilterRegistration(InternalSignatureFilter filter) {

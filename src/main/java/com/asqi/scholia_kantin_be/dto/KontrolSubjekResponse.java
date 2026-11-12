@@ -16,7 +16,7 @@ import java.util.List;
 public class KontrolSubjekResponse {
 
     private String subjekTipe;
-    private Long subjekId;
+    private Long siswaId;
 
     /** Kartu diblokir (tap ditolak). */
     private boolean diblokir;

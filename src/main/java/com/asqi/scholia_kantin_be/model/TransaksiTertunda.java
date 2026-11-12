@@ -1,7 +1,6 @@
 package com.asqi.scholia_kantin_be.model;
 
 import com.asqi.scholia_kantin_be.enums.StatusPendingTap;
-import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -35,7 +34,7 @@ import java.time.OffsetDateTime;
  * konfirmasi).
  */
 @Entity
-@Table(name = "transaksi_menunggu_konfirmasi")
+@Table(name = "transaksi_tertunda")
 @Getter
 @Setter
 @Builder
@@ -65,12 +64,8 @@ public class TransaksiTertunda implements Persistable<Long> {
     @Column(name = "titik_kasir_id", nullable = false)
     private Long titikKasirId;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "subjek_tipe", length = 20)
-    private SubjekTipe subjekTipe;
-
-    @Column(name = "subjek_id")
-    private Long subjekId;
+    @Column(name = "siswa_id", nullable = false)
+    private Long siswaId;
 
     @Column(name = "petugas_id", nullable = false)
     private Long petugasId;

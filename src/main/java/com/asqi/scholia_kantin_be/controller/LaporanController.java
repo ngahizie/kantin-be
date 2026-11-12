@@ -1,6 +1,5 @@
 package com.asqi.scholia_kantin_be.controller;
 
-import com.asqi.scholia_kantin_be.dto.BarisKartuTamu;
 import com.asqi.scholia_kantin_be.component.exception.ForbiddenException;
 import com.asqi.scholia_kantin_be.dto.BarisKerugianStok;
 import com.asqi.scholia_kantin_be.dto.BarisPembatalanKasir;
@@ -9,7 +8,6 @@ import com.asqi.scholia_kantin_be.dto.BarisPenjualanKasir;
 import com.asqi.scholia_kantin_be.dto.BarisPenjualan;
 import com.asqi.scholia_kantin_be.dto.BarisStok;
 import com.asqi.scholia_kantin_be.dto.KartuStokItem;
-import com.asqi.scholia_kantin_be.dto.KartuTamuSaldoDetail;
 import com.asqi.scholia_kantin_be.dto.LaporanPerSiswa;
 import com.asqi.scholia_kantin_be.dto.LaporanRiwayatKeseluruhanItem;
 import com.asqi.scholia_kantin_be.dto.LaporanRiwayatSiswa;
@@ -199,27 +197,6 @@ public class LaporanController {
     }
 
     /**
-     * Laporan <b>Kartu Tamu</b> (PRD §9.5, issue #115): daftar kartu + pemegang
-     * + saldo + status. Riwayat per kartu lewat {@code GET /api/kartu-tamu/{id}/riwayat}.
-     */
-    @PerluPeran({AktorKantin.TU_SEKOLAH})
-    @GetMapping("kartu-tamu")
-    public ResponseEntity<Response<List<BarisKartuTamu>>> kartuTamu() {
-        return CommonResponse.data(laporan.laporanKartuTamu(TenantContext.sekolahIdWajib()));
-    }
-
-    /**
-     * Saldo mengendap per <b>kartu tamu</b> (issue #225) — bentuk yang dipakai FE
-     * {@code LaporanSaldoMengendapPage} ({@code KartuTamuSaldoDetail}). Sumber
-     * datanya sama dengan {@code kartu-tamu}; hanya path &amp; bentuk berbeda.
-     */
-    @PerluPeran({AktorKantin.TU_SEKOLAH})
-    @GetMapping("saldo-mengendap/kartu-tamu")
-    public ResponseEntity<Response<List<KartuTamuSaldoDetail>>> saldoKartuTamu() {
-        return CommonResponse.data(laporan.laporanSaldoKartuTamu(TenantContext.sekolahIdWajib()));
-    }
-
-    /**
      * Laporan <b>Penjualan per titik kasir</b> (PRD §9.5, issue #116): jumlah
      * transaksi, nilai, HPP, laba kotor per titik. RBAC Bendahara/Admin/Kepsek.
      */
@@ -271,19 +248,17 @@ public class LaporanController {
      * subjek (SISWA/KARTU_TAMU) pada periode — ringkasan + daftar transaksi +
      * mutasi saldo. Untuk menjawab komplain orang tua. RBAC Bendahara/Admin.
      *
-     * @param subjekTipe SISWA (default) atau KARTU_TAMU
-     * @param subjekId   id siswa/kartu tamu
+     * @param siswaId id siswa
      */
     @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH})
     @GetMapping("per-siswa")
     public ResponseEntity<Response<LaporanPerSiswa>> perSiswa(
-            @RequestParam(defaultValue = "SISWA") SubjekTipe subjekTipe,
-            @RequestParam Long subjekId,
+            @RequestParam Long siswaId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tanggal,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime dari,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime sampai) {
         return CommonResponse.data(
-                laporan.laporanPerSiswa(TenantContext.sekolahIdWajib(), subjekTipe, subjekId,
+                laporan.laporanPerSiswa(TenantContext.sekolahIdWajib(), siswaId,
                         tanggal, dari, sampai));
     }
 
@@ -371,8 +346,7 @@ public class LaporanController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime dari,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime sampai,
             @RequestParam(required = false) Long menuId,
-            @RequestParam(required = false) SubjekTipe subjekTipe,
-            @RequestParam(required = false) Long subjekId) {
+            @RequestParam(required = false) Long siswaId) {
 
         IdentitasKantin identitas = TenantContext.get();
         if (identitas != null && identitas.getPeran() == AktorKantin.KEPSEK
@@ -383,7 +357,7 @@ public class LaporanController {
 
         LaporanExportService.HasilEkspor hasil = exportService.ekspor(
                 TenantContext.sekolahIdWajib(), jenis, tanggal, dari, sampai, menuId,
-                subjekTipe, subjekId);
+                siswaId);
 
         MediaType xlsx = MediaType.parseMediaType(
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");

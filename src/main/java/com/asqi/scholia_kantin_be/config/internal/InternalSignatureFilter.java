@@ -1,7 +1,7 @@
 package com.asqi.scholia_kantin_be.config.internal;
 
+import com.asqi.scholia_kantin_be.helper.TandaTanganHmac;
 import com.asqi.scholia_kantin_be.config.webhook.BadanTertampung;
-import com.asqi.scholia_kantin_be.config.webhook.TandaTanganWebhook;
 import com.asqi.scholia_kantin_be.helper.AlamatKlien;
 import com.asqi.scholia_kantin_be.helper.IpAllowlist;
 import com.asqi.scholia_kantin_be.payload.response.CommonResponse;
@@ -113,7 +113,7 @@ public class InternalSignatureFilter extends OncePerRequestFilter {
             return;
         }
 
-        if (!TandaTanganWebhook.cocokSalahSatu(daftarRahasia, timestamp.trim(), badan, signature)) {
+        if (!TandaTanganHmac.cocokSalahSatu(daftarRahasia, timestamp.trim(), badan, signature)) {
             log.warn("Endpoint internal ditolak: tanda tangan tidak cocok dari IP {}.",
                     AlamatKlien.ip(request, properties.getTrustedProxies()));
             tolak(response, HttpStatus.UNAUTHORIZED, "Tanda tangan internal tidak valid");

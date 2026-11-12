@@ -54,22 +54,9 @@ public class KontrolKartuController {
             @Valid @RequestBody BlokirKartuRequest request,
             @AuthenticationPrincipal IdentitasKantin identitas) {
 
-        // Satu endpoint melayani dua subjek dengan pemilik hak berbeda:
-        // Kartu Tamu → TU/Bendahara (§9.4 "TU memblokir"), siswa → Admin sekolah.
-        if (request.getSubjekTipe() == SubjekTipe.KARTU_TAMU
-                && identitas.getPeran() != AktorKantin.TU_SEKOLAH) {
-            throw new ForbiddenException(
-                    "Blokir Kartu Tamu hanya untuk TU/Bendahara (PRD §9.4)");
-        }
-        if (request.getSubjekTipe() == SubjekTipe.SISWA
-                && identitas.getPeran() == AktorKantin.TU_SEKOLAH) {
-            throw new ForbiddenException(
-                    "Kontrol siswa hanya untuk Admin sekolah (PRD §9.6)");
-        }
-
         boolean diblokir = request.getDiblokir() == null || request.getDiblokir();
         KontrolSubjekResponse hasil = service.ubahBlokir(
-                TenantContext.sekolahIdWajib(), request.getSubjekTipe(), request.getSubjekId(),
+                TenantContext.sekolahIdWajib(), request.getSiswaId(),
                 diblokir, request.getAlasan(), identitas.aktorIdWajib());
         return CommonResponse.data(hasil, diblokir ? "Kartu diblokir" : "Blokir kartu dibuka");
     }
@@ -86,7 +73,7 @@ public class KontrolKartuController {
             @AuthenticationPrincipal IdentitasKantin identitas) {
 
         KontrolSubjekResponse hasil = service.setLimit(
-                TenantContext.sekolahIdWajib(), request.getSubjekTipe(), request.getSubjekId(),
+                TenantContext.sekolahIdWajib(), request.getSiswaId(),
                 request.getNominal(), identitas.aktorIdWajib());
         return CommonResponse.data(hasil, "Limit harian diperbarui");
     }
@@ -104,7 +91,7 @@ public class KontrolKartuController {
 
         boolean diblokir = request.getDiblokir() == null || request.getDiblokir();
         KontrolSubjekResponse hasil = service.ubahBlokirItem(
-                TenantContext.sekolahIdWajib(), request.getSubjekTipe(), request.getSubjekId(),
+                TenantContext.sekolahIdWajib(), request.getSiswaId(),
                 request.getMenuId(), request.getKategoriId(), diblokir, identitas.aktorIdWajib());
         return CommonResponse.data(hasil, diblokir ? "Item diblokir" : "Blokir item dibuka");
     }
@@ -116,12 +103,11 @@ public class KontrolKartuController {
     /** Ringkasan kontrol satu subjek (blokir, limit, item diblokir). */
     @PerluPeran({AktorKantin.PETUGAS_KANTIN, AktorKantin.PENGELOLA_KANTIN,
             AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH})
-    @GetMapping("{subjekTipe}/{subjekId}")
+    @GetMapping("{siswaId}")
     public ResponseEntity<Response<KontrolSubjekResponse>> kontrol(
-            @PathVariable SubjekTipe subjekTipe,
-            @PathVariable Long subjekId) {
+            @PathVariable Long siswaId) {
         return CommonResponse.data(
-                service.kontrol(TenantContext.sekolahIdWajib(), subjekTipe, subjekId));
+                service.kontrol(TenantContext.sekolahIdWajib(), siswaId));
     }
 
     /** Ringkasan kontrol bulk subjek (blokir, limit, item diblokir). */
@@ -129,9 +115,8 @@ public class KontrolKartuController {
             AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH})
     @GetMapping("/bulk")
     public ResponseEntity<Response<List<KontrolSubjekResponse>>> kontrolBulk(
-            @RequestParam SubjekTipe subjekTipe,
-            @RequestParam("subjekIds") List<Long> subjekIds) {
+            @RequestParam("siswaIds") List<Long> siswaIds) {
         return CommonResponse.data(
-                service.kontrolBulk(TenantContext.sekolahIdWajib(), subjekTipe, subjekIds));
+                service.kontrolBulk(TenantContext.sekolahIdWajib(), siswaIds));
     }
 }

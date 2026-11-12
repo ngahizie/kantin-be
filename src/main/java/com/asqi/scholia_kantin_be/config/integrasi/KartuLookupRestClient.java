@@ -1,8 +1,5 @@
 package com.asqi.scholia_kantin_be.config.integrasi;
 
-import com.asqi.scholia_kantin_be.enums.SubjekTipe;
-import com.asqi.scholia_kantin_be.model.KartuTamu;
-import com.asqi.scholia_kantin_be.repository.KartuTamuRepository;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoKartu;
 import com.asqi.scholia_kantin_be.service.integrasi.KartuLookupPort;
 import lombok.extern.slf4j.Slf4j;
@@ -15,18 +12,11 @@ import tools.jackson.databind.JsonNode;
 import java.util.Optional;
 
 /**
- * Adapter REST nyata {@link KartuLookupPort} — gabungan data <b>lokal</b>
- * (Kartu Tamu) &amp; <b>admin-be</b> (siswa) (INTEGRATIONS.md §4, issue <b>#160</b>).
+ * Adapter REST nyata {@link KartuLookupPort} — kartu siswa dari <b>admin-be</b>
+ * ({@code GET /api/siswa/cek-kartu/{rfidUid}}, INTEGRATIONS.md §4, issue <b>#160</b>).
  *
- * <p><b>Urutan lookup:</b>
- * <ol>
- *   <li><b>Kartu Tamu (lokal)</b> — data milik kantin-be (PRD §9.4). Dicek lebih
- *       dulu agar guru/karyawan/tamu dikenali tanpa memanggil admin-be.</li>
- *   <li><b>Siswa (admin-be)</b> — {@code GET /api/siswa/cek-kartu/{rfidUid}}
- *       (endpoint nyata; Q7). Tenant-scoped di sisi admin-be lewat token; adapter
- *       <b>tidak</b> memakai sekolahId dari respons (tidak terekspos) tetapi
- *       memverifikasi kartu tamu lokal tetap tenant-scoped.</li>
- * </ol>
+ * <p>Kartu tamu sudah dihapus dari skema v2 (PRD §9.4 lama): seluruh pemegang
+ * kartu adalah siswa, jadi tidak ada lagi lookup lokal sebelum admin-be.
  *
  * <p><b>Status blokir TIDAK di-cache (PRD §11.11).</b> Adapter hanya mengisi
  * {@code diblokir=false}; blokir sesungguhnya ditempelkan oleh
@@ -45,11 +35,8 @@ public class KartuLookupRestClient extends IntegrasiRestSupport implements Kartu
     /** Path default cek pemilik kartu siswa (Q7). */
     public static final String PATH_DEFAULT = "/api/siswa/cek-kartu/{rfidUid}";
 
-    private final KartuTamuRepository kartuTamuRepo;
-
-    public KartuLookupRestClient(IntegrasiRestProperties properties, KartuTamuRepository kartuTamuRepo) {
+    public KartuLookupRestClient(IntegrasiRestProperties properties) {
         super("KartuLookup", properties.getKartuLookup());
-        this.kartuTamuRepo = kartuTamuRepo;
     }
 
     @Override
@@ -57,34 +44,7 @@ public class KartuLookupRestClient extends IntegrasiRestSupport implements Kartu
         if (rfidUid == null || rfidUid.isBlank()) {
             return InfoKartu.tidakDikenal();
         }
-        // 1) Kartu Tamu lokal (kantin-be owns this data).
-        InfoKartu lokal = cariKartuTamu(sekolahId, rfidUid);
-        if (lokal != null) {
-            return lokal;
-        }
-        // 2) Siswa via admin-be.
         return cariSiswa(rfidUid);
-    }
-
-    private InfoKartu cariKartuTamu(Long sekolahId, String rfidUid) {
-        return kartuTamuRepo.findByRfidUid(rfidUid)
-                .filter(k -> k.getSekolahId() != null && k.getSekolahId().equals(sekolahId))
-                .filter(k -> Boolean.TRUE.equals(k.getAktif()))
-                .map(this::keInfo)
-                .orElse(null);
-    }
-
-    private InfoKartu keInfo(KartuTamu k) {
-        String nama = (k.getLabelPemegang() != null && !k.getLabelPemegang().isBlank())
-                ? k.getLabelPemegang()
-                : k.getNomorKartu();
-        return InfoKartu.builder()
-                .dikenal(true)
-                .diblokir(false) // blokir ditempelkan KontrolKartuService (tanpa cache, §11.11)
-                .subjekTipe(SubjekTipe.KARTU_TAMU)
-                .subjekId(k.getId())
-                .nama(nama)
-                .build();
     }
 
     private InfoKartu cariSiswa(String rfidUid) {
@@ -129,8 +89,7 @@ public class KartuLookupRestClient extends IntegrasiRestSupport implements Kartu
         return InfoKartu.builder()
                 .dikenal(true)
                 .diblokir(false)
-                .subjekTipe(SubjekTipe.SISWA)
-                .subjekId(id)
+                .siswaId(id)
                 .nama(nama)
                 .kelas(kelas)
                 .fotoUrl(foto)
@@ -142,8 +101,4 @@ public class KartuLookupRestClient extends IntegrasiRestSupport implements Kartu
         return (v == null || v.isNull()) ? null : v.asText();
     }
 
-    /** Dipakai test: verifikasi urutan (lokal dulu). */
-    Optional<KartuTamu> kartuTamuMentah(String rfidUid) {
-        return kartuTamuRepo.findByRfidUid(rfidUid);
-    }
 }

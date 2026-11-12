@@ -51,16 +51,14 @@ public record TransaksiSesiItem(
      */
     public static TransaksiSesiItem dari(Transaksi t, String namaTitik,
                                          String namaPemegang, List<TransaksiItem> item) {
-        String pembeliNama = t.getSubjekTipe() == SubjekTipe.KARTU_TAMU
-                ? (namaPemegang != null ? namaPemegang : "Kartu Tamu #" + t.getSubjekId())
-                : "Siswa #" + t.getSubjekId();
+        String pembeliNama = namaPemegang != null ? namaPemegang : "Siswa #" + t.getSiswaId();
 
         return new TransaksiSesiItem(
                 t.getId(),
                 t.getId(),
                 NomorStruk.dari(t.getId(), t.getWaktu()),
                 t.getWaktu(),
-                t.getSubjekTipe() == null ? null : t.getSubjekTipe().name(),
+                SubjekTipe.SISWA.name(),
                 pembeliNama,
                 null,
                 null,

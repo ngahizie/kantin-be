@@ -15,7 +15,7 @@ import java.util.List;
 public class SaldoResponse {
 
     private SubjekTipe subjekTipe;
-    private Long subjekId;
+    private Long siswaId;
 
     /** Saldo berjalan (rupiah). */
     private long saldo;

@@ -31,7 +31,7 @@ public class PerintahNotifikasi {
     private final SubjekTipe subjekTipe;
 
     /** ID siswa pemilik kartu. */
-    private final Long subjekId;
+    private final Long siswaId;
 
     /** Nominal peristiwa dalam rupiah (boleh {@code null} bila tak relevan). */
     private final Long nominal;

@@ -18,7 +18,7 @@ public class LimitHarianRequest {
     private SubjekTipe subjekTipe;
 
     @NotNull(message = "ID subjek wajib diisi")
-    private Long subjekId;
+    private Long siswaId;
 
     /** Batas belanja harian (rupiah); {@code null} = tanpa limit. */
     @Min(value = 0, message = "Limit tidak boleh negatif")

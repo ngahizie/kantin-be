@@ -14,7 +14,7 @@ import java.time.OffsetDateTime;
  *
  * @param nomorKartu     UID yang dibaca (dikembalikan apa adanya, sudah dirapikan)
  * @param subjekTipe     SISWA (Kartu Tamu sudah dihapus dari sistem)
- * @param subjekId       id siswa di pusat data
+ * @param siswaId       id siswa di pusat data
  * @param nama           nama pemilik kartu (null bila pusat data tidak mengirim)
  * @param kelas          kelas pemilik kartu (null bila tidak ada)
  * @param fotoUrl        URL foto (null bila tidak ada)
@@ -29,7 +29,7 @@ import java.time.OffsetDateTime;
 public record CekKartuResponse(
         String nomorKartu,
         SubjekTipe subjekTipe,
-        Long subjekId,
+        Long siswaId,
         String nama,
         String kelas,
         String fotoUrl,

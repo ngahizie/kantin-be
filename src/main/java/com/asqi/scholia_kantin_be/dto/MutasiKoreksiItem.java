@@ -41,7 +41,7 @@ public class MutasiKoreksiItem {
 
     private SubjekTipe subjekTipe;
 
-    private Long subjekId;
+    private Long siswaId;
 
     /** Label subjek: {@code KARTU_TAMU} = label pemegang (fallback nomor kartu); {@code SISWA} = null. */
     private String subjekNama;
@@ -77,8 +77,8 @@ public class MutasiKoreksiItem {
         return MutasiKoreksiItem.builder()
                 .id(l.getId())
                 .waktu(l.getWaktu())
-                .subjekTipe(l.getSubjekTipe())
-                .subjekId(l.getSubjekId())
+                .subjekTipe(SubjekTipe.SISWA)
+                .siswaId(l.getSiswaId())
                 .arah(l.getArah())
                 .nominal(l.getNominal())
                 .saldoSebelum(sebelum)

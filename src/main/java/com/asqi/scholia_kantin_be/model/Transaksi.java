@@ -1,7 +1,6 @@
 package com.asqi.scholia_kantin_be.model;
 
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
-import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -75,12 +74,8 @@ public class Transaksi implements Persistable<Long> {
     @Column(name = "titik_kasir_id", nullable = false)
     private Long titikKasirId;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "subjek_tipe", nullable = false, length = 20)
-    private SubjekTipe subjekTipe;
-
-    @Column(name = "subjek_id", nullable = false)
-    private Long subjekId;
+    @Column(name = "siswa_id", nullable = false)
+    private Long siswaId;
 
     /** Kartu fisik yang dipakai (UID) — untuk audit sengketa. */
     @Column(name = "kartu_uid", length = 64)

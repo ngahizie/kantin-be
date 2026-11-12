@@ -15,7 +15,7 @@ import java.util.List;
  * komplain orang tua. Akses Bendahara/Admin.
  *
  * @param subjekTipe  tipe subjek (SISWA / KARTU_TAMU)
- * @param subjekId    id subjek
+ * @param siswaId    id subjek
  * @param saldo       saldo berjalan saat ini
  * @param periode     label periode (mis. "2025-01-01 s/d 2025-01-31")
  * @param ringkasan   agregat periode
@@ -24,7 +24,7 @@ import java.util.List;
  */
 public record LaporanPerSiswa(
         SubjekTipe subjekTipe,
-        Long subjekId,
+        Long siswaId,
         long saldo,
         String periode,
         Ringkasan ringkasan,

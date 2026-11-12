@@ -1,4 +1,4 @@
-package com.asqi.scholia_kantin_be.config.webhook;
+package com.asqi.scholia_kantin_be.helper;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -11,12 +11,13 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Utilitas tanda tangan webhook — HMAC-SHA256 (SECURITY.md §5, BUGS-DITEMUKAN B34).
+ * Utilitas tanda tangan HMAC-SHA256 untuk endpoint internal antar-layanan
+ * (SECURITY.md §5). Dipakai filter tanda tangan internal & rest client.
  *
  * <p>Skema yang dipakai (pola standar, mis. Stripe/GitHub):
  * <pre>
  *   payload ditandatangani = timestamp + "." + badan_request_mentah
- *   X-Webhook-Signature    = hex( HMAC-SHA256(rahasia, payload) )
+ *   X-Internal-Signature   = "sha256=" + hex( HMAC-SHA256(rahasia, payload) )
  * </pre>
  * Timestamp ikut ditandatangani sehingga penyerang tidak bisa memakai ulang
  * signature sah dengan timestamp baru (menggeser jendela anti-replay).
@@ -24,12 +25,12 @@ import java.util.Locale;
  * <p>Perbandingan signature memakai {@link MessageDigest#isEqual} —
  * <b>konstan-waktu</b>, agar tidak bocor lewat timing attack.
  */
-public final class TandaTanganWebhook {
+public final class TandaTanganHmac {
 
     private static final String ALGORITMA_HMAC = "HmacSHA256";
     private static final String PREFIX_SHA256 = "sha256=";
 
-    private TandaTanganWebhook() {
+    private TandaTanganHmac() {
     }
 
     /** Hitung HMAC-SHA256 hex atas {@code timestamp + "." + badan}. */

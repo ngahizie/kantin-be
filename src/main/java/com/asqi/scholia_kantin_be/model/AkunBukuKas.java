@@ -27,7 +27,7 @@ import java.time.OffsetDateTime;
  * via builder, tanpa setter publik.
  */
 @Entity
-@Table(name = "pos_buku_kas")
+@Table(name = "akun_buku_kas")
 @Getter
 @Builder
 @AllArgsConstructor

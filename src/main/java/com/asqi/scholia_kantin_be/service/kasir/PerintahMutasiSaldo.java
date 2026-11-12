@@ -22,7 +22,7 @@ public class PerintahMutasiSaldo {
     private final SubjekTipe subjekTipe;
 
     /** ID siswa atau ID Kartu Tamu. */
-    private final Long subjekId;
+    private final Long siswaId;
 
     private final JenisMutasiSaldo jenis;
 

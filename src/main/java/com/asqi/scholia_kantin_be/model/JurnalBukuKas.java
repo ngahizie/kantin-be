@@ -27,7 +27,7 @@ import java.time.OffsetDateTime;
  * dari aplikasi ({@code IdGenerator}), bukan autoincrement.
  */
 @Entity
-@Table(name = "posting_buku_kas")
+@Table(name = "jurnal_buku_kas")
 @Getter
 @Builder
 @AllArgsConstructor

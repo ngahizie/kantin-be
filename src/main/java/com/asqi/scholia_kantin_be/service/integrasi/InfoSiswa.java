@@ -31,4 +31,13 @@ public class InfoSiswa {
 
     /** Siswa sudah tidak aktif (lulus/pindah/keluar) — untuk alur refund (§9.3). */
     private final Boolean tidakAktif;
+
+    /** URL foto siswa (ERD v2 {@code siswa.foto_url}); null bila belum diunggah. */
+    private final String fotoUrl;
+
+    /** Nama wali utama (ERD v2 {@code orang_tua.nama}); null bila belum diisi. */
+    private final String namaOrangTua;
+
+    /** Telepon wali utama ({@code orang_tua.telepon}); null bila belum diisi. */
+    private final String teleponOrangTua;
 }

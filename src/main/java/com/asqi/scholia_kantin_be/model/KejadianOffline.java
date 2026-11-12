@@ -28,7 +28,7 @@ import java.time.OffsetDateTime;
  * (append-only, PRD §11.1).
  */
 @Entity
-@Table(name = "insiden_offline")
+@Table(name = "kejadian_offline")
 @Immutable
 @Getter
 @Builder

@@ -2,7 +2,6 @@ package com.asqi.scholia_kantin_be.model;
 
 import com.asqi.scholia_kantin_be.enums.ArahMutasi;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
-import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -34,7 +33,7 @@ import java.time.OffsetDateTime;
  * bukan autoincrement (CONVENTIONS.md §4).
  */
 @Entity
-@Table(name = "saldo_ledger")
+@Table(name = "mutasi_saldo")
 @Immutable
 @Getter
 @Builder
@@ -50,13 +49,8 @@ public class MutasiSaldo implements Persistable<Long> {
     @Column(name = "sekolah_id", nullable = false)
     private Long sekolahId;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "subjek_tipe", nullable = false, length = 20)
-    private SubjekTipe subjekTipe;
-
-    /** ID siswa (lokal) atau ID kartu tamu, tergantung {@link #subjekTipe}. */
-    @Column(name = "subjek_id", nullable = false)
-    private Long subjekId;
+    @Column(name = "siswa_id", nullable = false)
+    private Long siswaId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "arah", nullable = false, length = 10)

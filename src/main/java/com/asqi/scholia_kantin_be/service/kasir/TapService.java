@@ -177,10 +177,10 @@ public class TapService {
 
         long saldo = 0L;
         long belanjaHariIni = 0L;
-        if (kartu.isDikenal() && kartu.getSubjekTipe() != null && kartu.getSubjekId() != null) {
-            saldo = ledgerSaldo.saldo(sekolahId, kartu.getSubjekTipe(), kartu.getSubjekId());
+        if (kartu.isDikenal() && kartu.getSubjekTipe() != null && kartu.getSiswaId() != null) {
+            saldo = ledgerSaldo.saldo(sekolahId, kartu.getSiswaId());
             if (kartu.siswa()) {
-                belanjaHariIni = ledgerSaldo.belanjaHariIni(sekolahId, kartu.getSubjekTipe(), kartu.getSubjekId());
+                belanjaHariIni = ledgerSaldo.belanjaHariIni(sekolahId, kartu.getSiswaId());
             }
         }
 
@@ -209,8 +209,7 @@ public class TapService {
                 .idempotencyKey(request.getIdempotencyKey())
                 .rfidUid(request.getRfidUid())
                 .titikKasirId(request.getTitikKasirId())
-                .subjekTipe(siap.kartu().getSubjekTipe())
-                .subjekId(siap.kartu().getSubjekId())
+                .siswaId(siap.kartu().getSiswaId())
                 .petugasId(petugasId)
                 .total(siap.hasil().getTotal())
                 .itemsJson(tulisItems(request.getItems()))
@@ -309,8 +308,7 @@ public class TapService {
                 .sekolahId(sekolahId)
                 .sesiKasirId(sesi.getId())
                 .titikKasirId(request.getTitikKasirId())
-                .subjekTipe(kartu.getSubjekTipe())
-                .subjekId(kartu.getSubjekId())
+                .siswaId(kartu.getSiswaId())
                 .kartuUid(request.getRfidUid())
                 .petugasId(petugasId)
                 .total(hasil.getTotal())
@@ -352,8 +350,7 @@ public class TapService {
         // Debit saldo (FOR UPDATE) — atomik dengan langkah di atas.
         var hasilDebit = ledgerSaldo.debit(PerintahMutasiSaldo.builder()
                 .sekolahId(sekolahId)
-                .subjekTipe(kartu.getSubjekTipe())
-                .subjekId(kartu.getSubjekId())
+                .siswaId(kartu.getSiswaId())
                 .jenis(JenisMutasiSaldo.PENJUALAN)
                 .nominal(hasil.getTotal())
                 .idempotencyKey(request.getIdempotencyKey())
@@ -364,7 +361,7 @@ public class TapService {
                 .build());
 
         log.info("Tap sukses trx={} sekolah={} subjek={}/{} total={} saldoSisa={}",
-                transaksiId, sekolahId, kartu.getSubjekTipe(), kartu.getSubjekId(),
+                transaksiId, sekolahId, kartu.getSubjekTipe(), kartu.getSiswaId(),
                 hasil.getTotal(), hasilDebit.getSaldoSetelah());
 
         // Notifikasi ke ortu (PRD §8.4) — best-effort/fail-open: kegagalan
@@ -372,8 +369,7 @@ public class TapService {
         notifikasi.kirim(PerintahNotifikasi.builder()
                 .sekolahId(sekolahId)
                 .jenis(JenisNotifikasi.BELANJA)
-                .subjekTipe(kartu.getSubjekTipe())
-                .subjekId(kartu.getSubjekId())
+                .siswaId(kartu.getSiswaId())
                 .nominal(hasil.getTotal())
                 .saldoSetelah(hasilDebit.getSaldoSetelah())
                 .referensiId(String.valueOf(transaksiId))
@@ -385,7 +381,6 @@ public class TapService {
 
         return TapResponse.builder()
                 .transaksiId(transaksiId)
-                .subjekTipe(kartu.getSubjekTipe())
                 .nama(kartu.getNama())
                 .kelas(kartu.getKelas())
                 .fotoUrl(kartu.getFotoUrl())
@@ -422,7 +417,6 @@ public class TapService {
                 : kartuLookup.cariBerdasarkanUid(pending.getSekolahId(), pending.getRfidUid());
         return TapResponse.builder()
                 .transaksiId(null)
-                .subjekTipe(pending.getSubjekTipe())
                 .nama(kartu == null ? null : kartu.getNama())
                 .kelas(kartu == null ? null : kartu.getKelas())
                 .fotoUrl(kartu == null ? null : kartu.getFotoUrl())
@@ -454,8 +448,8 @@ public class TapService {
         }
 
         long saldoSisa = 0L;
-        if (trx.getSubjekTipe() != null && trx.getSubjekId() != null) {
-            saldoSisa = ledgerSaldo.saldo(sekolahId, trx.getSubjekTipe(), trx.getSubjekId());
+        if (trx.getSiswaId() != null) {
+            saldoSisa = ledgerSaldo.saldo(sekolahId, trx.getSiswaId());
         }
         InfoKartu kartu = trx.getKartuUid() == null ? null
                 : kartuLookup.cariBerdasarkanUid(sekolahId, trx.getKartuUid());
@@ -467,7 +461,6 @@ public class TapService {
 
         return TapResponse.builder()
                 .transaksiId(trx.getId())
-                .subjekTipe(trx.getSubjekTipe())
                 .nama(kartu == null ? null : kartu.getNama())
                 .kelas(kartu == null ? null : kartu.getKelas())
                 .fotoUrl(kartu == null ? null : kartu.getFotoUrl())

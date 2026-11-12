@@ -25,8 +25,6 @@ public enum JenisLaporan {
     BARANG_MASUK,
     /** Pembatalan kasir — transaksi di-void per subjek (PRD §9.5). */
     PEMBATALAN,
-    /** Kartu Tamu — daftar kartu, pemegang, saldo, status (PRD §9.5). */
-    KARTU_TAMU,
     /** Penjualan per titik kasir (PRD §9.5). */
     PENJUALAN_TITIK,
     /** Penjualan per petugas (PRD §9.5). */
@@ -37,6 +35,6 @@ public enum JenisLaporan {
     KARTU_STOK,
     /** Setoran kas TU — rekap top-up tunai per petugas per hari + selisih (PRD §9.5). */
     SETORAN_TU,
-    /** Per siswa — riwayat lengkap satu subjek (SISWA/KARTU_TAMU) (PRD §9.5). */
+    /** Per siswa — riwayat lengkap satu subjek (SISWA) (PRD §9.5). */
     PER_SISWA
 }

@@ -16,7 +16,7 @@ import lombok.Data;
 public class RefundSaldoRequest {
 
     @NotNull(message = "ID siswa wajib diisi")
-    private Long subjekId;
+    private Long siswaId;
 
     @NotBlank(message = "Nomor bukti refund wajib diisi (idempotency)")
     @Size(max = 60)

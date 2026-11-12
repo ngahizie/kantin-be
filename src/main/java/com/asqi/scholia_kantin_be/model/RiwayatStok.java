@@ -29,7 +29,7 @@ import java.time.OffsetDateTime;
  * berubah dan void bisa mengembalikan stok dengan HPP yang benar (PRD §7.4).
  */
 @Entity
-@Table(name = "mutasi_stok")
+@Table(name = "riwayat_stok")
 @Immutable
 @Getter
 @Builder

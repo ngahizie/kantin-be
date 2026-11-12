@@ -1,6 +1,5 @@
 package com.asqi.scholia_kantin_be.config.internal;
 
-import com.asqi.scholia_kantin_be.config.webhook.TandaTanganWebhook;
 import jakarta.servlet.FilterChain;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

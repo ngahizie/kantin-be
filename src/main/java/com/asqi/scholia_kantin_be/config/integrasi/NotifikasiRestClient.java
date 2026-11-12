@@ -46,7 +46,7 @@ public class NotifikasiRestClient extends IntegrasiRestSupport implements Notifi
         }
         try {
             Map<String, Object> body = badan();
-            isi(body, "siswaId", perintah.getSubjekId());
+            isi(body, "siswaId", perintah.getSiswaId());
             isi(body, "sekolahId", perintah.getSekolahId());
             isi(body, "jenis", perintah.getJenis());
             isi(body, "judul", perintah.getJenis() == null ? null : perintah.getJenis().name());
@@ -63,7 +63,7 @@ public class NotifikasiRestClient extends IntegrasiRestSupport implements Notifi
                 return beriHeader(spec, raw).body(body).retrieve().body(String.class);
             });
             log.info("[Notifikasi] {} terkirim ke mobile-be (siswa={}).", perintah.getJenis(),
-                    perintah.getSubjekId());
+                    perintah.getSiswaId());
             return HasilKirimNotifikasi.terkirim("Terkirim ke mobile-be");
         } catch (RestClientResponseException e) {
             log.warn("[Notifikasi] mobile-be menolak {} (HTTP {}): {}", perintah.getJenis(),

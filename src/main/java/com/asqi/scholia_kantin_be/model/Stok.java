@@ -21,7 +21,7 @@ import java.time.OffsetDateTime;
  * {@code hpp} = HPP rata-rata tertimbang berjalan (PRD §7.4).
  */
 @Entity
-@Table(name = "stok_cache")
+@Table(name = "stok")
 @Getter
 @Setter
 @Builder

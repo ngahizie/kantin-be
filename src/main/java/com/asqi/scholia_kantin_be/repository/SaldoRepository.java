@@ -1,6 +1,5 @@
 package com.asqi.scholia_kantin_be.repository;
 
-import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.model.Saldo;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -14,7 +13,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Akses data saldo berjalan ({@code saldo_cache}).
+ * Akses data saldo berjalan ({@code saldo}).
  *
  * <p>Baris ini adalah <b>hot row</b> yang dikunci saat debit agar dua kasir
  * tidak memotong saldo yang sama secara bersamaan (ADR-0003, PRD §11.2).
@@ -38,31 +37,27 @@ public interface SaldoRepository extends JpaRepository<Saldo, Saldo.SaldoId> {
     @Query("""
             SELECT s FROM Saldo s
             WHERE s.sekolahId = :sekolahId
-              AND s.subjekTipe = :subjekTipe
-              AND s.subjekId = :subjekId
+              AND s.siswaId = :siswaId
             """)
     Optional<Saldo> kunciUntukUpdate(@Param("sekolahId") Long sekolahId,
-                                          @Param("subjekTipe") SubjekTipe subjekTipe,
-                                          @Param("subjekId") Long subjekId);
+                                     @Param("siswaId") Long siswaId);
 
-    Optional<Saldo> findBySubjekTipeAndSubjekId(SubjekTipe subjekTipe, Long subjekId);
+    Optional<Saldo> findBySiswaId(Long siswaId);
 
-    Optional<Saldo> findBySekolahIdAndSubjekTipeAndSubjekId(
-            Long sekolahId, SubjekTipe subjekTipe, Long subjekId);
+    Optional<Saldo> findBySekolahIdAndSiswaId(Long sekolahId, Long siswaId);
 
-    List<Saldo> findBySekolahIdAndSubjekTipe(Long sekolahId, SubjekTipe subjekTipe);
+    List<Saldo> findBySekolahId(Long sekolahId);
 
     /**
-     * Total saldo mengendap per jenis subjek (PRD §9.5) — kewajiban sekolah.
-     * Mengembalikan baris {@code [subjekTipe, Σ saldo, jumlah baris]}.
+     * Total saldo mengendap (PRD §9.5) — kewajiban sekolah.
+     * Mengembalikan satu baris {@code [Σ saldo, jumlah baris]}.
      */
     @Query("""
-            SELECT s.subjekTipe, COALESCE(SUM(s.saldo), 0), COUNT(s)
+            SELECT COALESCE(SUM(s.saldo), 0), COUNT(s)
             FROM Saldo s
             WHERE s.sekolahId = :sekolahId
-            GROUP BY s.subjekTipe
             """)
-    List<Object[]> totalMengendapPerTipe(@Param("sekolahId") Long sekolahId);
+    List<Object[]> totalMengendap(@Param("sekolahId") Long sekolahId);
 
     /**
      * Pastikan baris saldo ada <b>tanpa race</b>: {@code INSERT ... ON CONFLICT
@@ -74,11 +69,10 @@ public interface SaldoRepository extends JpaRepository<Saldo, Saldo.SaldoId> {
      */
     @Modifying
     @Query(value = """
-            INSERT INTO saldo_cache (subjek_tipe, subjek_id, sekolah_id, saldo, updated_at)
-            VALUES (:subjekTipe, :subjekId, :sekolahId, 0, now())
-            ON CONFLICT (subjek_tipe, subjek_id) DO NOTHING
+            INSERT INTO saldo (sekolah_id, siswa_id, saldo, updated_at)
+            VALUES (:sekolahId, :siswaId, 0, now())
+            ON CONFLICT (sekolah_id, siswa_id) DO NOTHING
             """, nativeQuery = true)
-    int pastikanBarisAda(@Param("subjekTipe") String subjekTipe,
-                         @Param("subjekId") Long subjekId,
-                         @Param("sekolahId") Long sekolahId);
+    int pastikanBarisAda(@Param("sekolahId") Long sekolahId,
+                         @Param("siswaId") Long siswaId);
 }

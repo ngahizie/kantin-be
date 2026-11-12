@@ -14,7 +14,7 @@ import java.util.Optional;
 /**
  * Validator kredensial untuk shim login dev.
  *
- * <p>Sumber akun: tabel {@code dev_pengguna} yang dibuat oleh seed dev
+ * <p>Sumber akun: tabel {@code pengguna} yang diisi oleh seed dev
  * ({@code db/seed/R__seed_dev.sql}) — jadi tabel & datanya hanya ada di lokal,
  * tidak pernah masuk skema produksi (kantin-be tidak menyimpan master pengguna,
  * ADR-0002; identitas asli datang dari admin-be lewat JWT).
@@ -29,7 +29,7 @@ public class DevLoginValidator {
 
     private static final String SQL_CARI = """
             SELECT id, sekolah_id, username, nama, role, password_hash
-            FROM dev_pengguna
+            FROM pengguna
             WHERE lower(username) = lower(?) AND aktif
             """;
 
@@ -50,8 +50,8 @@ public class DevLoginValidator {
         try {
             baris = jdbc.queryForList(SQL_CARI, username.trim());
         } catch (DataAccessException e) {
-            // Tabel belum ada = seed dev belum dimuat. Jangan bocorkan ke klien.
-            log.warn("[DEV-LOGIN] tabel dev_pengguna tidak terbaca ({}). Muat seed dev dengan "
+            // Tabel belum ada / belum di-seed. Jangan bocorkan ke klien.
+            log.warn("[DEV-LOGIN] tabel pengguna tidak terbaca ({}). Muat seed dev dengan "
                             + "menambahkan classpath:db/seed ke spring.flyway.locations.",
                     e.getClass().getSimpleName());
             return Optional.empty();

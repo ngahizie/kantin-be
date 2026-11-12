@@ -19,7 +19,7 @@ public class BlokirKartuRequest {
     private SubjekTipe subjekTipe;
 
     @NotNull(message = "ID subjek wajib diisi")
-    private Long subjekId;
+    private Long siswaId;
 
     /** {@code true} = blokir, {@code false} = buka blokir. Default {@code true}. */
     private Boolean diblokir;
