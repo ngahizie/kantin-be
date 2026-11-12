@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -38,7 +39,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * <p>Menegakkan: saldo &amp; stok kembali, kompensasi lewat <b>mutasi pembalik
  * baru</b> (ledger asli tak diubah), alasan wajib, dan hanya sesi terbuka.
  */
-@SpringBootTest
+@SpringBootTest(properties = "kantin.siswa.sumber=integrasi")
 @Import({TestcontainersConfig.class, TapServiceIT.FakePortConfig.class})
 @EnabledIfDockerAvailable
 class VoidServiceIT {
@@ -79,6 +80,16 @@ class VoidServiceIT {
         TenantContext.set(IdentitasKantin.builder().userId("555").sekolahId(SEKOLAH).build());
         jdbc.execute("TRUNCATE TABLE transaksi_item, transaksi, sesi_kasir, titik_kasir, "
                 + "mutasi_saldo, saldo, riwayat_stok, stok, catatan_audit CASCADE");
+
+        FixtureInduk.sekolah(jdbc, SEKOLAH);
+
+        FixtureInduk.penggunaUmum(jdbc, SEKOLAH);
+
+        FixtureInduk.kategoriUmum(jdbc, SEKOLAH);
+
+        FixtureInduk.kartu(jdbc, SEKOLAH, SISWA, UID);
+        FixtureInduk.siswa(jdbc, SEKOLAH, SISWA);
+        FixtureInduk.menu(jdbc, SEKOLAH, MENU_NASI);
         jdbc.update("INSERT INTO titik_kasir (id, sekolah_id, nama, is_active, created_at, updated_at) "
                 + "VALUES (?, ?, 'Kasir 1', true, now(), now())", TITIK, SEKOLAH);
 

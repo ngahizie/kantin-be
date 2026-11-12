@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -41,6 +42,11 @@ class AuditLoggerIT {
     @BeforeEach
     void bersihkan() {
         jdbc.execute("TRUNCATE TABLE catatan_audit, riwayat_stok, stok CASCADE");
+
+        FixtureInduk.sekolah(jdbc, SEKOLAH);
+
+        FixtureInduk.penggunaUmum(jdbc, SEKOLAH);
+        FixtureInduk.menu(jdbc, SEKOLAH, MENU);
     }
 
     @Test

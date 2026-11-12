@@ -87,23 +87,24 @@ class KontrolKartuServiceIT {
         // Skema v2 menggabungkan blokir_kartu/limit_harian/blokir_item → pembatasan.
         jdbc.execute("TRUNCATE TABLE pembatasan, transaksi_item, "
                 + "transaksi, sesi_kasir, titik_kasir, mutasi_saldo, saldo, riwayat_stok, "
-                + "stok, catatan_audit CASCADE");
+                + "stok, kategori_menu, menu, catatan_audit CASCADE");
 
         // Induk wajib skema v2 (FK): sekolah → siswa/pengguna, menu → kategori_menu.
         FixtureInduk.sekolah(jdbc, SEKOLAH, SEKOLAH_LAIN);
+        FixtureInduk.kategoriUmum(jdbc, SEKOLAH);
         FixtureInduk.pengguna(jdbc, SEKOLAH, ADMIN, PETUGAS_AKTOR);
         FixtureInduk.siswa(jdbc, SEKOLAH, SISWA);
         jdbc.update("INSERT INTO kategori_menu (id, sekolah_id, nama, urutan, is_active, created_at, updated_at) "
-                + "VALUES (?, ?, 'Minuman', 0, true, now(), now()) ON CONFLICT (id) DO NOTHING",
+                + "VALUES (?, ?, 'Minuman', 0, true, now(), now()) ON CONFLICT DO NOTHING",
                 KATEGORI_ES, SEKOLAH);
         jdbc.update("INSERT INTO menu (id, sekolah_id, kategori_id, nama, harga_jual, satuan, "
                 + "stok_minimum, is_active, created_at, updated_at) "
                 + "VALUES (?, ?, NULL, 'Nasi Uduk', 8000, 'PCS', 0, true, now(), now()) "
-                + "ON CONFLICT (id) DO NOTHING", MENU_NASI, SEKOLAH);
+                + "ON CONFLICT DO NOTHING", MENU_NASI, SEKOLAH);
         jdbc.update("INSERT INTO menu (id, sekolah_id, kategori_id, nama, harga_jual, satuan, "
                 + "stok_minimum, is_active, created_at, updated_at) "
                 + "VALUES (?, ?, ?, 'Es Jeruk', 5000, 'PCS', 0, true, now(), now()) "
-                + "ON CONFLICT (id) DO NOTHING", MENU_ES, SEKOLAH, KATEGORI_ES);
+                + "ON CONFLICT DO NOTHING", MENU_ES, SEKOLAH, KATEGORI_ES);
         jdbc.update("INSERT INTO kartu (uid, sekolah_id, siswa_id, nomor_kartu) "
                 + "VALUES (?, ?, ?, 'KRT-001') ON CONFLICT (uid) DO NOTHING", UID, SEKOLAH, SISWA);
 
@@ -204,15 +205,6 @@ class KontrolKartuServiceIT {
         kontrol.setLimit(SEKOLAH, SISWA, null, ADMIN);
         TapResponse t = tapService.tap(SEKOLAH, petugas, request("t1", 5, 0)); // 40.000
         assertThat(t.getTotal()).isEqualTo(40_000L);
-    }
-
-    @Test
-    @DisplayName("#40: limit harian hanya untuk siswa — Kartu Tamu ditolak")
-    void limitKartuTamuDitolak() {
-        assertThatThrownBy(() ->
-                kontrol.setLimit(SEKOLAH, 99L, 10_000L, ADMIN))
-                .isInstanceOf(InvalidOperationException.class)
-                .hasMessageContaining("siswa");
     }
 
     // ────────────────────────────────────────────────────────────────

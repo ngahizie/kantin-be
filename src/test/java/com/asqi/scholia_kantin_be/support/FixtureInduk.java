@@ -66,4 +66,78 @@ public final class FixtureInduk {
                     """, id, sekolahId, "NIS-" + id, "Siswa Uji " + id);
         }
     }
+
+    /** Kategori menu minimum — {@code menu.kategori_id} ber-FK ke sini. */
+    public static void kategori(JdbcTemplate jdbc, long sekolahId, long id) {
+        kategori(jdbc, sekolahId, id, "Kategori Uji " + id);
+    }
+
+    /** Kategori menu bernama tertentu. */
+    public static void kategori(JdbcTemplate jdbc, long sekolahId, long id, String nama) {
+        sekolah(jdbc, sekolahId);
+        jdbc.update("""
+                INSERT INTO kategori_menu (id, sekolah_id, nama, urutan)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT DO NOTHING
+                """, id, sekolahId, nama, id);
+    }
+
+    /** Menu minimum milik satu sekolah — prasyarat {@code stok}/{@code riwayat_stok}. */
+    public static void menu(JdbcTemplate jdbc, long sekolahId, long... ids) {
+        for (long id : ids) {
+            menu(jdbc, sekolahId, id, "Menu Uji " + id);
+        }
+    }
+
+    /** Menu bernama tertentu (harga 8.000, satuan PCS). */
+    public static void menu(JdbcTemplate jdbc, long sekolahId, long id, String nama) {
+        sekolah(jdbc, sekolahId);
+        jdbc.update("""
+                INSERT INTO menu (id, sekolah_id, nama, harga_jual)
+                VALUES (?, ?, ?, 8000)
+                ON CONFLICT (id) DO NOTHING
+                """, id, sekolahId, nama);
+    }
+
+    /** Titik kasir minimum milik satu sekolah. */
+    public static void titikKasir(JdbcTemplate jdbc, long sekolahId, long... ids) {
+        sekolah(jdbc, sekolahId);
+        for (long id : ids) {
+            jdbc.update("""
+                    INSERT INTO titik_kasir (id, sekolah_id, nama)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT (id) DO NOTHING
+                    """, id, sekolahId, "Kasir Uji " + id);
+        }
+    }
+
+    /**
+     * Kumpulan pengguna "umum" yang sering dipakai uji sebagai aktor/petugas
+     * ({@code 555}, {@code 777}, {@code 900}, {@code 1}, …). Semua FK
+     * {@code aktor_id}/{@code petugas_id}/{@code ditutup_oleh} menunjuk ke
+     * {@code pengguna}, jadi baris ini wajib ada sebelum ledger menulis.
+     */
+    public static void penggunaUmum(JdbcTemplate jdbc, long sekolahId) {
+        pengguna(jdbc, sekolahId, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 42, 100, 555, 777, 900, 999);
+    }
+
+    /** Kartu RFID minimum — {@code transaksi_tertunda.rfid_uid} ber-FK ke sini. */
+    public static void kartu(JdbcTemplate jdbc, long sekolahId, long siswaId, String uid) {
+        siswa(jdbc, sekolahId, siswaId);
+        jdbc.update("""
+                INSERT INTO kartu (uid, sekolah_id, siswa_id, nomor_kartu)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT (uid) DO NOTHING
+                """, uid, sekolahId, siswaId, "KRT-" + uid);
+    }
+
+    /**
+     * Kategori bawaan yang dipakai {@code MenuLookupPort} fake di banyak IT
+     * ({@code kategoriId(100)} / {@code (200)}). {@code transaksi_item.kategori_id}
+     * ber-FK ke {@code kategori_menu}, jadi barisnya wajib ada.
+     */
+    public static void kategoriUmum(JdbcTemplate jdbc, long sekolahId) {
+        kategori(jdbc, sekolahId, 100L);
+        kategori(jdbc, sekolahId, 200L);
+    }
 }
