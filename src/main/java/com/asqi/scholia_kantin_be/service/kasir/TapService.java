@@ -7,6 +7,7 @@ import com.asqi.scholia_kantin_be.component.metrics.MetrikTap;
 import com.asqi.scholia_kantin_be.dto.TapRequest;
 import com.asqi.scholia_kantin_be.dto.TapResponse;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
+import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.enums.JenisNotifikasi;
 import com.asqi.scholia_kantin_be.enums.MetodeRequestKartu;
 import com.asqi.scholia_kantin_be.enums.StatusPendingTap;
@@ -369,6 +370,7 @@ public class TapService {
         notifikasi.kirim(PerintahNotifikasi.builder()
                 .sekolahId(sekolahId)
                 .jenis(JenisNotifikasi.BELANJA)
+                .subjekTipe(SubjekTipe.SISWA)
                 .siswaId(kartu.getSiswaId())
                 .nominal(hasil.getTotal())
                 .saldoSetelah(hasilDebit.getSaldoSetelah())

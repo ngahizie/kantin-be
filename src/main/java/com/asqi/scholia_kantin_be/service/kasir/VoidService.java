@@ -4,6 +4,7 @@ import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
 import com.asqi.scholia_kantin_be.component.logging.AuditLogger;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
+import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.enums.JenisNotifikasi;
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
@@ -219,6 +220,7 @@ public class VoidService {
         notifikasi.kirim(PerintahNotifikasi.builder()
                 .sekolahId(sekolahId)
                 .jenis(JenisNotifikasi.VOID)
+                .subjekTipe(SubjekTipe.SISWA)
                 .siswaId(trx.getSiswaId())
                 .nominal(trx.getTotal())
                 .saldoSetelah(saldoSetelah)
