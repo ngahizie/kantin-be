@@ -1,7 +1,9 @@
 package com.asqi.scholia_kantin_be.helper;
 
+import io.minio.BucketExistsArgs;
 import io.minio.GetObjectArgs;
 import io.minio.GetObjectResponse;
+import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
@@ -60,6 +62,9 @@ public class S3Storage {
 
     /** Klien dibuat malas (double-checked locking) pada pemakaian pertama. */
     private volatile MinioClient client;
+
+    /** Penanda bucket tujuan sudah dipastikan ada (dicek sekali per instance). */
+    private volatile boolean bucketSiap;
 
     @Value("${minio.bucket-name}")
     private String bucketName;
@@ -130,6 +135,37 @@ public class S3Storage {
         return client() == null;
     }
 
+    /**
+     * Pastikan bucket tujuan ada, buat bila belum.
+     *
+     * <p>Sebelumnya bucket harus dibuat manual lewat console MinIO
+     * ({@code README-DEV.md} §5); kalau terlewat, unggah gagal dengan pesan
+     * "Gagal mengunggah berkas ke penyimpanan" yang membingungkan. Pemeriksaan
+     * dilakukan sekali per instance lalu di-cache pada {@link #bucketSiap}.
+     *
+     * @param klien klien MinIO aktif
+     * @throws Exception bila pemeriksaan/pembuatan bucket gagal (mis. kredensial
+     *                   tidak berhak membuat bucket) — kesalahan ini tetap
+     *                   dilaporkan ke pemanggil, bukan ditelan
+     */
+    void pastikanBucket(MinioClient klien) throws Exception {
+        if (bucketSiap) {
+            return;
+        }
+        synchronized (this) {
+            if (bucketSiap) {
+                return;
+            }
+            boolean ada = klien.bucketExists(
+                    BucketExistsArgs.builder().bucket(bucketName).build());
+            if (!ada) {
+                klien.makeBucket(MakeBucketArgs.builder().bucket(bucketName).build());
+                log.info("S3Storage: bucket '{}' belum ada — dibuat otomatis", bucketName);
+            }
+            bucketSiap = true;
+        }
+    }
+
     private String validateAndExtractExtension(String originalFileName) {
         if (originalFileName == null || !originalFileName.contains(".")) {
             throw new IllegalArgumentException("File harus memiliki ekstensi");
@@ -173,8 +209,11 @@ public class S3Storage {
             return localStorage.uploadFile(folderName, file);
         }
 
+        MinioClient klien = client();
+        pastikanBucket(klien);
+
         try (InputStream inputStream = file.getInputStream()) {
-            client().putObject(
+            klien.putObject(
                     PutObjectArgs.builder()
                             .bucket(bucketName)
                             .object(objectName)
