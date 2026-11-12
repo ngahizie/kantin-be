@@ -9,6 +9,7 @@ import com.asqi.scholia_kantin_be.dto.SetoranResponse;
 import com.asqi.scholia_kantin_be.service.kasir.LedgerSaldoService;
 import com.asqi.scholia_kantin_be.service.kasir.PerintahMutasiSaldo;
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import com.asqi.scholia_kantin_be.support.TestcontainersConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -62,13 +63,17 @@ class SetoranServiceIT {
 
     @BeforeEach
     void bersihkan() {
-        jdbc.execute("TRUNCATE TABLE setoran_tu, saldo_ledger, saldo_cache, audit_log CASCADE");
+        jdbc.execute("TRUNCATE TABLE setoran, mutasi_saldo, saldo, catatan_audit CASCADE");
         subjekBerikut = 10_000L;
+        // Skema v2: setoran/mutasi_saldo ber-FK ke sekolah, pengguna, dan siswa.
+        FixtureInduk.sekolah(jdbc, SEKOLAH);
+        FixtureInduk.pengguna(jdbc, SEKOLAH, PETUGAS_A, PETUGAS_B, BENDAHARA);
     }
 
     /** Catat satu top-up tunai oleh petugas tertentu (aktor_id = petugasId). */
     private void topUpTunai(long petugasId, long nominal) {
         long subjek = subjekBerikut++;
+        FixtureInduk.siswa(jdbc, SEKOLAH, subjek);
         tx.executeWithoutResult(s -> ledger.kredit(PerintahMutasiSaldo.builder()
                 .sekolahId(SEKOLAH)
                 .subjekTipe(SubjekTipe.SISWA)
@@ -124,7 +129,7 @@ class SetoranServiceIT {
 
         // Audit tercatat.
         Integer audit = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM audit_log WHERE aksi = 'KONFIRMASI_SETORAN_TU'", Integer.class);
+                "SELECT COUNT(*) FROM catatan_audit WHERE aksi = 'KONFIRMASI_SETORAN_TU'", Integer.class);
         assertThat(audit).isEqualTo(1);
     }
 
@@ -138,7 +143,7 @@ class SetoranServiceIT {
 
         assertThat(s.getSelisih()).isEqualTo(5_000); // kurang setor = positif
         assertThat(jdbc.queryForObject(
-                "SELECT selisih FROM setoran_tu WHERE id = ?", Long.class, s.getId()))
+                "SELECT selisih FROM setoran WHERE id = ?", Long.class, s.getId()))
                 .isEqualTo(5_000L);
     }
 
@@ -175,7 +180,7 @@ class SetoranServiceIT {
                 80_000, "BA-2026-005", null, BENDAHARA);
 
         assertThat(s2.getId()).isEqualTo(s1.getId());
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM setoran_tu", Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM setoran", Integer.class)).isEqualTo(1);
     }
 
     @Test
@@ -186,10 +191,10 @@ class SetoranServiceIT {
                 80_000, "BA-2026-006", null, BENDAHARA);
 
         assertThatThrownBy(() -> jdbc.update(
-                "UPDATE setoran_tu SET jumlah_disetor = 0 WHERE id = ?", s.getId()))
+                "UPDATE setoran SET jumlah_disetor = 0 WHERE id = ?", s.getId()))
                 .hasMessageContaining("append-only");
         assertThatThrownBy(() -> jdbc.update(
-                "DELETE FROM setoran_tu WHERE id = ?", s.getId()))
+                "DELETE FROM setoran WHERE id = ?", s.getId()))
                 .hasMessageContaining("append-only");
     }
 

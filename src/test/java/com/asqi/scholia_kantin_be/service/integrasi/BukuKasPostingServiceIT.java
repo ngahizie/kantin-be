@@ -44,10 +44,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * Uji integrasi posting Buku Kas &amp; idempotency-nya (INTEGRATIONS.md §3).
  *
  * <p>Memakai fake {@link BukuKasPort} (bukan jaringan) untuk memverifikasi:
- * kontrak perintah yang dikirim, penandaan {@code posting_buku_kas}, retry, dan
+ * kontrak perintah yang dikirim, penandaan {@code jurnal_buku_kas}, retry, dan
  * bahwa kegagalan integrasi <b>tidak</b> membatalkan penutupan sesi.
  */
-@SpringBootTest
+// v2: KartuLookupLokal/CariSiswaLokal @Primary aktif saat kantin.siswa.sumber=lokal
+// (default) sehingga bertabrakan dengan fake @Primary milik kelas ini.
+@SpringBootTest(properties = "kantin.siswa.sumber=integrasi")
 @Import({TestcontainersConfig.class,
         BukuKasPostingServiceIT.FakeBukuKasConfig.class,
         BukuKasPostingServiceIT.FakeLookupConfig.class})
@@ -92,7 +94,7 @@ class BukuKasPostingServiceIT {
         TenantContext.set(IdentitasKantin.builder().userId("555").sekolahId(SEKOLAH).build());
         fake.reset();
         jdbc.execute("TRUNCATE TABLE transaksi_item, transaksi, sesi_kasir, titik_kasir, "
-                + "saldo_ledger, saldo_cache, mutasi_stok, stok_cache, audit_log CASCADE");
+                + "mutasi_saldo, saldo, riwayat_stok, stok, catatan_audit CASCADE");
         jdbc.update("INSERT INTO titik_kasir (id, sekolah_id, nama, is_active, created_at, updated_at) "
                 + "VALUES (?, ?, 'Kasir 1', true, now(), now())", TITIK, SEKOLAH);
         tx.executeWithoutResult(s -> ledgerSaldo.kredit(PerintahMutasiSaldo.builder()
@@ -141,12 +143,12 @@ class BukuKasPostingServiceIT {
 
         // Flag idempotency tersimpan + audit tercatat.
         assertThat(jdbc.queryForObject(
-                "SELECT posting_buku_kas FROM sesi_kasir WHERE id = ?", Boolean.class, sesiId)).isTrue();
+                "SELECT jurnal_buku_kas FROM sesi_kasir WHERE id = ?", Boolean.class, sesiId)).isTrue();
         assertThat(jdbc.queryForObject(
                 "SELECT referensi_buku_kas FROM sesi_kasir WHERE id = ?", String.class, sesiId))
                 .isEqualTo("KANTIN-SESI-" + sesiId);
         assertThat(jdbc.queryForObject(
-                "SELECT COUNT(*) FROM audit_log WHERE aksi = 'POSTING_BUKU_KAS'", Integer.class))
+                "SELECT COUNT(*) FROM catatan_audit WHERE aksi = 'POSTING_BUKU_KAS'", Integer.class))
                 .isEqualTo(1);
     }
 
@@ -162,7 +164,7 @@ class BukuKasPostingServiceIT {
         assertThat(hasil.sukses()).isTrue();
         assertThat(fake.dipanggil).hasSize(1); // TIDAK ada entri ganda
         assertThat(jdbc.queryForObject(
-                "SELECT COUNT(*) FROM audit_log WHERE aksi = 'POSTING_BUKU_KAS'", Integer.class))
+                "SELECT COUNT(*) FROM catatan_audit WHERE aksi = 'POSTING_BUKU_KAS'", Integer.class))
                 .isEqualTo(1);
     }
 
@@ -177,7 +179,7 @@ class BukuKasPostingServiceIT {
         // Sesi tetap DITUTUP, hanya flag posting yang belum terisi.
         assertThat(sesi.getStatus()).isEqualTo(StatusSesiKasir.DITUTUP);
         assertThat(jdbc.queryForObject(
-                "SELECT posting_buku_kas FROM sesi_kasir WHERE id = ?", Boolean.class, sesiId)).isFalse();
+                "SELECT jurnal_buku_kas FROM sesi_kasir WHERE id = ?", Boolean.class, sesiId)).isFalse();
 
         // Integrasi pulih → retry berhasil tanpa membuat sesi/transaksi baru.
         fake.melempar = false;
@@ -186,7 +188,7 @@ class BukuKasPostingServiceIT {
         assertThat(hasil.sukses()).isTrue();
         assertThat(fake.dipanggil).hasSize(2);
         assertThat(jdbc.queryForObject(
-                "SELECT posting_buku_kas FROM sesi_kasir WHERE id = ?", Boolean.class, sesiId)).isTrue();
+                "SELECT jurnal_buku_kas FROM sesi_kasir WHERE id = ?", Boolean.class, sesiId)).isTrue();
     }
 
     @Test

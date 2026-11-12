@@ -3,6 +3,7 @@ package com.asqi.scholia_kantin_be.service.integrasi;
 import com.asqi.scholia_kantin_be.enums.MetodeBukuKas;
 import com.asqi.scholia_kantin_be.enums.TipeBukuKas;
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import com.asqi.scholia_kantin_be.support.TestcontainersConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -26,7 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Uji integrasi retry otomatis posting Buku Kas yang tertunggak (issue #33).
  *
  * <p>Mensimulasikan kondisi fail-open: sesi DITUTUP dengan
- * {@code posting_buku_kas=false} (mis. admin-be sempat gangguan). Penjadwal
+ * {@code jurnal_buku_kas=false} (mis. admin-be sempat gangguan). Penjadwal
  * retry menyapunya dan memposting ulang — idempoten, tenant-safe, dan tahan
  * terhadap kegagalan sebagian.
  */
@@ -51,7 +52,9 @@ class RetryJurnalBukuKasIT {
     @BeforeEach
     void bersihkan() {
         fake.reset();
-        jdbc.execute("TRUNCATE TABLE posting_buku_kas, sesi_kasir, titik_kasir, audit_log CASCADE");
+        jdbc.execute("TRUNCATE TABLE jurnal_buku_kas, sesi_kasir, titik_kasir, catatan_audit CASCADE");
+        // Skema v2: titik_kasir ber-FK ke sekolah.
+        FixtureInduk.sekolah(jdbc, SEKOLAH_A, SEKOLAH_B);
         jdbc.update("INSERT INTO titik_kasir (id, sekolah_id, nama, is_active, created_at, updated_at) "
                 + "VALUES (?, ?, 'Kasir 1', true, now(), now())", TITIK, SEKOLAH_A);
         jdbc.update("INSERT INTO titik_kasir (id, sekolah_id, nama, is_active, created_at, updated_at) "
@@ -62,7 +65,7 @@ class RetryJurnalBukuKasIT {
     private void sesiTertunggak(long id, long sekolahId, long titikId, long bersih, boolean terposting) {
         jdbc.update("INSERT INTO sesi_kasir (id, sekolah_id, titik_kasir_id, tanggal, status, "
                 + "total_bruto, total_void, total_bersih, dibuka_at, ditutup_at, auto_tutup, "
-                + "posting_buku_kas, created_at, updated_at) "
+                + "jurnal_buku_kas, created_at, updated_at) "
                 + "VALUES (?, ?, ?, CURRENT_DATE, 'DITUTUP', ?, 0, ?, now(), now(), true, ?, now(), now())",
                 id, sekolahId, titikId, bersih, bersih, terposting);
     }
@@ -87,7 +90,7 @@ class RetryJurnalBukuKasIT {
 
         // Flag idempotency terisi.
         assertThat(jdbc.queryForObject(
-                "SELECT posting_buku_kas FROM sesi_kasir WHERE id = 9001", Boolean.class)).isTrue();
+                "SELECT jurnal_buku_kas FROM sesi_kasir WHERE id = 9001", Boolean.class)).isTrue();
     }
 
     @Test
@@ -139,7 +142,7 @@ class RetryJurnalBukuKasIT {
         assertThat(gagal.sukses()).isZero();
         // Flag belum terisi → tetap tertunggak untuk sweep berikutnya.
         assertThat(jdbc.queryForObject(
-                "SELECT posting_buku_kas FROM sesi_kasir WHERE id = 9001", Boolean.class)).isFalse();
+                "SELECT jurnal_buku_kas FROM sesi_kasir WHERE id = 9001", Boolean.class)).isFalse();
 
         // Integrasi pulih → sweep berikutnya sukses.
         fake.melempar = false;
@@ -147,7 +150,7 @@ class RetryJurnalBukuKasIT {
 
         assertThat(sukses.sukses()).isEqualTo(1);
         assertThat(jdbc.queryForObject(
-                "SELECT posting_buku_kas FROM sesi_kasir WHERE id = 9001", Boolean.class)).isTrue();
+                "SELECT jurnal_buku_kas FROM sesi_kasir WHERE id = 9001", Boolean.class)).isTrue();
     }
 
     @Test

@@ -145,7 +145,7 @@ class KatalogControllerTest {
     }
 
     @Test
-    @DisplayName("daftarMenu menyertakan stokBerjalan dari stok_cache (hindari N+1)")
+    @DisplayName("daftarMenu menyertakan stokBerjalan dari stok (hindari N+1)")
     void daftarMenuMenyertakanStokBerjalan() throws Exception {
         Menu menu = Menu.builder().id(99L).sekolahId(7L).nama("Nasi Goreng")
                 .hargaJual(15_000L).satuan(SatuanMenu.PORSI).stokMinimum(5).isActive(true).build();

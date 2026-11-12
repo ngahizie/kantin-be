@@ -45,7 +45,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * dengan jenis &amp; data yang benar, dan bahwa kegagalan pengiriman
  * (<b>fail-open</b>) tidak membatalkan operasi.
  */
-@SpringBootTest
+// v2: KartuLookupLokal/CariSiswaLokal @Primary aktif saat kantin.siswa.sumber=lokal
+// (default) sehingga bertabrakan dengan fake @Primary milik kelas ini.
+@SpringBootTest(properties = "kantin.siswa.sumber=integrasi")
 @Import({TestcontainersConfig.class, NotifikasiIntegrasiIT.FakePortConfig.class,
         NotifikasiIntegrasiIT.FakeNotifikasiConfig.class})
 @EnabledIfDockerAvailable
@@ -84,7 +86,7 @@ class NotifikasiIntegrasiIT {
         TenantContext.set(petugas);
         fakeNotifikasi.reset();
         jdbc.execute("TRUNCATE TABLE transaksi_item, transaksi, sesi_kasir, titik_kasir, "
-                + "saldo_ledger, saldo_cache, mutasi_stok, stok_cache CASCADE");
+                + "mutasi_saldo, saldo, riwayat_stok, stok CASCADE");
         jdbc.update("INSERT INTO titik_kasir (id, sekolah_id, nama, is_active, created_at, updated_at) "
                 + "VALUES (?, ?, 'Kasir 1', true, now(), now())", TITIK, SEKOLAH);
         tx.executeWithoutResult(s -> ledgerSaldo.kredit(PerintahMutasiSaldo.builder()

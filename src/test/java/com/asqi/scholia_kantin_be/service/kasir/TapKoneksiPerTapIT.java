@@ -47,7 +47,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>Memakai PostgreSQL nyata (Testcontainers) karena metrik Hikari baru muncul
  * saat koneksi benar-benar diambil dari kolam.
  */
-@SpringBootTest
+// v2: KartuLookupLokal/CariSiswaLokal @Primary aktif saat kantin.siswa.sumber=lokal
+// (default) sehingga bertabrakan dengan fake @Primary milik kelas ini.
+@SpringBootTest(properties = "kantin.siswa.sumber=integrasi")
 @Import({TestcontainersConfig.class, TapKoneksiPerTapIT.FakePortConfig.class})
 @EnabledIfDockerAvailable
 @DisplayName("#180 — satu tap = satu pengambilan koneksi Hikari")
@@ -86,9 +88,9 @@ class TapKoneksiPerTapIT {
 
     @BeforeEach
     void bersihkan() {
-        jdbc.execute("TRUNCATE TABLE transaksi_menunggu_konfirmasi, transaksi_item, transaksi, "
-                + "sesi_kasir, titik_kasir, saldo_ledger, saldo_cache, mutasi_stok, stok_cache, "
-                + "sekolah_kantin_config CASCADE");
+        jdbc.execute("TRUNCATE TABLE transaksi_tertunda, transaksi_item, transaksi, "
+                + "sesi_kasir, titik_kasir, mutasi_saldo, saldo, riwayat_stok, stok, "
+                + "pengaturan_kantin CASCADE");
         jdbc.update("INSERT INTO titik_kasir (id, sekolah_id, nama, is_active, created_at, updated_at) "
                 + "VALUES (?, ?, 'Kasir 1', true, now(), now())", TITIK, SEKOLAH);
 

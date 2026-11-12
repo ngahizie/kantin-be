@@ -48,7 +48,7 @@ class PengaturanKantinServiceIT {
 
     @BeforeEach
     void bersihkan() {
-        jdbc.execute("TRUNCATE TABLE sekolah_kantin_config, titik_kasir, sesi_kasir, audit_log CASCADE");
+        jdbc.execute("TRUNCATE TABLE pengaturan_kantin, titik_kasir, sesi_kasir, catatan_audit CASCADE");
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -65,7 +65,7 @@ class PengaturanKantinServiceIT {
         assertThat(p.getDurasiFotoDetik()).isEqualTo(3);
         assertThat(p.isDisimpan()).isFalse();
         assertThat(jdbc.queryForObject(
-                "SELECT COUNT(*) FROM sekolah_kantin_config", Integer.class)).isZero();
+                "SELECT COUNT(*) FROM pengaturan_kantin", Integer.class)).isZero();
     }
 
     @Test
@@ -91,7 +91,7 @@ class PengaturanKantinServiceIT {
         assertThat(p.isDisimpan()).isTrue();
 
         Integer audit = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM audit_log WHERE aksi = 'UBAH_PENGATURAN_KANTIN'", Integer.class);
+                "SELECT COUNT(*) FROM catatan_audit WHERE aksi = 'UBAH_PENGATURAN_KANTIN'", Integer.class);
         assertThat(audit).isEqualTo(1);
     }
 
@@ -147,7 +147,7 @@ class PengaturanKantinServiceIT {
         assertThat(t.isAktif()).isTrue();
 
         Integer audit = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM audit_log WHERE aksi = 'BUAT_TITIK_KASIR'", Integer.class);
+                "SELECT COUNT(*) FROM catatan_audit WHERE aksi = 'BUAT_TITIK_KASIR'", Integer.class);
         assertThat(audit).isEqualTo(1);
     }
 
@@ -189,7 +189,7 @@ class PengaturanKantinServiceIT {
     void titikDenganSesiTerbukaTidakBisaNonaktif() {
         TitikKasirResponse t = titikKasirService.buat(SEKOLAH, "Kasir 1", null, ADMIN);
         jdbc.update("INSERT INTO sesi_kasir (id, sekolah_id, titik_kasir_id, tanggal, status, "
-                + "total_bruto, total_void, total_bersih, dibuka_at, auto_tutup, posting_buku_kas, "
+                + "total_bruto, total_void, total_bersih, dibuka_at, auto_tutup, jurnal_buku_kas, "
                 + "created_at, updated_at) "
                 + "VALUES (9001, ?, ?, CURRENT_DATE, 'TERBUKA', 0, 0, 0, now(), false, false, now(), now())",
                 SEKOLAH, t.getId());

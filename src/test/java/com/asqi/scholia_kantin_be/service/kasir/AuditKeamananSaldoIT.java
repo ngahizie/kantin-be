@@ -3,6 +3,7 @@ package com.asqi.scholia_kantin_be.service.kasir;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import com.asqi.scholia_kantin_be.support.TestcontainersConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -25,7 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * saldo sekolah A. Uji ini menjaga perbaikan V10.
  *
  * <p>Catatan: {@code subjekId} memang global unik (satu siswa satu sekolah) —
- * lihat {@code IsolasiTenantLockIT} B17 — jadi {@code saldo_cache} tetap
+ * lihat {@code IsolasiTenantLockIT} B17 — jadi {@code saldo} tetap
  * berkunci {@code (subjek_tipe, subjek_id)}.
  */
 @SpringBootTest
@@ -47,7 +48,11 @@ class AuditKeamananSaldoIT {
 
     @BeforeEach
     void bersihkan() {
-        jdbc.execute("TRUNCATE TABLE saldo_ledger, saldo_cache CASCADE");
+        jdbc.execute("TRUNCATE TABLE mutasi_saldo, saldo CASCADE");
+        // Skema v2: saldo/mutasi_saldo ber-FK ke sekolah + siswa.
+        FixtureInduk.sekolah(jdbc, SEKOLAH_A, SEKOLAH_B);
+        FixtureInduk.siswa(jdbc, SEKOLAH_A, 1000L);
+        FixtureInduk.siswa(jdbc, SEKOLAH_B, 2000L);
     }
 
     private PerintahMutasiSaldo topup(long sekolahId, long subjekId, long nominal, String referensiId) {

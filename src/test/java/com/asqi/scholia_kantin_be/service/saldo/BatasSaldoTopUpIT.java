@@ -9,6 +9,7 @@ import com.asqi.scholia_kantin_be.service.kasir.LedgerSaldoService;
 import com.asqi.scholia_kantin_be.service.kasir.PerintahMutasiSaldo;
 import com.asqi.scholia_kantin_be.service.konfigurasi.PengaturanKantinService;
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import com.asqi.scholia_kantin_be.support.TestcontainersConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -28,7 +29,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  *
  * <p>Membuktikan setelan yang dikonfigurasi sekolah benar-benar berdampak:
  * top-up di luar rentang min/maks ditolak, dan top-up yang membuat saldo
- * melebihi plafon (per siswa / per Kartu Tamu) ditolak — termasuk saat dua
+ * melebihi plafon (per siswa) ditolak — termasuk saat dua
  * top-up nyaris bersamaan (ditegakkan di seksi terkunci ledger).
  */
 @SpringBootTest
@@ -39,7 +40,9 @@ class BatasSaldoTopUpIT {
     private static final long SEKOLAH = 1L;
     private static final long SEKOLAH_LAIN = 2L;
     private static final long SISWA = 7L;
-    private static final long KARTU_TAMU = 8L;
+    /** Siswa di sekolah lain — id siswa bersifat global di v2 (PK {@code siswa.id}). */
+    private static final long SISWA_LAIN = 8L;
+    private static final long AKTOR = 99L;
 
     @Autowired
     private SaldoTopUpService saldoTopUp;
@@ -58,7 +61,14 @@ class BatasSaldoTopUpIT {
 
     @BeforeEach
     void bersihkan() {
-        jdbc.execute("TRUNCATE TABLE saldo_ledger, saldo_cache, sekolah_kantin_config, audit_log CASCADE");
+        jdbc.execute("TRUNCATE TABLE mutasi_saldo, saldo, pengaturan_kantin, catatan_audit CASCADE");
+
+        // Induk wajib skema v2 (FK): sekolah → siswa/pengguna.
+        FixtureInduk.sekolah(jdbc, SEKOLAH, SEKOLAH_LAIN);
+        FixtureInduk.pengguna(jdbc, SEKOLAH, AKTOR);
+        FixtureInduk.pengguna(jdbc, SEKOLAH_LAIN, AKTOR);
+        FixtureInduk.siswa(jdbc, SEKOLAH, SISWA);
+        FixtureInduk.siswa(jdbc, SEKOLAH_LAIN, SISWA_LAIN);
     }
 
     private void aturBatas(Long minTopup, Long maksTopup, Long batasSiswa) {
@@ -105,8 +115,8 @@ class BatasSaldoTopUpIT {
         // Top-up kedua di-rollback: saldo tetap 90.000 (bukan 110.000).
         assertThat(ledgerSaldo.saldo(SEKOLAH, SISWA)).isEqualTo(90_000L);
         assertThat(jdbc.queryForObject(
-                "SELECT COUNT(*) FROM saldo_ledger WHERE subjek_tipe = 'SISWA' AND subjek_id = ?",
-                Integer.class, SISWA)).isEqualTo(1);
+                "SELECT COUNT(*) FROM mutasi_saldo WHERE sekolah_id = ? AND siswa_id = ?",
+                Integer.class, SEKOLAH, SISWA)).isEqualTo(1);
     }
 
 
@@ -123,10 +133,10 @@ class BatasSaldoTopUpIT {
     @Test
     @DisplayName("#112: tanpa pengaturan → tanpa batas (perilaku lama dipertahankan)")
     void tanpaPengaturanTanpaBatas() {
-        // Tidak ada baris sekolah_kantin_config → semua null.
-        saldoTopUp.topUpTunai(SEKOLAH_LAIN, SubjekTipe.SISWA, SISWA, 5_000_000L, "Ibu", "TU-8", 99L);
+        // Tidak ada baris pengaturan_kantin → semua null.
+        saldoTopUp.topUpTunai(SEKOLAH_LAIN, SubjekTipe.SISWA, SISWA_LAIN, 5_000_000L, "Ibu", "TU-8", 99L);
 
-        assertThat(ledgerSaldo.saldo(SEKOLAH_LAIN, SISWA)).isEqualTo(5_000_000L);
+        assertThat(ledgerSaldo.saldo(SEKOLAH_LAIN, SISWA_LAIN)).isEqualTo(5_000_000L);
     }
 
     @Test

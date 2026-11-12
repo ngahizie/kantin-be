@@ -40,7 +40,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * (menyembunyikan ketergantungan Q7 &amp; Fase 5), tetapi ledger, stok, sesi,
  * transaksi, idempotency, dan locking berjalan nyata.
  */
-@SpringBootTest
+// v2: KartuLookupLokal/CariSiswaLokal @Primary aktif saat kantin.siswa.sumber=lokal
+// (default) sehingga bertabrakan dengan fake @Primary milik kelas ini.
+@SpringBootTest(properties = "kantin.siswa.sumber=integrasi")
 @TestPropertySource(properties = "kantin.demo.enabled=false")
 @Import({TestcontainersConfig.class, TapServiceIT.FakePortConfig.class})
 @EnabledIfDockerAvailable
@@ -79,9 +81,9 @@ class TapServiceIT {
 
     @BeforeEach
     void bersihkan() {
-        jdbc.execute("TRUNCATE TABLE transaksi_menunggu_konfirmasi, transaksi_item, transaksi, "
-                + "sesi_kasir, titik_kasir, saldo_ledger, saldo_cache, mutasi_stok, stok_cache, "
-                + "sekolah_kantin_config CASCADE");
+        jdbc.execute("TRUNCATE TABLE transaksi_tertunda, transaksi_item, transaksi, "
+                + "sesi_kasir, titik_kasir, mutasi_saldo, saldo, riwayat_stok, stok, "
+                + "pengaturan_kantin CASCADE");
         jdbc.update("INSERT INTO titik_kasir (id, sekolah_id, nama, is_active, created_at, updated_at) "
                 + "VALUES (?, ?, 'Kasir 1', true, now(), now())", TITIK, SEKOLAH);
 
@@ -139,7 +141,7 @@ class TapServiceIT {
     @Test
     @DisplayName("tap konkuren — saldo cache dan ledger tetap konsisten")
     void tapKonkurenTidakMembuatSaldoMinus() throws Exception {
-        jdbc.execute("TRUNCATE TABLE saldo_ledger, saldo_cache CASCADE");
+        jdbc.execute("TRUNCATE TABLE mutasi_saldo, saldo CASCADE");
         tx.executeWithoutResult(s -> ledgerSaldo.kredit(PerintahMutasiSaldo.builder()
                 .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).siswaId(SISWA)
                 .jenis(JenisMutasiSaldo.TOPUP_TUNAI).nominal(25_000)
@@ -184,7 +186,7 @@ class TapServiceIT {
         assertThat(ledgerSaldo.hitungUlangDariLedger(SEKOLAH, SISWA)).isEqualTo(saldo);
         assertThat(ledgerStok.stok(SEKOLAH, MENU_NASI)).isEqualTo(17);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM transaksi", Integer.class)).isEqualTo(4); // termasuk tap pembuka sesi
-        assertThat(jdbc.queryForObject("SELECT COUNT(DISTINCT saldo_setelah) FROM saldo_ledger WHERE arah = 'DEBIT'", Integer.class)).isEqualTo(4); // termasuk tap pembuka sesi
+        assertThat(jdbc.queryForObject("SELECT COUNT(DISTINCT saldo_setelah) FROM mutasi_saldo WHERE arah = 'DEBIT'", Integer.class)).isEqualTo(4); // termasuk tap pembuka sesi
     }
 
     @Test
@@ -286,7 +288,7 @@ class TapServiceIT {
         assertThat(ledgerStok.stok(SEKOLAH, MENU_NASI)).isEqualTo(20);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM transaksi", Integer.class)).isZero();
         assertThat(jdbc.queryForObject(
-                "SELECT COUNT(*) FROM transaksi_menunggu_konfirmasi WHERE status = 'MENUNGGU'",
+                "SELECT COUNT(*) FROM transaksi_tertunda WHERE status = 'MENUNGGU'",
                 Integer.class)).isEqualTo(1);
     }
 
@@ -304,7 +306,7 @@ class TapServiceIT {
         assertThat(ledgerSaldo.saldo(SEKOLAH, SISWA)).isEqualTo(42_000L);
         assertThat(ledgerStok.stok(SEKOLAH, MENU_NASI)).isEqualTo(19);
         assertThat(jdbc.queryForObject(
-                "SELECT status FROM transaksi_menunggu_konfirmasi WHERE id = ?",
+                "SELECT status FROM transaksi_tertunda WHERE id = ?",
                 String.class, pending.getPendingId())).isEqualTo("DIKONFIRMASI");
     }
 
@@ -331,7 +333,7 @@ class TapServiceIT {
 
         assertThat(b.getPendingId()).isEqualTo(a.getPendingId());
         assertThat(jdbc.queryForObject(
-                "SELECT COUNT(*) FROM transaksi_menunggu_konfirmasi", Integer.class)).isEqualTo(1);
+                "SELECT COUNT(*) FROM transaksi_tertunda", Integer.class)).isEqualTo(1);
     }
 
     @Test
@@ -345,7 +347,7 @@ class TapServiceIT {
         assertThat(ledgerSaldo.saldo(SEKOLAH, SISWA)).isEqualTo(50_000L);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM transaksi", Integer.class)).isZero();
         assertThat(jdbc.queryForObject(
-                "SELECT status FROM transaksi_menunggu_konfirmasi WHERE id = ?",
+                "SELECT status FROM transaksi_tertunda WHERE id = ?",
                 String.class, pending.getPendingId())).isEqualTo("DIBATALKAN");
     }
 

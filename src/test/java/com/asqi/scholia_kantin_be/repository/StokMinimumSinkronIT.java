@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.asqi.scholia_kantin_be.model.Stok;
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import com.asqi.scholia_kantin_be.support.TestcontainersConfig;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,7 +16,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * Uji integrasi invarian <b>{@code stok_cache.stok_minimum ≡ menu.stok_minimum}</b>
+ * Uji integrasi invarian <b>{@code stok.stok_minimum ≡ menu.stok_minimum}</b>
  * (PRD §7.5 · debt B38 · issue #196).
  *
  * <p>Sebelum perbaikan, sinkronisasi hanya terjadi lewat panggilan manual di
@@ -43,22 +44,24 @@ class StokMinimumSinkronIT {
 
     @BeforeEach
     void siapkan() {
-        jdbc.execute("TRUNCATE TABLE mutasi_stok, stok_cache CASCADE");
+        jdbc.execute("TRUNCATE TABLE riwayat_stok, stok CASCADE");
         jdbc.execute("TRUNCATE TABLE menu CASCADE");
+        // Skema v2: menu ber-FK ke sekolah.
+        FixtureInduk.sekolah(jdbc, 1L);
     }
 
     @Test
-    @DisplayName("#196: INSERT menu lewat SQL langsung → baris stok_cache dibuat & ambang ikut")
+    @DisplayName("#196: INSERT menu lewat SQL langsung → baris stok dibuat & ambang ikut")
     void insertLangsungSinkron() {
         menu(MENU, 7);
 
         assertThat(ambangCache()).isEqualTo(7);
         assertThat(jdbc.queryForObject(
-                "SELECT stok FROM stok_cache WHERE menu_id = ?", Integer.class, MENU)).isZero();
+                "SELECT stok FROM stok WHERE menu_id = ?", Integer.class, MENU)).isZero();
     }
 
     @Test
-    @DisplayName("#196: UPDATE menu.stok_minimum lewat SQL langsung → stok_cache ikut (REGRESI: gagal tanpa trigger)")
+    @DisplayName("#196: UPDATE menu.stok_minimum lewat SQL langsung → stok ikut (REGRESI: gagal tanpa trigger)")
     void updateLangsungSinkron() {
         menu(MENU, 5);
         assertThat(ambangCache()).isEqualTo(5);
@@ -74,12 +77,12 @@ class StokMinimumSinkronIT {
     @DisplayName("#196: ubah ambang TIDAK mereset stok & hpp berjalan (cache tidak rusak)")
     void ambangTidakMerusakStokBerjalan() {
         menu(MENU, 5);
-        jdbc.update("UPDATE stok_cache SET stok = 40, hpp = 2500 WHERE menu_id = ?", MENU);
+        jdbc.update("UPDATE stok SET stok = 40, hpp = 2500 WHERE menu_id = ?", MENU);
 
         jdbc.update("UPDATE menu SET stok_minimum = ? WHERE id = ?", 9, MENU);
 
         Map<String, Object> baris = jdbc.queryForMap(
-                "SELECT stok, hpp, stok_minimum FROM stok_cache WHERE menu_id = ?", MENU);
+                "SELECT stok, hpp, stok_minimum FROM stok WHERE menu_id = ?", MENU);
         assertThat(baris.get("stok")).isEqualTo(40);
         assertThat(baris.get("hpp")).isEqualTo(2500L);
         assertThat(baris.get("stok_minimum")).isEqualTo(9);
@@ -90,12 +93,12 @@ class StokMinimumSinkronIT {
     void stokMenipisTetapBenar() {
         menu(MENU, 10); // ambang 10
 
-        jdbc.update("UPDATE stok_cache SET stok = 10 WHERE menu_id = ?", MENU); // tepat di ambang
+        jdbc.update("UPDATE stok SET stok = 10 WHERE menu_id = ?", MENU); // tepat di ambang
         assertThat(cacheRepo.stokMenipis(SEKOLAH))
                 .extracting(Stok::getMenuId)
                 .containsExactly(MENU);
 
-        jdbc.update("UPDATE stok_cache SET stok = 11 WHERE menu_id = ?", MENU); // di atas ambang
+        jdbc.update("UPDATE stok SET stok = 11 WHERE menu_id = ?", MENU); // di atas ambang
         assertThat(cacheRepo.stokMenipis(SEKOLAH)).isEmpty();
     }
 
@@ -105,7 +108,7 @@ class StokMinimumSinkronIT {
         menu(MENU, 10);
         jdbc.update("INSERT INTO menu (id, sekolah_id, nama, harga_jual, stok_minimum) "
                 + "VALUES (?, ?, ?, 10000, ?)", 101L, 2L, "Menu Sekolah Lain", 10);
-        jdbc.update("UPDATE stok_cache SET stok = 1 WHERE menu_id IN (?, ?)", MENU, 101L);
+        jdbc.update("UPDATE stok SET stok = 1 WHERE menu_id IN (?, ?)", MENU, 101L);
 
         assertThat(cacheRepo.stokMenipis(SEKOLAH))
                 .extracting(Stok::getMenuId)
@@ -123,6 +126,6 @@ class StokMinimumSinkronIT {
 
     private Integer ambangCache() {
         return jdbc.queryForObject(
-                "SELECT stok_minimum FROM stok_cache WHERE menu_id = ?", Integer.class, MENU);
+                "SELECT stok_minimum FROM stok WHERE menu_id = ?", Integer.class, MENU);
     }
 }

@@ -1,6 +1,7 @@
 package com.asqi.scholia_kantin_be.web;
 
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import com.asqi.scholia_kantin_be.support.TestcontainersConfig;
 import io.jsonwebtoken.Jwts;
 import org.junit.jupiter.api.DisplayName;
@@ -199,6 +200,8 @@ class ValidasiHttpStatusIT {
     @DisplayName("#251: data milik tenant lain dibalas HTTP 404 (bukan 403)")
     void dataTenantLainBalas404() throws Exception {
         long idMenu = 900_001L;
+        // Skema v2: menu ber-FK ke sekolah.
+        FixtureInduk.sekolah(jdbc, SEKOLAH_ID, SEKOLAH_LAIN);
         jdbc.update("INSERT INTO menu (id, sekolah_id, nama, harga_jual, satuan, is_active) "
                         + "VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING",
                 idMenu, SEKOLAH_LAIN, "Menu Tenant Lain", 1_000L, "PCS", true);

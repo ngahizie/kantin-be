@@ -15,6 +15,7 @@ import com.asqi.scholia_kantin_be.service.integrasi.KartuLookupPort;
 import com.asqi.scholia_kantin_be.service.integrasi.MenuLookupPort;
 import com.asqi.scholia_kantin_be.service.stok.LedgerStokService;
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import com.asqi.scholia_kantin_be.support.TestcontainersConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -42,7 +43,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * sehingga blokir berlaku <b>instan</b> di jalur tap (PRD §11.11), limit &amp;
  * blokir item ditegakkan, serta tenant scoping &amp; audit (PRD §11.4/§11.7).
  */
-@SpringBootTest
+// v2: KartuLookupLokal/CariSiswaLokal @Primary aktif saat kantin.siswa.sumber=lokal
+// (default) sehingga bertabrakan dengan fake @Primary milik kelas ini.
+@SpringBootTest(properties = "kantin.siswa.sumber=integrasi")
 @Import({TestcontainersConfig.class, KontrolKartuServiceIT.FakePortConfig.class})
 @EnabledIfDockerAvailable
 class KontrolKartuServiceIT {
@@ -55,6 +58,7 @@ class KontrolKartuServiceIT {
     private static final long KATEGORI_ES = 200L;
     private static final long TITIK = 1L;
     private static final long ADMIN = 900L;
+    private static final long PETUGAS_AKTOR = 555L;
     private static final String UID = "A1B2C3D4";
 
     @Autowired
@@ -80,9 +84,29 @@ class KontrolKartuServiceIT {
 
     @BeforeEach
     void bersihkan() {
-        jdbc.execute("TRUNCATE TABLE blokir_kartu, limit_harian, blokir_item, transaksi_item, "
-                + "transaksi, sesi_kasir, titik_kasir, saldo_ledger, saldo_cache, mutasi_stok, "
-                + "stok_cache, audit_log CASCADE");
+        // Skema v2 menggabungkan blokir_kartu/limit_harian/blokir_item → pembatasan.
+        jdbc.execute("TRUNCATE TABLE pembatasan, transaksi_item, "
+                + "transaksi, sesi_kasir, titik_kasir, mutasi_saldo, saldo, riwayat_stok, "
+                + "stok, catatan_audit CASCADE");
+
+        // Induk wajib skema v2 (FK): sekolah → siswa/pengguna, menu → kategori_menu.
+        FixtureInduk.sekolah(jdbc, SEKOLAH, SEKOLAH_LAIN);
+        FixtureInduk.pengguna(jdbc, SEKOLAH, ADMIN, PETUGAS_AKTOR);
+        FixtureInduk.siswa(jdbc, SEKOLAH, SISWA);
+        jdbc.update("INSERT INTO kategori_menu (id, sekolah_id, nama, urutan, is_active, created_at, updated_at) "
+                + "VALUES (?, ?, 'Minuman', 0, true, now(), now()) ON CONFLICT (id) DO NOTHING",
+                KATEGORI_ES, SEKOLAH);
+        jdbc.update("INSERT INTO menu (id, sekolah_id, kategori_id, nama, harga_jual, satuan, "
+                + "stok_minimum, is_active, created_at, updated_at) "
+                + "VALUES (?, ?, NULL, 'Nasi Uduk', 8000, 'PCS', 0, true, now(), now()) "
+                + "ON CONFLICT (id) DO NOTHING", MENU_NASI, SEKOLAH);
+        jdbc.update("INSERT INTO menu (id, sekolah_id, kategori_id, nama, harga_jual, satuan, "
+                + "stok_minimum, is_active, created_at, updated_at) "
+                + "VALUES (?, ?, ?, 'Es Jeruk', 5000, 'PCS', 0, true, now(), now()) "
+                + "ON CONFLICT (id) DO NOTHING", MENU_ES, SEKOLAH, KATEGORI_ES);
+        jdbc.update("INSERT INTO kartu (uid, sekolah_id, siswa_id, nomor_kartu) "
+                + "VALUES (?, ?, ?, 'KRT-001') ON CONFLICT (uid) DO NOTHING", UID, SEKOLAH, SISWA);
+
         jdbc.update("INSERT INTO titik_kasir (id, sekolah_id, nama, is_active, created_at, updated_at) "
                 + "VALUES (?, ?, 'Kasir 1', true, now(), now())", TITIK, SEKOLAH);
 
@@ -152,7 +176,7 @@ class KontrolKartuServiceIT {
         kontrol.ubahBlokir(SEKOLAH, SISWA, true, "hilang", ADMIN);
 
         Integer audit = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM audit_log WHERE aksi = 'BLOKIR_KARTU'", Integer.class);
+                "SELECT COUNT(*) FROM catatan_audit WHERE aksi = 'BLOKIR_KARTU'", Integer.class);
         assertThat(audit).isEqualTo(1);
     }
 

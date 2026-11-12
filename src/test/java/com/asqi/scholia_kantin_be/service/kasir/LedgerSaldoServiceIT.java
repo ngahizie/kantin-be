@@ -4,6 +4,7 @@ import com.asqi.scholia_kantin_be.component.exception.ConflictException;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import com.asqi.scholia_kantin_be.support.TestcontainersConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -57,8 +58,11 @@ class LedgerSaldoServiceIT {
     void bersihkan() {
         // Urutan penting: hapus anak dulu (trigger append-only melarang DELETE
         // pada ledger, jadi test ini memakai skema bersih per-kelas).
-        jdbc.execute("TRUNCATE TABLE saldo_ledger, saldo_cache CASCADE");
+        jdbc.execute("TRUNCATE TABLE mutasi_saldo, saldo CASCADE");
         subjekId = 1000L;
+        // Skema v2: saldo/mutasi_saldo ber-FK ke sekolah + siswa (wajib ada).
+        FixtureInduk.sekolah(jdbc, SEKOLAH);
+        FixtureInduk.siswa(jdbc, SEKOLAH, subjekId);
     }
 
     private PerintahMutasiSaldo perintah(JenisMutasiSaldo jenis, long nominal, String key) {
@@ -88,7 +92,7 @@ class LedgerSaldoServiceIT {
         assertThat(ledger.hitungUlangDariLedger(SEKOLAH, subjekId)).isEqualTo(42_000L);
 
         Integer baris = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM saldo_ledger WHERE sekolah_id = ?", Integer.class, SEKOLAH);
+                "SELECT COUNT(*) FROM mutasi_saldo WHERE sekolah_id = ?", Integer.class, SEKOLAH);
         assertThat(baris).isEqualTo(2);
     }
 
@@ -106,7 +110,7 @@ class LedgerSaldoServiceIT {
         assertThat(ledger.saldo(SEKOLAH, subjekId)).isEqualTo(40_000L);
 
         Integer barisDebit = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM saldo_ledger WHERE idempotency_key = 'tap-abc'", Integer.class);
+                "SELECT COUNT(*) FROM mutasi_saldo WHERE idempotency_key = 'tap-abc'", Integer.class);
         assertThat(barisDebit).isEqualTo(1);
     }
 
@@ -122,7 +126,7 @@ class LedgerSaldoServiceIT {
 
         assertThat(ledger.saldo(SEKOLAH, subjekId)).isEqualTo(5_000L);
         Integer barisDebit = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM saldo_ledger WHERE arah = 'DEBIT'", Integer.class);
+                "SELECT COUNT(*) FROM mutasi_saldo WHERE arah = 'DEBIT'", Integer.class);
         assertThat(barisDebit).isZero();
     }
 
@@ -169,7 +173,7 @@ class LedgerSaldoServiceIT {
         assertThat(saldoAkhir).isGreaterThanOrEqualTo(0);
         // Jumlah debit yang tercatat = jumlah sukses (tidak ada double-spend).
         Integer debitRows = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM saldo_ledger WHERE arah = 'DEBIT'", Integer.class);
+                "SELECT COUNT(*) FROM mutasi_saldo WHERE arah = 'DEBIT'", Integer.class);
         assertThat(debitRows).isEqualTo(5);
     }
 
@@ -250,11 +254,11 @@ class LedgerSaldoServiceIT {
         long saldoAkhir = ledger.saldo(SEKOLAH, subjekId);
         assertThat(saldoAkhir).isEqualTo(paralel * nominal); // tak ada top-up yang hilang
         Long saldoTerakhir = jdbc.queryForObject(
-                "SELECT saldo_setelah FROM saldo_ledger WHERE sekolah_id = ? ORDER BY id DESC LIMIT 1",
+                "SELECT saldo_setelah FROM mutasi_saldo WHERE sekolah_id = ? ORDER BY id DESC LIMIT 1",
                 Long.class, SEKOLAH);
         assertThat(saldoTerakhir).isEqualTo(saldoAkhir); // baris terakhir konsisten dgn cache
         Integer kreditRows = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM saldo_ledger WHERE sekolah_id = ? AND arah = 'KREDIT'",
+                "SELECT COUNT(*) FROM mutasi_saldo WHERE sekolah_id = ? AND arah = 'KREDIT'",
                 Integer.class, SEKOLAH);
         assertThat(kreditRows).isEqualTo(paralel);
         assertThat(ledger.hitungUlangDariLedger(SEKOLAH, subjekId))
@@ -268,11 +272,11 @@ class LedgerSaldoServiceIT {
         isiSaldo(10_000);
 
         assertThatThrownBy(() -> jdbc.update(
-                "UPDATE saldo_ledger SET nominal = 1 WHERE sekolah_id = ?", SEKOLAH))
+                "UPDATE mutasi_saldo SET nominal = 1 WHERE sekolah_id = ?", SEKOLAH))
                 .hasMessageContaining("append-only");
 
         assertThatThrownBy(() -> jdbc.update(
-                "DELETE FROM saldo_ledger WHERE sekolah_id = ?", SEKOLAH))
+                "DELETE FROM mutasi_saldo WHERE sekolah_id = ?", SEKOLAH))
                 .hasMessageContaining("append-only");
     }
 }

@@ -78,7 +78,7 @@ class VoidServiceIT {
         // VoidService/SesiKasirService memakai SekolahGuard → butuh TenantContext.
         TenantContext.set(IdentitasKantin.builder().userId("555").sekolahId(SEKOLAH).build());
         jdbc.execute("TRUNCATE TABLE transaksi_item, transaksi, sesi_kasir, titik_kasir, "
-                + "saldo_ledger, saldo_cache, mutasi_stok, stok_cache, audit_log CASCADE");
+                + "mutasi_saldo, saldo, riwayat_stok, stok, catatan_audit CASCADE");
         jdbc.update("INSERT INTO titik_kasir (id, sekolah_id, nama, is_active, created_at, updated_at) "
                 + "VALUES (?, ?, 'Kasir 1', true, now(), now())", TITIK, SEKOLAH);
 
@@ -149,9 +149,9 @@ class VoidServiceIT {
 
         // Baris asli TETAP ada (append-only); kompensasi = baris baru.
         Integer debitAsli = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM saldo_ledger WHERE arah = 'DEBIT' AND jenis = 'PENJUALAN'", Integer.class);
+                "SELECT COUNT(*) FROM mutasi_saldo WHERE arah = 'DEBIT' AND jenis = 'PENJUALAN'", Integer.class);
         Integer kreditVoid = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM saldo_ledger WHERE arah = 'KREDIT' AND jenis = 'VOID_PENJUALAN'", Integer.class);
+                "SELECT COUNT(*) FROM mutasi_saldo WHERE arah = 'KREDIT' AND jenis = 'VOID_PENJUALAN'", Integer.class);
         assertThat(debitAsli).isEqualTo(1);
         assertThat(kreditVoid).isEqualTo(1);
         assertThat(ledgerSaldo.hitungUlangDariLedger(SEKOLAH, SISWA)).isEqualTo(50_000L);
@@ -215,7 +215,7 @@ class VoidServiceIT {
         assertThat(ledgerSaldo.saldo(SEKOLAH, SISWA)).isEqualTo(50_000L);
         assertThat(ledgerStok.stok(SEKOLAH, MENU_NASI)).isEqualTo(20);
         Integer pembalik = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM saldo_ledger WHERE arah = 'KREDIT' AND jenis = 'VOID_PENJUALAN'",
+                "SELECT COUNT(*) FROM mutasi_saldo WHERE arah = 'KREDIT' AND jenis = 'VOID_PENJUALAN'",
                 Integer.class);
         assertThat(pembalik).isEqualTo(1);
         assertThat(ledgerSaldo.hitungUlangDariLedger(SEKOLAH, SISWA))
@@ -279,16 +279,16 @@ class VoidServiceIT {
 
         // Baris asli tetap ada (append-only); kompensasi = baris KOREKSI baru.
         Integer debitAsli = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM saldo_ledger WHERE arah = 'DEBIT' AND jenis = 'PENJUALAN'", Integer.class);
+                "SELECT COUNT(*) FROM mutasi_saldo WHERE arah = 'DEBIT' AND jenis = 'PENJUALAN'", Integer.class);
         Integer kreditKoreksi = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM saldo_ledger WHERE arah = 'KREDIT' AND jenis = 'KOREKSI'", Integer.class);
+                "SELECT COUNT(*) FROM mutasi_saldo WHERE arah = 'KREDIT' AND jenis = 'KOREKSI'", Integer.class);
         assertThat(debitAsli).isEqualTo(1);
         assertThat(kreditKoreksi).isEqualTo(1);
         assertThat(ledgerSaldo.hitungUlangDariLedger(SEKOLAH, SISWA)).isEqualTo(50_000L);
 
         // Audit tercatat dengan aksi khusus koreksi.
         Integer audit = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM audit_log WHERE aksi = 'KOREKSI_TRANSAKSI_SESI_TERTUTUP'", Integer.class);
+                "SELECT COUNT(*) FROM catatan_audit WHERE aksi = 'KOREKSI_TRANSAKSI_SESI_TERTUTUP'", Integer.class);
         assertThat(audit).isEqualTo(1);
     }
 
