@@ -69,7 +69,7 @@ class SesiKasirServiceIT {
         // SesiKasirService memakai SekolahGuard → butuh TenantContext.
         TenantContext.set(IdentitasKantin.builder().userId("555").sekolahId(SEKOLAH).build());
         jdbc.execute("TRUNCATE TABLE transaksi_item, transaksi, sesi_kasir, titik_kasir, "
-                + "saldo_ledger, saldo_cache, mutasi_stok, stok_cache CASCADE");
+                + "mutasi_saldo, saldo, riwayat_stok, stok CASCADE");
         jdbc.update("INSERT INTO titik_kasir (id, sekolah_id, nama, is_active, created_at, updated_at) "
                 + "VALUES (?, ?, 'Kasir 1', true, now(), now())", TITIK, SEKOLAH);
         tx.executeWithoutResult(s -> ledgerSaldo.kredit(PerintahMutasiSaldo.builder()
@@ -145,7 +145,7 @@ class SesiKasirServiceIT {
         jdbc.update("INSERT INTO titik_kasir (id, sekolah_id, nama, is_active, created_at, updated_at) "
                 + "VALUES (99, 99, 'Kasir sekolah lain', true, now(), now())");
         jdbc.update("INSERT INTO sesi_kasir (id, sekolah_id, titik_kasir_id, tanggal, status, "
-                + "total_bruto, total_void, total_bersih, dibuka_at, auto_tutup, posting_buku_kas, "
+                + "total_bruto, total_void, total_bersih, dibuka_at, auto_tutup, jurnal_buku_kas, "
                 + "created_at, updated_at) "
                 + "VALUES (999, 99, 99, CURRENT_DATE, 'TERBUKA', 0, 0, 0, now(), false, false, now(), now())");
 
@@ -184,7 +184,7 @@ class SesiKasirServiceIT {
         jdbc.update("INSERT INTO titik_kasir (id, sekolah_id, nama, is_active, created_at, updated_at) "
                 + "VALUES (?, ?, 'Kasir 2', true, now(), now())", titik2, SEKOLAH);
         jdbc.update("INSERT INTO sesi_kasir (id, sekolah_id, titik_kasir_id, tanggal, status, "
-                + "total_bruto, total_void, total_bersih, dibuka_at, auto_tutup, posting_buku_kas, "
+                + "total_bruto, total_void, total_bersih, dibuka_at, auto_tutup, jurnal_buku_kas, "
                 + "created_at, updated_at) "
                 + "VALUES (9001, ?, ?, CURRENT_DATE - 1, 'TERBUKA', 0, 0, 0, now(), false, false, now(), now())",
                 SEKOLAH, titik2);

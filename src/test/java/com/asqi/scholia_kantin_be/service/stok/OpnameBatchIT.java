@@ -49,7 +49,7 @@ class OpnameBatchIT {
 
     @BeforeEach
     void bersihkan() {
-        jdbc.execute("TRUNCATE TABLE mutasi_stok, stok_cache CASCADE");
+        jdbc.execute("TRUNCATE TABLE riwayat_stok, stok CASCADE");
         jdbc.execute("TRUNCATE TABLE menu CASCADE");
         menu(MENU_A, SEKOLAH, "Nasi Uduk");
         menu(MENU_B, SEKOLAH, "Es Jeruk");
@@ -96,7 +96,7 @@ class OpnameBatchIT {
 
         // MENU_C tanpa selisih → tak ada baris ledger untuknya.
         Integer barisC = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM mutasi_stok WHERE menu_id = ? AND referensi_tipe = 'OPNAME_BATCH'",
+                "SELECT COUNT(*) FROM riwayat_stok WHERE menu_id = ? AND referensi_tipe = 'OPNAME_BATCH'",
                 Integer.class, MENU_C);
         assertThat(barisC).isZero();
     }
@@ -121,7 +121,7 @@ class OpnameBatchIT {
         assertThat(ledger.stok(SEKOLAH, MENU_B)).isEqualTo(25);
 
         Integer baris = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM mutasi_stok WHERE referensi_tipe = 'OPNAME_BATCH' AND referensi_id = 'OPN-DUP-1'",
+                "SELECT COUNT(*) FROM riwayat_stok WHERE referensi_tipe = 'OPNAME_BATCH' AND referensi_id = 'OPN-DUP-1'",
                 Integer.class);
         assertThat(baris).isEqualTo(2); // tetap 2, bukan 4
     }
@@ -143,7 +143,7 @@ class OpnameBatchIT {
         assertThat(ledger.stok(SEKOLAH, MENU_A)).isEqualTo(20);
         assertThat(ledger.stok(SEKOLAH, MENU_B)).isEqualTo(30);
         Integer baris = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM mutasi_stok WHERE referensi_tipe = 'OPNAME_BATCH'", Integer.class);
+                "SELECT COUNT(*) FROM riwayat_stok WHERE referensi_tipe = 'OPNAME_BATCH'", Integer.class);
         assertThat(baris).isZero();
     }
 
@@ -162,13 +162,13 @@ class OpnameBatchIT {
         assertThat(hasil.getItems().get(1).getJenis()).isEqualTo(JenisMutasiStok.OPNAME_KELUAR);
 
         String jenisA = jdbc.queryForObject(
-                "SELECT jenis FROM mutasi_stok WHERE menu_id = ? AND referensi_tipe = 'OPNAME_BATCH'",
+                "SELECT jenis FROM riwayat_stok WHERE menu_id = ? AND referensi_tipe = 'OPNAME_BATCH'",
                 String.class, MENU_A);
         assertThat(jenisA).isEqualTo("BARANG_RUSAK");
 
         // Riwayat barang rusak bisa difilter terpisah.
         Integer rusak = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM mutasi_stok WHERE jenis = 'BARANG_RUSAK'", Integer.class);
+                "SELECT COUNT(*) FROM riwayat_stok WHERE jenis = 'BARANG_RUSAK'", Integer.class);
         assertThat(rusak).isEqualTo(1);
     }
 

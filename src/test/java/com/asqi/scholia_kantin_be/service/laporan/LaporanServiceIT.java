@@ -25,6 +25,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import com.asqi.scholia_kantin_be.service.kasir.PerintahMutasiSaldo;
 import com.asqi.scholia_kantin_be.service.stok.LedgerStokService;
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import com.asqi.scholia_kantin_be.support.TestcontainersConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -64,6 +65,10 @@ class LaporanServiceIT {
     private static final long MENU_A = 10L;
     private static final long MENU_B = 20L;
     private static final long KATEGORI = 500L;
+    private static final long PETUGAS = 5L;
+    private static final long ADMIN_VOID = 777L;
+    private static final long PETUGAS_SETORAN = 555L;
+    private static final long SISWA_DIMENSI = 1L;
 
     @MockitoBean
     private CariSiswaPort cariSiswaPort;
@@ -122,12 +127,18 @@ class LaporanServiceIT {
     @BeforeEach
     void bersihkan() {
         jdbc.execute("TRUNCATE TABLE transaksi_item, transaksi, sesi_kasir, titik_kasir, "
-                + "saldo_ledger, saldo_cache, mutasi_stok, stok_cache, kategori_menu, menu, "
-                + "kartu_tamu, setoran_tu, audit_log CASCADE");
+                + "mutasi_saldo, saldo, riwayat_stok, stok, kategori_menu, menu, "
+                + "kartu, setoran, catatan_audit CASCADE");
+
+        // Induk wajib skema v2 (FK): sekolah → siswa/pengguna.
+        FixtureInduk.sekolah(jdbc, SEKOLAH, SEKOLAH_LAIN);
+        FixtureInduk.pengguna(jdbc, SEKOLAH, PETUGAS, ADMIN_VOID, PETUGAS_SETORAN);
+        FixtureInduk.siswa(jdbc, SEKOLAH, SISWA, SISWA2, SISWA_DIMENSI);
+
         jdbc.update("INSERT INTO titik_kasir (id, sekolah_id, nama, is_active, created_at, updated_at) "
                 + "VALUES (1, ?, 'Kasir 1', true, now(), now())", SEKOLAH);
         jdbc.update("INSERT INTO sesi_kasir (id, sekolah_id, titik_kasir_id, tanggal, status, "
-                + "total_bruto, total_void, total_bersih, dibuka_at, auto_tutup, posting_buku_kas, "
+                + "total_bruto, total_void, total_bersih, dibuka_at, auto_tutup, jurnal_buku_kas, "
                 + "created_at, updated_at) "
                 + "VALUES (1, ?, 1, CURRENT_DATE, 'TERBUKA', 0, 0, 0, now(), false, false, now(), now())",
                 SEKOLAH);
@@ -152,10 +163,10 @@ class LaporanServiceIT {
 
     private void transaksi(long id, long subjekId, long total, long totalHpp) {
         jdbc.update("INSERT INTO transaksi (id, idempotency_key, sekolah_id, sesi_kasir_id, "
-                + "titik_kasir_id, subjek_tipe, subjek_id, petugas_id, total, total_hpp, status, "
+                + "titik_kasir_id, siswa_id, petugas_id, total, total_hpp, status, "
                 + "waktu, created_at, updated_at) "
-                + "VALUES (?, ?, ?, 1, 1, 'SISWA', ?, 5, ?, ?, 'SUKSES', now(), now(), now())",
-                id, "trx-" + id, SEKOLAH, subjekId, total, totalHpp);
+                + "VALUES (?, ?, ?, 1, 1, ?, ?, ?, ?, 'SUKSES', now(), now(), now())",
+                id, "trx-" + id, SEKOLAH, subjekId, PETUGAS, total, totalHpp);
     }
 
     private void item(long id, long transaksiId, long menuId, String nama, int qty,
@@ -229,7 +240,7 @@ class LaporanServiceIT {
         assertThat(hasil.getFirst().saldo()).isEqualTo(42_000);
         assertThat(hasil.getFirst().belanjaHariIni()).isEqualTo(8_000);
         OffsetDateTime waktuLedgerTerakhir = jdbc.queryForObject(
-                "SELECT MAX(waktu) FROM saldo_ledger WHERE sekolah_id = ? AND subjek_tipe = 'SISWA' AND subjek_id = ?",
+                "SELECT MAX(waktu) FROM mutasi_saldo WHERE sekolah_id = ? AND siswa_id = ?",
                 OffsetDateTime.class, SEKOLAH, SISWA);
         assertThat(hasil.getFirst().terakhirTransaksi()).isEqualTo(waktuLedgerTerakhir);
         assertThat(laporan.saldoMengendapSiswa(SEKOLAH_LAIN, "2024001", 20)).isEmpty();
@@ -399,10 +410,10 @@ class LaporanServiceIT {
     /** Seed satu transaksi VOID (wajib beralasan, PRD §6.3). */
     private void transaksiVoid(long id, long subjekId, long total, String alasan) {
         jdbc.update("INSERT INTO transaksi (id, idempotency_key, sekolah_id, sesi_kasir_id, "
-                + "titik_kasir_id, subjek_tipe, subjek_id, petugas_id, total, total_hpp, status, "
+                + "titik_kasir_id, siswa_id, petugas_id, total, total_hpp, status, "
                 + "alasan_void, void_at, void_oleh, waktu, created_at, updated_at) "
-                + "VALUES (?, ?, ?, 1, 1, 'SISWA', ?, 5, ?, 0, 'VOID', ?, now(), 777, now(), now(), now())",
-                id, "trx-" + id, SEKOLAH, subjekId, total, alasan);
+                + "VALUES (?, ?, ?, 1, 1, ?, ?, ?, 0, 'VOID', ?, now(), ?, now(), now(), now())",
+                id, "trx-" + id, SEKOLAH, subjekId, PETUGAS, total, alasan, ADMIN_VOID);
     }
 
     @Test
@@ -462,9 +473,9 @@ class LaporanServiceIT {
 
     private void transaksiDimensi(long id, long titikId, long petugasId, long total, long totalHpp) {
         jdbc.update("INSERT INTO transaksi (id, idempotency_key, sekolah_id, sesi_kasir_id, "
-                + "titik_kasir_id, subjek_tipe, subjek_id, petugas_id, total, total_hpp, status, "
+                + "titik_kasir_id, siswa_id, petugas_id, total, total_hpp, status, "
                 + "waktu, created_at, updated_at) "
-                + "VALUES (?, ?, ?, 1, ?, 'SISWA', 1, ?, ?, ?, 'SUKSES', now(), now(), now())",
+                + "VALUES (?, ?, ?, 1, ?, 1, ?, ?, ?, 'SUKSES', now(), now(), now())",
                 id, "trx-" + id, SEKOLAH, titikId, petugasId, total, totalHpp);
     }
 
@@ -786,6 +797,7 @@ class LaporanServiceIT {
     /** Catat top-up tunai oleh petugas tertentu (aktor_id = petugasId). */
     private void topupTunaiPetugas(long petugasId, long nominal) {
         long subjek = 50_000L + Math.abs(System.nanoTime() % 10_000);
+        FixtureInduk.siswa(jdbc, SEKOLAH, subjek); // FK v2: mutasi_saldo.siswa_id → siswa
         tx.executeWithoutResult(s -> ledgerSaldo.kredit(PerintahMutasiSaldo.builder()
                 .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).siswaId(subjek)
                 .jenis(JenisMutasiSaldo.TOPUP_TUNAI).nominal(nominal)

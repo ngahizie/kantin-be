@@ -52,7 +52,7 @@ class IsolasiTenantLockIT {
 
     @BeforeEach
     void bersihkan() {
-        jdbc.execute("TRUNCATE TABLE saldo_ledger, saldo_cache, mutasi_stok, stok_cache CASCADE");
+        jdbc.execute("TRUNCATE TABLE mutasi_saldo, saldo, riwayat_stok, stok CASCADE");
     }
 
     private PerintahMutasiSaldo perintah(long sekolah, long nominal, String key) {
@@ -89,7 +89,7 @@ class IsolasiTenantLockIT {
         // Saldo sekolah A utuh; tidak ada baris DEBIT di ledger A.
         assertThat(ledgerSaldo.saldo(SEKOLAH_A, SUBJEK)).isEqualTo(50_000L);
         Integer debitA = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM saldo_ledger WHERE sekolah_id = ? AND arah = 'DEBIT'",
+                "SELECT COUNT(*) FROM mutasi_saldo WHERE sekolah_id = ? AND arah = 'DEBIT'",
                 Integer.class, SEKOLAH_A);
         assertThat(debitA).isZero();
     }

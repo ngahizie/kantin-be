@@ -12,6 +12,7 @@ import com.asqi.scholia_kantin_be.service.kasir.HasilMutasiSaldo;
 import com.asqi.scholia_kantin_be.service.kasir.LedgerSaldoService;
 import com.asqi.scholia_kantin_be.service.kasir.PerintahMutasiSaldo;
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import com.asqi.scholia_kantin_be.support.TestcontainersConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -48,6 +49,7 @@ class JurnalBukuKasKoreksiSaldoIT {
 
     private static final long SEKOLAH = 1L;
     private static final long SISWA = 7L;
+    private static final long AKTOR = 99L;
 
     @Autowired
     private SaldoTopUpService saldoTopUp;
@@ -67,7 +69,13 @@ class JurnalBukuKasKoreksiSaldoIT {
     @BeforeEach
     void bersihkan() {
         fake.reset();
-        jdbc.execute("TRUNCATE TABLE saldo_ledger, saldo_cache, posting_buku_kas, audit_log CASCADE");
+        jdbc.execute("TRUNCATE TABLE mutasi_saldo, saldo, jurnal_buku_kas, catatan_audit CASCADE");
+
+        // Induk wajib skema v2 (FK): sekolah → siswa/pengguna.
+        FixtureInduk.sekolah(jdbc, SEKOLAH);
+        FixtureInduk.pengguna(jdbc, SEKOLAH, AKTOR);
+        FixtureInduk.siswa(jdbc, SEKOLAH, SISWA);
+
         // Bekali saldo awal agar koreksi DEBIT (mengurangi) punya cukup saldo.
         tx.executeWithoutResult(s -> ledgerSaldo.kredit(PerintahMutasiSaldo.builder()
                 .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).siswaId(SISWA)
@@ -97,11 +105,11 @@ class JurnalBukuKasKoreksiSaldoIT {
         assertThat(p.getRefModul()).isEqualTo("KANTIN");
 
         assertThat(jdbc.queryForObject(
-                "SELECT COUNT(*) FROM posting_buku_kas WHERE referensi_id = 'KANTIN-KOR-BA-1' "
+                "SELECT COUNT(*) FROM jurnal_buku_kas WHERE referensi_id = 'KANTIN-KOR-BA-1' "
                         + "AND entitas = 'KOREKSI_SALDO' AND status = 'SUKSES'", Integer.class))
                 .isEqualTo(1);
         assertThat(jdbc.queryForObject(
-                "SELECT COUNT(*) FROM audit_log WHERE aksi = 'POSTING_BUKU_KAS'", Integer.class))
+                "SELECT COUNT(*) FROM catatan_audit WHERE aksi = 'POSTING_BUKU_KAS'", Integer.class))
                 .isEqualTo(1);
     }
 
@@ -127,7 +135,7 @@ class JurnalBukuKasKoreksiSaldoIT {
         // Mutasi saldo kedua adalah replay idempotent → posting tidak dipanggil lagi.
         assertThat(fake.dipanggil).hasSize(1);
         assertThat(jdbc.queryForObject(
-                "SELECT COUNT(*) FROM posting_buku_kas WHERE entitas = 'KOREKSI_SALDO'", Integer.class))
+                "SELECT COUNT(*) FROM jurnal_buku_kas WHERE entitas = 'KOREKSI_SALDO'", Integer.class))
                 .isEqualTo(1);
     }
 
@@ -140,10 +148,10 @@ class JurnalBukuKasKoreksiSaldoIT {
 
         // Koreksi saldo tetap tercatat (saldo bertambah), penanda tidak ditulis.
         assertThat(jdbc.queryForObject(
-                "SELECT saldo FROM saldo_cache WHERE subjek_tipe = 'SISWA' AND subjek_id = ?",
-                Long.class, SISWA)).isEqualTo(120_000L);
+                "SELECT saldo FROM saldo WHERE sekolah_id = ? AND siswa_id = ?",
+                Long.class, SEKOLAH, SISWA)).isEqualTo(120_000L);
         assertThat(jdbc.queryForObject(
-                "SELECT COUNT(*) FROM posting_buku_kas", Integer.class)).isZero();
+                "SELECT COUNT(*) FROM jurnal_buku_kas", Integer.class)).isZero();
     }
 
     /** Fake port yang merekam perintah &amp; bisa disetel sukses/gagal. */

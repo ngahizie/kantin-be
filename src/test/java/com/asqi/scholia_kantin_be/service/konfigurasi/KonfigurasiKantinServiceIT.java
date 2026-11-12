@@ -7,6 +7,7 @@ import com.asqi.scholia_kantin_be.dto.AkunBukuKasResponse;
 import com.asqi.scholia_kantin_be.enums.KebijakanSaldoMengendap;
 import com.asqi.scholia_kantin_be.helper.Constants;
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import com.asqi.scholia_kantin_be.support.TestcontainersConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -53,7 +54,10 @@ class KonfigurasiKantinServiceIT {
 
     @BeforeEach
     void bersihkan() {
-        jdbc.execute("TRUNCATE TABLE pos_buku_kas, insiden_offline, kebijakan_kantin, audit_log CASCADE");
+        // Skema v2: tabel kebijakan_kantin dilebur ke pengaturan_kantin.
+        jdbc.execute("TRUNCATE TABLE akun_buku_kas, kejadian_offline, pengaturan_kantin, "
+                + "catatan_audit CASCADE");
+        FixtureInduk.sekolah(jdbc, SEKOLAH, SEKOLAH_LAIN);
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -91,7 +95,7 @@ class KonfigurasiKantinServiceIT {
         posService.pastikanPosStandar(SEKOLAH, ADMIN);
 
         assertThat(jdbc.queryForObject(
-                "SELECT COUNT(*) FROM pos_buku_kas WHERE sekolah_id = ?", Integer.class, SEKOLAH))
+                "SELECT COUNT(*) FROM akun_buku_kas WHERE sekolah_id = ?", Integer.class, SEKOLAH))
                 .isEqualTo(3);
     }
 
@@ -101,7 +105,7 @@ class KonfigurasiKantinServiceIT {
         posService.pastikanPosStandar(SEKOLAH, ADMIN);
 
         Integer audit = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM audit_log WHERE aksi = 'SEED_POS_BUKU_KAS'", Integer.class);
+                "SELECT COUNT(*) FROM catatan_audit WHERE aksi = 'SEED_POS_BUKU_KAS'", Integer.class);
         assertThat(audit).isEqualTo(1);
     }
 
@@ -130,7 +134,7 @@ class KonfigurasiKantinServiceIT {
         assertThat(insiden.getDilaporkanOleh()).isEqualTo(PETUGAS);
 
         Integer audit = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM audit_log WHERE aksi = 'LAPOR_INSIDEN_OFFLINE'", Integer.class);
+                "SELECT COUNT(*) FROM catatan_audit WHERE aksi = 'LAPOR_INSIDEN_OFFLINE'", Integer.class);
         assertThat(audit).isEqualTo(1);
     }
 
@@ -149,10 +153,10 @@ class KonfigurasiKantinServiceIT {
                 SEKOLAH, null, "Server down", PETUGAS);
 
         assertThatThrownBy(() -> jdbc.update(
-                "UPDATE insiden_offline SET keterangan = 'x' WHERE id = ?", insiden.getId()))
+                "UPDATE kejadian_offline SET keterangan = 'x' WHERE id = ?", insiden.getId()))
                 .hasMessageContaining("append-only");
         assertThatThrownBy(() -> jdbc.update(
-                "DELETE FROM insiden_offline WHERE id = ?", insiden.getId()))
+                "DELETE FROM kejadian_offline WHERE id = ?", insiden.getId()))
                 .hasMessageContaining("append-only");
     }
 
@@ -190,7 +194,7 @@ class KonfigurasiKantinServiceIT {
         assertThat(k.getAmbangHari()).isEqualTo(30);
 
         Integer audit = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM audit_log WHERE aksi = 'UBAH_KEBIJAKAN_KANTIN'", Integer.class);
+                "SELECT COUNT(*) FROM catatan_audit WHERE aksi = 'UBAH_KEBIJAKAN_KANTIN'", Integer.class);
         assertThat(audit).isEqualTo(1);
     }
 

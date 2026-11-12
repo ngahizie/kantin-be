@@ -53,7 +53,7 @@ class LedgerStokServiceIT {
     @BeforeEach
     void bersihkan() {
         TenantContext.clear();
-        jdbc.execute("TRUNCATE TABLE mutasi_stok, stok_cache CASCADE");
+        jdbc.execute("TRUNCATE TABLE riwayat_stok, stok CASCADE");
     }
 
     @Test
@@ -164,7 +164,7 @@ class LedgerStokServiceIT {
         int stokAkhir = ledger.stok(SEKOLAH, MENU);
         // 7 = hasil opname absolut + 5 × #barang masuk yang commit setelah opname.
         assertThat(stokAkhir).isIn(7, 12, 17);
-        // Invarian inti (yang dilindungi perbaikan #254): stok_cache == Σ ledger
+        // Invarian inti (yang dilindungi perbaikan #254): stok == Σ ledger
         // — tak ada lost update antara penyesuaian absolut dan tambahan inkremen.
         assertThat(stokAkhir).isEqualTo(ledger.hitungUlangDariLedger(SEKOLAH, MENU));
     }
@@ -177,18 +177,18 @@ class LedgerStokServiceIT {
         assertThat(hasil.getMutasi()).isNull();
 
         Integer baris = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM mutasi_stok WHERE jenis LIKE 'OPNAME%'", Integer.class);
+                "SELECT COUNT(*) FROM riwayat_stok WHERE jenis LIKE 'OPNAME%'", Integer.class);
         assertThat(baris).isZero();
     }
 
     @Test
-    @DisplayName("append-only — UPDATE/DELETE mutasi_stok ditolak")
+    @DisplayName("append-only — UPDATE/DELETE riwayat_stok ditolak")
     void appendOnly() {
         tx.executeWithoutResult(s -> ledger.masukBarang(SEKOLAH, MENU, 5, 5_000, "BARANG_MASUK", "BM-1", 1L));
 
-        assertThatThrownBy(() -> jdbc.update("UPDATE mutasi_stok SET qty = 1"))
+        assertThatThrownBy(() -> jdbc.update("UPDATE riwayat_stok SET qty = 1"))
                 .hasMessageContaining("append-only");
-        assertThatThrownBy(() -> jdbc.update("DELETE FROM mutasi_stok"))
+        assertThatThrownBy(() -> jdbc.update("DELETE FROM riwayat_stok"))
                 .hasMessageContaining("append-only");
     }
 
@@ -206,7 +206,7 @@ class LedgerStokServiceIT {
                     SEKOLAH, MENU, 5, 5_000, "BARANG_MASUK", "BM-1", 42L).getMutasi().getId());
 
             String aktorNama = jdbc.queryForObject(
-                    "SELECT aktor_nama FROM mutasi_stok WHERE id = ?", String.class, mutasiId);
+                    "SELECT aktor_nama FROM riwayat_stok WHERE id = ?", String.class, mutasiId);
             assertThat(aktorNama).isEqualTo("Bu Sri");
         } finally {
             TenantContext.clear();
@@ -225,7 +225,7 @@ class LedgerStokServiceIT {
                     .getMutasi().getId());
 
             var baris = jdbc.queryForMap(
-                    "SELECT aktor_id, aktor_nama FROM mutasi_stok WHERE id = ?", penjualanId);
+                    "SELECT aktor_id, aktor_nama FROM riwayat_stok WHERE id = ?", penjualanId);
             assertThat(((Number) baris.get("aktor_id")).longValue()).isEqualTo(77L);
             assertThat(baris.get("aktor_nama")).isEqualTo("Pak Kasir");
         } finally {
@@ -243,7 +243,7 @@ class LedgerStokServiceIT {
                 SEKOLAH, MENU, 7, "KOREKSI SISTEM", "OPN-SYS-1", null).getMutasi().getId());
 
         String aktorNama = jdbc.queryForObject(
-                "SELECT aktor_nama FROM mutasi_stok WHERE id = ?", String.class, mutasiId);
+                "SELECT aktor_nama FROM riwayat_stok WHERE id = ?", String.class, mutasiId);
         assertThat(aktorNama).isNull();
     }
 
@@ -320,7 +320,7 @@ class LedgerStokServiceIT {
         assertThat(ledger.stok(SEKOLAH, MENU)).isEqualTo(6); // tidak berkurang dua kali
 
         Integer jumlah = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM mutasi_stok WHERE jenis = 'BARANG_MASUK_PEMBALIK'", Integer.class);
+                "SELECT COUNT(*) FROM riwayat_stok WHERE jenis = 'BARANG_MASUK_PEMBALIK'", Integer.class);
         assertThat(jumlah).isEqualTo(1);
     }
 
