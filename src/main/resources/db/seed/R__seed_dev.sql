@@ -142,19 +142,20 @@ insert into menu (id, sekolah_id, kategori_id, nama, kode_barcode, satuan, foto_
   (1010, 10, 11, 'Bakso',        'MNU-1010', 'PORSI', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6e/Bakso_Indonesian_Meatball_Soup_from_Solo.jpg/500px-Bakso_Indonesian_Meatball_Soup_from_Solo.jpg', 11000, 5,  true),
   (1011, 10, 12, 'Jus Jeruk',    'MNU-1011', 'PCS',   'https://thumb.wikimedia.org/wikipedia/commons/thumb/6/67/Orange_juice_1_edit1.jpg/500px-Orange_juice_1_edit1.jpg', 7000, 5,  true);
 
--- 8. STOK — 1 baris per menu (menu 1000 & 1002 sudah terjual 1 di sesi kemarin)
+-- 8. STOK — baris dibuat trigger menu; di sini hanya HPP & stok minimum.
+--    Nilai `stok` dihitung ulang oleh trigger sinkron_stok_dari_mutasi()
+--    dari ledger riwayat_stok (bagian 16), jadi angka di sini bukan sumber kebenaran.
 insert into stok (menu_id, sekolah_id, stok, hpp, stok_minimum) values
   (1,    1,  21, 7000, 5),  (2,    1,  39, 6000, 5),  (3,    1,  19, 1000, 10),
   (4,    1,  14, 2000, 10), (5,    1,  37, 9000, 5),  (6,    1,  39, 3000, 10),
   (7,    1,  23, 5000, 5),  (8,    1,  36, 4000, 10), (9,    1,  44, 2000, 20),
   (10,   1,  19, 5000, 10), (11,   1,  37, 7000, 5),  (12,   1,  26, 5000, 5),
-  (1000, 10, 20, 7000, 5),  (1001, 10, 39, 6000, 5),  (1002, 10, 18, 1000, 10),
+  (1000, 10, 21, 7000, 5),  (1001, 10, 39, 6000, 5),  (1002, 10, 19, 1000, 10),
   (1003, 10, 14, 2000, 10), (1004, 10, 37, 9000, 5),  (1005, 10, 39, 3000, 10),
   (1006, 10, 23, 5000, 5),  (1007, 10, 36, 4000, 10), (1008, 10, 44, 2000, 20),
   (1009, 10, 19, 5000, 10), (1010, 10, 37, 7000, 5),  (1011, 10, 26, 5000, 5)
 on conflict (menu_id) do update
-    set stok         = excluded.stok,
-        hpp          = excluded.hpp,
+    set hpp          = excluded.hpp,
         stok_minimum = excluded.stok_minimum;
 
 -- 9. TITIK KASIR
@@ -236,11 +237,31 @@ insert into transaksi_item (id, transaksi_id, menu_id, nama_menu, kategori_id,
   (9201, 9101, 1000, 'Nasi Goreng',  11, 12000, 1, 7000, 12000),
   (9202, 9102, 1002, 'Es Teh Manis', 12,  3000, 1, 1000,  3000);
 
--- 16. RIWAYAT STOK — keluar dari dua transaksi di atas
+-- 16. RIWAYAT STOK — sumber kebenaran stok (trigger menghitung ulang `stok`)
+--     16a. stok awal tiap menu (BARANG_MASUK) — total = stok akhir + yang terjual
 insert into riwayat_stok (id, sekolah_id, menu_id, arah, jenis, qty, stok_setelah,
-                          hpp_snapshot, transaksi_id, aktor_id, aktor_nama, waktu) values
-  (9301, 10, 1000, 'KELUAR', 'PENJUALAN', 1, 20, 7000, 9101, 14, 'Rizky Pratama', now() - interval '1 day' - interval '5 hours'),
-  (9302, 10, 1002, 'KELUAR', 'PENJUALAN', 1, 18, 1000, 9102, 14, 'Rizky Pratama', now() - interval '1 day' - interval '4 hours');
+                          hpp_snapshot, harga_beli_satuan, referensi_tipe, aktor_id, aktor_nama, waktu)
+select 9300 + row_number() over (order by v.sekolah_id, v.menu_id),
+       v.sekolah_id, v.menu_id, 'MASUK', 'BARANG_MASUK', v.qty, v.qty,
+       v.hpp, v.hpp, 'SEED',
+       case when v.sekolah_id = 1 then 3 else 13 end,
+       'Seed stok awal', now() - interval '30 days'
+from (values
+    (1, 1, 21, 7000), (2, 1, 39, 6000), (3, 1, 19, 1000),
+    (4, 1, 14, 2000), (5, 1, 37, 9000), (6, 1, 39, 3000),
+    (7, 1, 23, 5000), (8, 1, 36, 4000), (9, 1, 44, 2000),
+    (10, 1, 19, 5000), (11, 1, 37, 7000), (12, 1, 26, 5000),
+    (1000, 10, 21, 7000), (1001, 10, 39, 6000), (1002, 10, 19, 1000),
+    (1003, 10, 14, 2000), (1004, 10, 37, 9000), (1005, 10, 39, 3000),
+    (1006, 10, 23, 5000), (1007, 10, 36, 4000), (1008, 10, 44, 2000),
+    (1009, 10, 19, 5000), (1010, 10, 37, 7000), (1011, 10, 26, 5000)
+) as v(menu_id, sekolah_id, qty, hpp);
+
+--     16b. penjualan di sesi tertutup (KELUAR) — mengurangi stok 1000 & 1002
+insert into riwayat_stok (id, sekolah_id, menu_id, arah, jenis, qty, stok_setelah,
+                          hpp_snapshot, harga_beli_satuan, transaksi_id, aktor_id, aktor_nama, waktu) values
+  (9401, 10, 1000, 'KELUAR', 'PENJUALAN', 1, 20, 7000, 7000, 9101, 14, 'Rizky Pratama', now() - interval '1 day' - interval '5 hours'),
+  (9402, 10, 1002, 'KELUAR', 'PENJUALAN', 1, 18, 1000, 1000, 9102, 14, 'Rizky Pratama', now() - interval '1 day' - interval '4 hours');
 
 -- 17. SINKRONKAN SEQUENCE (id diisi manual di atas)
 select setval(pg_get_serial_sequence('pengguna', 'id'),       (select max(id) from pengguna));
