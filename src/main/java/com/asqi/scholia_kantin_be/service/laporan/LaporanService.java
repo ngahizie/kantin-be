@@ -12,7 +12,7 @@ import com.asqi.scholia_kantin_be.dto.KartuTamuSaldoDetail;
 import com.asqi.scholia_kantin_be.dto.LaporanPerSiswa;
 import com.asqi.scholia_kantin_be.dto.LaporanRiwayatKeseluruhanItem;
 import com.asqi.scholia_kantin_be.dto.LaporanRiwayatSiswa;
-import com.asqi.scholia_kantin_be.dto.RekapSetoranTuItem;
+import com.asqi.scholia_kantin_be.dto.RekapSetoranItem;
 import com.asqi.scholia_kantin_be.dto.RingkasanPenjualan;
 import com.asqi.scholia_kantin_be.dto.RingkasanRekonsiliasi;
 import com.asqi.scholia_kantin_be.dto.RingkasanKerugianStok;
@@ -30,20 +30,20 @@ import com.asqi.scholia_kantin_be.model.BlokirKartu;
 import com.asqi.scholia_kantin_be.model.LimitHarian;
 import com.asqi.scholia_kantin_be.model.KategoriMenu;
 import com.asqi.scholia_kantin_be.model.Menu;
-import com.asqi.scholia_kantin_be.model.MutasiStok;
-import com.asqi.scholia_kantin_be.model.SaldoCache;
-import com.asqi.scholia_kantin_be.model.SaldoLedger;
-import com.asqi.scholia_kantin_be.model.StokCache;
+import com.asqi.scholia_kantin_be.model.RiwayatStok;
+import com.asqi.scholia_kantin_be.model.Saldo;
+import com.asqi.scholia_kantin_be.model.MutasiSaldo;
+import com.asqi.scholia_kantin_be.model.Stok;
 import com.asqi.scholia_kantin_be.model.Transaksi;
 import com.asqi.scholia_kantin_be.model.TransaksiItem;
 import com.asqi.scholia_kantin_be.repository.KategoriMenuRepository;
 import com.asqi.scholia_kantin_be.repository.BlokirKartuRepository;
 import com.asqi.scholia_kantin_be.repository.LimitHarianRepository;
 import com.asqi.scholia_kantin_be.repository.MenuRepository;
-import com.asqi.scholia_kantin_be.repository.MutasiStokRepository;
-import com.asqi.scholia_kantin_be.repository.SaldoCacheRepository;
-import com.asqi.scholia_kantin_be.repository.SaldoLedgerRepository;
-import com.asqi.scholia_kantin_be.repository.StokCacheRepository;
+import com.asqi.scholia_kantin_be.repository.RiwayatStokRepository;
+import com.asqi.scholia_kantin_be.repository.SaldoRepository;
+import com.asqi.scholia_kantin_be.repository.MutasiSaldoRepository;
+import com.asqi.scholia_kantin_be.repository.StokRepository;
 import com.asqi.scholia_kantin_be.repository.TransaksiItemRepository;
 import com.asqi.scholia_kantin_be.repository.TransaksiRepository;
 import com.asqi.scholia_kantin_be.service.stok.HppService;
@@ -93,12 +93,12 @@ public class LaporanService {
     private static final Set<JenisMutasiSaldo> JENIS_KOREKSI =
             EnumSet.of(JenisMutasiSaldo.KOREKSI, JenisMutasiSaldo.PENYESUAIAN);
 
-    private final SaldoLedgerRepository saldoLedgerRepo;
-    private final SaldoCacheRepository saldoCacheRepo;
+    private final MutasiSaldoRepository saldoLedgerRepo;
+    private final SaldoRepository saldoCacheRepo;
     private final TransaksiRepository transaksiRepo;
     private final TransaksiItemRepository transaksiItemRepo;
-    private final MutasiStokRepository mutasiStokRepo;
-    private final StokCacheRepository stokCacheRepo;
+    private final RiwayatStokRepository mutasiStokRepo;
+    private final StokRepository stokCacheRepo;
     private final MenuRepository menuRepo;
     private final KategoriMenuRepository kategoriRepo;
     private final com.asqi.scholia_kantin_be.repository.KartuTamuRepository kartuTamuRepo;
@@ -108,7 +108,7 @@ public class LaporanService {
     private final BlokirKartuRepository blokirRepo;
     private final LimitHarianRepository limitRepo;
     private final com.asqi.scholia_kantin_be.service.kasir.LedgerSaldoService ledgerSaldo;
-    private final com.asqi.scholia_kantin_be.service.saldo.SetoranTuService setoranTuService;
+    private final com.asqi.scholia_kantin_be.service.saldo.SetoranService setoranTuService;
     private final com.asqi.scholia_kantin_be.service.CariSiswaService cariSiswaService;
 
     // ────────────────────────────────────────────────────────────────
@@ -251,7 +251,7 @@ public class LaporanService {
         return siswaList.stream()
                 .map(siswa -> {
                     Long siswaId = siswa.getSiswaId();
-                    SaldoCache cache = saldoCacheRepo
+                    Saldo cache = saldoCacheRepo
                             .findBySekolahIdAndSubjekTipeAndSubjekId(sekolahId, SubjekTipe.SISWA, siswaId)
                             .orElse(null);
                     BlokirKartu blokir = blokirRepo
@@ -340,7 +340,7 @@ public class LaporanService {
         menuRepo.findAll(MenuRepository.daftarSpec(sekolahId, null, false)).forEach(m -> menuById.put(m.getId(), m));
 
         List<BarisStok> hasil = new ArrayList<>();
-        for (StokCache s : stokCacheRepo.findBySekolahIdAndMenuIdIn(
+        for (Stok s : stokCacheRepo.findBySekolahIdAndMenuIdIn(
                 sekolahId, menuById.keySet().isEmpty() ? Set.of(-1L) : menuById.keySet())) {
             var menu = menuById.get(s.getMenuId());
             if (menu == null) {
@@ -364,7 +364,7 @@ public class LaporanService {
     public List<BarisKerugianStok> kerugianStok(Long sekolahId, LocalDate tanggal,
                                                 OffsetDateTime dari, OffsetDateTime sampai) {
         OffsetDateTime[] r = rentang(tanggal, dari, sampai);
-        List<MutasiStok> mutasi = mutasiStokRepo.kerugianRentang(
+        List<RiwayatStok> mutasi = mutasiStokRepo.kerugianRentang(
                 sekolahId, EnumSet.of(JenisMutasiStok.OPNAME_KELUAR, JenisMutasiStok.BARANG_RUSAK),
                 r[0], r[1]);
 
@@ -372,7 +372,7 @@ public class LaporanService {
             return List.of();
         }
 
-        Set<Long> menuIds = mutasi.stream().map(MutasiStok::getMenuId).collect(Collectors.toSet());
+        Set<Long> menuIds = mutasi.stream().map(RiwayatStok::getMenuId).collect(Collectors.toSet());
         List<Menu> menus = menuRepo.findAllById(menuIds);
         Map<Long, Menu> menuMap = menus.stream()
                 .filter(m -> m.getSekolahId().equals(sekolahId))
@@ -387,7 +387,7 @@ public class LaporanService {
                 .collect(Collectors.toMap(KategoriMenu::getId, KategoriMenu::getNama, (a, b) -> a));
 
         List<BarisKerugianStok> hasil = new ArrayList<>();
-        for (MutasiStok m : mutasi) {
+        for (RiwayatStok m : mutasi) {
             Menu menu = menuMap.get(m.getMenuId());
             String namaMenu = menu != null ? menu.getNama() : "Menu #" + m.getMenuId();
             String kategoriNama = (menu != null && menu.getKategoriId() != null)
@@ -434,7 +434,7 @@ public class LaporanService {
 
     /** Barang masuk pada periode (PRD §9.5). */
     @Transactional(readOnly = true)
-    public List<MutasiStok> barangMasuk(Long sekolahId, LocalDate tanggal,
+    public List<RiwayatStok> barangMasuk(Long sekolahId, LocalDate tanggal,
                                         OffsetDateTime dari, OffsetDateTime sampai) {
         OffsetDateTime[] r = rentang(tanggal, dari, sampai);
         return mutasiStokRepo.barangMasukRentang(sekolahId, r[0], r[1]);
@@ -442,7 +442,7 @@ public class LaporanService {
 
     /** Kartu stok per item: riwayat mutasi satu menu (PRD §9.5). */
     @Transactional(readOnly = true)
-    public List<MutasiStok> kartuStok(Long sekolahId, Long menuId, int batas) {
+    public List<RiwayatStok> kartuStok(Long sekolahId, Long menuId, int batas) {
         int limit = (batas <= 0 || batas > 500) ? 200 : batas;
         return mutasiStokRepo.kartuStok(sekolahId, menuId, PageRequest.of(0, limit));
     }
@@ -459,7 +459,7 @@ public class LaporanService {
             return null;
         }
         int limit = (batas <= 0 || batas > 500) ? 200 : batas;
-        List<MutasiStok> mutasi = mutasiStokRepo.kartuStok(sekolahId, menuId, PageRequest.of(0, limit));
+        List<RiwayatStok> mutasi = mutasiStokRepo.kartuStok(sekolahId, menuId, PageRequest.of(0, limit));
         int stokSekarang = stokCacheRepo.findByMenuId(menuId)
                 .filter(s -> s.getSekolahId().equals(sekolahId))
                 .map(s -> s.getStok() == null ? 0 : s.getStok())
@@ -492,7 +492,7 @@ public class LaporanService {
 
     /** Riwayat saldo satu subjek pada periode (laporan per siswa, PRD §9.5). */
     @Transactional(readOnly = true)
-    public List<SaldoLedger> mutasiSaldoRentang(Long sekolahId, LocalDate tanggal,
+    public List<MutasiSaldo> mutasiSaldoRentang(Long sekolahId, LocalDate tanggal,
                                                 OffsetDateTime dari, OffsetDateTime sampai) {
         OffsetDateTime[] r = rentang(tanggal, dari, sampai);
         return saldoLedgerRepo.padaRentang(sekolahId, r[0], r[1]);
@@ -547,20 +547,20 @@ public class LaporanService {
     @Transactional(readOnly = true)
     public LaporanRiwayatSiswa riwayatSiswa(Long sekolahId, Long siswaId,
                                             OffsetDateTime dari, OffsetDateTime sampai) {
-        SaldoCache cache = saldoCacheRepo.findBySubjekTipeAndSubjekId(SubjekTipe.SISWA, siswaId)
+        Saldo cache = saldoCacheRepo.findBySubjekTipeAndSubjekId(SubjekTipe.SISWA, siswaId)
                 .filter(c -> sekolahId.equals(c.getSekolahId()))
                 .orElseThrow(() -> new NotFoundEntity("Siswa " + siswaId + " tidak ditemukan"));
 
         OffsetDateTime akhir = sampai != null ? sampai : OffsetDateTime.now(jam.zona());
         OffsetDateTime awal = dari != null ? dari : akhir.minusDays(HARI_RIWAYAT_DEFAULT);
 
-        List<SaldoLedger> mutasi = new ArrayList<>(
+        List<MutasiSaldo> mutasi = new ArrayList<>(
                 saldoLedgerRepo.padaRentangSubjek(sekolahId, SubjekTipe.SISWA, siswaId, awal, akhir));
-        mutasi.sort(Comparator.comparing(SaldoLedger::getWaktu).reversed()
-                .thenComparing(SaldoLedger::getId, Comparator.reverseOrder()));
+        mutasi.sort(Comparator.comparing(MutasiSaldo::getWaktu).reversed()
+                .thenComparing(MutasiSaldo::getId, Comparator.reverseOrder()));
 
         Set<Long> transaksiIds = mutasi.stream()
-                .map(SaldoLedger::getTransaksiId)
+                .map(MutasiSaldo::getTransaksiId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
 
@@ -644,7 +644,7 @@ public class LaporanService {
         int batasAman = Math.min(Math.max(batas, 1), 500);
         Pageable pageable = PageRequest.of(0, batasAman);
 
-        List<SaldoLedger> mutasi;
+        List<MutasiSaldo> mutasi;
         if (tanggal != null) {
             OffsetDateTime awal = tanggal.atStartOfDay(jam.zona()).toOffsetDateTime();
             OffsetDateTime akhir = awal.plusDays(1);
@@ -658,7 +658,7 @@ public class LaporanService {
         }
 
         Set<Long> transaksiIds = mutasi.stream()
-                .map(SaldoLedger::getTransaksiId)
+                .map(MutasiSaldo::getTransaksiId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
 
@@ -818,7 +818,7 @@ public class LaporanService {
                                            LocalDate tanggal, OffsetDateTime dari, OffsetDateTime sampai) {
         OffsetDateTime[] r = rentang(tanggal, dari, sampai);
         List<Transaksi> trx = transaksiRepo.transaksiSubjekRentang(sekolahId, subjekTipe, subjekId, r[0], r[1]);
-        List<SaldoLedger> mutasi = saldoLedgerRepo.padaRentangSubjek(sekolahId, subjekTipe, subjekId, r[0], r[1]);
+        List<MutasiSaldo> mutasi = saldoLedgerRepo.padaRentangSubjek(sekolahId, subjekTipe, subjekId, r[0], r[1]);
 
         long jmlSukses = 0, nilaiSukses = 0, jmlVoid = 0, nilaiVoid = 0, totalHpp = 0, totalTopup = 0;
         for (Transaksi t : trx) {
@@ -831,7 +831,7 @@ public class LaporanService {
                 nilaiVoid += nolJikaNull(t.getTotal());
             }
         }
-        for (SaldoLedger l : mutasi) {
+        for (MutasiSaldo l : mutasi) {
             if (l.getJenis() == JenisMutasiSaldo.TOPUP_TUNAI) {
                 totalTopup += nolJikaNull(l.getNominal());
             }
@@ -861,7 +861,7 @@ public class LaporanService {
      * Laporan <b>Setoran kas TU</b> (PRD §9.5): rekap top-up tunai
      * <b>per petugas per hari</b> + uang yang sudah dikonfirmasi disetor +
      * <b>selisih</b>. Sumber kebenaran rekap = {@link
-     * com.asqi.scholia_kantin_be.service.saldo.SetoranTuService#rekap} (ledger
+     * com.asqi.scholia_kantin_be.service.saldo.SetoranService#rekap} (ledger
      * {@code TOPUP_TUNAI} + {@code setoran_tu} append-only), sehingga laporan
      * modul laporan &amp; endpoint operasional selalu konsisten.
      *
@@ -870,7 +870,7 @@ public class LaporanService {
      * {@code TU_SEKOLAH}) — kepsek <b>tidak</b> berhak.
      */
     @Transactional(readOnly = true)
-    public List<RekapSetoranTuItem> laporanSetoranTu(Long sekolahId, LocalDate tanggal) {
+    public List<RekapSetoranItem> laporanSetoran(Long sekolahId, LocalDate tanggal) {
         return setoranTuService.rekap(sekolahId, tanggal);
     }
 

@@ -1,9 +1,9 @@
 package com.asqi.scholia_kantin_be.controller;
 
-import com.asqi.scholia_kantin_be.dto.InsidenOfflineResponse;
+import com.asqi.scholia_kantin_be.dto.KejadianOfflineResponse;
 import com.asqi.scholia_kantin_be.dto.KebijakanKantinResponse;
 import com.asqi.scholia_kantin_be.dto.LaporInsidenRequest;
-import com.asqi.scholia_kantin_be.dto.PosBukuKasResponse;
+import com.asqi.scholia_kantin_be.dto.AkunBukuKasResponse;
 import com.asqi.scholia_kantin_be.dto.ProfilKantinResponse;
 import com.asqi.scholia_kantin_be.dto.UbahKebijakanRequest;
 import com.asqi.scholia_kantin_be.enums.AktorKantin;
@@ -12,9 +12,9 @@ import com.asqi.scholia_kantin_be.payload.response.Response;
 import com.asqi.scholia_kantin_be.security.IdentitasKantin;
 import com.asqi.scholia_kantin_be.security.PerluPeran;
 import com.asqi.scholia_kantin_be.security.TenantContext;
-import com.asqi.scholia_kantin_be.service.konfigurasi.InsidenOfflineService;
+import com.asqi.scholia_kantin_be.service.konfigurasi.KejadianOfflineService;
 import com.asqi.scholia_kantin_be.service.konfigurasi.KebijakanKantinService;
-import com.asqi.scholia_kantin_be.service.konfigurasi.PosBukuKasService;
+import com.asqi.scholia_kantin_be.service.konfigurasi.AkunBukuKasService;
 import com.asqi.scholia_kantin_be.service.konfigurasi.ProfilKantinService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -52,8 +52,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class KonfigurasiKantinController {
 
-    private final PosBukuKasService posBukuKasService;
-    private final InsidenOfflineService insidenOfflineService;
+    private final AkunBukuKasService posBukuKasService;
+    private final KejadianOfflineService insidenOfflineService;
     private final KebijakanKantinService kebijakanKantinService;
     private final ProfilKantinService profilKantinService;
 
@@ -67,10 +67,10 @@ public class KonfigurasiKantinController {
      */
     @PerluPeran({AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN, AktorKantin.TU_SEKOLAH})
     @PostMapping("pos-buku-kas/aktivasi")
-    public ResponseEntity<Response<List<PosBukuKasResponse>>> aktivasiPos(
+    public ResponseEntity<Response<List<AkunBukuKasResponse>>> aktivasiPos(
             @AuthenticationPrincipal IdentitasKantin identitas) {
 
-        List<PosBukuKasResponse> pos = posBukuKasService.pastikanPosStandar(
+        List<AkunBukuKasResponse> pos = posBukuKasService.pastikanPosStandar(
                 TenantContext.sekolahIdWajib(), identitas.aktorIdWajib());
         return CommonResponse.data(pos, "Pos Buku Kas kantin siap");
     }
@@ -79,7 +79,7 @@ public class KonfigurasiKantinController {
     @PerluPeran({AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN,
             AktorKantin.TU_SEKOLAH, AktorKantin.PETUGAS_KANTIN})
     @GetMapping("pos-buku-kas")
-    public ResponseEntity<Response<List<PosBukuKasResponse>>> daftarPos() {
+    public ResponseEntity<Response<List<AkunBukuKasResponse>>> daftarPos() {
         return CommonResponse.data(posBukuKasService.daftar(TenantContext.sekolahIdWajib()));
     }
 
@@ -94,11 +94,11 @@ public class KonfigurasiKantinController {
     @PerluPeran({AktorKantin.PETUGAS_KANTIN, AktorKantin.PENGELOLA_KANTIN,
             AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH})
     @PostMapping("insiden-offline")
-    public ResponseEntity<Response<InsidenOfflineResponse>> laporInsiden(
+    public ResponseEntity<Response<KejadianOfflineResponse>> laporInsiden(
             @Valid @RequestBody LaporInsidenRequest request,
             @AuthenticationPrincipal IdentitasKantin identitas) {
 
-        InsidenOfflineResponse hasil = insidenOfflineService.lapor(
+        KejadianOfflineResponse hasil = insidenOfflineService.lapor(
                 TenantContext.sekolahIdWajib(), request.getTitikKasirId(),
                 request.getKeterangan(), identitas.aktorIdWajib());
         return CommonResponse.data(hasil, "Insiden offline dicatat");
@@ -107,7 +107,7 @@ public class KonfigurasiKantinController {
     /** Daftar insiden offline satu sekolah, terbaru dulu (tenant-scoped). */
     @PerluPeran({AktorKantin.PENGELOLA_KANTIN, AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH})
     @GetMapping("insiden-offline")
-    public ResponseEntity<Response<List<InsidenOfflineResponse>>> daftarInsiden() {
+    public ResponseEntity<Response<List<KejadianOfflineResponse>>> daftarInsiden() {
         return CommonResponse.data(
                 insidenOfflineService.daftar(TenantContext.sekolahIdWajib()));
     }

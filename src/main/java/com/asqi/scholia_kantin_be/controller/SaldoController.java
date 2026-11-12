@@ -8,9 +8,9 @@ import com.asqi.scholia_kantin_be.dto.KoreksiSaldoRequest;
 import com.asqi.scholia_kantin_be.dto.MutasiKoreksiItem;
 import com.asqi.scholia_kantin_be.dto.PindahSaldoRequest;
 import com.asqi.scholia_kantin_be.dto.RefundSaldoRequest;
-import com.asqi.scholia_kantin_be.dto.RekapSetoranTuItem;
+import com.asqi.scholia_kantin_be.dto.RekapSetoranItem;
 import com.asqi.scholia_kantin_be.dto.SaldoResponse;
-import com.asqi.scholia_kantin_be.dto.SetoranTuResponse;
+import com.asqi.scholia_kantin_be.dto.SetoranResponse;
 import com.asqi.scholia_kantin_be.dto.TopUpRequest;
 import com.asqi.scholia_kantin_be.enums.AktorKantin;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
@@ -23,7 +23,7 @@ import com.asqi.scholia_kantin_be.service.kasir.HasilMutasiSaldo;
 import com.asqi.scholia_kantin_be.service.saldo.RefundSaldoService;
 import com.asqi.scholia_kantin_be.service.saldo.SaldoOperasiService;
 import com.asqi.scholia_kantin_be.service.saldo.SaldoTopUpService;
-import com.asqi.scholia_kantin_be.service.saldo.SetoranTuService;
+import com.asqi.scholia_kantin_be.service.saldo.SetoranService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -55,7 +55,7 @@ public class SaldoController {
     private final SaldoTopUpService topUpService;
     private final SaldoOperasiService operasi;
     private final RefundSaldoService refundService;
-    private final SetoranTuService setoranService;
+    private final SetoranService setoranService;
 
     /**
      * Top-up tunai di TU (PRD §9.1). Idempotent lewat {@code referensiId}
@@ -205,7 +205,7 @@ public class SaldoController {
      */
     @PerluPeran({AktorKantin.TU_SEKOLAH})
     @GetMapping("setoran-tu/rekap")
-    public ResponseEntity<Response<List<RekapSetoranTuItem>>> rekapSetoran(
+    public ResponseEntity<Response<List<RekapSetoranItem>>> rekapSetoran(
             @RequestParam(required = false)
             @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE)
             LocalDate tanggal) {
@@ -220,11 +220,11 @@ public class SaldoController {
      */
     @PerluPeran({AktorKantin.TU_SEKOLAH})
     @PostMapping("setoran-tu")
-    public ResponseEntity<Response<SetoranTuResponse>> konfirmasiSetoran(
+    public ResponseEntity<Response<SetoranResponse>> konfirmasiSetoran(
             @Valid @RequestBody KonfirmasiSetoranRequest request,
             @AuthenticationPrincipal IdentitasKantin identitas) {
 
-        SetoranTuResponse hasil = setoranService.konfirmasi(
+        SetoranResponse hasil = setoranService.konfirmasi(
                 TenantContext.sekolahIdWajib(), request.getTanggal(), request.getPetugasId(),
                 request.getJumlahDisetor(), request.getReferensiId(), request.getCatatan(),
                 identitas.aktorIdWajib());

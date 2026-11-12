@@ -13,7 +13,7 @@ import com.asqi.scholia_kantin_be.dto.KartuTamuSaldoDetail;
 import com.asqi.scholia_kantin_be.dto.LaporanPerSiswa;
 import com.asqi.scholia_kantin_be.dto.LaporanRiwayatKeseluruhanItem;
 import com.asqi.scholia_kantin_be.dto.LaporanRiwayatSiswa;
-import com.asqi.scholia_kantin_be.dto.RekapSetoranTuItem;
+import com.asqi.scholia_kantin_be.dto.RekapSetoranItem;
 import com.asqi.scholia_kantin_be.dto.SiswaSaldoDetail;
 import com.asqi.scholia_kantin_be.dto.RingkasanPenjualan;
 import com.asqi.scholia_kantin_be.dto.RingkasanRekonsiliasi;
@@ -330,10 +330,10 @@ public class LaporanController {
      */
     @PerluPeran({AktorKantin.TU_SEKOLAH})
     @GetMapping("setoran-tu")
-    public ResponseEntity<Response<List<RekapSetoranTuItem>>> setoranTu(
+    public ResponseEntity<Response<List<RekapSetoranItem>>> setoranTu(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tanggal) {
         return CommonResponse.data(
-                laporan.laporanSetoranTu(TenantContext.sekolahIdWajib(), tanggal));
+                laporan.laporanSetoran(TenantContext.sekolahIdWajib(), tanggal));
     }
 
     /**

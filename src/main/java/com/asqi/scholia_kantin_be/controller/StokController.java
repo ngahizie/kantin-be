@@ -10,7 +10,7 @@ import com.asqi.scholia_kantin_be.dto.RiwayatStokItem;
 import com.asqi.scholia_kantin_be.dto.StokResponse;
 import com.asqi.scholia_kantin_be.enums.AktorKantin;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiStok;
-import com.asqi.scholia_kantin_be.model.StokCache;
+import com.asqi.scholia_kantin_be.model.Stok;
 import com.asqi.scholia_kantin_be.payload.response.CommonResponse;
 import com.asqi.scholia_kantin_be.payload.response.Response;
 import com.asqi.scholia_kantin_be.security.IdentitasKantin;
@@ -137,7 +137,7 @@ public class StokController {
             AktorKantin.PENGELOLA_KANTIN, AktorKantin.ADMIN_SEKOLAH})
     @GetMapping("{menuId}")
     public ResponseEntity<Response<StokResponse>> lihat(@PathVariable Long menuId) {
-        StokCache cache = operasi.lihat(TenantContext.sekolahIdWajib(), menuId);
+        Stok cache = operasi.lihat(TenantContext.sekolahIdWajib(), menuId);
         return CommonResponse.data(toResponse(cache));
     }
 
@@ -161,7 +161,7 @@ public class StokController {
         return CommonResponse.data(dariLedger, "Stok hasil hitung ulang ledger");
     }
 
-    private StokResponse toResponse(StokCache c) {
+    private StokResponse toResponse(Stok c) {
         return StokResponse.builder()
                 .menuId(c.getMenuId())
                 .stok(c.getStok())

@@ -7,8 +7,8 @@ import com.asqi.scholia_kantin_be.dto.KandidatRefundItem;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.JenisNotifikasi;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
-import com.asqi.scholia_kantin_be.model.SaldoCache;
-import com.asqi.scholia_kantin_be.repository.SaldoCacheRepository;
+import com.asqi.scholia_kantin_be.model.Saldo;
+import com.asqi.scholia_kantin_be.repository.SaldoRepository;
 import com.asqi.scholia_kantin_be.service.CariSiswaService;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoSiswa;
 import com.asqi.scholia_kantin_be.service.integrasi.NotifikasiService;
@@ -54,7 +54,7 @@ public class RefundSaldoService {
     private static final String AKSI_PINDAH = "PINDAH_SALDO";
 
     private final LedgerSaldoService ledgerSaldo;
-    private final SaldoCacheRepository cacheRepo;
+    private final SaldoRepository cacheRepo;
     private final StatusSiswaPort statusSiswa;
     private final AuditLogger auditLogger;
     private final NotifikasiService notifikasi;
@@ -70,7 +70,7 @@ public class RefundSaldoService {
      */
     @Transactional(readOnly = true)
     public List<KandidatRefundItem> daftarKandidat(Long sekolahId, boolean hanyaTidakAktif) {
-        List<SaldoCache> baris = cacheRepo.findBySekolahIdAndSubjekTipe(sekolahId, SubjekTipe.SISWA)
+        List<Saldo> baris = cacheRepo.findBySekolahIdAndSubjekTipe(sekolahId, SubjekTipe.SISWA)
                 .stream()
                 .filter(c -> c.getSaldo() != null && c.getSaldo() > 0)
                 .filter(c -> c.getSubjekId() != null)
@@ -81,7 +81,7 @@ public class RefundSaldoService {
 
         // Dua panggilan batch untuk SEMUA kandidat — bukan satu panggilan per siswa
         // (issue #298: hindari N+1 lintas layanan).
-        List<Long> ids = baris.stream().map(SaldoCache::getSubjekId).distinct().toList();
+        List<Long> ids = baris.stream().map(Saldo::getSubjekId).distinct().toList();
         Map<Long, InfoSiswa> identitas = cariSiswaService.identitasBanyak(sekolahId, ids);
         Map<Long, Boolean> status = statusSiswa.tidakAktifBanyak(sekolahId, ids);
 

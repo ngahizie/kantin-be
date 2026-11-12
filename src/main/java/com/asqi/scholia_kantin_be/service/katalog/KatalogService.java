@@ -9,10 +9,10 @@ import com.asqi.scholia_kantin_be.helper.IdGenerator;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.model.KategoriMenu;
 import com.asqi.scholia_kantin_be.model.Menu;
-import com.asqi.scholia_kantin_be.model.StokCache;
+import com.asqi.scholia_kantin_be.model.Stok;
 import com.asqi.scholia_kantin_be.repository.KategoriMenuRepository;
 import com.asqi.scholia_kantin_be.repository.MenuRepository;
-import com.asqi.scholia_kantin_be.repository.StokCacheRepository;
+import com.asqi.scholia_kantin_be.repository.StokRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -44,7 +44,7 @@ public class KatalogService {
 
     private final KategoriMenuRepository kategoriRepo;
     private final MenuRepository menuRepo;
-    private final StokCacheRepository stokRepo;
+    private final StokRepository stokRepo;
     private final IdGenerator idGenerator;
     private final JamKantin jam;
     private final AuditLogger auditLogger;
@@ -164,7 +164,7 @@ public class KatalogService {
         }
         return stokRepo.findBySekolahIdAndMenuIdIn(sekolahId, menuIds).stream()
                 .collect(Collectors.toMap(
-                        StokCache::getMenuId,
+                        Stok::getMenuId,
                         c -> c.getStok() == null ? 0 : c.getStok(),
                         (a, b) -> a));
     }
@@ -174,7 +174,7 @@ public class KatalogService {
     public int stokBerjalan(Long sekolahId, Long menuId) {
         return stokRepo.findByMenuId(menuId)
                 .filter(c -> c.getSekolahId().equals(sekolahId))
-                .map(StokCache::getStok)
+                .map(Stok::getStok)
                 .orElse(0);
     }
 

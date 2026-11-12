@@ -17,8 +17,8 @@ import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.model.SesiKasir;
 import com.asqi.scholia_kantin_be.model.Transaksi;
 import com.asqi.scholia_kantin_be.model.TransaksiItem;
-import com.asqi.scholia_kantin_be.model.TransaksiMenungguKonfirmasi;
-import com.asqi.scholia_kantin_be.repository.TransaksiMenungguKonfirmasiRepository;
+import com.asqi.scholia_kantin_be.model.TransaksiTertunda;
+import com.asqi.scholia_kantin_be.repository.TransaksiTertundaRepository;
 import com.asqi.scholia_kantin_be.repository.TitikKasirRepository;
 import com.asqi.scholia_kantin_be.repository.TransaksiRepository;
 import com.asqi.scholia_kantin_be.security.IdentitasKantin;
@@ -73,7 +73,7 @@ public class TapService {
 
     private final TransaksiRepository transaksiRepo;
     private final TitikKasirRepository titikKasirRepo;
-    private final TransaksiMenungguKonfirmasiRepository pendingRepo;
+    private final TransaksiTertundaRepository pendingRepo;
     private final TapValidator validator;
     private final LedgerSaldoService ledgerSaldo;
     private final LedgerStokService ledgerStok;
@@ -203,7 +203,7 @@ public class TapService {
         OffsetDateTime now = jam.sekarang();
         Long pendingId = idGenerator.berikutnyaLong();
 
-        TransaksiMenungguKonfirmasi pending = TransaksiMenungguKonfirmasi.builder()
+        TransaksiTertunda pending = TransaksiTertunda.builder()
                 .id(pendingId)
                 .sekolahId(sekolahId)
                 .idempotencyKey(request.getIdempotencyKey())
@@ -235,7 +235,7 @@ public class TapService {
     public TapResponse konfirmasi(Long sekolahId, Long pendingId, IdentitasKantin identitas) {
         Long petugasId = identitas.aktorIdWajib();
         return txTemplate.execute(status -> {
-            TransaksiMenungguKonfirmasi pending = pendingRepo.kunciUntukUpdate(sekolahId, pendingId)
+            TransaksiTertunda pending = pendingRepo.kunciUntukUpdate(sekolahId, pendingId)
                     .orElseThrow(() -> new NotFoundEntity("Permintaan konfirmasi tidak ditemukan"));
             if (!pending.getSekolahId().equals(sekolahId)) {
                 throw new NotFoundEntity("Permintaan konfirmasi tidak ditemukan");
@@ -264,7 +264,7 @@ public class TapService {
     public void batal(Long sekolahId, Long pendingId, IdentitasKantin identitas) {
         Long petugasId = identitas.aktorIdWajib();
         txTemplate.executeWithoutResult(status -> {
-            TransaksiMenungguKonfirmasi pending = pendingRepo.kunciUntukUpdate(sekolahId, pendingId)
+            TransaksiTertunda pending = pendingRepo.kunciUntukUpdate(sekolahId, pendingId)
                     .orElseThrow(() -> new NotFoundEntity("Permintaan konfirmasi tidak ditemukan"));
             if (!pending.getSekolahId().equals(sekolahId)) {
                 throw new NotFoundEntity("Permintaan konfirmasi tidak ditemukan");
@@ -283,12 +283,12 @@ public class TapService {
     }
 
     /** Daftar tap pending yang masih menunggu konfirmasi untuk satu sekolah. */
-    public List<TransaksiMenungguKonfirmasi> daftarPending(Long sekolahId) {
+    public List<TransaksiTertunda> daftarPending(Long sekolahId) {
         return pendingRepo.findBySekolahIdAndStatusOrderByIdAsc(sekolahId, StatusPendingTap.MENUNGGU);
     }
 
     /** Bangun respons ringkas untuk baris pending (dipakai endpoint daftar menunggu). */
-    public TapResponse keResponse(TransaksiMenungguKonfirmasi pending) {
+    public TapResponse keResponse(TransaksiTertunda pending) {
         return bangunMenunggu(pending);
     }
 
@@ -417,7 +417,7 @@ public class TapService {
     }
 
     /** Respons "menunggu konfirmasi" (belum memotong saldo/stok). */
-    private TapResponse bangunMenunggu(TransaksiMenungguKonfirmasi pending) {
+    private TapResponse bangunMenunggu(TransaksiTertunda pending) {
         InfoKartu kartu = pending.getRfidUid() == null ? null
                 : kartuLookup.cariBerdasarkanUid(pending.getSekolahId(), pending.getRfidUid());
         return TapResponse.builder()
@@ -493,7 +493,7 @@ public class TapService {
     }
 
     /** Rekonstruksi permintaan tap dari baris pending (untuk konfirmasi). */
-    private TapRequest dariPending(TransaksiMenungguKonfirmasi pending) {
+    private TapRequest dariPending(TransaksiTertunda pending) {
         TapRequest request = new TapRequest();
         request.setRfidUid(pending.getRfidUid());
         request.setTitikKasirId(pending.getTitikKasirId());

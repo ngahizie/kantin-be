@@ -9,7 +9,7 @@ import com.asqi.scholia_kantin_be.dto.BarisPenjualan;
 import com.asqi.scholia_kantin_be.dto.BarisStok;
 import com.asqi.scholia_kantin_be.dto.KartuStokItem;
 import com.asqi.scholia_kantin_be.dto.LaporanPerSiswa;
-import com.asqi.scholia_kantin_be.dto.RekapSetoranTuItem;
+import com.asqi.scholia_kantin_be.dto.RekapSetoranItem;
 import com.asqi.scholia_kantin_be.dto.RingkasanPenjualan;
 import com.asqi.scholia_kantin_be.dto.RingkasanRekonsiliasi;
 import com.asqi.scholia_kantin_be.dto.RingkasanSaldoMengendap;
@@ -17,7 +17,7 @@ import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.enums.JenisLaporan;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
-import com.asqi.scholia_kantin_be.model.MutasiStok;
+import com.asqi.scholia_kantin_be.model.RiwayatStok;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -100,7 +100,7 @@ public class LaporanExportService {
                     laporan.penjualanPerPetugas(sekolahId, tanggal, dari, sampai));
             case PENJUALAN_KASIR -> eksporPenjualanKasir(sekolahId, tanggal, dari, sampai, label);
             case KARTU_STOK -> eksporKartuStok(sekolahId, menuId, label);
-            case SETORAN_TU -> eksporSetoranTu(sekolahId, tanggal, label);
+            case SETORAN_TU -> eksporSetoran(sekolahId, tanggal, label);
             case PER_SISWA -> eksporPerSiswa(sekolahId, subjekTipe, subjekId, tanggal, dari, sampai, label);
         };
     }
@@ -202,11 +202,11 @@ public class LaporanExportService {
 
     private HasilEkspor eksporBarangMasuk(Long sekolahId, LocalDate tgl, OffsetDateTime dari,
                                           OffsetDateTime sampai, String label) {
-        List<MutasiStok> data = laporan.barangMasuk(sekolahId, tgl, dari, sampai);
+        List<RiwayatStok> data = laporan.barangMasuk(sekolahId, tgl, dari, sampai);
         List<String> header = List.of("Waktu", "Menu ID", "Qty", "Harga Beli/Unit",
                 "Referensi", "Alasan");
         List<List<Object>> baris = new ArrayList<>();
-        for (MutasiStok m : data) {
+        for (RiwayatStok m : data) {
             baris.add(List.of(
                     m.getWaktu() == null ? "" : FMT.format(m.getWaktu()),
                     nvl(m.getMenuId()), m.getQty(), nvl(m.getHargaBeliSatuan()),
@@ -306,12 +306,12 @@ public class LaporanExportService {
      * petugas pada tanggal laporan + uang disetor + <b>selisih</b> (positif =
      * kurang setor). Rekap sama dengan endpoint {@code GET /api/laporan/setoran-tu}.
      */
-    private HasilEkspor eksporSetoranTu(Long sekolahId, LocalDate tgl, String label) {
-        List<RekapSetoranTuItem> data = laporan.laporanSetoranTu(sekolahId, tgl);
+    private HasilEkspor eksporSetoran(Long sekolahId, LocalDate tgl, String label) {
+        List<RekapSetoranItem> data = laporan.laporanSetoran(sekolahId, tgl);
         List<String> header = List.of("Tanggal", "Petugas ID", "Total Top-up Tunai",
                 "Jumlah Disetor", "Selisih", "Berita Acara");
         List<List<Object>> baris = new ArrayList<>();
-        for (RekapSetoranTuItem b : data) {
+        for (RekapSetoranItem b : data) {
             baris.add(List.of(
                     b.getTanggal() == null ? "" : b.getTanggal().toString(),
                     nvl(b.getPetugasId()), b.getTotalTopup(), b.getJumlahDisetor(),

@@ -25,7 +25,7 @@ import com.asqi.scholia_kantin_be.service.kasir.TapService;
 import com.asqi.scholia_kantin_be.service.kasir.TransaksiKasirService;
 import com.asqi.scholia_kantin_be.service.kasir.VoidService;
 import com.asqi.scholia_kantin_be.service.integrasi.BukuKasPostingService;
-import com.asqi.scholia_kantin_be.service.integrasi.HasilPostingBukuKas;
+import com.asqi.scholia_kantin_be.service.integrasi.HasilJurnalBukuKas;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -356,11 +356,11 @@ public class KasirController {
      */
     @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.PENGELOLA_KANTIN, AktorKantin.ADMIN_SEKOLAH})
     @PostMapping("sesi/{sesiId}/posting-buku-kas")
-    public ResponseEntity<Response<HasilPostingBukuKas>> postingBukuKas(
+    public ResponseEntity<Response<HasilJurnalBukuKas>> postingBukuKas(
             @PathVariable Long sesiId,
             @AuthenticationPrincipal IdentitasKantin identitas) {
 
-        HasilPostingBukuKas hasil = bukuKasPosting.postingUlang(
+        HasilJurnalBukuKas hasil = bukuKasPosting.postingUlang(
                 TenantContext.sekolahIdWajib(), sesiId, identitas.aktorIdWajib());
         return CommonResponse.data(hasil, "Posting Buku Kas: " + hasil.status());
     }

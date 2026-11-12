@@ -11,7 +11,7 @@ import com.asqi.scholia_kantin_be.security.IdentitasKantin;
 import com.asqi.scholia_kantin_be.security.TenantContext;
 import com.asqi.scholia_kantin_be.service.integrasi.BukuKasPort;
 import com.asqi.scholia_kantin_be.service.integrasi.BukuKasPostingService;
-import com.asqi.scholia_kantin_be.service.integrasi.HasilPostingBukuKas;
+import com.asqi.scholia_kantin_be.service.integrasi.HasilJurnalBukuKas;
 import com.asqi.scholia_kantin_be.service.kartu.KartuTamuService;
 import com.asqi.scholia_kantin_be.service.kasir.LedgerSaldoService;
 import com.asqi.scholia_kantin_be.service.kasir.PerintahMutasiSaldo;
@@ -174,7 +174,7 @@ class DemoE2EIT {
         String referensiAwal = ditutup.getReferensiBukuKas();
 
         // Posting ulang (mis. retry scheduler) → dilewati karena flag sudah true.
-        HasilPostingBukuKas hasil = bukuKasPosting.postingUlangSistem(SEKOLAH, sesiId);
+        HasilJurnalBukuKas hasil = bukuKasPosting.postingUlangSistem(SEKOLAH, sesiId);
 
         assertThat(hasil.sukses()).isTrue();
         assertThat(hasil.pesan()).contains("Sudah diposting");

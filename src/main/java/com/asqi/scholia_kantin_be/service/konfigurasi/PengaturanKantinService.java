@@ -5,8 +5,8 @@ import com.asqi.scholia_kantin_be.component.logging.AuditLogger;
 import com.asqi.scholia_kantin_be.dto.PengaturanKantinRequest;
 import com.asqi.scholia_kantin_be.dto.PengaturanKantinResponse;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
-import com.asqi.scholia_kantin_be.model.SekolahKantinConfig;
-import com.asqi.scholia_kantin_be.repository.SekolahKantinConfigRepository;
+import com.asqi.scholia_kantin_be.model.PengaturanKantin;
+import com.asqi.scholia_kantin_be.repository.PengaturanKantinRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -37,7 +37,7 @@ public class PengaturanKantinService {
     /** Default durasi tampil foto setelah transaksi (PRD §6.1). */
     public static final int DEFAULT_DURASI_FOTO_DETIK = 3;
 
-    private final SekolahKantinConfigRepository repo;
+    private final PengaturanKantinRepository repo;
     private final JamKantin jam;
     private final AuditLogger auditLogger;
 
@@ -66,7 +66,7 @@ public class PengaturanKantinService {
     @Transactional(readOnly = true)
     public LocalTime jamTutupOtomatis(Long sekolahId) {
         return repo.findById(sekolahId)
-                .map(SekolahKantinConfig::getJamTutupOtomatis)
+                .map(PengaturanKantin::getJamTutupOtomatis)
                 .orElse(DEFAULT_JAM_TUTUP);
     }
 
@@ -78,8 +78,8 @@ public class PengaturanKantinService {
     public PengaturanKantinResponse ubah(Long sekolahId, PengaturanKantinRequest request, Long aktorId) {
         OffsetDateTime now = jam.sekarang();
 
-        SekolahKantinConfig baris = repo.findById(sekolahId)
-                .orElseGet(() -> SekolahKantinConfig.builder()
+        PengaturanKantin baris = repo.findById(sekolahId)
+                .orElseGet(() -> PengaturanKantin.builder()
                         .sekolahId(sekolahId)
                         .jamTutupOtomatis(DEFAULT_JAM_TUTUP)
                         .konfirmasiManual(false)
@@ -119,14 +119,14 @@ public class PengaturanKantinService {
         baris.setUpdatedAt(now);
         repo.save(baris);
 
-        auditLogger.catat(aktorId, sekolahId, "UBAH_PENGATURAN_KANTIN", "SekolahKantinConfig",
+        auditLogger.catat(aktorId, sekolahId, "UBAH_PENGATURAN_KANTIN", "PengaturanKantin",
                 String.valueOf(sekolahId), "Ubah pengaturan kantin", lama, ringkas(baris));
         log.info("Pengaturan kantin sekolah={} diperbarui oleh={}", sekolahId, aktorId);
         return PengaturanKantinResponse.dari(baris);
     }
 
     /** Ringkasan pengaturan untuk audit (nilai lama → baru). */
-    private String ringkas(SekolahKantinConfig c) {
+    private String ringkas(PengaturanKantin c) {
         return "nama=" + c.getNamaKantin()
                 + ";jamTutup=" + c.getJamTutupOtomatis()
                 + ";konfirmasiManual=" + c.isKonfirmasiManual()

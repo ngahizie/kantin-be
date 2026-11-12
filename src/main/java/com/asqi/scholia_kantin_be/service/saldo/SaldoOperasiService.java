@@ -9,9 +9,9 @@ import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.helper.UkuranHalaman;
 import com.asqi.scholia_kantin_be.model.KartuTamu;
-import com.asqi.scholia_kantin_be.model.SaldoLedger;
+import com.asqi.scholia_kantin_be.model.MutasiSaldo;
 import com.asqi.scholia_kantin_be.repository.KartuTamuRepository;
-import com.asqi.scholia_kantin_be.repository.SaldoLedgerRepository;
+import com.asqi.scholia_kantin_be.repository.MutasiSaldoRepository;
 import com.asqi.scholia_kantin_be.service.kasir.LedgerSaldoService;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
@@ -48,7 +48,7 @@ public class SaldoOperasiService {
     private static final int UKURAN_MAKS = 200;
 
     private final LedgerSaldoService ledgerSaldo;
-    private final SaldoLedgerRepository ledgerRepo;
+    private final MutasiSaldoRepository ledgerRepo;
     private final KartuTamuRepository kartuTamuRepo;
     private final JamKantin jam;
 
@@ -104,13 +104,13 @@ public class SaldoOperasiService {
         Pageable pageable = PageRequest.of(halamanAman, ukuranAman,
                 Sort.by(Sort.Direction.DESC, "waktu").and(Sort.by(Sort.Direction.DESC, "id")));
 
-        Page<SaldoLedger> page = ledgerRepo.findAll(
+        Page<MutasiSaldo> page = ledgerRepo.findAll(
                 filterKoreksi(sekolahId, tanggal, subjekTipe, subjekId), pageable);
 
         // Nama subjek (kartu tamu) diambil BATCH — hindari N+1.
         Map<Long, String> namaSubjek = namaPemegangKartu(sekolahId, page.getContent());
 
-        return HalamanResponse.<SaldoLedger, MutasiKoreksiItem>dari(page, l -> {
+        return HalamanResponse.<MutasiSaldo, MutasiKoreksiItem>dari(page, l -> {
             MutasiKoreksiItem item = MutasiKoreksiItem.dari(l);
             if (l.getSubjekTipe() == SubjekTipe.KARTU_TAMU) {
                 item.setSubjekNama(namaSubjek.get(l.getSubjekId()));
@@ -132,7 +132,7 @@ public class SaldoOperasiService {
      * ({@code could not determine data type of parameter}) — akar bug #198
      * (endpoint daftar selalu 500).
      */
-    private Specification<SaldoLedger> filterKoreksi(Long sekolahId, LocalDate tanggal,
+    private Specification<MutasiSaldo> filterKoreksi(Long sekolahId, LocalDate tanggal,
                                                      SubjekTipe subjekTipe, Long subjekId) {
         return (root, query, cb) -> {
             List<Predicate> syarat = new ArrayList<>();
@@ -155,10 +155,10 @@ public class SaldoOperasiService {
     }
 
     /** Peta {@code subjekId → label pemegang kartu} untuk baris KARTU_TAMU di halaman ini. */
-    private Map<Long, String> namaPemegangKartu(Long sekolahId, List<SaldoLedger> baris) {
+    private Map<Long, String> namaPemegangKartu(Long sekolahId, List<MutasiSaldo> baris) {
         Set<Long> ids = baris.stream()
                 .filter(l -> l.getSubjekTipe() == SubjekTipe.KARTU_TAMU)
-                .map(SaldoLedger::getSubjekId)
+                .map(MutasiSaldo::getSubjekId)
                 .collect(Collectors.toSet());
         if (ids.isEmpty()) {
             return Map.of();

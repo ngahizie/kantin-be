@@ -8,7 +8,7 @@ import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.model.Menu;
 import com.asqi.scholia_kantin_be.repository.KategoriMenuRepository;
 import com.asqi.scholia_kantin_be.repository.MenuRepository;
-import com.asqi.scholia_kantin_be.repository.StokCacheRepository;
+import com.asqi.scholia_kantin_be.repository.StokRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,7 +32,7 @@ class KatalogServiceBarcodeTest {
     void setUp() {
         KategoriMenuRepository kategoriRepo = mock(KategoriMenuRepository.class);
         menuRepo = mock(MenuRepository.class);
-        StokCacheRepository stokRepo = mock(StokCacheRepository.class);
+        StokRepository stokRepo = mock(StokRepository.class);
         IdGenerator idGenerator = mock(IdGenerator.class);
         JamKantin jam = mock(JamKantin.class);
         AuditLogger auditLogger = mock(AuditLogger.class);

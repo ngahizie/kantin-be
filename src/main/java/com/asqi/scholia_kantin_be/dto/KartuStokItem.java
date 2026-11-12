@@ -2,7 +2,7 @@ package com.asqi.scholia_kantin_be.dto;
 
 import com.asqi.scholia_kantin_be.enums.ArahStok;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiStok;
-import com.asqi.scholia_kantin_be.model.MutasiStok;
+import com.asqi.scholia_kantin_be.model.RiwayatStok;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -39,7 +39,7 @@ public record KartuStokItem(
             String alasan,
             String aktorNama) {
 
-        public static BarisMutasi dari(MutasiStok m) {
+        public static BarisMutasi dari(RiwayatStok m) {
             return new BarisMutasi(m.getId(), m.getWaktu(), m.getJenis(), m.getArah(),
                     m.getQty() == null ? 0 : m.getQty(),
                     m.getStokSetelah() == null ? 0 : m.getStokSetelah(),

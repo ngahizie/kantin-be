@@ -2,7 +2,7 @@ package com.asqi.scholia_kantin_be.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.asqi.scholia_kantin_be.model.StokCache;
+import com.asqi.scholia_kantin_be.model.Stok;
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;
 import com.asqi.scholia_kantin_be.support.TestcontainersConfig;
 import java.util.Map;
@@ -39,7 +39,7 @@ class StokMinimumSinkronIT {
     private JdbcTemplate jdbc;
 
     @Autowired
-    private StokCacheRepository cacheRepo;
+    private StokRepository cacheRepo;
 
     @BeforeEach
     void siapkan() {
@@ -92,7 +92,7 @@ class StokMinimumSinkronIT {
 
         jdbc.update("UPDATE stok_cache SET stok = 10 WHERE menu_id = ?", MENU); // tepat di ambang
         assertThat(cacheRepo.stokMenipis(SEKOLAH))
-                .extracting(StokCache::getMenuId)
+                .extracting(Stok::getMenuId)
                 .containsExactly(MENU);
 
         jdbc.update("UPDATE stok_cache SET stok = 11 WHERE menu_id = ?", MENU); // di atas ambang
@@ -108,7 +108,7 @@ class StokMinimumSinkronIT {
         jdbc.update("UPDATE stok_cache SET stok = 1 WHERE menu_id IN (?, ?)", MENU, 101L);
 
         assertThat(cacheRepo.stokMenipis(SEKOLAH))
-                .extracting(StokCache::getMenuId)
+                .extracting(Stok::getMenuId)
                 .containsExactly(MENU);
     }
 

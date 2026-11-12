@@ -1,6 +1,6 @@
 package com.asqi.scholia_kantin_be.service.stok;
 
-import com.asqi.scholia_kantin_be.model.MutasiStok;
+import com.asqi.scholia_kantin_be.model.RiwayatStok;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -14,7 +14,7 @@ import lombok.Getter;
 @Builder
 public class HasilMutasiStok {
 
-    private final MutasiStok mutasi;
+    private final RiwayatStok mutasi;
 
     /** Stok setelah mutasi. */
     private final int stokSetelah;
@@ -22,7 +22,7 @@ public class HasilMutasiStok {
     /** HPP rata-rata berjalan setelah mutasi. */
     private final long hppSetelah;
 
-    public static HasilMutasiStok baru(MutasiStok mutasi, int stokSetelah, long hppSetelah) {
+    public static HasilMutasiStok baru(RiwayatStok mutasi, int stokSetelah, long hppSetelah) {
         return HasilMutasiStok.builder()
                 .mutasi(mutasi)
                 .stokSetelah(stokSetelah)

@@ -1,9 +1,9 @@
 package com.asqi.scholia_kantin_be.service.konfigurasi;
 
 import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
-import com.asqi.scholia_kantin_be.dto.InsidenOfflineResponse;
+import com.asqi.scholia_kantin_be.dto.KejadianOfflineResponse;
 import com.asqi.scholia_kantin_be.dto.KebijakanKantinResponse;
-import com.asqi.scholia_kantin_be.dto.PosBukuKasResponse;
+import com.asqi.scholia_kantin_be.dto.AkunBukuKasResponse;
 import com.asqi.scholia_kantin_be.enums.KebijakanSaldoMengendap;
 import com.asqi.scholia_kantin_be.helper.Constants;
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;
@@ -40,10 +40,10 @@ class KonfigurasiKantinServiceIT {
     private static final long PETUGAS = 555L;
 
     @Autowired
-    private PosBukuKasService posService;
+    private AkunBukuKasService posService;
 
     @Autowired
-    private InsidenOfflineService insidenService;
+    private KejadianOfflineService insidenService;
 
     @Autowired
     private KebijakanKantinService kebijakanService;
@@ -63,22 +63,22 @@ class KonfigurasiKantinServiceIT {
     @Test
     @DisplayName("#21: aktivasi membuat pos standar kantin (Pendapatan/Belanja Stok/Penyesuaian)")
     void aktivasiMembuatPosStandar() {
-        List<PosBukuKasResponse> pos = posService.pastikanPosStandar(SEKOLAH, ADMIN);
+        List<AkunBukuKasResponse> pos = posService.pastikanPosStandar(SEKOLAH, ADMIN);
 
         assertThat(pos).hasSize(3);
-        assertThat(pos).extracting(PosBukuKasResponse::getNama)
+        assertThat(pos).extracting(AkunBukuKasResponse::getNama)
                 .containsExactlyInAnyOrder(
                         Constants.KATEGORI_PENDAPATAN_KANTIN,
                         Constants.KATEGORI_BELANJA_STOK_KANTIN,
                         Constants.KATEGORI_PENYESUAIAN_KANTIN);
 
-        PosBukuKasResponse pendapatan = pos.stream()
+        AkunBukuKasResponse pendapatan = pos.stream()
                 .filter(p -> p.getNama().equals(Constants.KATEGORI_PENDAPATAN_KANTIN))
                 .findFirst().orElseThrow();
         assertThat(pendapatan.getTipe()).isEqualTo("MASUK");
         assertThat(pendapatan.isAktif()).isTrue();
 
-        PosBukuKasResponse belanja = pos.stream()
+        AkunBukuKasResponse belanja = pos.stream()
                 .filter(p -> p.getNama().equals(Constants.KATEGORI_BELANJA_STOK_KANTIN))
                 .findFirst().orElseThrow();
         assertThat(belanja.getTipe()).isEqualTo("KELUAR");
@@ -119,8 +119,8 @@ class KonfigurasiKantinServiceIT {
 
     @Test
     @DisplayName("#23: lapor insiden offline → tersimpan dengan waktu mulai & pelapor")
-    void laporInsidenOffline() {
-        InsidenOfflineResponse insiden = insidenService.lapor(
+    void laporKejadianOffline() {
+        KejadianOfflineResponse insiden = insidenService.lapor(
                 SEKOLAH, 7L, "Internet mati sejak 09:15, kasir mode tunai manual", PETUGAS);
 
         assertThat(insiden.getId()).isNotNull();
@@ -145,7 +145,7 @@ class KonfigurasiKantinServiceIT {
     @Test
     @DisplayName("#23: insiden append-only — UPDATE/DELETE ditolak trigger")
     void insidenAppendOnly() {
-        InsidenOfflineResponse insiden = insidenService.lapor(
+        KejadianOfflineResponse insiden = insidenService.lapor(
                 SEKOLAH, null, "Server down", PETUGAS);
 
         assertThatThrownBy(() -> jdbc.update(

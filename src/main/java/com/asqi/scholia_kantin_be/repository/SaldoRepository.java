@@ -1,0 +1,84 @@
+package com.asqi.scholia_kantin_be.repository;
+
+import com.asqi.scholia_kantin_be.enums.SubjekTipe;
+import com.asqi.scholia_kantin_be.model.Saldo;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+import java.util.Optional;
+
+/**
+ * Akses data saldo berjalan ({@code saldo_cache}).
+ *
+ * <p>Baris ini adalah <b>hot row</b> yang dikunci saat debit agar dua kasir
+ * tidak memotong saldo yang sama secara bersamaan (ADR-0003, PRD §11.2).
+ */
+@Repository
+public interface SaldoRepository extends JpaRepository<Saldo, Saldo.SaldoId> {
+
+    /**
+     * Ambil &amp; kunci baris saldo ({@code SELECT ... FOR UPDATE}).
+     *
+     * <p><b>Tenant-scoped (PRD §11.4):</b> {@code sekolah_id} WAJIB ikut di
+     * {@code WHERE} — bukan sekadar diperiksa setelah lock. Dengan begitu baris
+     * milik sekolah lain tidak pernah terkunci/diserialisasi oleh sekolah yang
+     * bukan pemiliknya (memperkecil blast radius, B17).
+     *
+     * <p>Wajib dipanggil di dalam {@code @Transactional}: lock dilepas saat
+     * transaksi selesai. Bila baris tidak ada → {@code Optional.empty()}
+     * (pemanggil harus membuatnya lewat {@link #pastikanBarisAda}).
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            SELECT s FROM Saldo s
+            WHERE s.sekolahId = :sekolahId
+              AND s.subjekTipe = :subjekTipe
+              AND s.subjekId = :subjekId
+            """)
+    Optional<Saldo> kunciUntukUpdate(@Param("sekolahId") Long sekolahId,
+                                          @Param("subjekTipe") SubjekTipe subjekTipe,
+                                          @Param("subjekId") Long subjekId);
+
+    Optional<Saldo> findBySubjekTipeAndSubjekId(SubjekTipe subjekTipe, Long subjekId);
+
+    Optional<Saldo> findBySekolahIdAndSubjekTipeAndSubjekId(
+            Long sekolahId, SubjekTipe subjekTipe, Long subjekId);
+
+    List<Saldo> findBySekolahIdAndSubjekTipe(Long sekolahId, SubjekTipe subjekTipe);
+
+    /**
+     * Total saldo mengendap per jenis subjek (PRD §9.5) — kewajiban sekolah.
+     * Mengembalikan baris {@code [subjekTipe, Σ saldo, jumlah baris]}.
+     */
+    @Query("""
+            SELECT s.subjekTipe, COALESCE(SUM(s.saldo), 0), COUNT(s)
+            FROM Saldo s
+            WHERE s.sekolahId = :sekolahId
+            GROUP BY s.subjekTipe
+            """)
+    List<Object[]> totalMengendapPerTipe(@Param("sekolahId") Long sekolahId);
+
+    /**
+     * Pastikan baris saldo ada <b>tanpa race</b>: {@code INSERT ... ON CONFLICT
+     * DO NOTHING}. Bila dua kasir mencoba membuat baris yang sama serentak,
+     * hanya satu yang berhasil dan yang lain diam-diam dilewati — lalu keduanya
+     * tetap mengunci baris yang sama lewat {@link #kunciUntukUpdate}.
+     *
+     * <p>Native karena {@code ON CONFLICT} khas PostgreSQL.
+     */
+    @Modifying
+    @Query(value = """
+            INSERT INTO saldo_cache (subjek_tipe, subjek_id, sekolah_id, saldo, updated_at)
+            VALUES (:subjekTipe, :subjekId, :sekolahId, 0, now())
+            ON CONFLICT (subjek_tipe, subjek_id) DO NOTHING
+            """, nativeQuery = true)
+    int pastikanBarisAda(@Param("subjekTipe") String subjekTipe,
+                         @Param("subjekId") Long subjekId,
+                         @Param("sekolahId") Long sekolahId);
+}

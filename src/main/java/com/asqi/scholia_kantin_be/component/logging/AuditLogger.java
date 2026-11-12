@@ -2,8 +2,8 @@ package com.asqi.scholia_kantin_be.component.logging;
 
 import com.asqi.scholia_kantin_be.helper.IdGenerator;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
-import com.asqi.scholia_kantin_be.model.AuditLog;
-import com.asqi.scholia_kantin_be.repository.AuditLogRepository;
+import com.asqi.scholia_kantin_be.model.CatatanAudit;
+import com.asqi.scholia_kantin_be.repository.CatatanAuditRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -36,7 +36,7 @@ import java.util.Map;
 @Slf4j
 public class AuditLogger {
 
-    private final AuditLogRepository auditRepo;
+    private final CatatanAuditRepository auditRepo;
     private final IdGenerator idGenerator;
     private final JamKantin jam;
 
@@ -66,7 +66,7 @@ public class AuditLogger {
         }
 
         OffsetDateTime now = jam.sekarang();
-        AuditLog baris = AuditLog.builder()
+        CatatanAudit baris = CatatanAudit.builder()
                 .id(idGenerator.berikutnyaLong())
                 .sekolahId(sekolahId)
                 .aktorId(aktorId)

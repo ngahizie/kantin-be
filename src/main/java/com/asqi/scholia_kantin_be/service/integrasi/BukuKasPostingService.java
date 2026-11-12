@@ -8,10 +8,10 @@ import com.asqi.scholia_kantin_be.enums.TipeBukuKas;
 import com.asqi.scholia_kantin_be.helper.Constants;
 import com.asqi.scholia_kantin_be.helper.IdGenerator;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
-import com.asqi.scholia_kantin_be.model.MutasiStok;
-import com.asqi.scholia_kantin_be.model.PostingBukuKas;
+import com.asqi.scholia_kantin_be.model.RiwayatStok;
+import com.asqi.scholia_kantin_be.model.JurnalBukuKas;
 import com.asqi.scholia_kantin_be.model.SesiKasir;
-import com.asqi.scholia_kantin_be.repository.PostingBukuKasRepository;
+import com.asqi.scholia_kantin_be.repository.JurnalBukuKasRepository;
 import com.asqi.scholia_kantin_be.repository.SesiKasirRepository;
 import com.asqi.scholia_kantin_be.security.SekolahGuard;
 import lombok.RequiredArgsConstructor;
@@ -46,7 +46,7 @@ import java.time.OffsetDateTime;
  *
  * <p><b>Fail-open terhadap kasir:</b> kegagalan posting <b>tidak</b> membatalkan
  * penutupan sesi. Port yang melempar ditangkap &amp; diubah menjadi
- * {@link HasilPostingBukuKas#gagal}; sesi tetap tertutup dan bisa di-posting
+ * {@link HasilJurnalBukuKas#gagal}; sesi tetap tertutup dan bisa di-posting
  * ulang.
  */
 @Service
@@ -68,7 +68,7 @@ public class BukuKasPostingService {
 
     private final BukuKasPort bukuKasPort;
     private final SesiKasirRepository sesiRepo;
-    private final PostingBukuKasRepository postingRepo;
+    private final JurnalBukuKasRepository postingRepo;
     private final SekolahGuard sekolahGuard;
     private final AuditLogger auditLogger;
     private final IdGenerator idGenerator;
@@ -132,11 +132,11 @@ public class BukuKasPostingService {
      * @return hasil posting — {@code DILEWATI} bila belum dikonfigurasi / nominal 0
      */
     @Transactional(propagation = Propagation.REQUIRED)
-    public HasilPostingBukuKas postingSesi(SesiKasir sesi, Long aktorId) {
+    public HasilJurnalBukuKas postingSesi(SesiKasir sesi, Long aktorId) {
         if (sesi.isPostingBukuKas()) {
             log.debug("Sesi {} sudah diposting (ref={}) — dilewati (idempoten).",
                     sesi.getId(), sesi.getReferensiBukuKas());
-            return HasilPostingBukuKas.sukses(sesi.getReferensiBukuKas(), "Sudah diposting sebelumnya");
+            return HasilJurnalBukuKas.sukses(sesi.getReferensiBukuKas(), "Sudah diposting sebelumnya");
         }
 
         long bersih = sesi.getTotalBersih() == null ? 0L : sesi.getTotalBersih();
@@ -145,7 +145,7 @@ public class BukuKasPostingService {
             // Tidak ada yang diposting ke Buku Kas — jangan tandai terposting palsu.
             log.info("Sesi {} total bersih={} — tidak ada yang diposting ke Buku Kas.",
                     sesi.getId(), bersih);
-            return HasilPostingBukuKas.dilewati("Total bersih 0 — tidak ada yang diposting");
+            return HasilJurnalBukuKas.dilewati("Total bersih 0 — tidak ada yang diposting");
         }
 
         String refId = refIdSesi(sesi.getId());
@@ -161,13 +161,13 @@ public class BukuKasPostingService {
                 .refModul(refModulAktif())
                 .build();
 
-        HasilPostingBukuKas hasil;
+        HasilJurnalBukuKas hasil;
         try {
             hasil = bukuKasPort.catat(perintah);
         } catch (RuntimeException e) {
             // Kegagalan integrasi TIDAK boleh membatalkan penutupan sesi (fail-open kasir).
             log.error("Posting Buku Kas gagal (ref={}): {}", refId, e.getMessage(), e);
-            return HasilPostingBukuKas.gagal("Gagal posting ke Buku Kas: " + e.getMessage());
+            return HasilJurnalBukuKas.gagal("Gagal posting ke Buku Kas: " + e.getMessage());
         }
 
         if (hasil.sukses()) {
@@ -208,14 +208,14 @@ public class BukuKasPostingService {
      * @return hasil posting ({@code SUKSES}/{@code DILEWATI}/{@code GAGAL})
      */
     @Transactional(propagation = Propagation.REQUIRED)
-    public HasilPostingBukuKas postingBarangMasuk(Long sekolahId, Long mutasiId, Long menuId,
+    public HasilJurnalBukuKas postingBarangMasuk(Long sekolahId, Long mutasiId, Long menuId,
                                                   int qty, long hargaBeliPerUnit,
                                                   String referensiId, Long aktorId) {
         String refId = refIdBarangMasuk(referensiId, menuId);
         if (postingRepo.existsBySekolahIdAndReferensiId(sekolahId, refId)) {
             log.debug("Barang masuk {} sudah diposting (ref={}) — dilewati (idempoten).",
                     mutasiId, refId);
-            return HasilPostingBukuKas.sukses(refId, "Sudah diposting sebelumnya");
+            return HasilJurnalBukuKas.sukses(refId, "Sudah diposting sebelumnya");
         }
 
         long total = (long) qty * hargaBeliPerUnit;
@@ -223,7 +223,7 @@ public class BukuKasPostingService {
             // Barang masuk gratis (harga beli 0) tidak menghasilkan pengeluaran.
             log.info("Barang masuk {} total belanja={} — tidak ada yang diposting.",
                     mutasiId, total);
-            return HasilPostingBukuKas.dilewati("Total belanja 0 — tidak ada yang diposting");
+            return HasilJurnalBukuKas.dilewati("Total belanja 0 — tidak ada yang diposting");
         }
 
         PerintahBukuKas perintah = PerintahBukuKas.builder()
@@ -238,11 +238,11 @@ public class BukuKasPostingService {
                 .refModul(refModulAktif())
                 .build();
 
-        HasilPostingBukuKas hasil = kirim(perintah, refId);
+        HasilJurnalBukuKas hasil = kirim(perintah, refId);
         if (hasil.sukses()) {
             simpanPenanda(sekolahId, refId, "BARANG_MASUK", mutasiId, total,
                     hasil.referensi() != null ? hasil.referensi() : refId);
-            auditLogger.catat(aktorId, sekolahId, "POSTING_BUKU_KAS", "MutasiStok",
+            auditLogger.catat(aktorId, sekolahId, "POSTING_BUKU_KAS", "RiwayatStok",
                     String.valueOf(mutasiId), null, null, refId);
             log.info("Barang masuk {} diposting ke Buku Kas (ref={}, total={}).",
                     mutasiId, refId, total);
@@ -260,20 +260,20 @@ public class BukuKasPostingService {
      * <p>Idempoten lewat refId deterministik {@code KANTIN-BMP-<bukti pembalik>}.
      */
     @Transactional(propagation = Propagation.REQUIRED)
-    public HasilPostingBukuKas postingPembalikBarangMasuk(Long sekolahId, Long mutasiId, int qty,
+    public HasilJurnalBukuKas postingPembalikBarangMasuk(Long sekolahId, Long mutasiId, int qty,
                                                           long hargaBeliAsal, String referensiId,
                                                           Long aktorId) {
         String refId = refIdPembalik(referensiId);
         if (postingRepo.existsBySekolahIdAndReferensiId(sekolahId, refId)) {
             log.debug("Pembalik {} sudah diposting (ref={}) — dilewati (idempoten).",
                     mutasiId, refId);
-            return HasilPostingBukuKas.sukses(refId, "Sudah diposting sebelumnya");
+            return HasilJurnalBukuKas.sukses(refId, "Sudah diposting sebelumnya");
         }
 
         long total = (long) qty * hargaBeliAsal;
         if (total <= 0) {
             log.info("Pembalik {} total koreksi={} — tidak ada yang diposting.", mutasiId, total);
-            return HasilPostingBukuKas.dilewati("Total koreksi 0 — tidak ada yang diposting");
+            return HasilJurnalBukuKas.dilewati("Total koreksi 0 — tidak ada yang diposting");
         }
 
         PerintahBukuKas perintah = PerintahBukuKas.builder()
@@ -288,11 +288,11 @@ public class BukuKasPostingService {
                 .refModul(refModulAktif())
                 .build();
 
-        HasilPostingBukuKas hasil = kirim(perintah, refId);
+        HasilJurnalBukuKas hasil = kirim(perintah, refId);
         if (hasil.sukses()) {
             simpanPenanda(sekolahId, refId, "BARANG_MASUK_PEMBALIK", mutasiId, total,
                     hasil.referensi() != null ? hasil.referensi() : refId);
-            auditLogger.catat(aktorId, sekolahId, "POSTING_BUKU_KAS", "MutasiStok",
+            auditLogger.catat(aktorId, sekolahId, "POSTING_BUKU_KAS", "RiwayatStok",
                     String.valueOf(mutasiId), null, null, refId);
             log.info("Pembalik barang masuk {} diposting ke Buku Kas (ref={}, total={}).",
                     mutasiId, refId, total);
@@ -327,19 +327,19 @@ public class BukuKasPostingService {
      * @return hasil posting
      */
     @Transactional(propagation = Propagation.REQUIRED)
-    public HasilPostingBukuKas postingKoreksiSaldo(Long sekolahId, boolean kredit, long nominal,
+    public HasilJurnalBukuKas postingKoreksiSaldo(Long sekolahId, boolean kredit, long nominal,
                                                    String referensiId, String alasan,
                                                    Long ledgerId, Long aktorId) {
         String refId = refIdKoreksiSaldo(referensiId);
         if (postingRepo.existsBySekolahIdAndReferensiId(sekolahId, refId)) {
             log.debug("Koreksi saldo {} sudah diposting (ref={}) — dilewati (idempoten).",
                     referensiId, refId);
-            return HasilPostingBukuKas.sukses(refId, "Sudah diposting sebelumnya");
+            return HasilJurnalBukuKas.sukses(refId, "Sudah diposting sebelumnya");
         }
 
         if (nominal <= 0) {
             log.info("Koreksi saldo {} nominal={} — tidak ada yang diposting.", referensiId, nominal);
-            return HasilPostingBukuKas.dilewati("Nominal koreksi 0 — tidak ada yang diposting");
+            return HasilJurnalBukuKas.dilewati("Nominal koreksi 0 — tidak ada yang diposting");
         }
 
         // KREDIT (saldo bertambah) → KELUAR; DEBIT (saldo berkurang) → MASUK.
@@ -358,7 +358,7 @@ public class BukuKasPostingService {
                 .refModul(refModulAktif())
                 .build();
 
-        HasilPostingBukuKas hasil = kirim(perintah, refId);
+        HasilJurnalBukuKas hasil = kirim(perintah, refId);
         if (hasil.sukses()) {
             simpanPenanda(sekolahId, refId, "KOREKSI_SALDO", ledgerId, nominal,
                     hasil.referensi() != null ? hasil.referensi() : refId);
@@ -371,9 +371,9 @@ public class BukuKasPostingService {
     }
 
     /** Kirim ke port dengan fail-open: exception jaringan → {@code GAGAL}, tak melempar. */
-    private HasilPostingBukuKas kirim(PerintahBukuKas perintah, String refId) {
+    private HasilJurnalBukuKas kirim(PerintahBukuKas perintah, String refId) {
         try {
-            HasilPostingBukuKas hasil = bukuKasPort.catat(perintah);
+            HasilJurnalBukuKas hasil = bukuKasPort.catat(perintah);
             if (hasil.dilewati()) {
                 log.warn("Posting Buku Kas ref={} DILEWATI: {}", refId, hasil.pesan());
             } else if (!hasil.sukses()) {
@@ -382,7 +382,7 @@ public class BukuKasPostingService {
             return hasil;
         } catch (RuntimeException e) {
             log.error("Posting Buku Kas gagal (ref={}): {}", refId, e.getMessage(), e);
-            return HasilPostingBukuKas.gagal("Gagal posting ke Buku Kas: " + e.getMessage());
+            return HasilJurnalBukuKas.gagal("Gagal posting ke Buku Kas: " + e.getMessage());
         }
     }
 
@@ -390,7 +390,7 @@ public class BukuKasPostingService {
     private void simpanPenanda(Long sekolahId, String refId, String entitas, Long mutasiId,
                                long jumlah, String refBukuKas) {
         OffsetDateTime now = jam.sekarang();
-        postingRepo.save(PostingBukuKas.builder()
+        postingRepo.save(JurnalBukuKas.builder()
                 .id(idGenerator.berikutnyaLong())
                 .sekolahId(sekolahId)
                 .referensiId(refId)
@@ -412,7 +412,7 @@ public class BukuKasPostingService {
      * @throws InvalidOperationException bila sesi masih TERBUKA
      */
     @Transactional
-    public HasilPostingBukuKas postingUlang(Long sekolahId, Long sesiId, Long aktorId) {
+    public HasilJurnalBukuKas postingUlang(Long sekolahId, Long sesiId, Long aktorId) {
         SesiKasir sesi = sesiRepo.kunciUntukUpdate(sekolahId, sesiId)
                 .orElseThrow(() -> new NotFoundEntity("Sesi kasir tidak ditemukan"));
         sekolahGuard.pastikanMilikSekolah(sesi.getSekolahId(), "Sesi kasir");
@@ -436,7 +436,7 @@ public class BukuKasPostingService {
      * balapan dengan retry manual.
      */
     @Transactional
-    public HasilPostingBukuKas postingUlangSistem(Long sekolahId, Long sesiId) {
+    public HasilJurnalBukuKas postingUlangSistem(Long sekolahId, Long sesiId) {
         SesiKasir sesi = sesiRepo.kunciUntukUpdate(sekolahId, sesiId)
                 .orElseThrow(() -> new NotFoundEntity("Sesi kasir tidak ditemukan"));
         if (sesi.terbuka()) {

@@ -1,6 +1,6 @@
 package com.asqi.scholia_kantin_be.service.kasir;
 
-import com.asqi.scholia_kantin_be.model.SaldoLedger;
+import com.asqi.scholia_kantin_be.model.MutasiSaldo;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -15,14 +15,14 @@ import lombok.Getter;
 @Builder
 public class HasilMutasiSaldo {
 
-    private final SaldoLedger mutasi;
+    private final MutasiSaldo mutasi;
 
     /** Saldo subjek setelah mutasi. */
     private final long saldoSetelah;
 
     private final boolean idempotentReplay;
 
-    public static HasilMutasiSaldo baru(SaldoLedger mutasi, long saldoSetelah) {
+    public static HasilMutasiSaldo baru(MutasiSaldo mutasi, long saldoSetelah) {
         return HasilMutasiSaldo.builder()
                 .mutasi(mutasi)
                 .saldoSetelah(saldoSetelah)
@@ -30,7 +30,7 @@ public class HasilMutasiSaldo {
                 .build();
     }
 
-    public static HasilMutasiSaldo replay(SaldoLedger mutasi) {
+    public static HasilMutasiSaldo replay(MutasiSaldo mutasi) {
         return HasilMutasiSaldo.builder()
                 .mutasi(mutasi)
                 .saldoSetelah(mutasi.getSaldoSetelah())

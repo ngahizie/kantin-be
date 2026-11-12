@@ -6,7 +6,7 @@ import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.enums.TipeBukuKas;
 import com.asqi.scholia_kantin_be.service.integrasi.AktivasiModulInfo;
 import com.asqi.scholia_kantin_be.service.integrasi.HasilKirimNotifikasi;
-import com.asqi.scholia_kantin_be.service.integrasi.HasilPostingBukuKas;
+import com.asqi.scholia_kantin_be.service.integrasi.HasilJurnalBukuKas;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoKartu;
 import com.asqi.scholia_kantin_be.service.integrasi.PerintahBukuKas;
 import com.asqi.scholia_kantin_be.service.integrasi.PerintahNotifikasi;
@@ -109,9 +109,9 @@ class AdapterRestWireMockTest {
                         .withHeader("Content-Type", "application/json")
                         .withBody("{\"code\":200,\"message\":\"OK\"}")));
 
-        HasilPostingBukuKas hasil = bukuKas(1).catat(perintahBukuKas());
+        HasilJurnalBukuKas hasil = bukuKas(1).catat(perintahBukuKas());
 
-        assertThat(hasil.status()).isEqualTo(HasilPostingBukuKas.Status.SUKSES);
+        assertThat(hasil.status()).isEqualTo(HasilJurnalBukuKas.Status.SUKSES);
         wm.verify(postRequestedFor(urlEqualTo("/api/buku-kas/catat"))
                 .withRequestBody(matchingJsonPath("$.refId", equalTo("KANTIN-SESI-1")))
                 .withRequestBody(matchingJsonPath("$.jumlah", equalTo("50000")))
@@ -124,9 +124,9 @@ class AdapterRestWireMockTest {
         wm.stubFor(post(urlEqualTo("/api/buku-kas/catat"))
                 .willReturn(aResponse().withStatus(500).withBody("boom")));
 
-        HasilPostingBukuKas hasil = bukuKas(1).catat(perintahBukuKas());
+        HasilJurnalBukuKas hasil = bukuKas(1).catat(perintahBukuKas());
 
-        assertThat(hasil.status()).isEqualTo(HasilPostingBukuKas.Status.GAGAL);
+        assertThat(hasil.status()).isEqualTo(HasilJurnalBukuKas.Status.GAGAL);
         assertThat(hasil.sukses()).isFalse();
     }
 
@@ -143,9 +143,9 @@ class AdapterRestWireMockTest {
                 .whenScenarioStateIs("ok")
                 .willReturn(aResponse().withStatus(200)));
 
-        HasilPostingBukuKas hasil = bukuKas(2).catat(perintahBukuKas());
+        HasilJurnalBukuKas hasil = bukuKas(2).catat(perintahBukuKas());
 
-        assertThat(hasil.status()).isEqualTo(HasilPostingBukuKas.Status.SUKSES);
+        assertThat(hasil.status()).isEqualTo(HasilJurnalBukuKas.Status.SUKSES);
         wm.verify(2, postRequestedFor(urlEqualTo("/api/buku-kas/catat")));
     }
 
@@ -155,9 +155,9 @@ class AdapterRestWireMockTest {
         wm.stubFor(post(urlEqualTo("/api/buku-kas/catat"))
                 .willReturn(aResponse().withStatus(400).withBody("bad")));
 
-        HasilPostingBukuKas hasil = bukuKas(3).catat(perintahBukuKas());
+        HasilJurnalBukuKas hasil = bukuKas(3).catat(perintahBukuKas());
 
-        assertThat(hasil.status()).isEqualTo(HasilPostingBukuKas.Status.GAGAL);
+        assertThat(hasil.status()).isEqualTo(HasilJurnalBukuKas.Status.GAGAL);
         wm.verify(1, postRequestedFor(urlEqualTo("/api/buku-kas/catat")));
     }
 
