@@ -1,5 +1,5 @@
 -- ============================================================
--- V29 — Soft delete tersembunyi untuk kategori (`kategori_menu.deleted_at`)
+-- V33 — Soft delete tersembunyi untuk kategori (`kategori_menu.deleted_at`)
 -- ------------------------------------------------------------
 -- Memisahkan dua aksi yang sebelumnya tercampur:
 --   * Menonaktifkan sementara (`is_active = FALSE`): masih tampil di
