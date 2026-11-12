@@ -205,10 +205,16 @@ public class SaldoController {
     public ResponseEntity<Response<List<RekapSetoranItem>>> rekapSetoran(
             @RequestParam(required = false)
             @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE)
-            LocalDate tanggal) {
+            LocalDate tanggal,
+            @RequestParam(required = false)
+            @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE_TIME)
+            java.time.OffsetDateTime dari,
+            @RequestParam(required = false)
+            @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE_TIME)
+            java.time.OffsetDateTime sampai) {
 
         return CommonResponse.data(
-                setoranService.rekap(TenantContext.sekolahIdWajib(), tanggal));
+                setoranService.rekap(TenantContext.sekolahIdWajib(), tanggal, dari, sampai));
     }
 
     /**

@@ -18,7 +18,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeSet;
 
 /**
  * Setoran kas TU harian (PRD §9.2, issue #39).
@@ -72,6 +76,79 @@ public class SetoranService {
             return RekapSetoranItem.builder()
                     .petugasId(r.getPetugasId())
                     .tanggal(hari)
+                    .totalTopup(total)
+                    .jumlahDisetor(disetor)
+                    .selisih(total - disetor)
+                    .referensiId(s == null ? null : s.getReferensiId())
+                    .build();
+        }).toList();
+    }
+
+    /** Kunci pengelompokan rekap harian per petugas pada mode rentang tanggal. */
+    private record KunciHarianPetugas(LocalDate tanggal, Long petugasId) {}
+
+    /**
+     * Rekap setoran TU pada satu tanggal <b>atau</b> rentang waktu {@code [dari, sampai)}.
+     * Bila {@code dari} dan {@code sampai} kosong, mendelegasikan ke mode harian tunggal
+     * {@link #rekap(Long, LocalDate)}. Bila rentang diberikan, menghasilkan satu baris
+     * per kombinasi {@code (tanggal, petugasId)} (terbaru lebih dulu).
+     */
+    @Transactional(readOnly = true)
+    public List<RekapSetoranItem> rekap(Long sekolahId, LocalDate tanggal,
+                                        OffsetDateTime dari, OffsetDateTime sampai) {
+        if (dari == null && sampai == null) {
+            return rekap(sekolahId, tanggal);
+        }
+
+        LocalDate hariDasar = (tanggal != null) ? tanggal : jam.hariIni();
+        OffsetDateTime awal = (dari != null)
+                ? dari
+                : hariDasar.atStartOfDay(jam.zona()).toOffsetDateTime();
+        OffsetDateTime akhir = (sampai != null) ? sampai : awal.plusDays(1);
+        if (!akhir.isAfter(awal)) {
+            throw new InvalidOperationException("Parameter sampai harus lebih besar dari dari");
+        }
+
+        List<MutasiSaldoRepository.TopupTunaiBaris> barisTopup =
+                ledgerRepo.daftarTopupTunaiPetugas(sekolahId, JenisMutasiSaldo.TOPUP_TUNAI,
+                        ArahMutasi.KREDIT, awal, akhir);
+
+        Map<KunciHarianPetugas, Long> totalPerHari = new HashMap<>();
+        for (MutasiSaldoRepository.TopupTunaiBaris b : barisTopup) {
+            LocalDate tglBaris = b.getWaktu().atZoneSameInstant(jam.zona()).toLocalDate();
+            long nominal = b.getNominal() == null ? 0L : b.getNominal();
+            totalPerHari.merge(new KunciHarianPetugas(tglBaris, b.getPetugasId()), nominal, Long::sum);
+        }
+
+        LocalDate tanggalMulai = awal.atZoneSameInstant(jam.zona()).toLocalDate();
+        LocalDate tanggalSelesai = akhir.minusNanos(1).atZoneSameInstant(jam.zona()).toLocalDate();
+        if (tanggalSelesai.isBefore(tanggalMulai)) {
+            tanggalSelesai = tanggalMulai;
+        }
+
+        List<Setoran> daftarSetoran = setoranRepo
+                .findBySekolahIdAndTanggalBetweenOrderByTanggalDescPetugasIdAsc(
+                        sekolahId, tanggalMulai, tanggalSelesai);
+        Map<KunciHarianPetugas, Setoran> setoranMap = new HashMap<>();
+        for (Setoran s : daftarSetoran) {
+            setoranMap.putIfAbsent(new KunciHarianPetugas(s.getTanggal(), s.getPetugasId()), s);
+        }
+
+        Comparator<KunciHarianPetugas> urutTerbaru = Comparator
+                .comparing(KunciHarianPetugas::tanggal, Comparator.reverseOrder())
+                .thenComparing(KunciHarianPetugas::petugasId);
+        TreeSet<KunciHarianPetugas> semuaKunci = new TreeSet<>(urutTerbaru);
+        semuaKunci.addAll(totalPerHari.keySet());
+        semuaKunci.addAll(setoranMap.keySet());
+
+        return semuaKunci.stream().map(k -> {
+            Setoran s = setoranMap.get(k);
+            long total = totalPerHari.getOrDefault(k,
+                    s != null && s.getTotalTopup() != null ? s.getTotalTopup() : 0L);
+            long disetor = (s == null || s.getJumlahDisetor() == null) ? 0L : s.getJumlahDisetor();
+            return RekapSetoranItem.builder()
+                    .petugasId(k.petugasId())
+                    .tanggal(k.tanggal())
                     .totalTopup(total)
                     .jumlahDisetor(disetor)
                     .selisih(total - disetor)

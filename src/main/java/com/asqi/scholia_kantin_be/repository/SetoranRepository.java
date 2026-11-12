@@ -30,4 +30,8 @@ public interface SetoranRepository extends JpaRepository<Setoran, Long> {
 
     /** Daftar setoran satu sekolah pada tanggal tertentu (tampilan bendahara). */
     List<Setoran> findBySekolahIdAndTanggalOrderByPetugasIdAsc(Long sekolahId, LocalDate tanggal);
+
+    /** Daftar setoran satu sekolah pada rentang tanggal inklusif, terbaru dulu. */
+    List<Setoran> findBySekolahIdAndTanggalBetweenOrderByTanggalDescPetugasIdAsc(
+            Long sekolahId, LocalDate dari, LocalDate sampai);
 }

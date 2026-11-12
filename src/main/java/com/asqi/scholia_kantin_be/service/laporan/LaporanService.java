@@ -829,6 +829,13 @@ public class LaporanService {
         return setoranTuService.rekap(sekolahId, tanggal);
     }
 
+    /** Laporan setoran kas TU dengan dukungan rentang tanggal opsional {@code [dari, sampai)}. */
+    @Transactional(readOnly = true)
+    public List<RekapSetoranItem> laporanSetoran(Long sekolahId, LocalDate tanggal,
+                                                 OffsetDateTime dari, OffsetDateTime sampai) {
+        return setoranTuService.rekap(sekolahId, tanggal, dari, sampai);
+    }
+
     private static long nolJikaNull(Long nilai) {
         return nilai == null ? 0L : nilai;
     }
