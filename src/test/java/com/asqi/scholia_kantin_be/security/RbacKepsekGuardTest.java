@@ -190,7 +190,7 @@ class RbacKepsekGuardTest {
     @Test
     @DisplayName("laporan SETORAN TU (§9.5: hanya Bendahara) tertutup untuk kepsek (#143)")
     void laporanSetoranTertutupUntukKepsek() {
-        assertThat(peranPada(LaporanController.class, "setoranTu", LocalDate.class))
+        assertThat(peranPada(LaporanController.class, "setoranTu", LocalDate.class, OffsetDateTime.class, OffsetDateTime.class))
                 .doesNotContain(AktorKantin.KEPSEK);
     }
 
@@ -219,7 +219,7 @@ class RbacKepsekGuardTest {
                 .doesNotContain(AktorKantin.KEPSEK);
         assertThat(peranPada(LaporanController.class, "pembatalan", PERIODE))
                 .doesNotContain(AktorKantin.KEPSEK);
-        assertThat(peranPada(LaporanController.class, "setoranTu", LocalDate.class))
+        assertThat(peranPada(LaporanController.class, "setoranTu", LocalDate.class, OffsetDateTime.class, OffsetDateTime.class))
                 .doesNotContain(AktorKantin.KEPSEK);
         assertThat(peranPada(LaporanController.class, "perSiswa",
                 Long.class, LocalDate.class, OffsetDateTime.class, OffsetDateTime.class))
