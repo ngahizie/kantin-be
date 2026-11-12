@@ -38,7 +38,7 @@ class CariSiswaDemoTest {
 
     CariSiswaDemoTest() {
         // Saldo demo: semua subjek SISWA bernilai tetap agar mudah diperiksa.
-        when(ledger.saldo(anyLong(), eq(SubjekTipe.SISWA), anyLong())).thenReturn(25_000L);
+        when(ledger.saldo(anyLong(), anyLong())).thenReturn(25_000L);
     }
 
     @Test
@@ -141,7 +141,7 @@ class CariSiswaDemoTest {
     @Test
     @DisplayName("#214: saldo diambil per siswa dari ledger lokal (bukan hard-code)")
     void saldoDariLedger() {
-        when(ledger.saldo(eq(1L), eq(SubjekTipe.SISWA), eq(101L))).thenReturn(99_000L);
+        when(ledger.saldo(eq(1L), eq(101L))).thenReturn(99_000L);
 
         List<InfoSiswa> hasil = cari.cari(1L, "Budi", false, 50);
 
@@ -153,7 +153,7 @@ class CariSiswaDemoTest {
     void sekolahDiteruskanKeLedger() {
         cari.cari(7L, "Budi", false, 50);
 
-        org.mockito.Mockito.verify(ledger).saldo(eq(7L), eq(SubjekTipe.SISWA), anyLong());
+        org.mockito.Mockito.verify(ledger).saldo(eq(7L), anyLong());
     }
 
     // ── UID kartu per siswa (issue #301) ─────────────────────────────

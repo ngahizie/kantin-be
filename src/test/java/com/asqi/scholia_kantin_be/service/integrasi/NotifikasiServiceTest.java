@@ -39,7 +39,7 @@ class NotifikasiServiceTest {
                 .sekolahId(1L)
                 .jenis(JenisNotifikasi.BELANJA)
                 .subjekTipe(tipe)
-                .subjekId(7L)
+                .siswaId(7L)
                 .nominal(8_000L)
                 .saldoSetelah(42_000L)
                 .referensiId("trx-1")

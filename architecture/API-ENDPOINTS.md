@@ -3,8 +3,8 @@
 > **Single source of truth endpoint kantin-be.** Semua path berprefix `/api`.
 > Respons selalu dibungkus `Response<T>` (`{ responseCode, message, data, ... }`).
 >
-> **Sinkron terakhir:** 2026-11-10 · **Total: 104 endpoint** (103 di `controller/` + 1 shim dev)
-> di **15 controller**. Dijaga otomatis oleh `ApiEndpointsDocTest` — uji ini
+> **Sinkron terakhir:** 2026-11-12 · **Total: 91 endpoint** (90 di `controller/` + 1 shim dev)
+> di **12 controller**. Dijaga otomatis oleh `ApiEndpointsDocTest` — uji ini
 > **gagal** bila daftar di bawah tidak lagi sama persis dengan anotasi
 > `@…Mapping` di kode. Bila menambah/mengubah endpoint, perbarui dokumen ini.
 >
@@ -117,22 +117,17 @@
 > per item. Diambil dari `stok_cache` via satu query batch, tenant-scoped; menu
 > tanpa baris stok ⇒ `0`.
 
-## 6. Kartu Tamu (KartuTamuController) — `/api/kartu-tamu`
+## 6. ~~Kartu Tamu (KartuTamuController) — `/api/kartu-tamu`~~ — DIHAPUS
 
-> Kartu RFID untuk non-siswa (guru/staf/tamu) — PRD §9.4. Saldo terikat ke
-> nomor kartu (bukan orang). Detail tambahan: `docs/API-KARTU-TAMU.md`.
-
-| Method | Path | Peran | Keterangan |
-|---|---|---|---|
-| `GET` | `/api/kartu-tamu` | petugas, pengelola, TU, admin | Daftar kartu tamu sekolah. Query: `hanyaAktif` |
-| `GET` | `/api/kartu-tamu/{kartuId}` | TU | Detail satu kartu tamu |
-| `POST` | `/api/kartu-tamu` | pengelola, TU, admin | Buat kartu (nomor digenerate otomatis `KT-<urut>` bila kosong; `labelPemegang` opsional) |
-| `GET` | `/api/kartu-tamu/nomor-berikutnya` | TU | Pratinjau nomor kartu berikutnya (tanpa menyimpan) |
-| `PUT` | `/api/kartu-tamu/{kartuId}` | TU | Ubah kartu (nomor, `rfidUid` rebind, catatan, label, status) |
-| `DELETE` | `/api/kartu-tamu/{kartuId}` | TU | Nonaktifkan kartu (soft delete) |
-| `POST` | `/api/kartu-tamu/refund` | TU | Refund sisa saldo saat **pengembalian kartu** (tunai, saldo → 0, label dikosongkan). Idempoten |
-| `POST` | `/api/kartu-tamu/pindah-saldo` | TU | Pindah sisa saldo dari Kartu Tamu **hilang** ke kartu baru; kartu lama diblokir. Idempoten |
-| `GET` | `/api/kartu-tamu/{kartuId}/riwayat` | TU | Riwayat transaksi & mutasi saldo satu kartu (PRD §9.4/§9.5). Query: `batasMutasi=20`, `halaman=0`, `ukuran=20` |
+> **Dihapus di skema v2.** `KartuTamuController`, `KartuTamuRepository`, dan
+> seluruh alur saldo/refund per kartu tamu sudah tidak ada; subjek saldo &
+> transaksi kini **siswa** (`Transaksi.siswaId`). Konstanta `SubjekTipe.KARTU_TAMU`
+> masih ada di enum untuk kompatibilitas kolom lama, tetapi tidak lagi punya
+> endpoint. Kartu RFID tetap dipakai sebagai media tap dan selalu dipetakan ke
+> siswa lewat `KartuLookupPort`.
+> Baris-baris endpoint kartu tamu (`/api/kartu-tamu/**`, `/api/laporan/kartu-tamu`,
+> `/api/laporan/saldo-mengendap/kartu-tamu`, `/api/internal/kartu-tamu/cek-uid`)
+> dihapus dari dokumen ini agar `ApiEndpointsDocTest` tetap sinkron.
 
 ## 7. Kontrol Kartu — Blokir & Limit (KontrolKartuController) — `/api/kontrol-kartu`
 
@@ -145,8 +140,8 @@
 | `POST` | `/api/kontrol-kartu/blokir` | TU, admin, ortu | Blokir / buka blokir kartu (flag `diblokir`); berlaku instan di tap berikutnya |
 | `PUT` | `/api/kontrol-kartu/limit-harian` | admin, ortu | Set/ubah limit belanja harian (nominal null = tanpa limit) |
 | `POST` | `/api/kontrol-kartu/blokir-item` | admin, ortu | Blokir / buka blokir item atau kategori untuk satu kartu |
-| `GET` | `/api/kontrol-kartu/{subjekTipe}/{subjekId}` | TU, admin, pengelola, kasir, ortu | Ringkasan kontrol satu subjek (blokir, limit, item diblokir) |
-| `GET` | `/api/kontrol-kartu/bulk` | TU, admin, pengelola, kasir, ortu | Ringkasan kontrol bulk subjek (query params: `subjekTipe`, `subjekIds`) — hindari N+1 |
+| `GET` | `/api/kontrol-kartu/{siswaId}` | TU, admin, pengelola, kasir, ortu | Ringkasan kontrol satu subjek (blokir, limit, item diblokir) |
+| `GET` | `/api/kontrol-kartu/bulk` | TU, admin, pengelola, kasir, ortu | Ringkasan kontrol bulk siswa (query param: `siswaIds`) — hindari N+1 |
 
 > **Q7** (anti-tabrakan `rfid_uid` dengan admin-be) tidak menghalangi penegakan
 > kontrol: penegakan dilakukan kantin-be atas data kartu yang sudah dikenali
@@ -173,8 +168,6 @@
 | `GET` | `/api/laporan/kerugian-stok` | TU, pengelola, kepsek | Opname keluar & barang rusak: qty + nilai kerugian |
 | `GET` | `/api/laporan/kerugian-stok/ringkasan` | TU, pengelola, kepsek | **Agregat kerugian stok** (#226): total kerugian/qty/kejadian dan pemisahan opname vs barang rusak; periode sama dengan daftar |
 | `GET` | `/api/laporan/pembatalan` | TU, admin | **Pembatalan kasir** (#114): daftar transaksi di-refund per subjek pada periode |
-| `GET` | `/api/laporan/kartu-tamu` | TU | **Kartu Tamu** (#115): daftar kartu + pemegang + saldo + status |
-| `GET` | `/api/laporan/saldo-mengendap/kartu-tamu` | TU | **Saldo mengendap per kartu tamu** (issue #225): `{id, nomorKartu, uid, labelPemegang, saldo, status (ACTIVE/BLOCKED), createdAt}` — bentuk yang dipakai FE; data sama dengan `kartu-tamu` |
 | `GET` | `/api/laporan/penjualan/titik` | TU, admin, pengelola, kepsek | **Penjualan per titik kasir** (#116): transaksi, nilai, HPP, laba kotor per titik |
 | `GET` | `/api/laporan/penjualan/petugas` | TU, admin, pengelola, kepsek | **Penjualan per petugas** (#116): transaksi, nilai, HPP, laba kotor per petugas |
 | `GET` | `/api/laporan/penjualan/kasir` | TU, admin, pengelola, kepsek | **Penjualan per kasir** (#227): grouping per titik kasir + petugas — `{titikKasirId, namaTitikKasir, petugasId, petugas, jumlahTransaksi, penjualanBruto, nilaiVoid, penjualanBersih}`. Bruto/refund/bersih konsisten rekap sesi: bruto = Σ SUKSES + Σ VOID, bersih = bruto − refund = Σ SUKSES; `petugas` = id petugas (nama hanya di admin-be) |
@@ -247,25 +240,12 @@
 > **server-side** dari tenant token — bukan input klien. Berkas sekolah lain ⇒
 > **404**. `folder` dibatasi allowlist.
 
-## 12. Webhook Masuk (WebhookController) — `/api/webhook`
+## 12. ~~Webhook Masuk (WebhookController) — `/api/webhook`~~ — DIHAPUS
 
-| Method | Path | Auth | Keterangan |
-|---|---|---|---|
-| `POST` | `/api/webhook/{sumber}` | **HMAC-SHA256 + anti-replay** (bukan token) | Terima event dari SKOOLIA/callback-be. `{sumber}` mis. `skoolia`. Idempotent per `(sumber, eventId)` |
-
-> **Autentikasi webhook (B34, SECURITY.md §5.1).** `/api/webhook/**` dibuka
-> `permitAll` (tanpa token user), **tetapi** setiap request wajib membawa:
->
-> | Header | Isi |
-> |---|---|
-> | `X-Webhook-Timestamp` | epoch detik penandatanganan |
-> | `X-Webhook-Signature` | `sha256=<hex HMAC-SHA256(rahasia, timestamp + "." + body_mentah)>` |
-> | `X-Webhook-Id` | id event unik (kunci idempotency; boleh dari field body `eventId`) |
->
-> `WebhookSignatureFilter` menolak **gagal-tertutup**: signature salah / timestamp
-> kedaluwarsa / header kurang ⇒ **401**; IP di luar `kantin.webhook.allowed-ips`
-> ⇒ **403**; badan > batas ⇒ **413**; `KANTIN_WEBHOOK_SECRET` kosong ⇒ **503**.
-> Respons sukses memuat `{ sumber, eventId, eventType, status, replay }`.
+> **Dihapus di skema v2.** `WebhookController` (`POST /api/webhook/{sumber}`)
+> beserta `WebhookSignatureFilter` dan konfigurasi `kantin.webhook.*` sudah
+> tidak ada; notifikasi keluar kini lewat `NotifikasiPort` (`service/integrasi`).
+> Baris endpoint webhook dihapus dari dokumen ini agar `ApiEndpointsDocTest` tetap sinkron.
 
 ## 13. Endpoint Internal (mesin-ke-mesin) — `/api/internal`
 
@@ -276,7 +256,6 @@
 
 | Method | Path | Keterangan |
 |---|---|---|
-| `GET` | `/api/internal/kartu-tamu/cek-uid` | **#29** — cek apakah `rfidUid` sudah dipakai Kartu Tamu (anti-tabrakan UID ↔ siswa). Query: `rfidUid`, `sekolahId?` |
 
 > **Header:** `X-Internal-Timestamp` (epoch detik) + `X-Internal-Signature`
 > (`sha256=<hex HMAC-SHA256(rahasia, timestamp + "." + body)>`). GET tanpa body.

@@ -59,7 +59,7 @@ class IsolasiTenantLockIT {
         return PerintahMutasiSaldo.builder()
                 .sekolahId(sekolah)
                 .subjekTipe(SubjekTipe.SISWA)
-                .subjekId(SUBJEK)
+                .siswaId(SUBJEK)
                 .jenis(JenisMutasiSaldo.TOPUP_TUNAI)
                 .nominal(nominal)
                 .idempotencyKey(key)
@@ -71,7 +71,7 @@ class IsolasiTenantLockIT {
     void saldoTidakBocorLintasSekolah() {
         // Sekolah A punya saldo untuk subjek 500.
         tx.executeWithoutResult(s -> ledgerSaldo.kredit(perintah(SEKOLAH_A, 50_000, "a-1")));
-        assertThat(ledgerSaldo.saldo(SEKOLAH_A, SubjekTipe.SISWA, SUBJEK)).isEqualTo(50_000L);
+        assertThat(ledgerSaldo.saldo(SEKOLAH_A, SUBJEK)).isEqualTo(50_000L);
 
         // Sekolah B mencoba debit subjek yang sama. Karena kunci tenant-scoped,
         // baris milik A tak ditemukan untuk B → NotFoundEntity (404), baris A utuh.
@@ -79,7 +79,7 @@ class IsolasiTenantLockIT {
                 ledgerSaldo.debit(PerintahMutasiSaldo.builder()
                         .sekolahId(SEKOLAH_B)
                         .subjekTipe(SubjekTipe.SISWA)
-                        .subjekId(SUBJEK)
+                        .siswaId(SUBJEK)
                         .jenis(JenisMutasiSaldo.PENJUALAN)
                         .nominal(10_000)
                         .idempotencyKey("b-1")
@@ -87,7 +87,7 @@ class IsolasiTenantLockIT {
                 .isInstanceOf(NotFoundEntity.class);
 
         // Saldo sekolah A utuh; tidak ada baris DEBIT di ledger A.
-        assertThat(ledgerSaldo.saldo(SEKOLAH_A, SubjekTipe.SISWA, SUBJEK)).isEqualTo(50_000L);
+        assertThat(ledgerSaldo.saldo(SEKOLAH_A, SUBJEK)).isEqualTo(50_000L);
         Integer debitA = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM saldo_ledger WHERE sekolah_id = ? AND arah = 'DEBIT'",
                 Integer.class, SEKOLAH_A);
@@ -116,6 +116,6 @@ class IsolasiTenantLockIT {
 
         // Baca sebagai sekolah B harus 0 (bukan 10 milik sekolah A).
         assertThat(ledgerStok.stok(SEKOLAH_B, MENU)).isZero();
-        assertThat(ledgerSaldo.saldo(SEKOLAH_B, SubjekTipe.SISWA, SUBJEK)).isZero();
+        assertThat(ledgerSaldo.saldo(SEKOLAH_B, SUBJEK)).isZero();
     }
 }

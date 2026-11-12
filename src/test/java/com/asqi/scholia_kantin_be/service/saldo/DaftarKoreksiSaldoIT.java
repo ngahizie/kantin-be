@@ -81,7 +81,7 @@ class DaftarKoreksiSaldoIT {
     @DisplayName("tanpa filter → hanya jenis KOREKSI milik tenant, urut waktu DESC")
     void tanpaFilter() {
         HalamanResponse<MutasiKoreksiItem> hasil =
-                operasi.daftarKoreksi(SEKOLAH, null, null, null, 0, 20);
+                operasi.daftarKoreksi(SEKOLAH, null, null, 0, 20);
 
         // id=1 (TOPUP_TUNAI) & id=6 tidak ada → hanya 3 koreksi tenant ini.
         assertThat(hasil.getItems()).extracting(MutasiKoreksiItem::getId)
@@ -93,9 +93,9 @@ class DaftarKoreksiSaldoIT {
     @DisplayName("filter tanggal → batas hari mengikuti zona sekolah (23:45 vs 00:15)")
     void filterTanggal() {
         HalamanResponse<MutasiKoreksiItem> tgl16 =
-                operasi.daftarKoreksi(SEKOLAH, TGL_16, null, null, 0, 20);
+                operasi.daftarKoreksi(SEKOLAH, TGL_16, null, 0, 20);
         HalamanResponse<MutasiKoreksiItem> tgl15 =
-                operasi.daftarKoreksi(SEKOLAH, TGL_15, null, null, 0, 20);
+                operasi.daftarKoreksi(SEKOLAH, TGL_15, null, 0, 20);
 
         assertThat(tgl16.getItems()).extracting(MutasiKoreksiItem::getId).containsExactly(4L, 3L);
         assertThat(tgl15.getItems()).extracting(MutasiKoreksiItem::getId).containsExactly(2L);
@@ -105,9 +105,9 @@ class DaftarKoreksiSaldoIT {
     @DisplayName("filter subjekTipe → SISWA / KARTU_TAMU")
     void filterSubjekTipe() {
         HalamanResponse<MutasiKoreksiItem> siswa =
-                operasi.daftarKoreksi(SEKOLAH, null, SubjekTipe.SISWA, null, 0, 20);
+                operasi.daftarKoreksi(SEKOLAH, null, null, 0, 20);
         HalamanResponse<MutasiKoreksiItem> kartu =
-                operasi.daftarKoreksi(SEKOLAH, null, SubjekTipe.KARTU_TAMU, null, 0, 20);
+                operasi.daftarKoreksi(SEKOLAH, null, null, 0, 20);
 
         assertThat(siswa.getItems()).extracting(MutasiKoreksiItem::getId).containsExactly(2L);
         assertThat(kartu.getItems()).extracting(MutasiKoreksiItem::getId).containsExactly(4L, 3L);
@@ -117,7 +117,7 @@ class DaftarKoreksiSaldoIT {
     @DisplayName("filter subjekTipe + subjekId → satu subjek tertentu")
     void filterSubjekId() {
         HalamanResponse<MutasiKoreksiItem> hasil =
-                operasi.daftarKoreksi(SEKOLAH, null, SubjekTipe.KARTU_TAMU, 200L, 0, 20);
+                operasi.daftarKoreksi(SEKOLAH, null, 200L, 0, 20);
 
         assertThat(hasil.getItems()).extracting(MutasiKoreksiItem::getId).containsExactly(3L);
     }
@@ -126,7 +126,7 @@ class DaftarKoreksiSaldoIT {
     @DisplayName("filter kombinasi (tanggal + subjekTipe) → terpenuhi keduanya")
     void filterKombinasi() {
         HalamanResponse<MutasiKoreksiItem> hasil =
-                operasi.daftarKoreksi(SEKOLAH, TGL_16, SubjekTipe.KARTU_TAMU, null, 0, 20);
+                operasi.daftarKoreksi(SEKOLAH, TGL_16, null, 0, 20);
 
         assertThat(hasil.getItems()).extracting(MutasiKoreksiItem::getId).containsExactly(4L, 3L);
     }
@@ -135,7 +135,7 @@ class DaftarKoreksiSaldoIT {
     @DisplayName("filter tanpa hasil → halaman kosong (bukan 500)")
     void filterTanpaHasil() {
         HalamanResponse<MutasiKoreksiItem> hasil =
-                operasi.daftarKoreksi(SEKOLAH, TGL_15, SubjekTipe.KARTU_TAMU, null, 0, 20);
+                operasi.daftarKoreksi(SEKOLAH, TGL_15, null, 0, 20);
 
         assertThat(hasil.getItems()).isEmpty();
         assertThat(hasil.getTotal()).isZero();
@@ -145,7 +145,7 @@ class DaftarKoreksiSaldoIT {
     @DisplayName("tenant-scoped: koreksi sekolah lain tidak bocor")
     void tenantScoped() {
         HalamanResponse<MutasiKoreksiItem> hasil =
-                operasi.daftarKoreksi(SEKOLAH_LAIN, null, null, null, 0, 20);
+                operasi.daftarKoreksi(SEKOLAH_LAIN, null, null, 0, 20);
 
         assertThat(hasil.getItems()).extracting(MutasiKoreksiItem::getId).containsExactly(5L);
         assertThat(hasil.getItems()).extracting(MutasiKoreksiItem::getSubjekNama)
@@ -155,8 +155,8 @@ class DaftarKoreksiSaldoIT {
     @Test
     @DisplayName("paginasi: halaman & ukuran dihormati")
     void paginasi() {
-        HalamanResponse<MutasiKoreksiItem> hal0 = operasi.daftarKoreksi(SEKOLAH, null, null, null, 0, 2);
-        HalamanResponse<MutasiKoreksiItem> hal1 = operasi.daftarKoreksi(SEKOLAH, null, null, null, 1, 2);
+        HalamanResponse<MutasiKoreksiItem> hal0 = operasi.daftarKoreksi(SEKOLAH, null, null, 0, 2);
+        HalamanResponse<MutasiKoreksiItem> hal1 = operasi.daftarKoreksi(SEKOLAH, null, null, 1, 2);
 
         assertThat(hal0.getItems()).extracting(MutasiKoreksiItem::getId).containsExactly(4L, 3L);
         assertThat(hal1.getItems()).extracting(MutasiKoreksiItem::getId).containsExactly(2L);
@@ -167,13 +167,13 @@ class DaftarKoreksiSaldoIT {
     @Test
     @DisplayName("ukuran < 1 atau > 200 → 400 (bukan diam-diam diclamp), halaman negatif tetap 0")
     void ukuranTidakWajar() {
-        assertThatThrownBy(() -> operasi.daftarKoreksi(SEKOLAH, null, null, null, 0, 0))
+        assertThatThrownBy(() -> operasi.daftarKoreksi(SEKOLAH, null, null, 0, 0))
                 .isInstanceOf(InvalidOperationException.class)
                 .hasMessageContaining("ukuran minimal 1");
-        assertThatThrownBy(() -> operasi.daftarKoreksi(SEKOLAH, null, null, null, 0, 99_999))
+        assertThatThrownBy(() -> operasi.daftarKoreksi(SEKOLAH, null, null, 0, 99_999))
                 .isInstanceOf(InvalidOperationException.class)
                 .hasMessageContaining("ukuran maksimal 200");
-        assertThat(operasi.daftarKoreksi(SEKOLAH, null, null, null, -3, 20).getHalaman()).isZero();
+        assertThat(operasi.daftarKoreksi(SEKOLAH, null, null, -3, 20).getHalaman()).isZero();
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -184,7 +184,7 @@ class DaftarKoreksiSaldoIT {
     @DisplayName("saldoSebelum dihitung dari arah: KREDIT turun, DEBIT naik")
     void saldoSebelumDihitung() {
         HalamanResponse<MutasiKoreksiItem> hasil =
-                operasi.daftarKoreksi(SEKOLAH, null, null, null, 0, 20);
+                operasi.daftarKoreksi(SEKOLAH, null, null, 0, 20);
 
         // id=2: DEBIT 10.000, saldoSetelah 40.000 → sebelum 50.000
         assertThat(hasil.getItems()).filteredOn(m -> m.getId().equals(2L)).singleElement()
@@ -208,7 +208,7 @@ class DaftarKoreksiSaldoIT {
     @DisplayName("nama subjek kartu tamu terisi (batch); SISWA null")
     void namaSubjek() {
         HalamanResponse<MutasiKoreksiItem> hasil =
-                operasi.daftarKoreksi(SEKOLAH, null, null, null, 0, 20);
+                operasi.daftarKoreksi(SEKOLAH, null, null, 0, 20);
 
         assertThat(hasil.getItems()).filteredOn(m -> m.getId().equals(3L)).singleElement()
                 .satisfies(m -> {
@@ -232,7 +232,7 @@ class DaftarKoreksiSaldoIT {
     @DisplayName("jejak audit terbawa: keterangan, referensi, aktor, transaksi")
     void jejakAudit() {
         HalamanResponse<MutasiKoreksiItem> hasil =
-                operasi.daftarKoreksi(SEKOLAH, null, null, null, 0, 20);
+                operasi.daftarKoreksi(SEKOLAH, null, null, 0, 20);
 
         assertThat(hasil.getItems()).filteredOn(m -> m.getId().equals(2L)).singleElement()
                 .satisfies(m -> {

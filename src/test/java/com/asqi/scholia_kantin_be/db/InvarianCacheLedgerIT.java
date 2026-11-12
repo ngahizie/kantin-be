@@ -185,7 +185,7 @@ class InvarianCacheLedgerIT {
                 """, MENU_DASAR, SEKOLAH_ID, MENU_DASAR + 1, SEKOLAH_ID, MENU_DASAR + 2, SEKOLAH_ID);
 
         for (int i = 0; i < 5; i++) {
-            saldoCacheRepo.pastikanBarisAda(SubjekTipe.KARTU_TAMU.name(), SUBJEK_DASAR + i, SEKOLAH_ID);
+            saldoCacheRepo.pastikanBarisAda(SUBJEK_DASAR + i, SEKOLAH_ID);
         }
     }
 
@@ -194,7 +194,7 @@ class InvarianCacheLedgerIT {
         return PerintahMutasiSaldo.builder()
                 .sekolahId(SEKOLAH_ID)
                 .subjekTipe(SubjekTipe.KARTU_TAMU)
-                .subjekId(subjekId)
+                .siswaId(subjekId)
                 .jenis(jenis)
                 .nominal(nominal)
                 .idempotencyKey(idempotencyKey)

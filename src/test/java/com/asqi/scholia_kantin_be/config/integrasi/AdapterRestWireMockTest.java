@@ -179,7 +179,7 @@ class AdapterRestWireMockTest {
                 .sekolahId(1L)
                 .jenis(JenisNotifikasi.BELANJA)
                 .subjekTipe(SubjekTipe.SISWA)
-                .subjekId(7L)
+                .siswaId(7L)
                 .nominal(8_000L)
                 .ringkasan("Budi belanja Rp8.000")
                 .build();
@@ -238,9 +238,8 @@ class AdapterRestWireMockTest {
         e.setEnabled(true);
         e.setBaseUrl(wm.baseUrl());
         e.setBackoffMs(10);
-        // Repo kartu tamu di-stub: tak ada kartu tamu → selalu jatuh ke jalur siswa.
-        return new KartuLookupRestClient(p,
-                org.mockito.Mockito.mock(com.asqi.scholia_kantin_be.repository.KartuTamuRepository.class));
+        // Lookup hanya ke admin-be (kartu tamu tidak lagi punya jalur saldo sendiri).
+        return new KartuLookupRestClient(p);
     }
 
     @Test
@@ -258,7 +257,7 @@ class AdapterRestWireMockTest {
 
         assertThat(info.isDikenal()).isTrue();
         assertThat(info.getSubjekTipe()).isEqualTo(SubjekTipe.SISWA);
-        assertThat(info.getSubjekId()).isEqualTo(7L);
+        assertThat(info.getSiswaId()).isEqualTo(7L);
         assertThat(info.getNama()).isEqualTo("Budi");
         assertThat(info.getKelas()).isEqualTo("5A");
     }
@@ -486,7 +485,7 @@ class AdapterRestWireMockTest {
 
     private LedgerSaldoService ledger(long saldo) {
         LedgerSaldoService l = mock(LedgerSaldoService.class);
-        when(l.saldo(anyLong(), any(), anyLong())).thenReturn(saldo);
+        when(l.saldo(anyLong(), anyLong())).thenReturn(saldo);
         return l;
     }
 

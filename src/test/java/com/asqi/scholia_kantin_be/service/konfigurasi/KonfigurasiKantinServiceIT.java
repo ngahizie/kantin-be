@@ -1,6 +1,7 @@
 package com.asqi.scholia_kantin_be.service.konfigurasi;
 
 import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
+import com.asqi.scholia_kantin_be.dto.KebijakanKantinResponse;
 import com.asqi.scholia_kantin_be.dto.KejadianOfflineResponse;
 import com.asqi.scholia_kantin_be.dto.AkunBukuKasResponse;
 import com.asqi.scholia_kantin_be.enums.KebijakanSaldoMengendap;
@@ -175,7 +176,7 @@ class KonfigurasiKantinServiceIT {
         assertThat(k.getKebijakanSaldoMengendap())
                 .isEqualTo(KebijakanSaldoMengendap.REFUND.name());
         assertThat(jdbc.queryForObject(
-                "SELECT COUNT(*) FROM kebijakan_kantin", Integer.class)).isZero();
+                "SELECT COUNT(*) FROM pengaturan_kantin", Integer.class)).isZero();
     }
 
     @Test

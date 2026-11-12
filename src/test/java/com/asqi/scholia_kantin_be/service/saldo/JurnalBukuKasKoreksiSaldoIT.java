@@ -70,7 +70,7 @@ class JurnalBukuKasKoreksiSaldoIT {
         jdbc.execute("TRUNCATE TABLE saldo_ledger, saldo_cache, posting_buku_kas, audit_log CASCADE");
         // Bekali saldo awal agar koreksi DEBIT (mengurangi) punya cukup saldo.
         tx.executeWithoutResult(s -> ledgerSaldo.kredit(PerintahMutasiSaldo.builder()
-                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).subjekId(SISWA)
+                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).siswaId(SISWA)
                 .jenis(JenisMutasiSaldo.TOPUP_TUNAI).nominal(100_000)
                 .idempotencyKey("seed-" + System.nanoTime()).build()));
     }

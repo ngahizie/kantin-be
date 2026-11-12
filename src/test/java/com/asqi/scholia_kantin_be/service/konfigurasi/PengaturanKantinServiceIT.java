@@ -79,7 +79,6 @@ class PengaturanKantinServiceIT {
         req.setMinTopup(10_000L);
         req.setMaksTopup(500_000L);
         req.setBatasSaldoSiswa(1_000_000L);
-        req.setBatasSaldoKartuTamu(300_000L);
 
         var p = pengaturanService.ubah(SEKOLAH, req, ADMIN);
 

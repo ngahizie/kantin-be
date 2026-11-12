@@ -72,7 +72,7 @@ class SetoranServiceIT {
         tx.executeWithoutResult(s -> ledger.kredit(PerintahMutasiSaldo.builder()
                 .sekolahId(SEKOLAH)
                 .subjekTipe(SubjekTipe.SISWA)
-                .subjekId(subjek)
+                .siswaId(subjek)
                 .jenis(JenisMutasiSaldo.TOPUP_TUNAI)
                 .nominal(nominal)
                 .idempotencyKey("topup-" + petugasId + "-" + nominal + "-" + System.nanoTime())
