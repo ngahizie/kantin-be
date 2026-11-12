@@ -1,7 +1,9 @@
 package com.asqi.scholia_kantin_be.helper;
 
+import io.minio.BucketExistsArgs;
 import io.minio.GetObjectArgs;
 import io.minio.GetObjectResponse;
+import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
@@ -15,6 +17,7 @@ import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
+import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 
@@ -26,7 +29,8 @@ import java.util.UUID;
  * <p>Parity dengan admin-be (helper/S3Storage). Lihat AGENTS.md §2.
  *
  * <p><b>Lazy init:</b> klien MinIO baru dibuat saat benar-benar dipakai.
- * Saat kredensial kosong, {@link LocalStorage} dipakai agar aplikasi tetap
+ * Saat kredensial kosong <b>atau masih placeholder</b> (mis. {@code <GANTI_...>}
+ * dari file contoh), {@link LocalStorage} dipakai agar aplikasi tetap
  * bisa menyimpan/membaca berkas di direktori lokal tanpa MinIO.
  */
 @Service
@@ -39,6 +43,16 @@ public class S3Storage {
         ".mp4", ".mp3", ".zip"
     );
 
+    /**
+     * Nilai contoh yang tidak boleh diperlakukan sebagai kredensial asli.
+     * Berasal dari {@code .env.example} / {@code application-local.properties.example}.
+     */
+    private static final Set<String> NILAI_PLACEHOLDER = Set.of(
+        "changeme", "change-me", "todo", "xxx", "placeholder",
+        "your-key", "yourkey", "your-access-key", "your-secret-key",
+        "minio-access-key", "minio-secret-key"
+    );
+
     private final String url;
     private final String accessKey;
     private final String secretKey;
@@ -48,6 +62,9 @@ public class S3Storage {
 
     /** Klien dibuat malas (double-checked locking) pada pemakaian pertama. */
     private volatile MinioClient client;
+
+    /** Penanda bucket tujuan sudah dipastikan ada (dicek sekali per instance). */
+    private volatile boolean bucketSiap;
 
     @Value("${minio.bucket-name}")
     private String bucketName;
@@ -61,12 +78,36 @@ public class S3Storage {
         this.secretKey = secretKey;
         this.localStorage = localStorage;
 
-        if (accessKey != null && !accessKey.isBlank()
-                && secretKey != null && !secretKey.isBlank()) {
+        if (kredensialTerisi(accessKey) && kredensialTerisi(secretKey)) {
             log.info("S3Storage: MinIO diaktifkan (endpoint={})", url);
         } else {
-            log.info("S3Storage: kredensial MinIO kosong — pakai LocalStorage fallback");
+            log.info("S3Storage: kredensial MinIO kosong/placeholder — pakai LocalStorage fallback");
         }
+    }
+
+    /**
+     * Apakah nilai kredensial benar-benar diisi?
+     *
+     * <p>Nilai kosong <b>dan</b> nilai contoh diperlakukan sama: belum dikonfigurasi.
+     * Tanpa ini, menyalin {@code .env.example} apa adanya (mis. {@code <GANTI_MINIO_ACCESS_KEY>})
+     * membuat aplikasi mencoba menghubungi MinIO yang tidak berjalan, lalu unggah gagal —
+     * padahal fallback {@link LocalStorage} tersedia dan cukup untuk lokal/demo.
+     *
+     * @param nilai nilai konfigurasi mentah ({@code minio.access-key}/{@code minio.secret-key})
+     * @return {@code true} bila nilai bisa dipakai sebagai kredensial asli
+     */
+    static boolean kredensialTerisi(String nilai) {
+        if (nilai == null || nilai.isBlank()) {
+            return false;
+        }
+        String bersih = nilai.trim().toLowerCase(Locale.ROOT);
+        if (bersih.startsWith("<") && bersih.endsWith(">")) {
+            return false; // placeholder bergaya <GANTI_...>
+        }
+        if (bersih.contains("ganti")) {
+            return false; // placeholder berbahasa Indonesia
+        }
+        return !NILAI_PLACEHOLDER.contains(bersih);
     }
 
     /** @return klien MinIO siap pakai; null bila fallback aktif. */
@@ -76,8 +117,7 @@ public class S3Storage {
             synchronized (this) {
                 local = this.client;
                 if (local == null) {
-                    if (accessKey == null || accessKey.isBlank()
-                            || secretKey == null || secretKey.isBlank()) {
+                    if (!kredensialTerisi(accessKey) || !kredensialTerisi(secretKey)) {
                         return null; // fallback akan dihandle oleh pemanggil
                     }
                     local = MinioClient.builder()
@@ -93,6 +133,37 @@ public class S3Storage {
 
     private boolean useLocalStorage() {
         return client() == null;
+    }
+
+    /**
+     * Pastikan bucket tujuan ada, buat bila belum.
+     *
+     * <p>Sebelumnya bucket harus dibuat manual lewat console MinIO
+     * ({@code README-DEV.md} §5); kalau terlewat, unggah gagal dengan pesan
+     * "Gagal mengunggah berkas ke penyimpanan" yang membingungkan. Pemeriksaan
+     * dilakukan sekali per instance lalu di-cache pada {@link #bucketSiap}.
+     *
+     * @param klien klien MinIO aktif
+     * @throws Exception bila pemeriksaan/pembuatan bucket gagal (mis. kredensial
+     *                   tidak berhak membuat bucket) — kesalahan ini tetap
+     *                   dilaporkan ke pemanggil, bukan ditelan
+     */
+    void pastikanBucket(MinioClient klien) throws Exception {
+        if (bucketSiap) {
+            return;
+        }
+        synchronized (this) {
+            if (bucketSiap) {
+                return;
+            }
+            boolean ada = klien.bucketExists(
+                    BucketExistsArgs.builder().bucket(bucketName).build());
+            if (!ada) {
+                klien.makeBucket(MakeBucketArgs.builder().bucket(bucketName).build());
+                log.info("S3Storage: bucket '{}' belum ada — dibuat otomatis", bucketName);
+            }
+            bucketSiap = true;
+        }
     }
 
     private String validateAndExtractExtension(String originalFileName) {
@@ -138,8 +209,11 @@ public class S3Storage {
             return localStorage.uploadFile(folderName, file);
         }
 
+        MinioClient klien = client();
+        pastikanBucket(klien);
+
         try (InputStream inputStream = file.getInputStream()) {
-            client().putObject(
+            klien.putObject(
                     PutObjectArgs.builder()
                             .bucket(bucketName)
                             .object(objectName)

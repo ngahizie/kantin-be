@@ -12,6 +12,7 @@ Folder ini menampung dokumen kerja **non-Flyway** (AGENTS.md §4).
 | [`laporan-service-repository.md`](laporan-service-repository.md) | Laporan layer Service & Repository (Fase 4–5) — snapshot hasil pekerjaan |
 | [`integrasi-adapter-rest.md`](integrasi-adapter-rest.md) | Adapter REST integrasi nyata pengganti `*Fallback` (issue #160) |
 | [`integrasi-anti-tabrakan-uid.md`](integrasi-anti-tabrakan-uid.md) | Integrasi anti-tabrakan UID kartu tamu ↔ siswa (issue #29) |
+| [`skema-v2/`](skema-v2/README.md) | **Cetak biru skema database v2** — 23 tabel, 52 FK, ERD + DDL + seed 2 sekolah (belum Flyway) |
 | [`API-KARTU-TAMU.md`](API-KARTU-TAMU.md) | Kontrak endpoint kartu tamu (`/api/kartu-tamu`) |
 | [`dev-jwt-dummy.md`](dev-jwt-dummy.md) | Harness JWT **DUMMY** untuk dev/test — ⚠️ jangan di staging/produksi |
 | [`OBSERVABILITY.md`](OBSERVABILITY.md) | Metrik yang diekspos & cara memantau SLO (issue #146) |

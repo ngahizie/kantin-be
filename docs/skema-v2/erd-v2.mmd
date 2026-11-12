@@ -1,0 +1,288 @@
+erDiagram
+  sekolah {
+    bigint id PK
+    varchar nama
+    varchar npsn
+    varchar alamat
+    boolean aktif
+    timestamptz created_at
+  }
+  pengguna {
+    bigint id PK
+    bigint sekolah_id FK
+    varchar nama
+    varchar username
+    varchar peran
+    boolean aktif
+  }
+  siswa {
+    bigint id PK
+    bigint sekolah_id FK
+    varchar nis
+    varchar nisn
+    varchar nama
+    varchar kelas
+    varchar foto_url
+    boolean aktif
+  }
+  orang_tua {
+    bigint id PK
+    bigint sekolah_id FK
+    bigint siswa_id FK
+    varchar nama
+    varchar telepon
+    varchar hubungan
+    boolean punya_aplikasi
+    boolean aktif
+  }
+  kartu {
+    varchar uid PK
+    bigint sekolah_id FK
+    bigint siswa_id FK
+    varchar nomor_kartu
+    boolean aktif
+  }
+  kategori_menu {
+    bigint id PK
+    bigint sekolah_id FK
+    varchar nama
+    int urutan
+    boolean aktif
+  }
+  menu {
+    bigint id PK
+    bigint sekolah_id FK
+    bigint kategori_id FK
+    varchar nama
+    varchar kode_barcode
+    varchar satuan
+    varchar foto_url
+    bigint harga_jual
+    bigint hpp
+    int stok_minimum
+    boolean aktif
+  }
+  stok {
+    bigint menu_id PK
+    bigint sekolah_id FK
+    int jumlah
+    bigint hpp
+    int stok_minimum
+    timestamptz diperbarui_at
+  }
+  riwayat_stok {
+    bigint id PK
+    bigint sekolah_id FK
+    bigint menu_id FK
+    varchar arah
+    varchar jenis
+    int qty
+    int stok_setelah
+    bigint harga_beli_satuan
+    bigint hpp_snapshot
+    bigint transaksi_id FK
+    bigint mutasi_asal_id FK
+    varchar referensi_tipe
+    bigint referensi_id
+    varchar alasan
+    bigint aktor_id FK
+    varchar aktor_nama
+    timestamptz waktu
+  }
+  titik_kasir {
+    bigint id PK
+    bigint sekolah_id FK
+    varchar kode
+    varchar nama
+    boolean aktif
+  }
+  sesi_kasir {
+    bigint id PK
+    bigint sekolah_id FK
+    bigint titik_kasir_id FK
+    date tanggal
+    varchar status
+    bigint total_bruto
+    bigint total_void
+    bigint total_bersih
+    bigint uang_fisik
+    bigint selisih
+    varchar catatan
+    timestamptz dibuka_at
+    timestamptz ditutup_at
+    bigint ditutup_oleh FK
+    boolean auto_tutup
+  }
+  transaksi {
+    bigint id PK
+    bigint sekolah_id FK
+    bigint sesi_kasir_id FK
+    bigint titik_kasir_id FK
+    bigint siswa_id FK
+    varchar metode_bayar
+    varchar kartu_uid
+    bigint petugas_id FK
+    bigint total
+    bigint total_hpp
+    varchar status
+    varchar alasan_void
+    timestamptz void_at
+    bigint void_oleh FK
+    varchar idempotency_key
+    timestamptz waktu
+  }
+  transaksi_item {
+    bigint id PK
+    bigint transaksi_id FK
+    bigint menu_id FK
+    int qty
+    bigint harga_satuan
+    bigint hpp_satuan
+    bigint subtotal
+  }
+  saldo {
+    bigint sekolah_id PK
+    bigint siswa_id PK
+    bigint saldo
+    timestamptz diperbarui_at
+  }
+  mutasi_saldo {
+    bigint id PK
+    bigint sekolah_id FK
+    bigint siswa_id FK
+    varchar arah
+    varchar jenis
+    bigint nominal
+    bigint saldo_setelah
+    bigint transaksi_id FK
+    varchar referensi_tipe
+    bigint referensi_id
+    varchar idempotency_key
+    varchar keterangan
+    bigint aktor_id FK
+    timestamptz waktu
+  }
+  setoran {
+    bigint id PK
+    bigint sekolah_id FK
+    date tanggal
+    bigint petugas_id FK
+    bigint total_transaksi
+    bigint total_topup
+    bigint total_sistem
+    bigint uang_fisik
+    bigint selisih
+    varchar status
+    varchar catatan
+    bigint dikonfirmasi_oleh FK
+    timestamptz konfirmasi_pada
+  }
+  pengaturan_kantin {
+    bigint sekolah_id PK
+    varchar nama_kantin
+    time jam_tutup_otomatis
+    boolean konfirmasi_manual
+    int durasi_foto_detik
+    bigint min_topup
+    bigint maks_topup
+    bigint batas_saldo_siswa
+    varchar kebijakan_saldo_mengendap
+    int ambang_hari
+    bigint diperbarui_oleh FK
+    timestamptz updated_at
+  }
+  pembatasan {
+    bigint id PK
+    bigint sekolah_id FK
+    bigint siswa_id FK
+    varchar jenis
+    bigint menu_id FK
+    bigint kategori_id FK
+    bigint nominal
+    varchar alasan
+    boolean aktif
+    bigint diubah_oleh FK
+    timestamptz waktu
+  }
+  transaksi_tertunda {
+    bigint id PK
+    bigint sekolah_id FK
+    bigint titik_kasir_id FK
+    bigint siswa_id FK
+    bigint petugas_id FK
+    bigint total
+    varchar status
+    varchar idempotency_key
+    varchar items_json
+    timestamptz kedaluwarsa_at
+    timestamptz dibuat_at
+  }
+  akun_buku_kas {
+    bigint id PK
+    bigint sekolah_id FK
+    varchar nama
+    varchar tipe
+    boolean aktif
+  }
+  jurnal_buku_kas {
+    bigint id PK
+    bigint sekolah_id FK
+    bigint akun_id FK
+    bigint referensi_id
+    bigint jumlah
+    varchar status
+    timestamptz waktu
+  }
+  catatan_audit {
+    bigint id PK
+    bigint sekolah_id FK
+    bigint aktor_id FK
+    varchar aksi
+    varchar entitas
+    bigint entitas_id
+    text nilai_lama
+    text nilai_baru
+    varchar alasan
+    timestamptz waktu
+  }
+  kejadian_offline {
+    bigint id PK
+    bigint sekolah_id FK
+    bigint titik_kasir_id FK
+    timestamptz mulai
+    timestamptz selesai
+    int durasi_menit
+    text keterangan
+    bigint dilaporkan_oleh FK
+  }
+  sekolah ||--o{ pengguna : "sekolah_id"
+  sekolah ||--o{ siswa : "sekolah_id"
+  sekolah ||--o{ orang_tua : "sekolah_id"
+  sekolah ||--o{ kartu : "sekolah_id"
+  sekolah ||--o{ kategori_menu : "sekolah_id"
+  sekolah ||--o{ menu : "sekolah_id"
+  sekolah ||--o{ titik_kasir : "sekolah_id"
+  sekolah ||--|| pengaturan_kantin : "sekolah_id"
+  siswa ||--o{ orang_tua : "siswa_id"
+  siswa ||--o| kartu : "siswa_id"
+  siswa ||--o| saldo : "siswa_id"
+  siswa ||--o{ transaksi : "siswa_id"
+  siswa ||--o{ mutasi_saldo : "siswa_id"
+  siswa ||--o{ pembatasan : "siswa_id"
+  kategori_menu ||--o{ menu : "kategori_id"
+  menu ||--|| stok : "menu_id"
+  menu ||--o{ riwayat_stok : "menu_id"
+  menu ||--o{ transaksi_item : "menu_id"
+  menu ||--o{ pembatasan : "menu_id"
+  titik_kasir ||--o{ sesi_kasir : "titik_kasir_id"
+  titik_kasir ||--o{ kejadian_offline : "titik_kasir_id"
+  sesi_kasir ||--o{ transaksi : "sesi_kasir_id"
+  transaksi ||--|{ transaksi_item : "transaksi_id"
+  transaksi ||--o{ mutasi_saldo : "transaksi_id"
+  transaksi ||--o{ riwayat_stok : "transaksi_id"
+  transaksi ||--o{ jurnal_buku_kas : "referensi_id"
+  pengguna ||--o{ transaksi : "petugas_id"
+  pengguna ||--o{ sesi_kasir : "ditutup_oleh"
+  pengguna ||--o{ setoran : "petugas_id"
+  pengguna ||--o{ catatan_audit : "aktor_id"
+  akun_buku_kas ||--o{ jurnal_buku_kas : "akun_id"
