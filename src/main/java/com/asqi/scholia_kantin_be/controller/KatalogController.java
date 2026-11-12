@@ -1,6 +1,7 @@
 package com.asqi.scholia_kantin_be.controller;
 
 import com.asqi.scholia_kantin_be.dto.KategoriRequest;
+import com.asqi.scholia_kantin_be.dto.KategoriResponse;
 import com.asqi.scholia_kantin_be.dto.MenuRequest;
 import com.asqi.scholia_kantin_be.dto.MenuResponse;
 import com.asqi.scholia_kantin_be.enums.AktorKantin;
@@ -49,7 +50,7 @@ public class KatalogController {
     @PerluPeran({AktorKantin.PETUGAS_KANTIN, AktorKantin.PENGELOLA_KANTIN,
             AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH})
     @GetMapping("kategori")
-    public ResponseEntity<Response<List<KategoriMenu>>> daftarKategori(
+    public ResponseEntity<Response<List<KategoriResponse>>> daftarKategori(
             @RequestParam(defaultValue = "false") boolean hanyaAktif) {
         return CommonResponse.data(
                 katalog.daftarKategori(TenantContext.sekolahIdWajib(), hanyaAktif));
@@ -78,15 +79,15 @@ public class KatalogController {
         return CommonResponse.data(kategori, "Kategori diperbarui");
     }
 
-    /** Nonaktifkan kategori (soft delete) — tak bisa bila masih dipakai item aktif. */
+    /** Hapus kategori dari katalog — ditolak bila masih ada menu terkait. */
     @PerluPeran({AktorKantin.PENGELOLA_KANTIN})
     @DeleteMapping("kategori/{kategoriId}")
-    public ResponseEntity<Response<KategoriMenu>> nonaktifkanKategori(
+    public ResponseEntity<Response<KategoriResponse>> hapusKategori(
             @PathVariable Long kategoriId,
             @AuthenticationPrincipal IdentitasKantin identitas) {
-        KategoriMenu kategori = katalog.nonaktifkanKategori(
+        KategoriResponse hasil = katalog.hapusKategori(
                 TenantContext.sekolahIdWajib(), kategoriId, identitas.aktorIdWajib());
-        return CommonResponse.data(kategori, "Kategori dinonaktifkan");
+        return CommonResponse.data(hasil, "Kategori dihapus");
     }
 
     // ────────────────────────────────────────────────────────────────

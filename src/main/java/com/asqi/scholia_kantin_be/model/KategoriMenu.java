@@ -66,6 +66,16 @@ public class KategoriMenu implements Persistable<Long> {
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
 
+    /**
+     * Soft delete permanen dari katalog (issue kategori hapus).
+     *
+     * <p>{@code NULL} = masih terdaftar. Bila terisi, kategori hilang dari
+     * daftar katalog dan tidak bisa dipakai menu baru, tetapi barisnya tetap
+     * ada agar riwayat transaksi &amp; laporan historis tetap terbaca.
+     */
+    @Column(name = "deleted_at")
+    private OffsetDateTime deletedAt;
+
     @Override
     public Long getId() {
         return id;

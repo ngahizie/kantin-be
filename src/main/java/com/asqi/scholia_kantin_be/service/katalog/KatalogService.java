@@ -4,6 +4,7 @@ import com.asqi.scholia_kantin_be.component.exception.ConflictException;
 import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
 import com.asqi.scholia_kantin_be.component.logging.AuditLogger;
+import com.asqi.scholia_kantin_be.dto.KategoriResponse;
 import com.asqi.scholia_kantin_be.enums.SatuanMenu;
 import com.asqi.scholia_kantin_be.helper.IdGenerator;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -54,14 +56,23 @@ public class KatalogService {
     // ────────────────────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
-    public List<KategoriMenu> daftarKategori(Long sekolahId, boolean hanyaAktif) {
-        return kategoriRepo.daftar(sekolahId, hanyaAktif);
+    public List<KategoriResponse> daftarKategori(Long sekolahId, boolean hanyaAktif) {
+        List<KategoriMenu> kategori = kategoriRepo.daftar(sekolahId, hanyaAktif);
+        // Satu query agregat untuk semua kategori (hindari N+1).
+        Map<Long, Long> jumlahMenu = new HashMap<>();
+        for (Object[] baris : menuRepo.hitungMenuPerKategori(sekolahId)) {
+            Long kategoriId = ((Number) baris[0]).longValue();
+            jumlahMenu.put(kategoriId, ((Number) baris[1]).longValue());
+        }
+        return kategori.stream()
+                .map(k -> KategoriResponse.dari(k, jumlahMenu.getOrDefault(k.getId(), 0L)))
+                .toList();
     }
 
     @Transactional
     public KategoriMenu buatKategori(Long sekolahId, String nama, Integer urutan, Long aktorId) {
         String bersih = normalisasiNama(nama);
-        kategoriRepo.findBySekolahIdAndNamaIgnoreCase(sekolahId, bersih).ifPresent(k -> {
+        kategoriRepo.findBySekolahIdAndNamaIgnoreCaseAndDeletedAtIsNull(sekolahId, bersih).ifPresent(k -> {
             throw new InvalidOperationException("Kategori '" + bersih + "' sudah ada");
         });
 
@@ -85,13 +96,13 @@ public class KatalogService {
     @Transactional
     public KategoriMenu ubahKategori(Long sekolahId, Long kategoriId, String nama,
                                      Integer urutan, Boolean aktif, Long aktorId) {
-        KategoriMenu kategori = kategoriRepo.findByIdAndSekolahId(kategoriId, sekolahId)
+        KategoriMenu kategori = kategoriRepo.findByIdAndSekolahIdAndDeletedAtIsNull(kategoriId, sekolahId)
                 .orElseThrow(() -> new NotFoundEntity("Kategori tidak ditemukan"));
 
         String lama = kategori.getNama();
         if (nama != null && !nama.isBlank()) {
             String bersih = normalisasiNama(nama);
-            kategoriRepo.findBySekolahIdAndNamaIgnoreCase(sekolahId, bersih)
+            kategoriRepo.findBySekolahIdAndNamaIgnoreCaseAndDeletedAtIsNull(sekolahId, bersih)
                     .filter(k -> !k.getId().equals(kategoriId))
                     .ifPresent(k -> {
                         throw new InvalidOperationException("Kategori '" + bersih + "' sudah ada");
@@ -113,26 +124,34 @@ public class KatalogService {
     }
 
     /**
-     * Nonaktifkan kategori (soft delete). Kategori yang masih dipakai item
-     * aktif <b>tidak boleh</b> dinonaktifkan agar item tak menggantung (§7.1).
+     * Hapus kategori dari katalog (soft delete: {@code deleted_at} diisi).
+     *
+     * <p>Berbeda dari menonaktifkan ({@code is_active=false} lewat PUT), kategori
+     * yang dihapus <b>hilang</b> dari {@code GET /api/katalog/kategori} dan
+     * namanya boleh dipakai ulang. Riwayat transaksi tetap aman karena baris
+     * kategori tidak dihapus keras.
+     *
+     * <p><b>Validasi:</b> ditolak bila masih ada menu terkait yang belum dihapus
+     * — baik menu aktif maupun nonaktif — supaya tidak ada item menggantung
+     * (§7.1).
      */
     @Transactional
-    public KategoriMenu nonaktifkanKategori(Long sekolahId, Long kategoriId, Long aktorId) {
-        KategoriMenu kategori = kategoriRepo.findByIdAndSekolahId(kategoriId, sekolahId)
+    public KategoriResponse hapusKategori(Long sekolahId, Long kategoriId, Long aktorId) {
+        KategoriMenu kategori = kategoriRepo.findByIdAndSekolahIdAndDeletedAtIsNull(kategoriId, sekolahId)
                 .orElseThrow(() -> new NotFoundEntity("Kategori tidak ditemukan"));
 
-        long dipakai = menuRepo.countByKategoriIdAndIsActiveTrueAndDeletedAtIsNull(kategoriId);
+        long dipakai = menuRepo.countByKategoriIdAndDeletedAtIsNull(kategoriId);
         if (dipakai > 0) {
             throw new InvalidOperationException(
-                    "Kategori masih dipakai " + dipakai + " item aktif — nonaktifkan item dahulu");
+                    "Kategori masih dipakai " + dipakai + " item — hapus atau pindahkan item dahulu");
         }
 
-        kategori.setIsActive(false);
+        kategori.setDeletedAt(jam.sekarang());
         kategori.setUpdatedAt(jam.sekarang());
         KategoriMenu tersimpan = kategoriRepo.save(kategori);
-        auditLogger.catat(aktorId, sekolahId, "KATEGORI_DINONAKTIFKAN", "KategoriMenu",
-                String.valueOf(kategoriId), null, "aktif=true", "aktif=false");
-        return tersimpan;
+        auditLogger.catat(aktorId, sekolahId, "KATEGORI_DIHAPUS", "KategoriMenu",
+                String.valueOf(kategoriId), null, "deleted_at=null", "deleted_at=" + tersimpan.getDeletedAt());
+        return KategoriResponse.dari(tersimpan, 0);
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -334,7 +353,7 @@ public class KatalogService {
     // ────────────────────────────────────────────────────────────────
 
     private void pastikanKategoriMilikSekolah(Long sekolahId, Long kategoriId) {
-        kategoriRepo.findByIdAndSekolahId(kategoriId, sekolahId)
+        kategoriRepo.findByIdAndSekolahIdAndDeletedAtIsNull(kategoriId, sekolahId)
                 .orElseThrow(() -> new NotFoundEntity("Kategori tidak ditemukan"));
     }
 
