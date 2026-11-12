@@ -71,7 +71,7 @@ class KontrolKartuControllerTest {
 
     private KontrolSubjekResponse contoh() {
         return KontrolSubjekResponse.builder()
-                .subjekTipe("SISWA").subjekId(7L).diblokir(true)
+                .subjekTipe("SISWA").siswaId(7L).diblokir(true)
                 .menuDiblokir(List.of()).kategoriDiblokir(List.of()).build();
     }
 
@@ -79,10 +79,10 @@ class KontrolKartuControllerTest {
     void blokirMeneruskanTenantDanAktor() throws Exception {
         BlokirKartuRequest req = new BlokirKartuRequest();
         req.setSubjekTipe(SubjekTipe.SISWA);
-        req.setSubjekId(7L);
+        req.setSiswaId(7L);
         req.setAlasan("hilang");
 
-        when(service.ubahBlokir(eq(7L), eq(SubjekTipe.SISWA), eq(7L), eq(true), eq("hilang"), eq(42L)))
+        when(service.ubahBlokir(eq(7L), eq(7L), eq(true), eq("hilang"), eq(42L)))
                 .thenReturn(contoh());
 
         mockMvc.perform(post("/api/kontrol-kartu/blokir")
@@ -91,17 +91,17 @@ class KontrolKartuControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.diblokir").value(true));
 
-        verify(service).ubahBlokir(eq(7L), eq(SubjekTipe.SISWA), eq(7L), eq(true), eq("hilang"), eq(42L));
+        verify(service).ubahBlokir(eq(7L), eq(7L), eq(true), eq("hilang"), eq(42L));
     }
 
     @Test
     void setLimitMeneruskanNominal() throws Exception {
         LimitHarianRequest req = new LimitHarianRequest();
         req.setSubjekTipe(SubjekTipe.SISWA);
-        req.setSubjekId(7L);
+        req.setSiswaId(7L);
         req.setNominal(25_000L);
 
-        when(service.setLimit(eq(7L), eq(SubjekTipe.SISWA), eq(7L), eq(25_000L), eq(42L)))
+        when(service.setLimit(eq(7L), eq(7L), eq(25_000L), eq(42L)))
                 .thenReturn(contoh());
 
         mockMvc.perform(put("/api/kontrol-kartu/limit-harian")
@@ -109,17 +109,17 @@ class KontrolKartuControllerTest {
                         .content(mapper.writeValueAsString(req)))
                 .andExpect(status().isOk());
 
-        verify(service).setLimit(eq(7L), eq(SubjekTipe.SISWA), eq(7L), eq(25_000L), eq(42L));
+        verify(service).setLimit(eq(7L), eq(7L), eq(25_000L), eq(42L));
     }
 
     @Test
     void kontrolMeneruskanPathParam() throws Exception {
-        when(service.kontrol(eq(7L), eq(SubjekTipe.SISWA), eq(7L))).thenReturn(contoh());
+        when(service.kontrol(eq(7L), eq(7L))).thenReturn(contoh());
 
-        mockMvc.perform(get("/api/kontrol-kartu/SISWA/7"))
+        mockMvc.perform(get("/api/kontrol-kartu/7"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.subjekTipe").value("SISWA"));
 
-        verify(service).kontrol(eq(7L), eq(SubjekTipe.SISWA), eq(7L));
+        verify(service).kontrol(eq(7L), eq(7L));
     }
 }

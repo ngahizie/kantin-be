@@ -24,6 +24,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -40,7 +41,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * (menyembunyikan ketergantungan Q7 &amp; Fase 5), tetapi ledger, stok, sesi,
  * transaksi, idempotency, dan locking berjalan nyata.
  */
-@SpringBootTest
+// v2: KartuLookupLokal/CariSiswaLokal @Primary aktif saat kantin.siswa.sumber=lokal
+// (default) sehingga bertabrakan dengan fake @Primary milik kelas ini.
+@SpringBootTest(properties = "kantin.siswa.sumber=integrasi")
 @TestPropertySource(properties = "kantin.demo.enabled=false")
 @Import({TestcontainersConfig.class, TapServiceIT.FakePortConfig.class})
 @EnabledIfDockerAvailable
@@ -79,15 +82,25 @@ class TapServiceIT {
 
     @BeforeEach
     void bersihkan() {
-        jdbc.execute("TRUNCATE TABLE transaksi_menunggu_konfirmasi, transaksi_item, transaksi, "
-                + "sesi_kasir, titik_kasir, saldo_ledger, saldo_cache, mutasi_stok, stok_cache, "
-                + "sekolah_kantin_config CASCADE");
+        jdbc.execute("TRUNCATE TABLE transaksi_tertunda, transaksi_item, transaksi, "
+                + "sesi_kasir, titik_kasir, mutasi_saldo, saldo, riwayat_stok, stok, "
+                + "pengaturan_kantin CASCADE");
+
+        FixtureInduk.sekolah(jdbc, SEKOLAH, 10L);
+
+        FixtureInduk.penggunaUmum(jdbc, SEKOLAH);
+
+        FixtureInduk.kategoriUmum(jdbc, SEKOLAH);
+
+        FixtureInduk.kartu(jdbc, SEKOLAH, SISWA, UID);
+        FixtureInduk.siswa(jdbc, SEKOLAH, SISWA);
+        FixtureInduk.menu(jdbc, SEKOLAH, MENU_NASI, MENU_ES);
         jdbc.update("INSERT INTO titik_kasir (id, sekolah_id, nama, is_active, created_at, updated_at) "
                 + "VALUES (?, ?, 'Kasir 1', true, now(), now())", TITIK, SEKOLAH);
 
         // Modal awal: saldo siswa 50.000 & stok menu.
         tx.executeWithoutResult(s -> ledgerSaldo.kredit(PerintahMutasiSaldo.builder()
-                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).subjekId(SISWA)
+                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).siswaId(SISWA)
                 .jenis(JenisMutasiSaldo.TOPUP_TUNAI).nominal(50_000).idempotencyKey("seed-saldo").build()));
         tx.executeWithoutResult(s -> ledgerStok.masukBarang(SEKOLAH, MENU_NASI, 20, 4_000, "BARANG_MASUK", "BM-1", 1L));
         tx.executeWithoutResult(s -> ledgerStok.masukBarang(SEKOLAH, MENU_ES, 20, 2_000, "BARANG_MASUK", "BM-2", 1L));
@@ -126,7 +139,7 @@ class TapServiceIT {
         assertThat(resp.getNama()).isEqualTo("Budi");
         assertThat(resp.getKelas()).isEqualTo("5A");
 
-        assertThat(ledgerSaldo.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA)).isEqualTo(29_000L);
+        assertThat(ledgerSaldo.saldo(SEKOLAH, SISWA)).isEqualTo(29_000L);
         assertThat(ledgerStok.stok(SEKOLAH, MENU_NASI)).isEqualTo(18);
         assertThat(ledgerStok.stok(SEKOLAH, MENU_ES)).isEqualTo(19);
 
@@ -139,9 +152,9 @@ class TapServiceIT {
     @Test
     @DisplayName("tap konkuren — saldo cache dan ledger tetap konsisten")
     void tapKonkurenTidakMembuatSaldoMinus() throws Exception {
-        jdbc.execute("TRUNCATE TABLE saldo_ledger, saldo_cache CASCADE");
+        jdbc.execute("TRUNCATE TABLE mutasi_saldo, saldo CASCADE");
         tx.executeWithoutResult(s -> ledgerSaldo.kredit(PerintahMutasiSaldo.builder()
-                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).subjekId(SISWA)
+                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).siswaId(SISWA)
                 .jenis(JenisMutasiSaldo.TOPUP_TUNAI).nominal(25_000)
                 .idempotencyKey("seed-concurrent").build()));
 
@@ -149,7 +162,7 @@ class TapServiceIT {
         // bukan race pembuatan sesi kasir.
         tapService.tap(SEKOLAH, petugas, request("warmup-session", 1, 0));
         tx.executeWithoutResult(s -> ledgerSaldo.kredit(PerintahMutasiSaldo.builder()
-                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).subjekId(SISWA)
+                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).siswaId(SISWA)
                 .jenis(JenisMutasiSaldo.TOPUP_TUNAI).nominal(7_500)
                 .idempotencyKey("restore-concurrent").build()));
         tx.executeWithoutResult(s -> ledgerStok.masukBarang(SEKOLAH, MENU_NASI, 1, 4_000, "BARANG_MASUK", "restore-concurrent", 1L));
@@ -177,14 +190,14 @@ class TapServiceIT {
         for (var future : futures) future.get();
         pool.shutdown();
 
-        long saldo = ledgerSaldo.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA);
+        long saldo = ledgerSaldo.saldo(SEKOLAH, SISWA);
         assertThat(sukses.get()).isEqualTo(3);
         assertThat(ditolak.get()).isEqualTo(7);
         assertThat(saldo).isEqualTo(500L); // 25.000 - 8.000 (warmup) + 7.500 (restore) - 3×8.000
-        assertThat(ledgerSaldo.hitungUlangDariLedger(SEKOLAH, SubjekTipe.SISWA, SISWA)).isEqualTo(saldo);
+        assertThat(ledgerSaldo.hitungUlangDariLedger(SEKOLAH, SISWA)).isEqualTo(saldo);
         assertThat(ledgerStok.stok(SEKOLAH, MENU_NASI)).isEqualTo(17);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM transaksi", Integer.class)).isEqualTo(4); // termasuk tap pembuka sesi
-        assertThat(jdbc.queryForObject("SELECT COUNT(DISTINCT saldo_setelah) FROM saldo_ledger WHERE arah = 'DEBIT'", Integer.class)).isEqualTo(4); // termasuk tap pembuka sesi
+        assertThat(jdbc.queryForObject("SELECT COUNT(DISTINCT saldo_setelah) FROM mutasi_saldo WHERE arah = 'DEBIT'", Integer.class)).isEqualTo(4); // termasuk tap pembuka sesi
     }
 
     @Test
@@ -194,7 +207,7 @@ class TapServiceIT {
         TapResponse kedua = tapService.tap(SEKOLAH, petugas, request("tap-dup", 1, 0));
 
         assertThat(kedua.getTransaksiId()).isEqualTo(pertama.getTransaksiId());
-        assertThat(ledgerSaldo.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA)).isEqualTo(42_000L); // hanya sekali 8.000
+        assertThat(ledgerSaldo.saldo(SEKOLAH, SISWA)).isEqualTo(42_000L); // hanya sekali 8.000
         assertThat(ledgerStok.stok(SEKOLAH, MENU_NASI)).isEqualTo(19);
 
         Integer jumlahTrx = jdbc.queryForObject(
@@ -218,7 +231,7 @@ class TapServiceIT {
 
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM sesi_kasir", Integer.class)).isZero();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM transaksi", Integer.class)).isZero();
-        assertThat(ledgerSaldo.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA)).isEqualTo(50_000L);
+        assertThat(ledgerSaldo.saldo(SEKOLAH, SISWA)).isEqualTo(50_000L);
         assertThat(ledgerStok.stok(SEKOLAH, MENU_NASI)).isEqualTo(20);
     }
 
@@ -242,7 +255,7 @@ class TapServiceIT {
         assertThatThrownBy(() -> tapService.tap(SEKOLAH, petugas, request("tap-kurang", 10, 0)))
                 .hasMessageContaining("Saldo kurang");
 
-        assertThat(ledgerSaldo.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA)).isEqualTo(50_000L);
+        assertThat(ledgerSaldo.saldo(SEKOLAH, SISWA)).isEqualTo(50_000L);
         assertThat(ledgerStok.stok(SEKOLAH, MENU_NASI)).isEqualTo(20);
         Integer trx = jdbc.queryForObject("SELECT COUNT(*) FROM transaksi", Integer.class);
         assertThat(trx).isZero();
@@ -254,7 +267,7 @@ class TapServiceIT {
         assertThatThrownBy(() -> tapService.tap(SEKOLAH, petugas, request("tap-stok", 100, 0)))
                 .hasMessageContaining("Stok");
 
-        assertThat(ledgerSaldo.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA)).isEqualTo(50_000L);
+        assertThat(ledgerSaldo.saldo(SEKOLAH, SISWA)).isEqualTo(50_000L);
         Integer trx = jdbc.queryForObject("SELECT COUNT(*) FROM transaksi", Integer.class);
         assertThat(trx).isZero();
     }
@@ -282,11 +295,11 @@ class TapServiceIT {
         assertThat(resp.getTotal()).isEqualTo(21_000L);
 
         // Belum ada perubahan apa pun di ledger.
-        assertThat(ledgerSaldo.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA)).isEqualTo(50_000L);
+        assertThat(ledgerSaldo.saldo(SEKOLAH, SISWA)).isEqualTo(50_000L);
         assertThat(ledgerStok.stok(SEKOLAH, MENU_NASI)).isEqualTo(20);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM transaksi", Integer.class)).isZero();
         assertThat(jdbc.queryForObject(
-                "SELECT COUNT(*) FROM transaksi_menunggu_konfirmasi WHERE status = 'MENUNGGU'",
+                "SELECT COUNT(*) FROM transaksi_tertunda WHERE status = 'MENUNGGU'",
                 Integer.class)).isEqualTo(1);
     }
 
@@ -301,10 +314,10 @@ class TapServiceIT {
         assertThat(resp.isMenungguKonfirmasi()).isFalse();
         assertThat(resp.getTransaksiId()).isNotNull();
         assertThat(resp.getSaldoSisa()).isEqualTo(42_000L);
-        assertThat(ledgerSaldo.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA)).isEqualTo(42_000L);
+        assertThat(ledgerSaldo.saldo(SEKOLAH, SISWA)).isEqualTo(42_000L);
         assertThat(ledgerStok.stok(SEKOLAH, MENU_NASI)).isEqualTo(19);
         assertThat(jdbc.queryForObject(
-                "SELECT status FROM transaksi_menunggu_konfirmasi WHERE id = ?",
+                "SELECT status FROM transaksi_tertunda WHERE id = ?",
                 String.class, pending.getPendingId())).isEqualTo("DIKONFIRMASI");
     }
 
@@ -318,7 +331,7 @@ class TapServiceIT {
         TapResponse b = tapService.konfirmasi(SEKOLAH, pending.getPendingId(), petugas);
 
         assertThat(b.getTransaksiId()).isEqualTo(a.getTransaksiId());
-        assertThat(ledgerSaldo.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA)).isEqualTo(42_000L);
+        assertThat(ledgerSaldo.saldo(SEKOLAH, SISWA)).isEqualTo(42_000L);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM transaksi", Integer.class)).isEqualTo(1);
     }
 
@@ -331,7 +344,7 @@ class TapServiceIT {
 
         assertThat(b.getPendingId()).isEqualTo(a.getPendingId());
         assertThat(jdbc.queryForObject(
-                "SELECT COUNT(*) FROM transaksi_menunggu_konfirmasi", Integer.class)).isEqualTo(1);
+                "SELECT COUNT(*) FROM transaksi_tertunda", Integer.class)).isEqualTo(1);
     }
 
     @Test
@@ -342,10 +355,10 @@ class TapServiceIT {
 
         tapService.batal(SEKOLAH, pending.getPendingId(), petugas);
 
-        assertThat(ledgerSaldo.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA)).isEqualTo(50_000L);
+        assertThat(ledgerSaldo.saldo(SEKOLAH, SISWA)).isEqualTo(50_000L);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM transaksi", Integer.class)).isZero();
         assertThat(jdbc.queryForObject(
-                "SELECT status FROM transaksi_menunggu_konfirmasi WHERE id = ?",
+                "SELECT status FROM transaksi_tertunda WHERE id = ?",
                 String.class, pending.getPendingId())).isEqualTo("DIBATALKAN");
     }
 
@@ -356,7 +369,7 @@ class TapServiceIT {
 
         assertThat(resp.isMenungguKonfirmasi()).isFalse();
         assertThat(resp.getTransaksiId()).isNotNull();
-        assertThat(ledgerSaldo.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA)).isEqualTo(42_000L);
+        assertThat(ledgerSaldo.saldo(SEKOLAH, SISWA)).isEqualTo(42_000L);
     }
 
     /** Fake port: kartu siswa "Budi" & katalog dua menu. */
@@ -370,7 +383,7 @@ class TapServiceIT {
                 if (UID.equals(rfidUid) && sekolahId == SEKOLAH) {
                     return InfoKartu.builder()
                             .dikenal(true).diblokir(false)
-                            .subjekTipe(SubjekTipe.SISWA).subjekId(SISWA)
+                            .subjekTipe(SubjekTipe.SISWA).siswaId(SISWA)
                             .nama("Budi").kelas("5A")
                             .limitHarian(1_000_000L)
                             .build();

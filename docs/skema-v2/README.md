@@ -1,9 +1,14 @@
 # Skema Database v2 — Cetak Biru
 
-> ⚠️ **Bukan migrasi Flyway.** Folder ini berisi *usulan* skema v2 (23 tabel) yang sudah
-> diuji di database lokal. Perubahan skema resmi tetap lewat Flyway — lihat
-> [`docs/README.md`](../README.md). Pemindahan ke `V28__*.sql` + penyesuaian entity
-> dikerjakan di PR terpisah.
+> ✅ **Sudah jadi migrasi resmi.** Sejak `V28__SkemaV2.sql`, Flyway membangun skema v2
+> dari nol: semua tabel di `public` (kecuali `flyway_schema_history`) dihapus lalu
+> 23 tabel v2 dibuat ulang. Folder ini tetap jadi acuan desain & pembanding.
+>
+> **Database lama harus di-reset sekali** karena `V28` berubah (checksum berbeda):
+> ```bash
+> psql -h localhost -U kantin -d kantin_db -c 'drop schema public cascade; create schema public;'
+> ./mvnw spring-boot:run -Dspring-boot.run.profiles=local   # V1..V28 + seed dijalankan ulang
+> ```
 
 ## Kenapa ada v2
 

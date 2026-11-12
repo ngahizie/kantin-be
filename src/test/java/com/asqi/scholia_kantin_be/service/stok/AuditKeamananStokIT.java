@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.concurrent.CountDownLatch;
@@ -50,7 +51,9 @@ class AuditKeamananStokIT {
 
     @BeforeEach
     void bersihkan() {
-        jdbc.execute("TRUNCATE TABLE mutasi_stok, stok_cache CASCADE");
+        jdbc.execute("TRUNCATE TABLE riwayat_stok, stok CASCADE");
+
+        FixtureInduk.sekolah(jdbc, SEKOLAH);
         jdbc.execute("TRUNCATE TABLE menu CASCADE");
         // Menu milik sekolah 1 — prasyarat sah untuk barang masuk.
         jdbc.update("INSERT INTO menu (id, sekolah_id, nama, harga_jual) VALUES (?, ?, ?, ?)",
@@ -69,7 +72,7 @@ class AuditKeamananStokIT {
         operasi.masukBarang(SEKOLAH, MENU, 10, 5_000, "BM-1", 1L);
 
         Integer baris = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM mutasi_stok WHERE jenis = 'BARANG_MASUK' AND referensi_id = 'BM-1'",
+                "SELECT COUNT(*) FROM riwayat_stok WHERE jenis = 'BARANG_MASUK' AND referensi_id = 'BM-1'",
                 Integer.class);
 
         assertThat(baris)
@@ -114,7 +117,7 @@ class AuditKeamananStokIT {
         pool.shutdown();
 
         Integer jumlahPembalik = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM mutasi_stok WHERE jenis = 'BARANG_MASUK_PEMBALIK' AND referensi_id = 'PB-SAMA'",
+                "SELECT COUNT(*) FROM riwayat_stok WHERE jenis = 'BARANG_MASUK_PEMBALIK' AND referensi_id = 'PB-SAMA'",
                 Integer.class);
 
         assertThat(jumlahPembalik)
@@ -137,7 +140,7 @@ class AuditKeamananStokIT {
                 .isInstanceOf(NotFoundEntity.class);
 
         Integer barisStok = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM stok_cache WHERE menu_id = 999999", Integer.class);
+                "SELECT COUNT(*) FROM stok WHERE menu_id = 999999", Integer.class);
         assertThat(barisStok)
                 .as("tidak boleh ada baris stok untuk menu tak dikenal")
                 .isZero();

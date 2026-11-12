@@ -72,14 +72,14 @@ public interface StokRepository extends JpaRepository<Stok, Long> {
      */
     @Modifying
     @Query(value = """
-            INSERT INTO stok_cache (menu_id, sekolah_id, stok, hpp, stok_minimum, updated_at)
+            INSERT INTO stok (menu_id, sekolah_id, stok, hpp, stok_minimum, updated_at)
             VALUES (:menuId, :sekolahId, 0, 0, 0, now())
             ON CONFLICT (menu_id) DO NOTHING
             """, nativeQuery = true)
     int pastikanBarisAda(@Param("menuId") Long menuId, @Param("sekolahId") Long sekolahId);
 
     // Catatan (issue #196): tidak ada lagi metode sinkronStokMinimum di sini.
-    // Ambang stok_cache.stok_minimum dijaga trigger DB
+    // Ambang stok.stok_minimum dijaga trigger DB
     // trg_menu_sinkron_stok_minimum (migrasi V23) sehingga SEMUA jalur tulis ke
     // menu tetap sinkron — bukan hanya yang lewat service ini.
 }

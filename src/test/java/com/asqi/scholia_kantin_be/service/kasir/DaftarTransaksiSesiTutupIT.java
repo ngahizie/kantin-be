@@ -8,6 +8,7 @@ import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.security.TenantContext;
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import com.asqi.scholia_kantin_be.support.TestcontainersConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -57,6 +58,17 @@ class DaftarTransaksiSesiTutupIT {
     private static final LocalDate TGL_15 = LocalDate.parse("2026-10-15");
     private static final LocalDate TGL_16 = LocalDate.parse("2026-10-16");
 
+    // Subjek transaksi = SISWA (skema v2 tidak lagi punya kartu tamu).
+    private static final long SISWA_A = 5001L;
+    private static final long SISWA_B = 5002L;
+    private static final long SISWA_C = 5003L;
+    private static final long SISWA_D = 5004L;
+    private static final long SISWA_LAIN = 5101L;
+
+    private static final long PETUGAS_A = 42L;
+    private static final long PETUGAS_B = 43L;
+    private static final long PETUGAS_LAIN = 44L;
+
     @Autowired
     private TransaksiKasirService service;
 
@@ -66,7 +78,14 @@ class DaftarTransaksiSesiTutupIT {
     @BeforeEach
     void siapkan() {
         TenantContext.clear();
-        jdbc.execute("TRUNCATE TABLE transaksi, sesi_kasir, titik_kasir, kartu_tamu CASCADE");
+        jdbc.execute("TRUNCATE TABLE transaksi, sesi_kasir, titik_kasir, kartu CASCADE");
+
+        // Induk wajib skema v2 (FK): sekolah → siswa/pengguna.
+        FixtureInduk.sekolah(jdbc, SEKOLAH, SEKOLAH_LAIN);
+        FixtureInduk.pengguna(jdbc, SEKOLAH, PETUGAS_A, PETUGAS_B);
+        FixtureInduk.pengguna(jdbc, SEKOLAH_LAIN, PETUGAS_LAIN);
+        FixtureInduk.siswa(jdbc, SEKOLAH, SISWA_A, SISWA_B, SISWA_C, SISWA_D);
+        FixtureInduk.siswa(jdbc, SEKOLAH_LAIN, SISWA_LAIN);
 
         titik(TITIK_UTAMA, SEKOLAH, "Kasir Utama");
         titik(TITIK_SAMPING, SEKOLAH, "Kasir Samping");
@@ -77,23 +96,24 @@ class DaftarTransaksiSesiTutupIT {
         sesi(SESI_TERBUKA, SEKOLAH, TITIK_SAMPING, "2026-10-16", "TERBUKA");
         sesi(SESI_LAIN, SEKOLAH_LAIN, TITIK_LAIN, "2026-10-16", "DITUTUP");
 
-        kartu(100L, SEKOLAH, "KT-001", "Bu Sri");
-        kartu(101L, SEKOLAH_LAIN, "KT-003", "Bapak Lain");
+        kartu("UID-A", SEKOLAH, SISWA_A, "KRT-001");
+        kartu("UID-D", SEKOLAH, SISWA_D, "KRT-004");
+        kartu("UID-L", SEKOLAH_LAIN, SISWA_LAIN, "KRT-003");
 
         // id=1: sesi DITUTUP (15 Okt) — SISWA → kandidat koreksi
-        trx(1L, SEKOLAH, SESI_TUTUP, TITIK_UTAMA, "SISWA", 5001L, 42L, 15000L,
+        trx(1L, SEKOLAH, SESI_TUTUP, TITIK_UTAMA, SISWA_A, "UID-A", PETUGAS_A, 15000L,
                 "SUKSES", "2026-10-15T08:00:00+07:00");
         // id=2: sesi DITUTUP (15 Okt) — sudah VOID (masih tampil, tak dapat dikoreksi lagi)
-        trx(2L, SEKOLAH, SESI_TUTUP, TITIK_UTAMA, "SISWA", 5002L, 42L, 12000L,
+        trx(2L, SEKOLAH, SESI_TUTUP, TITIK_UTAMA, SISWA_B, null, PETUGAS_A, 12000L,
                 "VOID", "2026-10-15T23:45:00+07:00");
         // id=3: sesi TERBUKA — TIDAK boleh muncul di daftar kandidat koreksi
-        trx(3L, SEKOLAH, SESI_TERBUKA, TITIK_SAMPING, "SISWA", 5003L, 42L, 9000L,
+        trx(3L, SEKOLAH, SESI_TERBUKA, TITIK_SAMPING, SISWA_C, null, PETUGAS_A, 9000L,
                 "SUKSES", "2026-10-16T10:00:00+07:00");
-        // id=4: sesi DITUTUP (16 Okt) — KARTU_TAMU → nama terisi
-        trx(4L, SEKOLAH, SESI_TUTUP_B, TITIK_UTAMA, "KARTU_TAMU", 100L, 43L, 8000L,
+        // id=4: sesi DITUTUP (16 Okt) — bayar pakai kartu → kartuUid terisi
+        trx(4L, SEKOLAH, SESI_TUTUP_B, TITIK_UTAMA, SISWA_D, "UID-D", PETUGAS_B, 8000L,
                 "SUKSES", "2026-10-16T10:00:00+07:00");
         // id=5: SEKOLAH LAIN (sesi DITUTUP) — tidak boleh bocor ke tenant SEKOLAH
-        trx(5L, SEKOLAH_LAIN, SESI_LAIN, TITIK_LAIN, "KARTU_TAMU", 101L, 44L, 7000L,
+        trx(5L, SEKOLAH_LAIN, SESI_LAIN, TITIK_LAIN, SISWA_LAIN, "UID-L", PETUGAS_LAIN, 7000L,
                 "SUKSES", "2026-10-16T11:00:00+07:00");
     }
 
@@ -120,8 +140,8 @@ class DaftarTransaksiSesiTutupIT {
                 service.daftarSesiTutup(SEKOLAH_LAIN, null, null, null, 0, 20);
 
         assertThat(hasil.getItems()).extracting(TransaksiKasirItem::getId).containsExactly(5L);
-        assertThat(hasil.getItems()).extracting(TransaksiKasirItem::getSubjekNama)
-                .containsExactly("Bapak Lain");
+        assertThat(hasil.getItems()).extracting(TransaksiKasirItem::getSiswaId)
+                .containsExactly(SISWA_LAIN);
     }
 
     @Test
@@ -232,7 +252,7 @@ class DaftarTransaksiSesiTutupIT {
     }
 
     @Test
-    @DisplayName("nama titik kasir & subjek kartu tamu terisi (batch, bukan N+1)")
+    @DisplayName("nama titik kasir & subjek siswa terisi (batch, bukan N+1)")
     void namaTerisi() {
         HalamanResponse<TransaksiKasirItem> hasil =
                 service.daftarSesiTutup(SEKOLAH, null, null, null, 0, 20);
@@ -242,16 +262,18 @@ class DaftarTransaksiSesiTutupIT {
                 .singleElement()
                 .satisfies(t -> {
                     assertThat(t.getTitikKasirNama()).isEqualTo("Kasir Utama");
-                    assertThat(t.getSubjekTipe()).isEqualTo(SubjekTipe.KARTU_TAMU);
-                    assertThat(t.getSubjekNama()).isEqualTo("Bu Sri");
+                    assertThat(t.getSubjekTipe()).isEqualTo(SubjekTipe.SISWA);
+                    assertThat(t.getSiswaId()).isEqualTo(SISWA_D);
+                    assertThat(t.getKartuUid()).isEqualTo("UID-D");
                 });
 
-        // SISWA: nama tidak ada di kantin-be (data siswa milik admin-be, ADR-0002) → null.
+        // Nama siswa tidak ada di kantin-be (data siswa milik admin-be, ADR-0002) → null.
         assertThat(hasil.getItems())
                 .filteredOn(t -> t.getId().equals(1L))
                 .singleElement()
                 .satisfies(t -> {
                     assertThat(t.getSubjekTipe()).isEqualTo(SubjekTipe.SISWA);
+                    assertThat(t.getSiswaId()).isEqualTo(SISWA_A);
                     assertThat(t.getSubjekNama()).isNull();
                 });
     }
@@ -274,24 +296,24 @@ class DaftarTransaksiSesiTutupIT {
                 """, id, sekolah, titikId, tanggal, status);
     }
 
-    private void kartu(long id, long sekolah, String nomor, String labelPemegang) {
+    private void kartu(String uid, long sekolah, long siswaId, String nomor) {
         jdbc.update("""
-                INSERT INTO kartu_tamu (id, sekolah_id, nomor_kartu, label_pemegang, dibuat_oleh)
-                VALUES (?, ?, ?, ?, 42)
-                """, id, sekolah, nomor, labelPemegang);
+                INSERT INTO kartu (uid, sekolah_id, siswa_id, nomor_kartu)
+                VALUES (?, ?, ?, ?)
+                """, uid, sekolah, siswaId, nomor);
     }
 
-    private void trx(long id, long sekolah, long sesiId, long titikId, String subjekTipe,
-                     long subjekId, long petugasId, long total, String status, String waktu) {
+    private void trx(long id, long sekolah, long sesiId, long titikId, long siswaId, String kartuUid,
+                     long petugasId, long total, String status, String waktu) {
         boolean diVoid = "VOID".equals(status);
         jdbc.update("""
                 INSERT INTO transaksi (id, idempotency_key, sekolah_id, sesi_kasir_id, titik_kasir_id,
-                                       subjek_tipe, subjek_id, petugas_id, total, total_hpp, status,
+                                       siswa_id, kartu_uid, petugas_id, total, total_hpp, status,
                                        alasan_void, void_at, void_oleh, waktu)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?,
                         ?, ?::timestamptz, ?, ?::timestamptz)
                 """, id, "seed-230-" + id, sekolah, sesiId, titikId,
-                subjekTipe, subjekId, petugasId, total, status,
+                siswaId, kartuUid, petugasId, total, status,
                 diVoid ? "salah input uji" : null,
                 diVoid ? waktu : null,
                 diVoid ? petugasId : null,

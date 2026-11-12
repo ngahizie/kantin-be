@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -18,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * Uji audit log nyata (PRD §11.7) — <b>B18</b>.
  *
- * <p>Memverifikasi audit ditulis ke tabel {@code audit_log} (append-only) saat
+ * <p>Memverifikasi audit ditulis ke tabel {@code catatan_audit} (append-only) saat
  * barang masuk &amp; opname, dan UPDATE/DELETE ditolak trigger DB.
  */
 @SpringBootTest
@@ -40,21 +41,26 @@ class AuditLoggerIT {
 
     @BeforeEach
     void bersihkan() {
-        jdbc.execute("TRUNCATE TABLE audit_log, mutasi_stok, stok_cache CASCADE");
+        jdbc.execute("TRUNCATE TABLE catatan_audit, riwayat_stok, stok CASCADE");
+
+        FixtureInduk.sekolah(jdbc, SEKOLAH);
+
+        FixtureInduk.penggunaUmum(jdbc, SEKOLAH);
+        FixtureInduk.menu(jdbc, SEKOLAH, MENU);
     }
 
     @Test
-    @DisplayName("barang masuk tercatat di audit_log (aksi, nilai_lama, nilai_baru)")
+    @DisplayName("barang masuk tercatat di catatan_audit (aksi, nilai_lama, nilai_baru)")
     void barangMasukDiaudit() {
         tx.executeWithoutResult(s -> ledgerStok.masukBarang(SEKOLAH, MENU, 10, 5_000, "BARANG_MASUK", "BM-1", 42L));
 
         Integer jumlah = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM audit_log WHERE aksi = 'BARANG_MASUK' AND sekolah_id = ?",
+                "SELECT COUNT(*) FROM catatan_audit WHERE aksi = 'BARANG_MASUK' AND sekolah_id = ?",
                 Integer.class, SEKOLAH);
         assertThat(jumlah).isEqualTo(1);
 
         var baris = jdbc.queryForMap(
-                "SELECT aktor_id, entitas, nilai_lama, nilai_baru FROM audit_log "
+                "SELECT aktor_id, entitas, nilai_lama, nilai_baru FROM catatan_audit "
                         + "WHERE aksi = 'BARANG_MASUK' AND sekolah_id = ?", SEKOLAH);
         assertThat(((Number) baris.get("aktor_id")).longValue()).isEqualTo(42L);
         assertThat(baris.get("entitas")).isEqualTo("Stok");
@@ -69,7 +75,7 @@ class AuditLoggerIT {
         tx.executeWithoutResult(s -> ledgerStok.sesuaikanOpname(SEKOLAH, MENU, 7, "HILANG", "OP-1", 42L));
 
         var baris = jdbc.queryForMap(
-                "SELECT alasan, nilai_lama, nilai_baru FROM audit_log "
+                "SELECT alasan, nilai_lama, nilai_baru FROM catatan_audit "
                         + "WHERE aksi = 'OPNAME_STOK' AND sekolah_id = ?", SEKOLAH);
         assertThat(baris.get("alasan")).isEqualTo("HILANG");
         assertThat((String) baris.get("nilai_lama")).contains("stok=10");
@@ -83,18 +89,18 @@ class AuditLoggerIT {
         tx.executeWithoutResult(s -> ledgerStok.sesuaikanOpname(SEKOLAH, MENU, 10, "COCOK", "OP-2", 1L));
 
         Integer jumlah = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM audit_log WHERE aksi = 'OPNAME_STOK'", Integer.class);
+                "SELECT COUNT(*) FROM catatan_audit WHERE aksi = 'OPNAME_STOK'", Integer.class);
         assertThat(jumlah).isZero();
     }
 
     @Test
-    @DisplayName("append-only — UPDATE & DELETE audit_log ditolak")
+    @DisplayName("append-only — UPDATE & DELETE catatan_audit ditolak")
     void appendOnlyAudit() {
         tx.executeWithoutResult(s -> ledgerStok.masukBarang(SEKOLAH, MENU, 1, 5_000, "BARANG_MASUK", "BM-1", 1L));
 
-        assertThatThrownBy(() -> jdbc.update("UPDATE audit_log SET alasan = 'x'"))
+        assertThatThrownBy(() -> jdbc.update("UPDATE catatan_audit SET alasan = 'x'"))
                 .hasMessageContaining("append-only");
-        assertThatThrownBy(() -> jdbc.update("DELETE FROM audit_log"))
+        assertThatThrownBy(() -> jdbc.update("DELETE FROM catatan_audit"))
                 .hasMessageContaining("append-only");
     }
 }

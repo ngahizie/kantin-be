@@ -188,8 +188,7 @@ class KasirControllerTest {
         Transaksi trx = Transaksi.builder()
                 .id(55L)
                 .waktu(OffsetDateTime.parse("2026-11-09T10:15:00+07:00"))
-                .subjekTipe(SubjekTipe.SISWA)
-                .subjekId(201L)
+                .siswaId(201L)
                 .kartuUid("04AA000201")
                 .total(15000L)
                 .status(StatusTransaksi.VOID)
@@ -237,8 +236,7 @@ class KasirControllerTest {
         Transaksi trx = Transaksi.builder()
                 .id(55L)
                 .waktu(OffsetDateTime.parse("2026-11-09T10:15:00+07:00"))
-                .subjekTipe(SubjekTipe.KARTU_TAMU)
-                .subjekId(9L)
+                .siswaId(9L)
                 .total(7000L)
                 .status(StatusTransaksi.VOID)
                 .alasanVoid("salah input")
@@ -264,7 +262,7 @@ class KasirControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("Transaksi sesi tertutup berhasil dikoreksi"))
                 .andExpect(jsonPath("$.data.nomorStruk").value("TRX-20261109-55"))
-                .andExpect(jsonPath("$.data.subjekTipe").value("KARTU_TAMU"))
+                .andExpect(jsonPath("$.data.subjekTipe").value("SISWA"))
                 .andExpect(jsonPath("$.data.items").doesNotExist());
     }
 

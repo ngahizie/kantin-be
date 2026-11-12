@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -29,7 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Uji integrasi sesi kasir &amp; tutup kasir (PRD §6.4).
  */
-@SpringBootTest
+@SpringBootTest(properties = "kantin.siswa.sumber=integrasi")
 @Import({TestcontainersConfig.class, TapServiceIT.FakePortConfig.class})
 @EnabledIfDockerAvailable
 class SesiKasirServiceIT {
@@ -69,11 +70,21 @@ class SesiKasirServiceIT {
         // SesiKasirService memakai SekolahGuard → butuh TenantContext.
         TenantContext.set(IdentitasKantin.builder().userId("555").sekolahId(SEKOLAH).build());
         jdbc.execute("TRUNCATE TABLE transaksi_item, transaksi, sesi_kasir, titik_kasir, "
-                + "saldo_ledger, saldo_cache, mutasi_stok, stok_cache CASCADE");
+                + "mutasi_saldo, saldo, riwayat_stok, stok CASCADE");
+
+        FixtureInduk.sekolah(jdbc, SEKOLAH);
+
+        FixtureInduk.penggunaUmum(jdbc, SEKOLAH);
+
+        FixtureInduk.kategoriUmum(jdbc, SEKOLAH);
+
+        FixtureInduk.kartu(jdbc, SEKOLAH, SISWA, UID);
+        FixtureInduk.siswa(jdbc, SEKOLAH, SISWA);
+        FixtureInduk.menu(jdbc, SEKOLAH, MENU_NASI);
         jdbc.update("INSERT INTO titik_kasir (id, sekolah_id, nama, is_active, created_at, updated_at) "
                 + "VALUES (?, ?, 'Kasir 1', true, now(), now())", TITIK, SEKOLAH);
         tx.executeWithoutResult(s -> ledgerSaldo.kredit(PerintahMutasiSaldo.builder()
-                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).subjekId(SISWA)
+                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).siswaId(SISWA)
                 .jenis(JenisMutasiSaldo.TOPUP_TUNAI).nominal(100_000).idempotencyKey("seed").build()));
         tx.executeWithoutResult(s -> ledgerStok.masukBarang(SEKOLAH, MENU_NASI, 50, 4_000, "BARANG_MASUK", "BM", 1L));
     }
@@ -142,10 +153,11 @@ class SesiKasirServiceIT {
     @Test
     @DisplayName("tutup sesi milik sekolah lain ditolak sebagai NotFoundEntity")
     void tutupSesiSekolahLain() {
+        FixtureInduk.sekolah(jdbc, 99L);
         jdbc.update("INSERT INTO titik_kasir (id, sekolah_id, nama, is_active, created_at, updated_at) "
                 + "VALUES (99, 99, 'Kasir sekolah lain', true, now(), now())");
         jdbc.update("INSERT INTO sesi_kasir (id, sekolah_id, titik_kasir_id, tanggal, status, "
-                + "total_bruto, total_void, total_bersih, dibuka_at, auto_tutup, posting_buku_kas, "
+                + "total_bruto, total_void, total_bersih, dibuka_at, auto_tutup, jurnal_buku_kas, "
                 + "created_at, updated_at) "
                 + "VALUES (999, 99, 99, CURRENT_DATE, 'TERBUKA', 0, 0, 0, now(), false, false, now(), now())");
 
@@ -184,7 +196,7 @@ class SesiKasirServiceIT {
         jdbc.update("INSERT INTO titik_kasir (id, sekolah_id, nama, is_active, created_at, updated_at) "
                 + "VALUES (?, ?, 'Kasir 2', true, now(), now())", titik2, SEKOLAH);
         jdbc.update("INSERT INTO sesi_kasir (id, sekolah_id, titik_kasir_id, tanggal, status, "
-                + "total_bruto, total_void, total_bersih, dibuka_at, auto_tutup, posting_buku_kas, "
+                + "total_bruto, total_void, total_bersih, dibuka_at, auto_tutup, jurnal_buku_kas, "
                 + "created_at, updated_at) "
                 + "VALUES (9001, ?, ?, CURRENT_DATE - 1, 'TERBUKA', 0, 0, 0, now(), false, false, now(), now())",
                 SEKOLAH, titik2);

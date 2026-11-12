@@ -68,7 +68,7 @@ class TapValidatorTest {
 
     private InfoKartu kartuSiswa(long limit, Set<Long> menuDiblokir, Set<Long> kategoriDiblokir) {
         return InfoKartu.builder()
-                .dikenal(true).diblokir(false).subjekTipe(SubjekTipe.SISWA).subjekId(7L)
+                .dikenal(true).diblokir(false).subjekTipe(SubjekTipe.SISWA).siswaId(7L)
                 .nama("Budi").kelas("5A").limitHarian(limit)
                 .menuDiblokir(menuDiblokir).kategoriDiblokir(kategoriDiblokir)
                 .build();
@@ -92,7 +92,7 @@ class TapValidatorTest {
     @DisplayName("tahap 2 — kartu siswa diblokir → arahkan ke orang tua")
     void kartuSiswaDiblokir() {
         InfoKartu kartu = InfoKartu.builder()
-                .dikenal(true).diblokir(true).subjekTipe(SubjekTipe.SISWA).subjekId(7L).build();
+                .dikenal(true).diblokir(true).subjekTipe(SubjekTipe.SISWA).siswaId(7L).build();
         var hasil = validator.validasi(SEKOLAH, request(1, 1), kartu, 999_999, 0, lookup());
         assertThat(hasil.getValidasi().getTahapGagal()).isEqualTo(2);
         assertThat(hasil.getValidasi().getPesan()).isEqualTo("Kartu diblokir, hubungi orang tua");
@@ -171,7 +171,7 @@ class TapValidatorTest {
     @DisplayName("kartu tamu — tanpa limit harian & tanpa blokir item")
     void kartuTamuTanpaLimit() {
         InfoKartu kartu = InfoKartu.builder()
-                .dikenal(true).diblokir(false).subjekTipe(SubjekTipe.KARTU_TAMU).subjekId(99L)
+                .dikenal(true).diblokir(false).subjekTipe(SubjekTipe.KARTU_TAMU).siswaId(99L)
                 .nama("KT-012").limitHarian(null).build();
         // belanja besar tetap lolos karena tak ada limit
         var hasil = validator.validasi(SEKOLAH, request(3, 3), kartu, 999_999_999, 500_000, lookup());

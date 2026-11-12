@@ -7,6 +7,7 @@ import com.asqi.scholia_kantin_be.enums.ArahMutasi;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.security.TenantContext;
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import com.asqi.scholia_kantin_be.support.TestcontainersConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -40,6 +41,14 @@ class DaftarKoreksiSaldoIT {
 
     private static final LocalDate TGL_15 = LocalDate.parse("2026-10-15");
     private static final LocalDate TGL_16 = LocalDate.parse("2026-10-16");
+    private static final LocalDate TGL_17 = LocalDate.parse("2026-10-17"); // tidak ada mutasi
+
+    // Subjek mutasi = SISWA (skema v2 tidak lagi punya kartu tamu).
+    private static final long SISWA_A = 5001L;
+    private static final long SISWA_B = 5002L;
+    private static final long SISWA_C = 5003L;
+    private static final long SISWA_LAIN = 5101L;
+    private static final long AKTOR = 77L;
 
     @Autowired
     private SaldoOperasiService operasi;
@@ -50,26 +59,28 @@ class DaftarKoreksiSaldoIT {
     @BeforeEach
     void siapkan() {
         TenantContext.clear();
-        jdbc.execute("TRUNCATE TABLE saldo_ledger, saldo_cache, kartu_tamu CASCADE");
+        jdbc.execute("TRUNCATE TABLE mutasi_saldo, saldo CASCADE");
 
-        kartu(200L, SEKOLAH, "KT-010", "Bu Rina");
-        kartu(201L, SEKOLAH, "KT-011", null);        // label kosong → fallback nomor kartu
-        kartu(202L, SEKOLAH_LAIN, "KT-012", "Bapak Lain");
+        // Induk wajib skema v2 (FK): sekolah → siswa/pengguna.
+        FixtureInduk.sekolah(jdbc, SEKOLAH, SEKOLAH_LAIN);
+        FixtureInduk.pengguna(jdbc, SEKOLAH, AKTOR);
+        FixtureInduk.siswa(jdbc, SEKOLAH, SISWA_A, SISWA_B, SISWA_C);
+        FixtureInduk.siswa(jdbc, SEKOLAH_LAIN, SISWA_LAIN);
 
         // Bukan koreksi — TIDAK boleh muncul di endpoint ini.
-        ledger(1L, SEKOLAH, "SISWA", 5001L, "KREDIT", "TOPUP_TUNAI", 50_000L, 50_000L,
+        ledger(1L, SEKOLAH, SISWA_A, "KREDIT", "TOPUP_TUNAI", 50_000L, 50_000L,
                 "2026-10-15T08:00:00+07:00", null);
         // Koreksi DEBIT 15 Okt 23:45 — masih tanggal 15 menurut zona sekolah
-        ledger(2L, SEKOLAH, "SISWA", 5001L, "DEBIT", "KOREKSI", 10_000L, 40_000L,
+        ledger(2L, SEKOLAH, SISWA_A, "DEBIT", "KOREKSI", 10_000L, 40_000L,
                 "2026-10-15T23:45:00+07:00", "salah input topup");
         // Koreksi KREDIT 16 Okt 00:15 — sudah masuk tanggal 16
-        ledger(3L, SEKOLAH, "KARTU_TAMU", 200L, "KREDIT", "KOREKSI", 25_000L, 25_000L,
+        ledger(3L, SEKOLAH, SISWA_B, "KREDIT", "KOREKSI", 25_000L, 25_000L,
                 "2026-10-16T00:15:00+07:00", "pengembalian kelebihan");
-        // Koreksi DEBIT 16 Okt 10:00 (kartu tanpa label)
-        ledger(4L, SEKOLAH, "KARTU_TAMU", 201L, "DEBIT", "KOREKSI", 5_000L, 20_000L,
+        // Koreksi DEBIT 16 Okt 10:00 (siswa lain)
+        ledger(4L, SEKOLAH, SISWA_C, "DEBIT", "KOREKSI", 5_000L, 20_000L,
                 "2026-10-16T10:00:00+07:00", "koreksi audit");
         // Sekolah lain — tidak boleh bocor
-        ledger(5L, SEKOLAH_LAIN, "KARTU_TAMU", 202L, "KREDIT", "KOREKSI", 15_000L, 15_000L,
+        ledger(5L, SEKOLAH_LAIN, SISWA_LAIN, "KREDIT", "KOREKSI", 15_000L, 15_000L,
                 "2026-10-16T11:00:00+07:00", "koreksi sekolah lain");
     }
 
@@ -81,7 +92,7 @@ class DaftarKoreksiSaldoIT {
     @DisplayName("tanpa filter → hanya jenis KOREKSI milik tenant, urut waktu DESC")
     void tanpaFilter() {
         HalamanResponse<MutasiKoreksiItem> hasil =
-                operasi.daftarKoreksi(SEKOLAH, null, null, null, 0, 20);
+                operasi.daftarKoreksi(SEKOLAH, null, null, 0, 20);
 
         // id=1 (TOPUP_TUNAI) & id=6 tidak ada → hanya 3 koreksi tenant ini.
         assertThat(hasil.getItems()).extracting(MutasiKoreksiItem::getId)
@@ -93,49 +104,49 @@ class DaftarKoreksiSaldoIT {
     @DisplayName("filter tanggal → batas hari mengikuti zona sekolah (23:45 vs 00:15)")
     void filterTanggal() {
         HalamanResponse<MutasiKoreksiItem> tgl16 =
-                operasi.daftarKoreksi(SEKOLAH, TGL_16, null, null, 0, 20);
+                operasi.daftarKoreksi(SEKOLAH, TGL_16, null, 0, 20);
         HalamanResponse<MutasiKoreksiItem> tgl15 =
-                operasi.daftarKoreksi(SEKOLAH, TGL_15, null, null, 0, 20);
+                operasi.daftarKoreksi(SEKOLAH, TGL_15, null, 0, 20);
 
         assertThat(tgl16.getItems()).extracting(MutasiKoreksiItem::getId).containsExactly(4L, 3L);
         assertThat(tgl15.getItems()).extracting(MutasiKoreksiItem::getId).containsExactly(2L);
     }
 
     @Test
-    @DisplayName("filter subjekTipe → SISWA / KARTU_TAMU")
-    void filterSubjekTipe() {
-        HalamanResponse<MutasiKoreksiItem> siswa =
-                operasi.daftarKoreksi(SEKOLAH, null, SubjekTipe.SISWA, null, 0, 20);
-        HalamanResponse<MutasiKoreksiItem> kartu =
-                operasi.daftarKoreksi(SEKOLAH, null, SubjekTipe.KARTU_TAMU, null, 0, 20);
+    @DisplayName("semua baris hasil ber-subjek SISWA (skema v2: kartu tamu tidak ada lagi)")
+    void subjekSelaluSiswa() {
+        HalamanResponse<MutasiKoreksiItem> hasil =
+                operasi.daftarKoreksi(SEKOLAH, null, null, 0, 20);
 
-        assertThat(siswa.getItems()).extracting(MutasiKoreksiItem::getId).containsExactly(2L);
-        assertThat(kartu.getItems()).extracting(MutasiKoreksiItem::getId).containsExactly(4L, 3L);
+        assertThat(hasil.getItems()).extracting(MutasiKoreksiItem::getSubjekTipe)
+                .containsOnly(SubjekTipe.SISWA);
+        assertThat(hasil.getItems()).extracting(MutasiKoreksiItem::getSiswaId)
+                .containsExactlyInAnyOrder(SISWA_C, SISWA_B, SISWA_A);
     }
 
     @Test
-    @DisplayName("filter subjekTipe + subjekId → satu subjek tertentu")
+    @DisplayName("filter siswaId → satu subjek tertentu")
     void filterSubjekId() {
         HalamanResponse<MutasiKoreksiItem> hasil =
-                operasi.daftarKoreksi(SEKOLAH, null, SubjekTipe.KARTU_TAMU, 200L, 0, 20);
+                operasi.daftarKoreksi(SEKOLAH, null, SISWA_B, 0, 20);
 
         assertThat(hasil.getItems()).extracting(MutasiKoreksiItem::getId).containsExactly(3L);
     }
 
     @Test
-    @DisplayName("filter kombinasi (tanggal + subjekTipe) → terpenuhi keduanya")
+    @DisplayName("filter kombinasi (tanggal + siswaId) → terpenuhi keduanya")
     void filterKombinasi() {
         HalamanResponse<MutasiKoreksiItem> hasil =
-                operasi.daftarKoreksi(SEKOLAH, TGL_16, SubjekTipe.KARTU_TAMU, null, 0, 20);
+                operasi.daftarKoreksi(SEKOLAH, TGL_16, SISWA_C, 0, 20);
 
-        assertThat(hasil.getItems()).extracting(MutasiKoreksiItem::getId).containsExactly(4L, 3L);
+        assertThat(hasil.getItems()).extracting(MutasiKoreksiItem::getId).containsExactly(4L);
     }
 
     @Test
     @DisplayName("filter tanpa hasil → halaman kosong (bukan 500)")
     void filterTanpaHasil() {
         HalamanResponse<MutasiKoreksiItem> hasil =
-                operasi.daftarKoreksi(SEKOLAH, TGL_15, SubjekTipe.KARTU_TAMU, null, 0, 20);
+                operasi.daftarKoreksi(SEKOLAH, TGL_17, null, 0, 20);
 
         assertThat(hasil.getItems()).isEmpty();
         assertThat(hasil.getTotal()).isZero();
@@ -145,18 +156,18 @@ class DaftarKoreksiSaldoIT {
     @DisplayName("tenant-scoped: koreksi sekolah lain tidak bocor")
     void tenantScoped() {
         HalamanResponse<MutasiKoreksiItem> hasil =
-                operasi.daftarKoreksi(SEKOLAH_LAIN, null, null, null, 0, 20);
+                operasi.daftarKoreksi(SEKOLAH_LAIN, null, null, 0, 20);
 
         assertThat(hasil.getItems()).extracting(MutasiKoreksiItem::getId).containsExactly(5L);
-        assertThat(hasil.getItems()).extracting(MutasiKoreksiItem::getSubjekNama)
-                .containsExactly("Bapak Lain");
+        assertThat(hasil.getItems()).extracting(MutasiKoreksiItem::getSiswaId)
+                .containsExactly(SISWA_LAIN);
     }
 
     @Test
     @DisplayName("paginasi: halaman & ukuran dihormati")
     void paginasi() {
-        HalamanResponse<MutasiKoreksiItem> hal0 = operasi.daftarKoreksi(SEKOLAH, null, null, null, 0, 2);
-        HalamanResponse<MutasiKoreksiItem> hal1 = operasi.daftarKoreksi(SEKOLAH, null, null, null, 1, 2);
+        HalamanResponse<MutasiKoreksiItem> hal0 = operasi.daftarKoreksi(SEKOLAH, null, null, 0, 2);
+        HalamanResponse<MutasiKoreksiItem> hal1 = operasi.daftarKoreksi(SEKOLAH, null, null, 1, 2);
 
         assertThat(hal0.getItems()).extracting(MutasiKoreksiItem::getId).containsExactly(4L, 3L);
         assertThat(hal1.getItems()).extracting(MutasiKoreksiItem::getId).containsExactly(2L);
@@ -167,13 +178,13 @@ class DaftarKoreksiSaldoIT {
     @Test
     @DisplayName("ukuran < 1 atau > 200 → 400 (bukan diam-diam diclamp), halaman negatif tetap 0")
     void ukuranTidakWajar() {
-        assertThatThrownBy(() -> operasi.daftarKoreksi(SEKOLAH, null, null, null, 0, 0))
+        assertThatThrownBy(() -> operasi.daftarKoreksi(SEKOLAH, null, null, 0, 0))
                 .isInstanceOf(InvalidOperationException.class)
                 .hasMessageContaining("ukuran minimal 1");
-        assertThatThrownBy(() -> operasi.daftarKoreksi(SEKOLAH, null, null, null, 0, 99_999))
+        assertThatThrownBy(() -> operasi.daftarKoreksi(SEKOLAH, null, null, 0, 99_999))
                 .isInstanceOf(InvalidOperationException.class)
                 .hasMessageContaining("ukuran maksimal 200");
-        assertThat(operasi.daftarKoreksi(SEKOLAH, null, null, null, -3, 20).getHalaman()).isZero();
+        assertThat(operasi.daftarKoreksi(SEKOLAH, null, null, -3, 20).getHalaman()).isZero();
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -184,7 +195,7 @@ class DaftarKoreksiSaldoIT {
     @DisplayName("saldoSebelum dihitung dari arah: KREDIT turun, DEBIT naik")
     void saldoSebelumDihitung() {
         HalamanResponse<MutasiKoreksiItem> hasil =
-                operasi.daftarKoreksi(SEKOLAH, null, null, null, 0, 20);
+                operasi.daftarKoreksi(SEKOLAH, null, null, 0, 20);
 
         // id=2: DEBIT 10.000, saldoSetelah 40.000 → sebelum 50.000
         assertThat(hasil.getItems()).filteredOn(m -> m.getId().equals(2L)).singleElement()
@@ -205,25 +216,23 @@ class DaftarKoreksiSaldoIT {
     }
 
     @Test
-    @DisplayName("nama subjek kartu tamu terisi (batch); SISWA null")
+    @DisplayName("subjek siswa: siswaId terisi, subjekNama null (master siswa milik admin-be)")
     void namaSubjek() {
         HalamanResponse<MutasiKoreksiItem> hasil =
-                operasi.daftarKoreksi(SEKOLAH, null, null, null, 0, 20);
+                operasi.daftarKoreksi(SEKOLAH, null, null, 0, 20);
 
         assertThat(hasil.getItems()).filteredOn(m -> m.getId().equals(3L)).singleElement()
                 .satisfies(m -> {
-                    assertThat(m.getSubjekTipe()).isEqualTo(SubjekTipe.KARTU_TAMU);
-                    assertThat(m.getSubjekNama()).isEqualTo("Bu Rina");
+                    assertThat(m.getSubjekTipe()).isEqualTo(SubjekTipe.SISWA);
+                    assertThat(m.getSiswaId()).isEqualTo(SISWA_B);
+                    // Nama siswa tidak ada di kantin-be (ADR-0002) → null.
+                    assertThat(m.getSubjekNama()).isNull();
                 });
 
-        // kartu tanpa label → fallback nomor kartu
-        assertThat(hasil.getItems()).filteredOn(m -> m.getId().equals(4L)).singleElement()
-                .satisfies(m -> assertThat(m.getSubjekNama()).isEqualTo("KT-011"));
-
-        // SISWA: nama tidak ada di kantin-be (master siswa milik admin-be)
         assertThat(hasil.getItems()).filteredOn(m -> m.getId().equals(2L)).singleElement()
                 .satisfies(m -> {
                     assertThat(m.getSubjekTipe()).isEqualTo(SubjekTipe.SISWA);
+                    assertThat(m.getSiswaId()).isEqualTo(SISWA_A);
                     assertThat(m.getSubjekNama()).isNull();
                 });
     }
@@ -232,7 +241,7 @@ class DaftarKoreksiSaldoIT {
     @DisplayName("jejak audit terbawa: keterangan, referensi, aktor, transaksi")
     void jejakAudit() {
         HalamanResponse<MutasiKoreksiItem> hasil =
-                operasi.daftarKoreksi(SEKOLAH, null, null, null, 0, 20);
+                operasi.daftarKoreksi(SEKOLAH, null, null, 0, 20);
 
         assertThat(hasil.getItems()).filteredOn(m -> m.getId().equals(2L)).singleElement()
                 .satisfies(m -> {
@@ -247,22 +256,15 @@ class DaftarKoreksiSaldoIT {
     // Helper seed
     // ────────────────────────────────────────────────────────────────
 
-    private void kartu(long id, long sekolah, String nomor, String labelPemegang) {
-        jdbc.update("""
-                INSERT INTO kartu_tamu (id, sekolah_id, nomor_kartu, label_pemegang, dibuat_oleh)
-                VALUES (?, ?, ?, ?, 42)
-                """, id, sekolah, nomor, labelPemegang);
-    }
-
-    private void ledger(long id, long sekolah, String subjekTipe, long subjekId, String arah,
+    private void ledger(long id, long sekolah, long siswaId, String arah,
                         String jenis, long nominal, long saldoSetelah, String waktu,
                         String keterangan) {
         jdbc.update("""
-                INSERT INTO saldo_ledger (id, sekolah_id, subjek_tipe, subjek_id, arah, jenis,
+                INSERT INTO mutasi_saldo (id, sekolah_id, siswa_id, arah, jenis,
                                           nominal, saldo_setelah, referensi_id, keterangan,
                                           aktor_id, waktu)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 77, ?::timestamptz)
-                """, id, sekolah, subjekTipe, subjekId, arah, jenis,
-                nominal, saldoSetelah, "BA-2026-10-15-00" + id, keterangan, waktu);
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::timestamptz)
+                """, id, sekolah, siswaId, arah, jenis,
+                nominal, saldoSetelah, "BA-2026-10-15-00" + id, keterangan, AKTOR, waktu);
     }
 }

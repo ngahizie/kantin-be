@@ -10,6 +10,7 @@ import com.asqi.scholia_kantin_be.service.kasir.PerintahMutasiSaldo;
 import com.asqi.scholia_kantin_be.service.laporan.LaporanService;
 import com.asqi.scholia_kantin_be.service.stok.LedgerStokService;
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import com.asqi.scholia_kantin_be.support.TestcontainersConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -48,9 +49,10 @@ class InvarianCacheLedgerIT {
     private static final long USER_ID = 42L;
 
     /**
-     * ID khas kelas ini. `saldo_cache` ber-PK (subjek_tipe, subjek_id) — TANPA
-     * sekolah_id — sehingga id yang dipakai kelas IT lain (mis. 1000L) sudah
-     * menempati baris yang sama dan membuat lookup per-sekolah gagal.
+     * ID khas kelas ini. `saldo` ber-PK (sekolah_id, siswa_id) di skema v2, jadi
+     * id yang dipakai kelas IT lain (mis. 1000L) tetap aman — tapi blok ini
+     * sengaja memakai rentang sendiri supaya hitungan "cache = Σ ledger"
+     * per-sekolah tidak tercampur data kelas lain.
      */
     private static final long SUBJEK_DASAR = 77_001L;
     private static final long MENU_DASAR = 77_001L;
@@ -99,7 +101,7 @@ class InvarianCacheLedgerIT {
                                 "INV-STOK-" + System.nanoTime(), USER_ID);
                     } else {
                         ledgerStok.keluarPenjualan(SEKOLAH_ID, MENU_DASAR + acak.nextInt(3),
-                                1 + acak.nextInt(3), 800_000L + acak.nextInt(5));
+                                1 + acak.nextInt(3), null);
                     }
                 });
                 berhasil++;
@@ -115,29 +117,28 @@ class InvarianCacheLedgerIT {
         assertThat(hasil.seimbang()).as("seimbang").isTrue();
 
         assertThat(jdbc.queryForObject("""
-                SELECT count(*) FROM saldo_cache c
+                SELECT count(*) FROM saldo c
                 WHERE c.sekolah_id = ? AND c.saldo <> COALESCE((
                     SELECT sum(CASE WHEN l.arah = 'KREDIT' THEN l.nominal ELSE -l.nominal END)
-                      FROM saldo_ledger l
+                      FROM mutasi_saldo l
                      WHERE l.sekolah_id = c.sekolah_id
-                       AND l.subjek_tipe = c.subjek_tipe
-                       AND l.subjek_id = c.subjek_id), 0)
-                """, Integer.class, SEKOLAH_ID)).as("saldo_cache = Σ ledger").isZero();
+                       AND l.siswa_id = c.siswa_id), 0)
+                """, Integer.class, SEKOLAH_ID)).as("saldo = Σ ledger").isZero();
 
         assertThat(jdbc.queryForObject("""
-                SELECT count(*) FROM stok_cache c
+                SELECT count(*) FROM stok c
                 WHERE c.sekolah_id = ? AND c.stok <> COALESCE((
                     SELECT sum(CASE WHEN m.arah = 'MASUK' THEN m.qty ELSE -m.qty END)
-                      FROM mutasi_stok m
+                      FROM riwayat_stok m
                      WHERE m.menu_id = c.menu_id
                        AND m.sekolah_id = c.sekolah_id), 0)
-                """, Integer.class, SEKOLAH_ID)).as("stok_cache = Σ mutasi_stok").isZero();
+                """, Integer.class, SEKOLAH_ID)).as("stok = Σ riwayat_stok").isZero();
 
         // ── Kartu stok: saldo berjalan berurutan (acceptance #2) ────────
         assertThat(jdbc.queryForObject("""
-                SELECT count(*) FROM mutasi_stok a
+                SELECT count(*) FROM riwayat_stok a
                 JOIN LATERAL (
-                    SELECT b.stok_setelah AS prev FROM mutasi_stok b
+                    SELECT b.stok_setelah AS prev FROM riwayat_stok b
                      WHERE b.menu_id = a.menu_id AND (b.waktu, b.id) < (a.waktu, a.id)
                      ORDER BY b.waktu DESC, b.id DESC LIMIT 1) s ON true
                 WHERE a.sekolah_id = ?
@@ -153,21 +154,21 @@ class InvarianCacheLedgerIT {
         t.executeWithoutResult(s -> siapkan());
 
         long sebelum = jdbc.queryForObject(
-                "SELECT saldo FROM saldo_cache WHERE sekolah_id = ? AND subjek_tipe = 'KARTU_TAMU' "
-                        + "AND subjek_id = 77001", Long.class, SEKOLAH_ID);
+                "SELECT saldo FROM saldo WHERE sekolah_id = ? AND siswa_id = ?",
+                Long.class, SEKOLAH_ID, SUBJEK_DASAR);
 
         // Menulis ledger langsung (melewati service) — trigger yang harus menurunkan cache.
         jdbc.update("""
-                INSERT INTO saldo_ledger (id, sekolah_id, subjek_tipe, subjek_id, arah, jenis,
+                INSERT INTO mutasi_saldo (id, sekolah_id, siswa_id, arah, jenis,
                                           nominal, saldo_setelah, referensi_tipe, referensi_id,
                                           keterangan, aktor_id, waktu, created_at)
-                VALUES (?, ?, 'KARTU_TAMU', 77001, 'KREDIT', 'TOPUP_TUNAI', 5000, ?, 'TOPUP',
+                VALUES (?, ?, ?, 'KREDIT', 'TOPUP_TUNAI', 5000, ?, 'TOPUP',
                         'INV-LANGSUNG', 'ledger langsung', ?, now(), now())
-                """, 9_770_001L, SEKOLAH_ID, sebelum + 5000, USER_ID);
+                """, 9_770_001L, SEKOLAH_ID, SUBJEK_DASAR, sebelum + 5000, USER_ID);
 
         assertThat(jdbc.queryForObject(
-                "SELECT saldo FROM saldo_cache WHERE sekolah_id = ? AND subjek_tipe = 'KARTU_TAMU' "
-                        + "AND subjek_id = 77001", Long.class, SEKOLAH_ID))
+                "SELECT saldo FROM saldo WHERE sekolah_id = ? AND siswa_id = ?",
+                Long.class, SEKOLAH_ID, SUBJEK_DASAR))
                 .as("cache turun mengikuti ledger yang ditulis langsung")
                 .isEqualTo(sebelum + 5000);
     }
@@ -175,6 +176,13 @@ class InvarianCacheLedgerIT {
     // ---------------------------------------------------------------- helper
 
     private void siapkan() {
+        // Induk wajib skema v2: sekolah → siswa/pengguna (FK saldo, mutasi_saldo, menu).
+        FixtureInduk.sekolah(jdbc, SEKOLAH_ID);
+        FixtureInduk.pengguna(jdbc, SEKOLAH_ID, USER_ID);
+        for (int i = 0; i < 5; i++) {
+            FixtureInduk.siswa(jdbc, SEKOLAH_ID, SUBJEK_DASAR + i);
+        }
+
         jdbc.update("""
                 INSERT INTO menu (id, sekolah_id, kategori_id, nama, harga_jual, satuan,
                                   stok_minimum, is_active, created_at, updated_at)
@@ -185,7 +193,7 @@ class InvarianCacheLedgerIT {
                 """, MENU_DASAR, SEKOLAH_ID, MENU_DASAR + 1, SEKOLAH_ID, MENU_DASAR + 2, SEKOLAH_ID);
 
         for (int i = 0; i < 5; i++) {
-            saldoCacheRepo.pastikanBarisAda(SubjekTipe.KARTU_TAMU.name(), SUBJEK_DASAR + i, SEKOLAH_ID);
+            saldoCacheRepo.pastikanBarisAda(SEKOLAH_ID, SUBJEK_DASAR + i);
         }
     }
 
@@ -193,8 +201,8 @@ class InvarianCacheLedgerIT {
                                               JenisMutasiSaldo jenis, String idempotencyKey) {
         return PerintahMutasiSaldo.builder()
                 .sekolahId(SEKOLAH_ID)
-                .subjekTipe(SubjekTipe.KARTU_TAMU)
-                .subjekId(subjekId)
+                .subjekTipe(SubjekTipe.SISWA)
+                .siswaId(subjekId)
                 .jenis(jenis)
                 .nominal(nominal)
                 .idempotencyKey(idempotencyKey)

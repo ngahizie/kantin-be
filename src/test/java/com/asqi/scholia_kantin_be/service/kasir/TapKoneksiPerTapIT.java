@@ -23,6 +23,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -47,7 +48,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>Memakai PostgreSQL nyata (Testcontainers) karena metrik Hikari baru muncul
  * saat koneksi benar-benar diambil dari kolam.
  */
-@SpringBootTest
+// v2: KartuLookupLokal/CariSiswaLokal @Primary aktif saat kantin.siswa.sumber=lokal
+// (default) sehingga bertabrakan dengan fake @Primary milik kelas ini.
+@SpringBootTest(properties = "kantin.siswa.sumber=integrasi")
 @Import({TestcontainersConfig.class, TapKoneksiPerTapIT.FakePortConfig.class})
 @EnabledIfDockerAvailable
 @DisplayName("#180 — satu tap = satu pengambilan koneksi Hikari")
@@ -86,14 +89,24 @@ class TapKoneksiPerTapIT {
 
     @BeforeEach
     void bersihkan() {
-        jdbc.execute("TRUNCATE TABLE transaksi_menunggu_konfirmasi, transaksi_item, transaksi, "
-                + "sesi_kasir, titik_kasir, saldo_ledger, saldo_cache, mutasi_stok, stok_cache, "
-                + "sekolah_kantin_config CASCADE");
+        jdbc.execute("TRUNCATE TABLE transaksi_tertunda, transaksi_item, transaksi, "
+                + "sesi_kasir, titik_kasir, mutasi_saldo, saldo, riwayat_stok, stok, "
+                + "pengaturan_kantin CASCADE");
+
+        FixtureInduk.sekolah(jdbc, SEKOLAH);
+
+        FixtureInduk.penggunaUmum(jdbc, SEKOLAH);
+
+        FixtureInduk.kategoriUmum(jdbc, SEKOLAH);
+
+        FixtureInduk.kartu(jdbc, SEKOLAH, SISWA, UID);
+        FixtureInduk.siswa(jdbc, SEKOLAH, SISWA);
+        FixtureInduk.menu(jdbc, SEKOLAH, MENU_NASI);
         jdbc.update("INSERT INTO titik_kasir (id, sekolah_id, nama, is_active, created_at, updated_at) "
                 + "VALUES (?, ?, 'Kasir 1', true, now(), now())", TITIK, SEKOLAH);
 
         tx.executeWithoutResult(s -> ledgerSaldo.kredit(PerintahMutasiSaldo.builder()
-                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).subjekId(SISWA)
+                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).siswaId(SISWA)
                 .jenis(JenisMutasiSaldo.TOPUP_TUNAI).nominal(500_000).idempotencyKey("seed-saldo").build()));
         tx.executeWithoutResult(s -> ledgerStok.masukBarang(SEKOLAH, MENU_NASI, 100, 4_000, "BARANG_MASUK", "BM-1", 1L));
     }
@@ -192,7 +205,7 @@ class TapKoneksiPerTapIT {
                 if (UID.equals(rfidUid) && sekolahId == SEKOLAH) {
                     return InfoKartu.builder()
                             .dikenal(true).diblokir(false)
-                            .subjekTipe(SubjekTipe.SISWA).subjekId(SISWA)
+                            .subjekTipe(SubjekTipe.SISWA).siswaId(SISWA)
                             .nama("Budi").kelas("5A")
                             .limitHarian(1_000_000L)
                             .build();

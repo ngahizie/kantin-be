@@ -15,6 +15,7 @@ import com.asqi.scholia_kantin_be.service.integrasi.KartuLookupPort;
 import com.asqi.scholia_kantin_be.service.integrasi.MenuLookupPort;
 import com.asqi.scholia_kantin_be.service.stok.LedgerStokService;
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import com.asqi.scholia_kantin_be.support.TestcontainersConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -42,7 +43,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * sehingga blokir berlaku <b>instan</b> di jalur tap (PRD §11.11), limit &amp;
  * blokir item ditegakkan, serta tenant scoping &amp; audit (PRD §11.4/§11.7).
  */
-@SpringBootTest
+// v2: KartuLookupLokal/CariSiswaLokal @Primary aktif saat kantin.siswa.sumber=lokal
+// (default) sehingga bertabrakan dengan fake @Primary milik kelas ini.
+@SpringBootTest(properties = "kantin.siswa.sumber=integrasi")
 @Import({TestcontainersConfig.class, KontrolKartuServiceIT.FakePortConfig.class})
 @EnabledIfDockerAvailable
 class KontrolKartuServiceIT {
@@ -55,6 +58,7 @@ class KontrolKartuServiceIT {
     private static final long KATEGORI_ES = 200L;
     private static final long TITIK = 1L;
     private static final long ADMIN = 900L;
+    private static final long PETUGAS_AKTOR = 555L;
     private static final String UID = "A1B2C3D4";
 
     @Autowired
@@ -80,14 +84,35 @@ class KontrolKartuServiceIT {
 
     @BeforeEach
     void bersihkan() {
-        jdbc.execute("TRUNCATE TABLE blokir_kartu, limit_harian, blokir_item, transaksi_item, "
-                + "transaksi, sesi_kasir, titik_kasir, saldo_ledger, saldo_cache, mutasi_stok, "
-                + "stok_cache, audit_log CASCADE");
+        // Skema v2 menggabungkan blokir_kartu/limit_harian/blokir_item → pembatasan.
+        jdbc.execute("TRUNCATE TABLE pembatasan, transaksi_item, "
+                + "transaksi, sesi_kasir, titik_kasir, mutasi_saldo, saldo, riwayat_stok, "
+                + "stok, kategori_menu, menu, catatan_audit CASCADE");
+
+        // Induk wajib skema v2 (FK): sekolah → siswa/pengguna, menu → kategori_menu.
+        FixtureInduk.sekolah(jdbc, SEKOLAH, SEKOLAH_LAIN);
+        FixtureInduk.kategoriUmum(jdbc, SEKOLAH);
+        FixtureInduk.penggunaUmum(jdbc, SEKOLAH);
+        FixtureInduk.siswa(jdbc, SEKOLAH, SISWA);
+        jdbc.update("INSERT INTO kategori_menu (id, sekolah_id, nama, urutan, is_active, created_at, updated_at) "
+                + "VALUES (?, ?, 'Minuman', 0, true, now(), now()) ON CONFLICT DO NOTHING",
+                KATEGORI_ES, SEKOLAH);
+        jdbc.update("INSERT INTO menu (id, sekolah_id, kategori_id, nama, harga_jual, satuan, "
+                + "stok_minimum, is_active, created_at, updated_at) "
+                + "VALUES (?, ?, NULL, 'Nasi Uduk', 8000, 'PCS', 0, true, now(), now()) "
+                + "ON CONFLICT DO NOTHING", MENU_NASI, SEKOLAH);
+        jdbc.update("INSERT INTO menu (id, sekolah_id, kategori_id, nama, harga_jual, satuan, "
+                + "stok_minimum, is_active, created_at, updated_at) "
+                + "VALUES (?, ?, ?, 'Es Jeruk', 5000, 'PCS', 0, true, now(), now()) "
+                + "ON CONFLICT DO NOTHING", MENU_ES, SEKOLAH, KATEGORI_ES);
+        jdbc.update("INSERT INTO kartu (uid, sekolah_id, siswa_id, nomor_kartu) "
+                + "VALUES (?, ?, ?, 'KRT-001') ON CONFLICT (uid) DO NOTHING", UID, SEKOLAH, SISWA);
+
         jdbc.update("INSERT INTO titik_kasir (id, sekolah_id, nama, is_active, created_at, updated_at) "
                 + "VALUES (?, ?, 'Kasir 1', true, now(), now())", TITIK, SEKOLAH);
 
         tx.executeWithoutResult(s -> ledgerSaldo.kredit(PerintahMutasiSaldo.builder()
-                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).subjekId(SISWA)
+                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).siswaId(SISWA)
                 .jenis(JenisMutasiSaldo.TOPUP_TUNAI).nominal(100_000).idempotencyKey("seed").build()));
         tx.executeWithoutResult(s -> ledgerStok.masukBarang(SEKOLAH, MENU_NASI, 20, 4_000, "BARANG_MASUK", "BM-1", 1L));
         tx.executeWithoutResult(s -> ledgerStok.masukBarang(SEKOLAH, MENU_ES, 20, 2_000, "BARANG_MASUK", "BM-2", 1L));
@@ -127,20 +152,20 @@ class KontrolKartuServiceIT {
         assertThat(t1.getTotal()).isEqualTo(8_000L);
 
         // Blokir — lalu tap berikutnya (detik yang sama) HARUS ditolak.
-        kontrol.ubahBlokir(SEKOLAH, SubjekTipe.SISWA, SISWA, true, "Atas permintaan ortu", ADMIN);
+        kontrol.ubahBlokir(SEKOLAH, SISWA, true, "Atas permintaan ortu", ADMIN);
 
         assertThatThrownBy(() -> tapService.tap(SEKOLAH, petugas, request("t2", 1, 0)))
                 .hasMessageContaining("Kartu diblokir, hubungi orang tua");
 
         // Saldo tidak berkurang oleh tap yang ditolak.
-        assertThat(ledgerSaldo.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA)).isEqualTo(92_000L);
+        assertThat(ledgerSaldo.saldo(SEKOLAH, SISWA)).isEqualTo(92_000L);
     }
 
     @Test
     @DisplayName("#40: buka blokir → tap lolos lagi")
     void bukaBlokir() {
-        kontrol.ubahBlokir(SEKOLAH, SubjekTipe.SISWA, SISWA, true, "blokir", ADMIN);
-        kontrol.ubahBlokir(SEKOLAH, SubjekTipe.SISWA, SISWA, false, "dibuka", ADMIN);
+        kontrol.ubahBlokir(SEKOLAH, SISWA, true, "blokir", ADMIN);
+        kontrol.ubahBlokir(SEKOLAH, SISWA, false, "dibuka", ADMIN);
 
         TapResponse t = tapService.tap(SEKOLAH, petugas, request("t1", 1, 0));
         assertThat(t.getTotal()).isEqualTo(8_000L);
@@ -149,10 +174,10 @@ class KontrolKartuServiceIT {
     @Test
     @DisplayName("#40: blokir tercatat di audit (nilai lama → baru)")
     void blokirTercatatAudit() {
-        kontrol.ubahBlokir(SEKOLAH, SubjekTipe.SISWA, SISWA, true, "hilang", ADMIN);
+        kontrol.ubahBlokir(SEKOLAH, SISWA, true, "hilang", ADMIN);
 
         Integer audit = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM audit_log WHERE aksi = 'BLOKIR_KARTU'", Integer.class);
+                "SELECT COUNT(*) FROM catatan_audit WHERE aksi = 'BLOKIR_KARTU'", Integer.class);
         assertThat(audit).isEqualTo(1);
     }
 
@@ -163,7 +188,7 @@ class KontrolKartuServiceIT {
     @Test
     @DisplayName("#40: limit harian ditegakkan — melebihi limit ditolak")
     void limitHarianDitegakkan() {
-        kontrol.setLimit(SEKOLAH, SubjekTipe.SISWA, SISWA, 10_000L, ADMIN);
+        kontrol.setLimit(SEKOLAH, SISWA, 10_000L, ADMIN);
 
         // 2×8.000 = 16.000 > 10.000 → ditolak (sisa Rp 10000).
         assertThatThrownBy(() -> tapService.tap(SEKOLAH, petugas, request("t1", 2, 0)))
@@ -177,18 +202,9 @@ class KontrolKartuServiceIT {
     @Test
     @DisplayName("#40: nominal null = tanpa limit")
     void limitNullTanpaLimit() {
-        kontrol.setLimit(SEKOLAH, SubjekTipe.SISWA, SISWA, null, ADMIN);
+        kontrol.setLimit(SEKOLAH, SISWA, null, ADMIN);
         TapResponse t = tapService.tap(SEKOLAH, petugas, request("t1", 5, 0)); // 40.000
         assertThat(t.getTotal()).isEqualTo(40_000L);
-    }
-
-    @Test
-    @DisplayName("#40: limit harian hanya untuk siswa — Kartu Tamu ditolak")
-    void limitKartuTamuDitolak() {
-        assertThatThrownBy(() ->
-                kontrol.setLimit(SEKOLAH, SubjekTipe.KARTU_TAMU, 99L, 10_000L, ADMIN))
-                .isInstanceOf(InvalidOperationException.class)
-                .hasMessageContaining("siswa");
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -198,7 +214,7 @@ class KontrolKartuServiceIT {
     @Test
     @DisplayName("#40: blokir item — tap item yang diblokir ditolak")
     void blokirItemDitegakkan() {
-        kontrol.ubahBlokirItem(SEKOLAH, SubjekTipe.SISWA, SISWA, MENU_NASI, null, true, ADMIN);
+        kontrol.ubahBlokirItem(SEKOLAH, SISWA, MENU_NASI, null, true, ADMIN);
 
         assertThatThrownBy(() -> tapService.tap(SEKOLAH, petugas, request("t1", 1, 0)))
                 .hasMessageContaining("Nasi Uduk").hasMessageContaining("diblokir oleh orang tua");
@@ -211,7 +227,7 @@ class KontrolKartuServiceIT {
     @Test
     @DisplayName("#40: blokir kategori — tap item sekategori ditolak")
     void blokirKategoriDitegakkan() {
-        kontrol.ubahBlokirItem(SEKOLAH, SubjekTipe.SISWA, SISWA, null, KATEGORI_ES, true, ADMIN);
+        kontrol.ubahBlokirItem(SEKOLAH, SISWA, null, KATEGORI_ES, true, ADMIN);
 
         assertThatThrownBy(() -> tapService.tap(SEKOLAH, petugas, request("t1", 0, 1)))
                 .hasMessageContaining("Es Jeruk").hasMessageContaining("diblokir oleh orang tua");
@@ -221,11 +237,11 @@ class KontrolKartuServiceIT {
     @DisplayName("#40: blokir item harus tepat satu target (menu ATAU kategori)")
     void blokirItemDuaTargetDitolak() {
         assertThatThrownBy(() ->
-                kontrol.ubahBlokirItem(SEKOLAH, SubjekTipe.SISWA, SISWA, MENU_NASI, KATEGORI_ES, true, ADMIN))
+                kontrol.ubahBlokirItem(SEKOLAH, SISWA, MENU_NASI, KATEGORI_ES, true, ADMIN))
                 .isInstanceOf(InvalidOperationException.class)
                 .hasMessageContaining("tepat satu");
         assertThatThrownBy(() ->
-                kontrol.ubahBlokirItem(SEKOLAH, SubjekTipe.SISWA, SISWA, null, null, true, ADMIN))
+                kontrol.ubahBlokirItem(SEKOLAH, SISWA, null, null, true, ADMIN))
                 .isInstanceOf(InvalidOperationException.class);
     }
 
@@ -236,11 +252,11 @@ class KontrolKartuServiceIT {
     @Test
     @DisplayName("#40: ringkasan kontrol mencerminkan blokir/limit/item")
     void ringkasanKontrol() {
-        kontrol.ubahBlokir(SEKOLAH, SubjekTipe.SISWA, SISWA, true, "hilang", ADMIN);
-        kontrol.setLimit(SEKOLAH, SubjekTipe.SISWA, SISWA, 25_000L, ADMIN);
-        kontrol.ubahBlokirItem(SEKOLAH, SubjekTipe.SISWA, SISWA, MENU_NASI, null, true, ADMIN);
+        kontrol.ubahBlokir(SEKOLAH, SISWA, true, "hilang", ADMIN);
+        kontrol.setLimit(SEKOLAH, SISWA, 25_000L, ADMIN);
+        kontrol.ubahBlokirItem(SEKOLAH, SISWA, MENU_NASI, null, true, ADMIN);
 
-        var k = kontrol.kontrol(SEKOLAH, SubjekTipe.SISWA, SISWA);
+        var k = kontrol.kontrol(SEKOLAH, SISWA);
         assertThat(k.isDiblokir()).isTrue();
         assertThat(k.getAlasanBlokir()).isEqualTo("hilang");
         assertThat(k.getLimitHarian()).isEqualTo(25_000L);
@@ -252,9 +268,9 @@ class KontrolKartuServiceIT {
     @Test
     @DisplayName("#40: tenant scoping — kontrol sekolah lain tidak bocor")
     void kontrolTenantScoped() {
-        kontrol.ubahBlokir(SEKOLAH, SubjekTipe.SISWA, SISWA, true, "hilang", ADMIN);
+        kontrol.ubahBlokir(SEKOLAH, SISWA, true, "hilang", ADMIN);
 
-        var lain = kontrol.kontrol(SEKOLAH_LAIN, SubjekTipe.SISWA, SISWA);
+        var lain = kontrol.kontrol(SEKOLAH_LAIN, SISWA);
         assertThat(lain.isDiblokir()).isFalse();
         assertThat(lain.isAdaLimit()).isFalse();
         assertThat(lain.getMenuDiblokir()).isEmpty();
@@ -271,7 +287,7 @@ class KontrolKartuServiceIT {
                 if (UID.equals(rfidUid) && sekolahId == SEKOLAH) {
                     return InfoKartu.builder()
                             .dikenal(true).diblokir(false)
-                            .subjekTipe(SubjekTipe.SISWA).subjekId(SISWA)
+                            .subjekTipe(SubjekTipe.SISWA).siswaId(SISWA)
                             .nama("Budi").kelas("5A")
                             .limitHarian(1_000_000L)
                             .build();

@@ -4,6 +4,7 @@ import com.asqi.scholia_kantin_be.component.exception.ConflictException;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import com.asqi.scholia_kantin_be.support.TestcontainersConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -57,15 +58,18 @@ class LedgerSaldoServiceIT {
     void bersihkan() {
         // Urutan penting: hapus anak dulu (trigger append-only melarang DELETE
         // pada ledger, jadi test ini memakai skema bersih per-kelas).
-        jdbc.execute("TRUNCATE TABLE saldo_ledger, saldo_cache CASCADE");
+        jdbc.execute("TRUNCATE TABLE mutasi_saldo, saldo CASCADE");
         subjekId = 1000L;
+        // Skema v2: saldo/mutasi_saldo ber-FK ke sekolah + siswa (wajib ada).
+        FixtureInduk.sekolah(jdbc, SEKOLAH);
+        FixtureInduk.siswa(jdbc, SEKOLAH, subjekId);
     }
 
     private PerintahMutasiSaldo perintah(JenisMutasiSaldo jenis, long nominal, String key) {
         return PerintahMutasiSaldo.builder()
                 .sekolahId(SEKOLAH)
                 .subjekTipe(SubjekTipe.SISWA)
-                .subjekId(subjekId)
+                .siswaId(subjekId)
                 .jenis(jenis)
                 .nominal(nominal)
                 .idempotencyKey(key)
@@ -84,11 +88,11 @@ class LedgerSaldoServiceIT {
         var hasil = tx.execute(s -> ledger.debit(perintah(JenisMutasiSaldo.PENJUALAN, 8_000, "k2")));
 
         assertThat(hasil.getSaldoSetelah()).isEqualTo(42_000L);
-        assertThat(ledger.saldo(SEKOLAH, SubjekTipe.SISWA, subjekId)).isEqualTo(42_000L);
-        assertThat(ledger.hitungUlangDariLedger(SEKOLAH, SubjekTipe.SISWA, subjekId)).isEqualTo(42_000L);
+        assertThat(ledger.saldo(SEKOLAH, subjekId)).isEqualTo(42_000L);
+        assertThat(ledger.hitungUlangDariLedger(SEKOLAH, subjekId)).isEqualTo(42_000L);
 
         Integer baris = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM saldo_ledger WHERE sekolah_id = ?", Integer.class, SEKOLAH);
+                "SELECT COUNT(*) FROM mutasi_saldo WHERE sekolah_id = ?", Integer.class, SEKOLAH);
         assertThat(baris).isEqualTo(2);
     }
 
@@ -103,10 +107,10 @@ class LedgerSaldoServiceIT {
         assertThat(pertama.isIdempotentReplay()).isFalse();
         assertThat(kedua.isIdempotentReplay()).isTrue();
         assertThat(kedua.getSaldoSetelah()).isEqualTo(40_000L);
-        assertThat(ledger.saldo(SEKOLAH, SubjekTipe.SISWA, subjekId)).isEqualTo(40_000L);
+        assertThat(ledger.saldo(SEKOLAH, subjekId)).isEqualTo(40_000L);
 
         Integer barisDebit = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM saldo_ledger WHERE idempotency_key = 'tap-abc'", Integer.class);
+                "SELECT COUNT(*) FROM mutasi_saldo WHERE idempotency_key = 'tap-abc'", Integer.class);
         assertThat(barisDebit).isEqualTo(1);
     }
 
@@ -120,9 +124,9 @@ class LedgerSaldoServiceIT {
                 .isInstanceOf(ConflictException.class)
                 .hasMessageContaining("Saldo kurang");
 
-        assertThat(ledger.saldo(SEKOLAH, SubjekTipe.SISWA, subjekId)).isEqualTo(5_000L);
+        assertThat(ledger.saldo(SEKOLAH, subjekId)).isEqualTo(5_000L);
         Integer barisDebit = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM saldo_ledger WHERE arah = 'DEBIT'", Integer.class);
+                "SELECT COUNT(*) FROM mutasi_saldo WHERE arah = 'DEBIT'", Integer.class);
         assertThat(barisDebit).isZero();
     }
 
@@ -162,14 +166,14 @@ class LedgerSaldoServiceIT {
         }
         pool.shutdown();
 
-        long saldoAkhir = ledger.saldo(SEKOLAH, SubjekTipe.SISWA, subjekId);
+        long saldoAkhir = ledger.saldo(SEKOLAH, subjekId);
         assertThat(sukses.get()).isEqualTo(5);
         assertThat(gagal.get()).isEqualTo(3);
         assertThat(saldoAkhir).isZero();
         assertThat(saldoAkhir).isGreaterThanOrEqualTo(0);
         // Jumlah debit yang tercatat = jumlah sukses (tidak ada double-spend).
         Integer debitRows = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM saldo_ledger WHERE arah = 'DEBIT'", Integer.class);
+                "SELECT COUNT(*) FROM mutasi_saldo WHERE arah = 'DEBIT'", Integer.class);
         assertThat(debitRows).isEqualTo(5);
     }
 
@@ -192,7 +196,7 @@ class LedgerSaldoServiceIT {
                 try {
                     tx.executeWithoutResult(s -> {
                         // Meniru TapService: entity saldo sudah masuk persistence context sebelum FOR UPDATE.
-                        assertThat(ledger.saldo(SEKOLAH, SubjekTipe.SISWA, subjekId)).isEqualTo(25_000L);
+                        assertThat(ledger.saldo(SEKOLAH, subjekId)).isEqualTo(25_000L);
                         sudahMembaca.countDown();
                         try {
                             assertThat(lanjut.await(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
@@ -216,8 +220,8 @@ class LedgerSaldoServiceIT {
 
         assertThat(sukses.get()).isEqualTo(2);
         assertThat(gagal.get()).isEqualTo(8);
-        assertThat(ledger.saldo(SEKOLAH, SubjekTipe.SISWA, subjekId)).isEqualTo(5_000L);
-        assertThat(ledger.hitungUlangDariLedger(SEKOLAH, SubjekTipe.SISWA, subjekId)).isEqualTo(5_000L);
+        assertThat(ledger.saldo(SEKOLAH, subjekId)).isEqualTo(5_000L);
+        assertThat(ledger.hitungUlangDariLedger(SEKOLAH, subjekId)).isEqualTo(5_000L);
     }
 
     @Test
@@ -247,17 +251,17 @@ class LedgerSaldoServiceIT {
         pool.shutdown();
 
         assertThat(sukses.get()).isEqualTo(paralel);
-        long saldoAkhir = ledger.saldo(SEKOLAH, SubjekTipe.SISWA, subjekId);
+        long saldoAkhir = ledger.saldo(SEKOLAH, subjekId);
         assertThat(saldoAkhir).isEqualTo(paralel * nominal); // tak ada top-up yang hilang
         Long saldoTerakhir = jdbc.queryForObject(
-                "SELECT saldo_setelah FROM saldo_ledger WHERE sekolah_id = ? ORDER BY id DESC LIMIT 1",
+                "SELECT saldo_setelah FROM mutasi_saldo WHERE sekolah_id = ? ORDER BY id DESC LIMIT 1",
                 Long.class, SEKOLAH);
         assertThat(saldoTerakhir).isEqualTo(saldoAkhir); // baris terakhir konsisten dgn cache
         Integer kreditRows = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM saldo_ledger WHERE sekolah_id = ? AND arah = 'KREDIT'",
+                "SELECT COUNT(*) FROM mutasi_saldo WHERE sekolah_id = ? AND arah = 'KREDIT'",
                 Integer.class, SEKOLAH);
         assertThat(kreditRows).isEqualTo(paralel);
-        assertThat(ledger.hitungUlangDariLedger(SEKOLAH, SubjekTipe.SISWA, subjekId))
+        assertThat(ledger.hitungUlangDariLedger(SEKOLAH, subjekId))
                 .isEqualTo(saldoAkhir); // cache == Σ ledger
     }
 
@@ -268,11 +272,11 @@ class LedgerSaldoServiceIT {
         isiSaldo(10_000);
 
         assertThatThrownBy(() -> jdbc.update(
-                "UPDATE saldo_ledger SET nominal = 1 WHERE sekolah_id = ?", SEKOLAH))
+                "UPDATE mutasi_saldo SET nominal = 1 WHERE sekolah_id = ?", SEKOLAH))
                 .hasMessageContaining("append-only");
 
         assertThatThrownBy(() -> jdbc.update(
-                "DELETE FROM saldo_ledger WHERE sekolah_id = ?", SEKOLAH))
+                "DELETE FROM mutasi_saldo WHERE sekolah_id = ?", SEKOLAH))
                 .hasMessageContaining("append-only");
     }
 }

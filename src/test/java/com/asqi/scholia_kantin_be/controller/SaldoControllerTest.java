@@ -84,7 +84,7 @@ class SaldoControllerTest {
     void topupMeneruskanTenantDanAktor() throws Exception {
         TopUpRequest req = new TopUpRequest();
         req.setSubjekTipe(SubjekTipe.SISWA);
-        req.setSubjekId(100L);
+        req.setSiswaId(100L);
         req.setNominal(50_000);
         req.setPenyetor("Ibu Ani");
         req.setReferensiId("TU-2026-0001");
@@ -106,7 +106,7 @@ class SaldoControllerTest {
     void topupTanpaReferensiDitolakValidasi() throws Exception {
         TopUpRequest req = new TopUpRequest();
         req.setSubjekTipe(SubjekTipe.SISWA);
-        req.setSubjekId(100L);
+        req.setSiswaId(100L);
         req.setNominal(50_000);
         // referensiId kosong
 
@@ -118,16 +118,15 @@ class SaldoControllerTest {
 
     @Test
     void lihatSaldoMengembalikanRingkasan() throws Exception {
-        when(operasi.lihat(eq(7L), eq(SubjekTipe.SISWA), eq(100L), eq(20)))
+        when(operasi.lihat(eq(7L), eq(100L), eq(20)))
                 .thenReturn(SaldoResponse.builder()
-                        .subjekTipe(SubjekTipe.SISWA).subjekId(100L)
+                        .subjekTipe(SubjekTipe.SISWA).siswaId(100L)
                         .saldo(35_000L).belanjaHariIni(15_000L)
                         .mutasiTerbaru(List.<MutasiSaldoItem>of())
                         .build());
 
         mockMvc.perform(get("/api/saldo")
-                        .param("subjekTipe", "SISWA")
-                        .param("subjekId", "100"))
+                        .param("siswaId", "100"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.saldo").value(35000))
                 .andExpect(jsonPath("$.data.belanjaHariIni").value(15000));

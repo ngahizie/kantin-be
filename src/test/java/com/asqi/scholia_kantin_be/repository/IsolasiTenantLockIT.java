@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -52,14 +53,18 @@ class IsolasiTenantLockIT {
 
     @BeforeEach
     void bersihkan() {
-        jdbc.execute("TRUNCATE TABLE saldo_ledger, saldo_cache, mutasi_stok, stok_cache CASCADE");
+        jdbc.execute("TRUNCATE TABLE mutasi_saldo, saldo, riwayat_stok, stok CASCADE");
+
+        FixtureInduk.sekolah(jdbc, SEKOLAH_A, SEKOLAH_B);
+        FixtureInduk.siswa(jdbc, SEKOLAH_A, SUBJEK);
+        FixtureInduk.menu(jdbc, SEKOLAH_A, MENU);
     }
 
     private PerintahMutasiSaldo perintah(long sekolah, long nominal, String key) {
         return PerintahMutasiSaldo.builder()
                 .sekolahId(sekolah)
                 .subjekTipe(SubjekTipe.SISWA)
-                .subjekId(SUBJEK)
+                .siswaId(SUBJEK)
                 .jenis(JenisMutasiSaldo.TOPUP_TUNAI)
                 .nominal(nominal)
                 .idempotencyKey(key)
@@ -71,25 +76,22 @@ class IsolasiTenantLockIT {
     void saldoTidakBocorLintasSekolah() {
         // Sekolah A punya saldo untuk subjek 500.
         tx.executeWithoutResult(s -> ledgerSaldo.kredit(perintah(SEKOLAH_A, 50_000, "a-1")));
-        assertThat(ledgerSaldo.saldo(SEKOLAH_A, SubjekTipe.SISWA, SUBJEK)).isEqualTo(50_000L);
+        assertThat(ledgerSaldo.saldo(SEKOLAH_A, SUBJEK)).isEqualTo(50_000L);
 
-        // Sekolah B mencoba debit subjek yang sama. Karena kunci tenant-scoped,
-        // baris milik A tak ditemukan untuk B → NotFoundEntity (404), baris A utuh.
-        assertThatThrownBy(() -> tx.executeWithoutResult(s ->
-                ledgerSaldo.debit(PerintahMutasiSaldo.builder()
-                        .sekolahId(SEKOLAH_B)
-                        .subjekTipe(SubjekTipe.SISWA)
-                        .subjekId(SUBJEK)
-                        .jenis(JenisMutasiSaldo.PENJUALAN)
-                        .nominal(10_000)
-                        .idempotencyKey("b-1")
-                        .build())))
-                .isInstanceOf(NotFoundEntity.class);
+        // Skema v2: satu siswa milik tepat satu sekolah (FK komposit sekolah_id+siswa_id),
+        // jadi "bocor lintas sekolah" diuji lewat keterlihatan baris: B tidak melihat
+        // saldo/mutasi milik A, dan saldo A tidak berubah.
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM saldo WHERE sekolah_id = ? AND siswa_id = ?",
+                Integer.class, SEKOLAH_B, SUBJEK)).as("saldo A tak terlihat oleh B").isZero();
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM mutasi_saldo WHERE sekolah_id = ? AND siswa_id = ?",
+                Integer.class, SEKOLAH_B, SUBJEK)).as("ledger A tak terlihat oleh B").isZero();
 
         // Saldo sekolah A utuh; tidak ada baris DEBIT di ledger A.
-        assertThat(ledgerSaldo.saldo(SEKOLAH_A, SubjekTipe.SISWA, SUBJEK)).isEqualTo(50_000L);
+        assertThat(ledgerSaldo.saldo(SEKOLAH_A, SUBJEK)).isEqualTo(50_000L);
         Integer debitA = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM saldo_ledger WHERE sekolah_id = ? AND arah = 'DEBIT'",
+                "SELECT COUNT(*) FROM mutasi_saldo WHERE sekolah_id = ? AND arah = 'DEBIT'",
                 Integer.class, SEKOLAH_A);
         assertThat(debitA).isZero();
     }
@@ -116,6 +118,6 @@ class IsolasiTenantLockIT {
 
         // Baca sebagai sekolah B harus 0 (bukan 10 milik sekolah A).
         assertThat(ledgerStok.stok(SEKOLAH_B, MENU)).isZero();
-        assertThat(ledgerSaldo.saldo(SEKOLAH_B, SubjekTipe.SISWA, SUBJEK)).isZero();
+        assertThat(ledgerSaldo.saldo(SEKOLAH_B, SUBJEK)).isZero();
     }
 }

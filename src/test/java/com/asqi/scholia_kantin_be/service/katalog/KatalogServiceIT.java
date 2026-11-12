@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -49,6 +50,8 @@ class KatalogServiceIT {
     @BeforeEach
     void bersihkan() {
         jdbc.execute("TRUNCATE TABLE menu, kategori_menu CASCADE");
+
+        FixtureInduk.sekolah(jdbc, SEKOLAH, SEKOLAH_LAIN);
     }
 
     @Test
@@ -90,7 +93,7 @@ class KatalogServiceIT {
 
         assertThat(diubah.getHargaJual()).isEqualTo(4_000L);
         Integer jumlah = jdbc.queryForObject(
-                "SELECT count(*) FROM audit_log WHERE aksi = 'UBAH_HARGA_JUAL' AND entitas_id = ?",
+                "SELECT count(*) FROM catatan_audit WHERE aksi = 'UBAH_HARGA_JUAL' AND entitas_id = ?",
                 Integer.class, String.valueOf(menu.getId()));
         assertThat(jumlah).isEqualTo(1);
     }
@@ -206,9 +209,9 @@ class KatalogServiceIT {
                 2_500L, SatuanMenu.PCS, null, 0, 1L);
 
         // Baris stok sudah dibuat otomatis saat buatMenu (#113) → cukup UPDATE.
-        jdbc.update("UPDATE stok_cache SET stok = ? WHERE menu_id = ?", 12, menuA.getId());
-        jdbc.update("UPDATE stok_cache SET stok = ? WHERE menu_id = ?", 4, menuB.getId());
-        jdbc.update("UPDATE stok_cache SET stok = ? WHERE menu_id = ?", 99, menuSekolahLain.getId());
+        jdbc.update("UPDATE stok SET stok = ? WHERE menu_id = ?", 12, menuA.getId());
+        jdbc.update("UPDATE stok SET stok = ? WHERE menu_id = ?", 4, menuB.getId());
+        jdbc.update("UPDATE stok SET stok = ? WHERE menu_id = ?", 99, menuSekolahLain.getId());
 
         var stok = katalog.stokBerjalan(SEKOLAH,
                 java.util.List.of(menuA.getId(), menuB.getId(), menuC.getId()));
@@ -228,7 +231,7 @@ class KatalogServiceIT {
 
         assertThat(katalog.stokBerjalan(SEKOLAH, menu.getId())).isZero();
 
-        jdbc.update("UPDATE stok_cache SET stok = ? WHERE menu_id = ?", 8, menu.getId());
+        jdbc.update("UPDATE stok SET stok = ? WHERE menu_id = ?", 8, menu.getId());
 
         assertThat(katalog.stokBerjalan(SEKOLAH, menu.getId())).isEqualTo(8);
         // Sekolah lain tak melihat stok sekolah pemilik baris.
@@ -236,22 +239,22 @@ class KatalogServiceIT {
     }
 
     // ────────────────────────────────────────────────────────────────
-    // #113 — sinkron stok_minimum menu → stok_cache
+    // #113 — sinkron stok_minimum menu → stok
     // ────────────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("#113: buat menu → baris stok_cache dibuat dengan stok_minimum = menu.stok_minimum")
+    @DisplayName("#113: buat menu → baris stok dibuat dengan stok_minimum = menu.stok_minimum")
     void buatMenuSinkronStokMinimum() {
         var menu = katalog.buatMenu(SEKOLAH, null, "Nasi Uduk",
                 8_000L, SatuanMenu.PORSI, null, 7, 1L);
 
         Integer min = jdbc.queryForObject(
-                "SELECT stok_minimum FROM stok_cache WHERE menu_id = ?", Integer.class, menu.getId());
+                "SELECT stok_minimum FROM stok WHERE menu_id = ?", Integer.class, menu.getId());
         assertThat(min).isEqualTo(7);
     }
 
     @Test
-    @DisplayName("#113: ubah stok_minimum menu → stok_cache ikut tersinkron")
+    @DisplayName("#113: ubah stok_minimum menu → stok ikut tersinkron")
     void ubahMenuSinkronStokMinimum() {
         var menu = katalog.buatMenu(SEKOLAH, null, "Es Jeruk",
                 5_000L, SatuanMenu.BOTOL, null, 3, 1L);
@@ -259,7 +262,7 @@ class KatalogServiceIT {
         katalog.ubahMenu(SEKOLAH, menu.getId(), null, null, null, null, null, 10, null, 1L);
 
         Integer min = jdbc.queryForObject(
-                "SELECT stok_minimum FROM stok_cache WHERE menu_id = ?", Integer.class, menu.getId());
+                "SELECT stok_minimum FROM stok WHERE menu_id = ?", Integer.class, menu.getId());
         assertThat(min).isEqualTo(10);
     }
 

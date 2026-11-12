@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -38,7 +39,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * <p>Menegakkan: saldo &amp; stok kembali, kompensasi lewat <b>mutasi pembalik
  * baru</b> (ledger asli tak diubah), alasan wajib, dan hanya sesi terbuka.
  */
-@SpringBootTest
+@SpringBootTest(properties = "kantin.siswa.sumber=integrasi")
 @Import({TestcontainersConfig.class, TapServiceIT.FakePortConfig.class})
 @EnabledIfDockerAvailable
 class VoidServiceIT {
@@ -78,12 +79,22 @@ class VoidServiceIT {
         // VoidService/SesiKasirService memakai SekolahGuard → butuh TenantContext.
         TenantContext.set(IdentitasKantin.builder().userId("555").sekolahId(SEKOLAH).build());
         jdbc.execute("TRUNCATE TABLE transaksi_item, transaksi, sesi_kasir, titik_kasir, "
-                + "saldo_ledger, saldo_cache, mutasi_stok, stok_cache, audit_log CASCADE");
+                + "mutasi_saldo, saldo, riwayat_stok, stok, catatan_audit CASCADE");
+
+        FixtureInduk.sekolah(jdbc, SEKOLAH);
+
+        FixtureInduk.penggunaUmum(jdbc, SEKOLAH);
+
+        FixtureInduk.kategoriUmum(jdbc, SEKOLAH);
+
+        FixtureInduk.kartu(jdbc, SEKOLAH, SISWA, UID);
+        FixtureInduk.siswa(jdbc, SEKOLAH, SISWA);
+        FixtureInduk.menu(jdbc, SEKOLAH, MENU_NASI);
         jdbc.update("INSERT INTO titik_kasir (id, sekolah_id, nama, is_active, created_at, updated_at) "
                 + "VALUES (?, ?, 'Kasir 1', true, now(), now())", TITIK, SEKOLAH);
 
         tx.executeWithoutResult(s -> ledgerSaldo.kredit(PerintahMutasiSaldo.builder()
-                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).subjekId(SISWA)
+                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).siswaId(SISWA)
                 .jenis(JenisMutasiSaldo.TOPUP_TUNAI).nominal(50_000).idempotencyKey("seed").build()));
         tx.executeWithoutResult(s -> ledgerStok.masukBarang(SEKOLAH, MENU_NASI, 20, 4_000, "BARANG_MASUK", "BM", 1L));
     }
@@ -114,14 +125,14 @@ class VoidServiceIT {
     @DisplayName("kode struk salah ditolak — uang tidak boleh kembali")
     void kodeStrukSalahDitolak() {
         TapResponse tap = tap("tap-kode-salah", 1);
-        long saldoSebelum = ledgerSaldo.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA);
+        long saldoSebelum = ledgerSaldo.saldo(SEKOLAH, SISWA);
 
         assertThatThrownBy(() -> voidService.refundTransaksi(
                 SEKOLAH, tap.getTransaksiId(), 555L, "salah pilih", "TRX-19990101-1"))
                 .hasMessageContaining("Kode struk tidak cocok");
 
         // Tidak ada uang yang kembali.
-        assertThat(ledgerSaldo.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA)).isEqualTo(saldoSebelum);
+        assertThat(ledgerSaldo.saldo(SEKOLAH, SISWA)).isEqualTo(saldoSebelum);
     }
 
     @Test
@@ -137,24 +148,24 @@ class VoidServiceIT {
     @DisplayName("refund mengembalikan saldo & stok lewat mutasi pembalik")
     void voidMengembalikan() {
         TapResponse tap = tap("tap-1", 2); // 2 × 8000 = 16.000
-        assertThat(ledgerSaldo.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA)).isEqualTo(34_000L);
+        assertThat(ledgerSaldo.saldo(SEKOLAH, SISWA)).isEqualTo(34_000L);
         assertThat(ledgerStok.stok(SEKOLAH, MENU_NASI)).isEqualTo(18);
 
         var trx = voidService.refundTransaksi(SEKOLAH, tap.getTransaksiId(), 555L, "Kartu dipakai bukan pemiliknya", kode(tap));
 
         assertThat(trx.getStatus()).isEqualTo(StatusTransaksi.VOID);
         assertThat(trx.getAlasanVoid()).isEqualTo("Kartu dipakai bukan pemiliknya");
-        assertThat(ledgerSaldo.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA)).isEqualTo(50_000L);
+        assertThat(ledgerSaldo.saldo(SEKOLAH, SISWA)).isEqualTo(50_000L);
         assertThat(ledgerStok.stok(SEKOLAH, MENU_NASI)).isEqualTo(20);
 
         // Baris asli TETAP ada (append-only); kompensasi = baris baru.
         Integer debitAsli = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM saldo_ledger WHERE arah = 'DEBIT' AND jenis = 'PENJUALAN'", Integer.class);
+                "SELECT COUNT(*) FROM mutasi_saldo WHERE arah = 'DEBIT' AND jenis = 'PENJUALAN'", Integer.class);
         Integer kreditVoid = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM saldo_ledger WHERE arah = 'KREDIT' AND jenis = 'VOID_PENJUALAN'", Integer.class);
+                "SELECT COUNT(*) FROM mutasi_saldo WHERE arah = 'KREDIT' AND jenis = 'VOID_PENJUALAN'", Integer.class);
         assertThat(debitAsli).isEqualTo(1);
         assertThat(kreditVoid).isEqualTo(1);
-        assertThat(ledgerSaldo.hitungUlangDariLedger(SEKOLAH, SubjekTipe.SISWA, SISWA)).isEqualTo(50_000L);
+        assertThat(ledgerSaldo.hitungUlangDariLedger(SEKOLAH, SISWA)).isEqualTo(50_000L);
     }
 
     @Test
@@ -170,7 +181,7 @@ class VoidServiceIT {
     @DisplayName("#258: void bersamaan — hanya satu yang menang, invarian saldo & stok tetap")
     void voidBersamaanSatuPemenang() throws Exception {
         TapResponse tap = tap("tap-void-race", 2); // 2 × 8_000 = 16_000
-        assertThat(ledgerSaldo.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA)).isEqualTo(34_000L);
+        assertThat(ledgerSaldo.saldo(SEKOLAH, SISWA)).isEqualTo(34_000L);
 
         int paralel = 8;
         ExecutorService pool = Executors.newFixedThreadPool(paralel);
@@ -212,13 +223,13 @@ class VoidServiceIT {
         assertThat(ditolak.get()).isEqualTo(paralel - 1);
 
         // Invarian: saldo & stok kembali persis sekali (satu mutasi pembalik).
-        assertThat(ledgerSaldo.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA)).isEqualTo(50_000L);
+        assertThat(ledgerSaldo.saldo(SEKOLAH, SISWA)).isEqualTo(50_000L);
         assertThat(ledgerStok.stok(SEKOLAH, MENU_NASI)).isEqualTo(20);
         Integer pembalik = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM saldo_ledger WHERE arah = 'KREDIT' AND jenis = 'VOID_PENJUALAN'",
+                "SELECT COUNT(*) FROM mutasi_saldo WHERE arah = 'KREDIT' AND jenis = 'VOID_PENJUALAN'",
                 Integer.class);
         assertThat(pembalik).isEqualTo(1);
-        assertThat(ledgerSaldo.hitungUlangDariLedger(SEKOLAH, SubjekTipe.SISWA, SISWA))
+        assertThat(ledgerSaldo.hitungUlangDariLedger(SEKOLAH, SISWA))
                 .isEqualTo(50_000L);
     }
 
@@ -274,21 +285,21 @@ class VoidServiceIT {
         assertThat(trx.getStatus()).isEqualTo(StatusTransaksi.VOID);
         assertThat(trx.getAlasanVoid()).isEqualTo("Transaksi salah input pada sesi tertutup");
         assertThat(trx.getVoidOleh()).isEqualTo(777L);
-        assertThat(ledgerSaldo.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA)).isEqualTo(50_000L);
+        assertThat(ledgerSaldo.saldo(SEKOLAH, SISWA)).isEqualTo(50_000L);
         assertThat(ledgerStok.stok(SEKOLAH, MENU_NASI)).isEqualTo(20);
 
         // Baris asli tetap ada (append-only); kompensasi = baris KOREKSI baru.
         Integer debitAsli = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM saldo_ledger WHERE arah = 'DEBIT' AND jenis = 'PENJUALAN'", Integer.class);
+                "SELECT COUNT(*) FROM mutasi_saldo WHERE arah = 'DEBIT' AND jenis = 'PENJUALAN'", Integer.class);
         Integer kreditKoreksi = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM saldo_ledger WHERE arah = 'KREDIT' AND jenis = 'KOREKSI'", Integer.class);
+                "SELECT COUNT(*) FROM mutasi_saldo WHERE arah = 'KREDIT' AND jenis = 'KOREKSI'", Integer.class);
         assertThat(debitAsli).isEqualTo(1);
         assertThat(kreditKoreksi).isEqualTo(1);
-        assertThat(ledgerSaldo.hitungUlangDariLedger(SEKOLAH, SubjekTipe.SISWA, SISWA)).isEqualTo(50_000L);
+        assertThat(ledgerSaldo.hitungUlangDariLedger(SEKOLAH, SISWA)).isEqualTo(50_000L);
 
         // Audit tercatat dengan aksi khusus koreksi.
         Integer audit = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM audit_log WHERE aksi = 'KOREKSI_TRANSAKSI_SESI_TERTUTUP'", Integer.class);
+                "SELECT COUNT(*) FROM catatan_audit WHERE aksi = 'KOREKSI_TRANSAKSI_SESI_TERTUTUP'", Integer.class);
         assertThat(audit).isEqualTo(1);
     }
 

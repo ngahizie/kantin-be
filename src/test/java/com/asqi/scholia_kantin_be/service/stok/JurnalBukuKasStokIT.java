@@ -16,6 +16,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.math.BigDecimal;
@@ -54,7 +55,11 @@ class JurnalBukuKasStokIT {
     @BeforeEach
     void bersihkan() {
         fake.reset();
-        jdbc.execute("TRUNCATE TABLE mutasi_stok, stok_cache, posting_buku_kas, audit_log CASCADE");
+        jdbc.execute("TRUNCATE TABLE riwayat_stok, stok, jurnal_buku_kas, catatan_audit CASCADE");
+
+        FixtureInduk.sekolah(jdbc, SEKOLAH);
+
+        FixtureInduk.penggunaUmum(jdbc, SEKOLAH);
         jdbc.execute("TRUNCATE TABLE menu CASCADE");
         jdbc.update("INSERT INTO menu (id, sekolah_id, nama, harga_jual) VALUES (?, ?, ?, ?)",
                 MENU, SEKOLAH, "Nasi Uduk", 8_000L);
@@ -78,11 +83,11 @@ class JurnalBukuKasStokIT {
 
         // Penanda idempotency tersimpan + audit tercatat.
         assertThat(jdbc.queryForObject(
-                "SELECT COUNT(*) FROM posting_buku_kas WHERE referensi_id = 'KANTIN-BM-BM-1-10' "
+                "SELECT COUNT(*) FROM jurnal_buku_kas WHERE referensi_id = 'KANTIN-BM-BM-1-10' "
                         + "AND entitas = 'BARANG_MASUK' AND status = 'SUKSES'", Integer.class))
                 .isEqualTo(1);
         assertThat(jdbc.queryForObject(
-                "SELECT COUNT(*) FROM audit_log WHERE aksi = 'POSTING_BUKU_KAS'", Integer.class))
+                "SELECT COUNT(*) FROM catatan_audit WHERE aksi = 'POSTING_BUKU_KAS'", Integer.class))
                 .isEqualTo(1);
     }
 
@@ -95,7 +100,7 @@ class JurnalBukuKasStokIT {
         // Replay mutasi stok + penanda sudah ada → port TIDAK dipanggil dua kali.
         assertThat(fake.dipanggil).hasSize(1);
         assertThat(jdbc.queryForObject(
-                "SELECT COUNT(*) FROM posting_buku_kas WHERE entitas = 'BARANG_MASUK'", Integer.class))
+                "SELECT COUNT(*) FROM jurnal_buku_kas WHERE entitas = 'BARANG_MASUK'", Integer.class))
                 .isEqualTo(1);
     }
 
@@ -117,10 +122,10 @@ class JurnalBukuKasStokIT {
 
         // Entri belanja lama TIDAK dihapus + penanda koreksi tercatat.
         assertThat(jdbc.queryForObject(
-                "SELECT COUNT(*) FROM posting_buku_kas WHERE entitas = 'BARANG_MASUK'", Integer.class))
+                "SELECT COUNT(*) FROM jurnal_buku_kas WHERE entitas = 'BARANG_MASUK'", Integer.class))
                 .isEqualTo(1);
         assertThat(jdbc.queryForObject(
-                "SELECT COUNT(*) FROM posting_buku_kas WHERE entitas = 'BARANG_MASUK_PEMBALIK'",
+                "SELECT COUNT(*) FROM jurnal_buku_kas WHERE entitas = 'BARANG_MASUK_PEMBALIK'",
                 Integer.class)).isEqualTo(1);
     }
 
@@ -133,10 +138,10 @@ class JurnalBukuKasStokIT {
 
         // Mutasi stok tetap tercatat (stok bertambah), penanda tidak ditulis.
         assertThat(jdbc.queryForObject(
-                "SELECT stok FROM stok_cache WHERE menu_id = ?", Integer.class, MENU))
+                "SELECT stok FROM stok WHERE menu_id = ?", Integer.class, MENU))
                 .isEqualTo(10);
         assertThat(jdbc.queryForObject(
-                "SELECT COUNT(*) FROM posting_buku_kas", Integer.class)).isZero();
+                "SELECT COUNT(*) FROM jurnal_buku_kas", Integer.class)).isZero();
     }
 
     /** Fake port yang merekam perintah & bisa disetel sukses/gagal. */

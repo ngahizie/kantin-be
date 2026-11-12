@@ -25,6 +25,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import com.asqi.scholia_kantin_be.service.kasir.PerintahMutasiSaldo;
 import com.asqi.scholia_kantin_be.service.stok.LedgerStokService;
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import com.asqi.scholia_kantin_be.support.TestcontainersConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -61,10 +62,13 @@ class LaporanServiceIT {
     private static final long SEKOLAH_LAIN = 2L;
     private static final long SISWA = 100L;
     private static final long SISWA2 = 200L;
-    private static final long TAMU = 900L;
     private static final long MENU_A = 10L;
     private static final long MENU_B = 20L;
     private static final long KATEGORI = 500L;
+    private static final long PETUGAS = 5L;
+    private static final long ADMIN_VOID = 777L;
+    private static final long PETUGAS_SETORAN = 555L;
+    private static final long SISWA_DIMENSI = 1L;
 
     @MockitoBean
     private CariSiswaPort cariSiswaPort;
@@ -123,12 +127,19 @@ class LaporanServiceIT {
     @BeforeEach
     void bersihkan() {
         jdbc.execute("TRUNCATE TABLE transaksi_item, transaksi, sesi_kasir, titik_kasir, "
-                + "saldo_ledger, saldo_cache, mutasi_stok, stok_cache, kategori_menu, menu, "
-                + "kartu_tamu, setoran_tu, audit_log CASCADE");
+                + "mutasi_saldo, saldo, riwayat_stok, stok, kategori_menu, menu, "
+                + "kartu, setoran, catatan_audit CASCADE");
+
+        // Induk wajib skema v2 (FK): sekolah → siswa/pengguna.
+        FixtureInduk.sekolah(jdbc, SEKOLAH, SEKOLAH_LAIN);
+        FixtureInduk.penggunaUmum(jdbc, SEKOLAH);
+        FixtureInduk.pengguna(jdbc, SEKOLAH, PETUGAS, ADMIN_VOID, PETUGAS_SETORAN, 6L);
+        FixtureInduk.siswa(jdbc, SEKOLAH, SISWA, SISWA2, SISWA_DIMENSI);
+
         jdbc.update("INSERT INTO titik_kasir (id, sekolah_id, nama, is_active, created_at, updated_at) "
                 + "VALUES (1, ?, 'Kasir 1', true, now(), now())", SEKOLAH);
         jdbc.update("INSERT INTO sesi_kasir (id, sekolah_id, titik_kasir_id, tanggal, status, "
-                + "total_bruto, total_void, total_bersih, dibuka_at, auto_tutup, posting_buku_kas, "
+                + "total_bruto, total_void, total_bersih, dibuka_at, auto_tutup, jurnal_buku_kas, "
                 + "created_at, updated_at) "
                 + "VALUES (1, ?, 1, CURRENT_DATE, 'TERBUKA', 0, 0, 0, now(), false, false, now(), now())",
                 SEKOLAH);
@@ -146,17 +157,17 @@ class LaporanServiceIT {
 
     private void topup(long subjekId, SubjekTipe tipe, long nominal, JenisMutasiSaldo jenis) {
         tx.executeWithoutResult(s -> ledgerSaldo.kredit(PerintahMutasiSaldo.builder()
-                .sekolahId(SEKOLAH).subjekTipe(tipe).subjekId(subjekId)
+                .sekolahId(SEKOLAH).subjekTipe(tipe).siswaId(subjekId)
                 .jenis(jenis).nominal(nominal)
                 .idempotencyKey("topup-" + subjekId + "-" + System.nanoTime()).build()));
     }
 
     private void transaksi(long id, long subjekId, long total, long totalHpp) {
         jdbc.update("INSERT INTO transaksi (id, idempotency_key, sekolah_id, sesi_kasir_id, "
-                + "titik_kasir_id, subjek_tipe, subjek_id, petugas_id, total, total_hpp, status, "
+                + "titik_kasir_id, siswa_id, petugas_id, total, total_hpp, status, "
                 + "waktu, created_at, updated_at) "
-                + "VALUES (?, ?, ?, 1, 1, 'SISWA', ?, 5, ?, ?, 'SUKSES', now(), now(), now())",
-                id, "trx-" + id, SEKOLAH, subjekId, total, totalHpp);
+                + "VALUES (?, ?, ?, 1, 1, ?, ?, ?, ?, 'SUKSES', now(), now(), now())",
+                id, "trx-" + id, SEKOLAH, subjekId, PETUGAS, total, totalHpp);
     }
 
     private void item(long id, long transaksiId, long menuId, String nama, int qty,
@@ -219,7 +230,7 @@ class LaporanServiceIT {
     void saldoMengendapPerSiswa() {
         topup(SISWA, SubjekTipe.SISWA, 50_000, JenisMutasiSaldo.TOPUP_TUNAI);
         tx.executeWithoutResult(s -> ledgerSaldo.debit(PerintahMutasiSaldo.builder()
-                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).subjekId(SISWA)
+                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).siswaId(SISWA)
                 .jenis(JenisMutasiSaldo.PENJUALAN).nominal(8_000)
                 .idempotencyKey("jual-224").build()));
 
@@ -230,7 +241,7 @@ class LaporanServiceIT {
         assertThat(hasil.getFirst().saldo()).isEqualTo(42_000);
         assertThat(hasil.getFirst().belanjaHariIni()).isEqualTo(8_000);
         OffsetDateTime waktuLedgerTerakhir = jdbc.queryForObject(
-                "SELECT MAX(waktu) FROM saldo_ledger WHERE sekolah_id = ? AND subjek_tipe = 'SISWA' AND subjek_id = ?",
+                "SELECT MAX(waktu) FROM mutasi_saldo WHERE sekolah_id = ? AND siswa_id = ?",
                 OffsetDateTime.class, SEKOLAH, SISWA);
         assertThat(hasil.getFirst().terakhirTransaksi()).isEqualTo(waktuLedgerTerakhir);
         assertThat(laporan.saldoMengendapSiswa(SEKOLAH_LAIN, "2024001", 20)).isEmpty();
@@ -241,19 +252,16 @@ class LaporanServiceIT {
     }
 
     @Test
-    @DisplayName("saldo mengendap — total siswa + Kartu Tamu")
+    @DisplayName("saldo mengendap — total siswa (kartu tamu bukan subjek saldo)")
     void saldoMengendap() {
         topup(SISWA, SubjekTipe.SISWA, 50_000, JenisMutasiSaldo.TOPUP_TUNAI);
         topup(SISWA2, SubjekTipe.SISWA, 30_000, JenisMutasiSaldo.TOPUP_ONLINE);
-        topup(TAMU, SubjekTipe.KARTU_TAMU, 20_000, JenisMutasiSaldo.TOPUP_TUNAI);
 
         RingkasanSaldoMengendap r = laporan.saldoMengendap(SEKOLAH);
 
         assertThat(r.saldoSiswa()).isEqualTo(80_000);
-        assertThat(r.saldoKartuTamu()).isEqualTo(20_000);
-        assertThat(r.total()).isEqualTo(100_000);
+        assertThat(r.total()).isEqualTo(80_000);
         assertThat(r.jumlahSiswa()).isEqualTo(2);
-        assertThat(r.jumlahKartuTamu()).isEqualTo(1);
     }
 
     @Test
@@ -263,7 +271,7 @@ class LaporanServiceIT {
         topup(SISWA, SubjekTipe.SISWA, 100_000, JenisMutasiSaldo.TOPUP_TUNAI);
         topup(SISWA2, SubjekTipe.SISWA, 50_000, JenisMutasiSaldo.TOPUP_ONLINE);
         tx.executeWithoutResult(s -> ledgerSaldo.debit(PerintahMutasiSaldo.builder()
-                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).subjekId(SISWA)
+                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).siswaId(SISWA)
                 .jenis(JenisMutasiSaldo.PENJUALAN).nominal(21_000)
                 .idempotencyKey("jual-1").build()));
 
@@ -403,10 +411,10 @@ class LaporanServiceIT {
     /** Seed satu transaksi VOID (wajib beralasan, PRD §6.3). */
     private void transaksiVoid(long id, long subjekId, long total, String alasan) {
         jdbc.update("INSERT INTO transaksi (id, idempotency_key, sekolah_id, sesi_kasir_id, "
-                + "titik_kasir_id, subjek_tipe, subjek_id, petugas_id, total, total_hpp, status, "
+                + "titik_kasir_id, siswa_id, petugas_id, total, total_hpp, status, "
                 + "alasan_void, void_at, void_oleh, waktu, created_at, updated_at) "
-                + "VALUES (?, ?, ?, 1, 1, 'SISWA', ?, 5, ?, 0, 'VOID', ?, now(), 777, now(), now(), now())",
-                id, "trx-" + id, SEKOLAH, subjekId, total, alasan);
+                + "VALUES (?, ?, ?, 1, 1, ?, ?, ?, 0, 'VOID', ?, now(), ?, now(), now(), now())",
+                id, "trx-" + id, SEKOLAH, subjekId, PETUGAS, total, alasan, ADMIN_VOID);
     }
 
     @Test
@@ -424,7 +432,7 @@ class LaporanServiceIT {
         BarisPembatalanKasir b = r.stream()
                 .filter(x -> x.getTransaksiId().equals(2L)).findFirst().orElseThrow();
         assertThat(b.getSubjekTipe()).isEqualTo(SubjekTipe.SISWA);
-        assertThat(b.getSubjekId()).isEqualTo(SISWA);
+        assertThat(b.getSiswaId()).isEqualTo(SISWA);
         assertThat(b.getAlasanVoid()).isEqualTo("Kartu dipakai bukan pemiliknya");
         assertThat(b.getVoidOleh()).isEqualTo(777L);
         assertThat(b.getVoidAt()).isNotNull();
@@ -456,64 +464,6 @@ class LaporanServiceIT {
     }
 
     // ────────────────────────────────────────────────────────────────
-    // KARTU TAMU (PRD §9.5, issue #115)
-    // ────────────────────────────────────────────────────────────────
-
-    private void kartuTamu(long id, String nomor, String pemegang, boolean aktif) {
-        jdbc.update("INSERT INTO kartu_tamu (id, sekolah_id, nomor_kartu, rfid_uid, aktif, "
-                + "label_pemegang, dibuat_oleh, dibuat_pada) "
-                + "VALUES (?, ?, ?, ?, ?, ?, 1, now())",
-                id, SEKOLAH, nomor, "UID-" + id, aktif, pemegang);
-    }
-
-    @Test
-    @DisplayName("#115: laporan kartu tamu — daftar kartu + pemegang + saldo + status")
-    void laporanKartuTamu() {
-        kartuTamu(500, "KT-001", "Bu Sari", true);
-        kartuTamu(501, "KT-002", "Tamu", false);
-        topup(500, SubjekTipe.KARTU_TAMU, 30_000, JenisMutasiSaldo.TOPUP_TUNAI);
-
-        List<BarisKartuTamu> r = laporan.laporanKartuTamu(SEKOLAH);
-
-        assertThat(r).hasSize(2);
-        BarisKartuTamu k1 = r.stream().filter(x -> x.getKartuId().equals(500L)).findFirst().orElseThrow();
-        assertThat(k1.getNomorKartu()).isEqualTo("KT-001");
-        assertThat(k1.getLabelPemegang()).isEqualTo("Bu Sari");
-        assertThat(k1.getSaldo()).isEqualTo(30_000L);
-        assertThat(k1.isAktif()).isTrue();
-
-        BarisKartuTamu k2 = r.stream().filter(x -> x.getKartuId().equals(501L)).findFirst().orElseThrow();
-        assertThat(k2.getSaldo()).isZero();
-        assertThat(k2.isAktif()).isFalse();
-    }
-
-    @Test
-    @DisplayName("#115: laporan kartu tamu — tenant scoping (sekolah lain kosong)")
-    void laporanKartuTamuTenantScoping() {
-        kartuTamu(500, "KT-001", "Bu Sari", true);
-
-        assertThat(laporan.laporanKartuTamu(SEKOLAH_LAIN)).isEmpty();
-    }
-
-    @Test
-    @DisplayName("#115: ekspor KARTU_TAMU menghasilkan .xlsx valid")
-    void eksporKartuTamu() throws Exception {
-        kartuTamu(500, "KT-001", "Bu Sari", true);
-        topup(500, SubjekTipe.KARTU_TAMU, 30_000, JenisMutasiSaldo.TOPUP_TUNAI);
-
-        LaporanExportService.HasilEkspor hasil = exportService.ekspor(
-                SEKOLAH, JenisLaporan.KARTU_TAMU, null, null, null);
-
-        assertThat(hasil.namaBerkas()).endsWith(".xlsx");
-        try (var wb = new org.apache.poi.xssf.usermodel.XSSFWorkbook(
-                new java.io.ByteArrayInputStream(hasil.isi()))) {
-            var sheet = wb.getSheetAt(0);
-            assertThat(sheet.getPhysicalNumberOfRows()).isGreaterThan(0);
-            assertThat(sheet.getRow(0).getCell(0).getStringCellValue()).contains("Kartu Tamu");
-        }
-    }
-
-    // ────────────────────────────────────────────────────────────────
     // PENJUALAN PER TITIK & PETUGAS (PRD §9.5, issue #116)
     // ────────────────────────────────────────────────────────────────
 
@@ -524,9 +474,9 @@ class LaporanServiceIT {
 
     private void transaksiDimensi(long id, long titikId, long petugasId, long total, long totalHpp) {
         jdbc.update("INSERT INTO transaksi (id, idempotency_key, sekolah_id, sesi_kasir_id, "
-                + "titik_kasir_id, subjek_tipe, subjek_id, petugas_id, total, total_hpp, status, "
+                + "titik_kasir_id, siswa_id, petugas_id, total, total_hpp, status, "
                 + "waktu, created_at, updated_at) "
-                + "VALUES (?, ?, ?, 1, ?, 'SISWA', 1, ?, ?, ?, 'SUKSES', now(), now(), now())",
+                + "VALUES (?, ?, ?, 1, ?, 1, ?, ?, ?, 'SUKSES', now(), now(), now())",
                 id, "trx-" + id, SEKOLAH, titikId, petugasId, total, totalHpp);
     }
 
@@ -685,10 +635,10 @@ class LaporanServiceIT {
         // Subjek lain — harus TIDAK ikut
         transaksi(4, SISWA2, 30_000, 12_000);
 
-        LaporanPerSiswa r = laporan.laporanPerSiswa(SEKOLAH, SubjekTipe.SISWA, SISWA, null, null, null);
+        LaporanPerSiswa r = laporan.laporanPerSiswa(SEKOLAH, SISWA, null, null, null);
 
         assertThat(r.subjekTipe()).isEqualTo(SubjekTipe.SISWA);
-        assertThat(r.subjekId()).isEqualTo(SISWA);
+        assertThat(r.siswaId()).isEqualTo(SISWA);
         assertThat(r.saldo()).isEqualTo(50_000L);
         assertThat(r.transaksi()).hasSize(3);
         assertThat(r.ringkasan().jumlahTransaksiSukses()).isEqualTo(2);
@@ -705,7 +655,7 @@ class LaporanServiceIT {
     @Test
     @DisplayName("#117: per siswa — siswa tanpa data → ringkasan nol, daftar kosong")
     void laporanPerSiswaKosong() {
-        LaporanPerSiswa r = laporan.laporanPerSiswa(SEKOLAH, SubjekTipe.SISWA, 999L, null, null, null);
+        LaporanPerSiswa r = laporan.laporanPerSiswa(SEKOLAH, 999L, null, null, null);
 
         assertThat(r.saldo()).isZero();
         assertThat(r.transaksi()).isEmpty();
@@ -720,7 +670,7 @@ class LaporanServiceIT {
         topup(SISWA, SubjekTipe.SISWA, 50_000, JenisMutasiSaldo.TOPUP_TUNAI);
         transaksi(1, SISWA, 21_000, 10_000);
 
-        LaporanPerSiswa r = laporan.laporanPerSiswa(SEKOLAH_LAIN, SubjekTipe.SISWA, SISWA, null, null, null);
+        LaporanPerSiswa r = laporan.laporanPerSiswa(SEKOLAH_LAIN, SISWA, null, null, null);
 
         assertThat(r.transaksi()).isEmpty();
         assertThat(r.mutasiSaldo()).isEmpty();
@@ -848,8 +798,9 @@ class LaporanServiceIT {
     /** Catat top-up tunai oleh petugas tertentu (aktor_id = petugasId). */
     private void topupTunaiPetugas(long petugasId, long nominal) {
         long subjek = 50_000L + Math.abs(System.nanoTime() % 10_000);
+        FixtureInduk.siswa(jdbc, SEKOLAH, subjek); // FK v2: mutasi_saldo.siswa_id → siswa
         tx.executeWithoutResult(s -> ledgerSaldo.kredit(PerintahMutasiSaldo.builder()
-                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).subjekId(subjek)
+                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).siswaId(subjek)
                 .jenis(JenisMutasiSaldo.TOPUP_TUNAI).nominal(nominal)
                 .referensiTipe("TOPUP").aktorId(petugasId)
                 .idempotencyKey("setoran-" + petugasId + "-" + System.nanoTime()).build()));
@@ -925,8 +876,7 @@ class LaporanServiceIT {
         transaksi(2, SISWA, 8_000, 4_000);
 
         LaporanExportService.HasilEkspor hasil = exportService.ekspor(
-                SEKOLAH, JenisLaporan.PER_SISWA, null, null, null, null,
-                SubjekTipe.SISWA, SISWA);
+                SEKOLAH, JenisLaporan.PER_SISWA, null, null, null, null, SISWA);
 
         assertThat(hasil.namaBerkas()).endsWith(".xlsx");
         try (var wb = new org.apache.poi.xssf.usermodel.XSSFWorkbook(
@@ -950,20 +900,19 @@ class LaporanServiceIT {
     }
 
     @Test
-    @DisplayName("#144: ekspor PER_SISWA tanpa subjekId → ditolak (validasi wajib)")
+    @DisplayName("#144: ekspor PER_SISWA tanpa siswaId → ditolak (validasi wajib)")
     void eksporPerSiswaTanpaSubjekDitolak() {
         assertThatThrownBy(() -> exportService.ekspor(
-                SEKOLAH, JenisLaporan.PER_SISWA, null, null, null, null, null, null))
+                SEKOLAH, JenisLaporan.PER_SISWA, null, null, null, null, null))
                 .isInstanceOf(com.asqi.scholia_kantin_be.component.exception.InvalidOperationException.class)
-                .hasMessageContaining("subjekId");
+                .hasMessageContaining("siswaId");
     }
 
     @Test
     @DisplayName("#144: ekspor PER_SISWA subjek tanpa data → tetap .xlsx valid (bagian kosong)")
     void eksporPerSiswaKosong() throws Exception {
         LaporanExportService.HasilEkspor hasil = exportService.ekspor(
-                SEKOLAH, JenisLaporan.PER_SISWA, null, null, null, null,
-                SubjekTipe.SISWA, 999_999L);
+                SEKOLAH, JenisLaporan.PER_SISWA, null, null, null, null, 999_999L);
 
         assertThat(hasil.namaBerkas()).endsWith(".xlsx");
         try (var wb = new org.apache.poi.xssf.usermodel.XSSFWorkbook(

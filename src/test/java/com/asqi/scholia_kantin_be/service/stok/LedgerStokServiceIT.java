@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -53,7 +54,12 @@ class LedgerStokServiceIT {
     @BeforeEach
     void bersihkan() {
         TenantContext.clear();
-        jdbc.execute("TRUNCATE TABLE mutasi_stok, stok_cache CASCADE");
+        jdbc.execute("TRUNCATE TABLE riwayat_stok, stok CASCADE");
+
+        FixtureInduk.sekolah(jdbc, SEKOLAH);
+
+        FixtureInduk.penggunaUmum(jdbc, SEKOLAH);
+        FixtureInduk.menu(jdbc, SEKOLAH, MENU);
     }
 
     @Test
@@ -72,7 +78,7 @@ class LedgerStokServiceIT {
     void penjualanPakaiSnapshot() {
         tx.executeWithoutResult(s -> ledger.masukBarang(SEKOLAH, MENU, 10, 5_000, "BARANG_MASUK", "BM-1", 1L));
 
-        var hasil = tx.execute(s -> ledger.keluarPenjualan(SEKOLAH, MENU, 3, 999L));
+        var hasil = tx.execute(s -> ledger.keluarPenjualan(SEKOLAH, MENU, 3, null));
         assertThat(hasil.getStokSetelah()).isEqualTo(7);
         assertThat(hasil.getHppSetelah()).isEqualTo(5_000L); // snapshot = HPP berjalan
     }
@@ -164,7 +170,7 @@ class LedgerStokServiceIT {
         int stokAkhir = ledger.stok(SEKOLAH, MENU);
         // 7 = hasil opname absolut + 5 × #barang masuk yang commit setelah opname.
         assertThat(stokAkhir).isIn(7, 12, 17);
-        // Invarian inti (yang dilindungi perbaikan #254): stok_cache == Σ ledger
+        // Invarian inti (yang dilindungi perbaikan #254): stok == Σ ledger
         // — tak ada lost update antara penyesuaian absolut dan tambahan inkremen.
         assertThat(stokAkhir).isEqualTo(ledger.hitungUlangDariLedger(SEKOLAH, MENU));
     }
@@ -177,18 +183,18 @@ class LedgerStokServiceIT {
         assertThat(hasil.getMutasi()).isNull();
 
         Integer baris = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM mutasi_stok WHERE jenis LIKE 'OPNAME%'", Integer.class);
+                "SELECT COUNT(*) FROM riwayat_stok WHERE jenis LIKE 'OPNAME%'", Integer.class);
         assertThat(baris).isZero();
     }
 
     @Test
-    @DisplayName("append-only — UPDATE/DELETE mutasi_stok ditolak")
+    @DisplayName("append-only — UPDATE/DELETE riwayat_stok ditolak")
     void appendOnly() {
         tx.executeWithoutResult(s -> ledger.masukBarang(SEKOLAH, MENU, 5, 5_000, "BARANG_MASUK", "BM-1", 1L));
 
-        assertThatThrownBy(() -> jdbc.update("UPDATE mutasi_stok SET qty = 1"))
+        assertThatThrownBy(() -> jdbc.update("UPDATE riwayat_stok SET qty = 1"))
                 .hasMessageContaining("append-only");
-        assertThatThrownBy(() -> jdbc.update("DELETE FROM mutasi_stok"))
+        assertThatThrownBy(() -> jdbc.update("DELETE FROM riwayat_stok"))
                 .hasMessageContaining("append-only");
     }
 
@@ -206,7 +212,7 @@ class LedgerStokServiceIT {
                     SEKOLAH, MENU, 5, 5_000, "BARANG_MASUK", "BM-1", 42L).getMutasi().getId());
 
             String aktorNama = jdbc.queryForObject(
-                    "SELECT aktor_nama FROM mutasi_stok WHERE id = ?", String.class, mutasiId);
+                    "SELECT aktor_nama FROM riwayat_stok WHERE id = ?", String.class, mutasiId);
             assertThat(aktorNama).isEqualTo("Bu Sri");
         } finally {
             TenantContext.clear();
@@ -221,11 +227,11 @@ class LedgerStokServiceIT {
         TenantContext.set(IdentitasKantin.builder()
                 .userId("77").nama("Pak Kasir").sekolahId(SEKOLAH).build());
         try {
-            Long penjualanId = tx.execute(s -> ledger.keluarPenjualan(SEKOLAH, MENU, 2, 999L)
+            Long penjualanId = tx.execute(s -> ledger.keluarPenjualan(SEKOLAH, MENU, 2, null)
                     .getMutasi().getId());
 
             var baris = jdbc.queryForMap(
-                    "SELECT aktor_id, aktor_nama FROM mutasi_stok WHERE id = ?", penjualanId);
+                    "SELECT aktor_id, aktor_nama FROM riwayat_stok WHERE id = ?", penjualanId);
             assertThat(((Number) baris.get("aktor_id")).longValue()).isEqualTo(77L);
             assertThat(baris.get("aktor_nama")).isEqualTo("Pak Kasir");
         } finally {
@@ -243,7 +249,7 @@ class LedgerStokServiceIT {
                 SEKOLAH, MENU, 7, "KOREKSI SISTEM", "OPN-SYS-1", null).getMutasi().getId());
 
         String aktorNama = jdbc.queryForObject(
-                "SELECT aktor_nama FROM mutasi_stok WHERE id = ?", String.class, mutasiId);
+                "SELECT aktor_nama FROM riwayat_stok WHERE id = ?", String.class, mutasiId);
         assertThat(aktorNama).isNull();
     }
 
@@ -320,7 +326,7 @@ class LedgerStokServiceIT {
         assertThat(ledger.stok(SEKOLAH, MENU)).isEqualTo(6); // tidak berkurang dua kali
 
         Integer jumlah = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM mutasi_stok WHERE jenis = 'BARANG_MASUK_PEMBALIK'", Integer.class);
+                "SELECT COUNT(*) FROM riwayat_stok WHERE jenis = 'BARANG_MASUK_PEMBALIK'", Integer.class);
         assertThat(jumlah).isEqualTo(1);
     }
 
@@ -328,7 +334,7 @@ class LedgerStokServiceIT {
     @DisplayName("pembalik menolak baris bukan BARANG_MASUK (mis. penjualan)")
     void pembalikHanyaBarangMasuk() {
         tx.executeWithoutResult(s -> ledger.masukBarang(SEKOLAH, MENU, 10, 5_000, "BARANG_MASUK", "BM-1", 1L));
-        Long penjualanId = tx.execute(s -> ledger.keluarPenjualan(SEKOLAH, MENU, 2, 999L).getMutasi().getId());
+        Long penjualanId = tx.execute(s -> ledger.keluarPenjualan(SEKOLAH, MENU, 2, null).getMutasi().getId());
 
         assertThatThrownBy(() -> tx.executeWithoutResult(s ->
                 ledger.pembalikBarangMasuk(SEKOLAH, penjualanId, null, "KOREKSI", "PB-1", 2L)))

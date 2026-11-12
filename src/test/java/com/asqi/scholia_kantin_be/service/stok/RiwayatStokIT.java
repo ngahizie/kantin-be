@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.time.OffsetDateTime;
@@ -55,7 +56,9 @@ class RiwayatStokIT {
     @BeforeEach
     void siapkan() {
         TenantContext.clear();
-        jdbc.execute("TRUNCATE TABLE mutasi_stok, stok_cache CASCADE");
+        jdbc.execute("TRUNCATE TABLE riwayat_stok, stok CASCADE");
+
+        FixtureInduk.sekolah(jdbc, SEKOLAH, SEKOLAH_LAIN);
         jdbc.execute("TRUNCATE TABLE menu CASCADE");
 
         menu(MENU_A, SEKOLAH, "Nasi Goreng");
@@ -183,7 +186,7 @@ class RiwayatStokIT {
     private void mutasi(long id, long sekolah, long menuId, String arah, String jenis,
                         int qty, int stokSetelah, OffsetDateTime waktu) {
         jdbc.update("""
-                INSERT INTO mutasi_stok (id, sekolah_id, menu_id, arah, jenis, qty,
+                INSERT INTO riwayat_stok (id, sekolah_id, menu_id, arah, jenis, qty,
                                          stok_setelah, referensi_tipe, referensi_id, waktu)
                 VALUES (?, ?, ?, ?, ?, ?, ?, 'BARANG_MASUK', ?, ?)
                 """, id, sekolah, menuId, arah, jenis, qty, stokSetelah, "REF-" + id, waktu);
