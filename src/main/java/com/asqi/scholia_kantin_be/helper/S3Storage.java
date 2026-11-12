@@ -15,6 +15,7 @@ import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
+import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 
@@ -26,7 +27,8 @@ import java.util.UUID;
  * <p>Parity dengan admin-be (helper/S3Storage). Lihat AGENTS.md §2.
  *
  * <p><b>Lazy init:</b> klien MinIO baru dibuat saat benar-benar dipakai.
- * Saat kredensial kosong, {@link LocalStorage} dipakai agar aplikasi tetap
+ * Saat kredensial kosong <b>atau masih placeholder</b> (mis. {@code <GANTI_...>}
+ * dari file contoh), {@link LocalStorage} dipakai agar aplikasi tetap
  * bisa menyimpan/membaca berkas di direktori lokal tanpa MinIO.
  */
 @Service
@@ -37,6 +39,16 @@ public class S3Storage {
         ".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg",
         ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
         ".mp4", ".mp3", ".zip"
+    );
+
+    /**
+     * Nilai contoh yang tidak boleh diperlakukan sebagai kredensial asli.
+     * Berasal dari {@code .env.example} / {@code application-local.properties.example}.
+     */
+    private static final Set<String> NILAI_PLACEHOLDER = Set.of(
+        "changeme", "change-me", "todo", "xxx", "placeholder",
+        "your-key", "yourkey", "your-access-key", "your-secret-key",
+        "minio-access-key", "minio-secret-key"
     );
 
     private final String url;
@@ -61,12 +73,36 @@ public class S3Storage {
         this.secretKey = secretKey;
         this.localStorage = localStorage;
 
-        if (accessKey != null && !accessKey.isBlank()
-                && secretKey != null && !secretKey.isBlank()) {
+        if (kredensialTerisi(accessKey) && kredensialTerisi(secretKey)) {
             log.info("S3Storage: MinIO diaktifkan (endpoint={})", url);
         } else {
-            log.info("S3Storage: kredensial MinIO kosong — pakai LocalStorage fallback");
+            log.info("S3Storage: kredensial MinIO kosong/placeholder — pakai LocalStorage fallback");
         }
+    }
+
+    /**
+     * Apakah nilai kredensial benar-benar diisi?
+     *
+     * <p>Nilai kosong <b>dan</b> nilai contoh diperlakukan sama: belum dikonfigurasi.
+     * Tanpa ini, menyalin {@code .env.example} apa adanya (mis. {@code <GANTI_MINIO_ACCESS_KEY>})
+     * membuat aplikasi mencoba menghubungi MinIO yang tidak berjalan, lalu unggah gagal —
+     * padahal fallback {@link LocalStorage} tersedia dan cukup untuk lokal/demo.
+     *
+     * @param nilai nilai konfigurasi mentah ({@code minio.access-key}/{@code minio.secret-key})
+     * @return {@code true} bila nilai bisa dipakai sebagai kredensial asli
+     */
+    static boolean kredensialTerisi(String nilai) {
+        if (nilai == null || nilai.isBlank()) {
+            return false;
+        }
+        String bersih = nilai.trim().toLowerCase(Locale.ROOT);
+        if (bersih.startsWith("<") && bersih.endsWith(">")) {
+            return false; // placeholder bergaya <GANTI_...>
+        }
+        if (bersih.contains("ganti")) {
+            return false; // placeholder berbahasa Indonesia
+        }
+        return !NILAI_PLACEHOLDER.contains(bersih);
     }
 
     /** @return klien MinIO siap pakai; null bila fallback aktif. */
@@ -76,8 +112,7 @@ public class S3Storage {
             synchronized (this) {
                 local = this.client;
                 if (local == null) {
-                    if (accessKey == null || accessKey.isBlank()
-                            || secretKey == null || secretKey.isBlank()) {
+                    if (!kredensialTerisi(accessKey) || !kredensialTerisi(secretKey)) {
                         return null; // fallback akan dihandle oleh pemanggil
                     }
                     local = MinioClient.builder()
