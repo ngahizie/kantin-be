@@ -86,7 +86,7 @@ class TapServiceIT {
                 + "sesi_kasir, titik_kasir, mutasi_saldo, saldo, riwayat_stok, stok, "
                 + "pengaturan_kantin CASCADE");
 
-        FixtureInduk.sekolah(jdbc, SEKOLAH);
+        FixtureInduk.sekolah(jdbc, SEKOLAH, 10L);
 
         FixtureInduk.penggunaUmum(jdbc, SEKOLAH);
 

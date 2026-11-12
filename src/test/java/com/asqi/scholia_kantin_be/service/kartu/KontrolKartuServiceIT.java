@@ -92,7 +92,7 @@ class KontrolKartuServiceIT {
         // Induk wajib skema v2 (FK): sekolah → siswa/pengguna, menu → kategori_menu.
         FixtureInduk.sekolah(jdbc, SEKOLAH, SEKOLAH_LAIN);
         FixtureInduk.kategoriUmum(jdbc, SEKOLAH);
-        FixtureInduk.pengguna(jdbc, SEKOLAH, ADMIN, PETUGAS_AKTOR);
+        FixtureInduk.penggunaUmum(jdbc, SEKOLAH);
         FixtureInduk.siswa(jdbc, SEKOLAH, SISWA);
         jdbc.update("INSERT INTO kategori_menu (id, sekolah_id, nama, urutan, is_active, created_at, updated_at) "
                 + "VALUES (?, ?, 'Minuman', 0, true, now(), now()) ON CONFLICT DO NOTHING",

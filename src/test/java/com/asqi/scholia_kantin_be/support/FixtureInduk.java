@@ -118,7 +118,7 @@ public final class FixtureInduk {
      * {@code pengguna}, jadi baris ini wajib ada sebelum ledger menulis.
      */
     public static void penggunaUmum(JdbcTemplate jdbc, long sekolahId) {
-        pengguna(jdbc, sekolahId, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 42, 100, 555, 777, 900, 999);
+        pengguna(jdbc, sekolahId, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 42, 77, 100, 555, 777, 900, 999);
     }
 
     /** Kartu RFID minimum — {@code transaksi_tertunda.rfid_uid} ber-FK ke sini. */
