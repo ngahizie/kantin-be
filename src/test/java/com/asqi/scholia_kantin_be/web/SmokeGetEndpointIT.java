@@ -260,15 +260,15 @@ class SmokeGetEndpointIT {
     static Stream<String> endpointHarus200() {
         return Stream.of(
                 // SaldoController
-                "/api/saldo?subjekTipe=SISWA&subjekId=1",
+                "/api/saldo?siswaId=1",
                 // #213 — daftar koreksi bendahara (semua filter)
                 "/api/saldo/koreksi",
                 "/api/saldo/koreksi?tanggal=2026-10-16",
                 "/api/saldo/koreksi?subjekTipe=SISWA",
-                "/api/saldo/koreksi?subjekTipe=KARTU_TAMU&subjekId=1",
-                "/api/saldo/koreksi?tanggal=2026-10-16&subjekTipe=SISWA&subjekId=1",
+                "/api/saldo/koreksi?siswaId=1",
+                "/api/saldo/koreksi?tanggal=2026-10-16&siswaId=1",
                 "/api/saldo/koreksi?halaman=0&ukuran=5",
-                "/api/saldo/rekonsiliasi?subjekTipe=SISWA&subjekId=1",
+                "/api/saldo/rekonsiliasi?siswaId=1",
                 "/api/saldo/refund/kandidat",
                 "/api/saldo/setoran-tu/rekap",
 
@@ -290,17 +290,12 @@ class SmokeGetEndpointIT {
                 "/api/laporan/stok?hanyaMenipis=true",
                 "/api/laporan/kerugian-stok",
                 "/api/laporan/pembatalan",
-                "/api/laporan/kartu-tamu",
                 "/api/laporan/penjualan/titik",
                 "/api/laporan/penjualan/petugas",
-                "/api/laporan/per-siswa?subjekId=1",
+                "/api/laporan/per-siswa?siswaId=1",
                 "/api/laporan/setoran-tu",
                 "/api/laporan/ekspor?jenis=PENJUALAN",
 
-                // KartuTamuController
-                "/api/kartu-tamu",
-                "/api/kartu-tamu?hanyaAktif=true",
-                "/api/kartu-tamu/nomor-berikutnya",
 
                 // KatalogController
                 "/api/katalog/kategori",
@@ -337,8 +332,6 @@ class SmokeGetEndpointIT {
                 "/api/stok/999999",
                 "/api/stok/999999/rekonsiliasi",
                 "/api/laporan/kartu-stok/999999",
-                "/api/kartu-tamu/999999",
-                "/api/kartu-tamu/999999/riwayat",
                 "/api/katalog/menu/999999",
                 "/api/kasir/sesi/999999",
                 "/api/kasir/sesi/999999/rekap"

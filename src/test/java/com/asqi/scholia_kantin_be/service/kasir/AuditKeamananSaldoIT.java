@@ -51,6 +51,8 @@ class AuditKeamananSaldoIT {
         jdbc.execute("TRUNCATE TABLE mutasi_saldo, saldo CASCADE");
         // Skema v2: saldo/mutasi_saldo ber-FK ke sekolah + siswa.
         FixtureInduk.sekolah(jdbc, SEKOLAH_A, SEKOLAH_B);
+        FixtureInduk.penggunaUmum(jdbc, SEKOLAH_A);
+        FixtureInduk.penggunaUmum(jdbc, SEKOLAH_B);
         FixtureInduk.siswa(jdbc, SEKOLAH_A, 1000L);
         FixtureInduk.siswa(jdbc, SEKOLAH_B, 2000L);
     }

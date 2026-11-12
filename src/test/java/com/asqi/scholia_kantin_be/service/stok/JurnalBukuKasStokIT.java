@@ -16,6 +16,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.math.BigDecimal;
@@ -55,6 +56,10 @@ class JurnalBukuKasStokIT {
     void bersihkan() {
         fake.reset();
         jdbc.execute("TRUNCATE TABLE riwayat_stok, stok, jurnal_buku_kas, catatan_audit CASCADE");
+
+        FixtureInduk.sekolah(jdbc, SEKOLAH);
+
+        FixtureInduk.penggunaUmum(jdbc, SEKOLAH);
         jdbc.execute("TRUNCATE TABLE menu CASCADE");
         jdbc.update("INSERT INTO menu (id, sekolah_id, nama, harga_jual) VALUES (?, ?, ?, ?)",
                 MENU, SEKOLAH, "Nasi Uduk", 8_000L);

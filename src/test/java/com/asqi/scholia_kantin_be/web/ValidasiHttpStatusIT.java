@@ -166,7 +166,7 @@ class ValidasiHttpStatusIT {
     @Test
     @DisplayName("#251: tipe parameter salah dibalas HTTP 400")
     void tipeParameterSalahBalas400() throws Exception {
-        HttpResponse<String> res = get("/api/laporan/per-siswa?subjekId=abc", token("TATA_USAHA"));
+        HttpResponse<String> res = get("/api/laporan/per-siswa?siswaId=abc", token("TATA_USAHA"));
 
         assertThat(res.statusCode())
                 .as("badan: %s", potong(res.body()))
@@ -189,7 +189,7 @@ class ValidasiHttpStatusIT {
     @Test
     @DisplayName("#251: peran tidak berhak dibalas HTTP 403")
     void peranTidakBerhakBalas403() throws Exception {
-        HttpResponse<String> res = get("/api/laporan/per-siswa?subjekId=1", token("KEPSEK"));
+        HttpResponse<String> res = get("/api/laporan/per-siswa?siswaId=1", token("KEPSEK"));
 
         assertThat(res.statusCode())
                 .as("badan: %s", potong(res.body()))

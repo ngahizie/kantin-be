@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.time.LocalTime;
@@ -49,6 +50,8 @@ class PengaturanKantinServiceIT {
     @BeforeEach
     void bersihkan() {
         jdbc.execute("TRUNCATE TABLE pengaturan_kantin, titik_kasir, sesi_kasir, catatan_audit CASCADE");
+
+        FixtureInduk.sekolah(jdbc, SEKOLAH, SEKOLAH_LAIN);
     }
 
     // ────────────────────────────────────────────────────────────────

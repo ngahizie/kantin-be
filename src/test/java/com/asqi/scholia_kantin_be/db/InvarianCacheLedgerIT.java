@@ -101,7 +101,7 @@ class InvarianCacheLedgerIT {
                                 "INV-STOK-" + System.nanoTime(), USER_ID);
                     } else {
                         ledgerStok.keluarPenjualan(SEKOLAH_ID, MENU_DASAR + acak.nextInt(3),
-                                1 + acak.nextInt(3), 800_000L + acak.nextInt(5));
+                                1 + acak.nextInt(3), null);
                     }
                 });
                 berhasil++;

@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -49,6 +50,8 @@ class KatalogServiceIT {
     @BeforeEach
     void bersihkan() {
         jdbc.execute("TRUNCATE TABLE menu, kategori_menu CASCADE");
+
+        FixtureInduk.sekolah(jdbc, SEKOLAH, SEKOLAH_LAIN);
     }
 
     @Test
