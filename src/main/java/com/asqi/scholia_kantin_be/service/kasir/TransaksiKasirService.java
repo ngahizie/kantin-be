@@ -10,12 +10,10 @@ import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.helper.UkuranHalaman;
-import com.asqi.scholia_kantin_be.model.KartuTamu;
 import com.asqi.scholia_kantin_be.model.SesiKasir;
 import com.asqi.scholia_kantin_be.model.TitikKasir;
 import com.asqi.scholia_kantin_be.model.Transaksi;
 import com.asqi.scholia_kantin_be.model.TransaksiItem;
-import com.asqi.scholia_kantin_be.repository.KartuTamuRepository;
 import com.asqi.scholia_kantin_be.repository.SesiKasirRepository;
 import com.asqi.scholia_kantin_be.repository.TitikKasirRepository;
 import com.asqi.scholia_kantin_be.repository.TransaksiItemRepository;
@@ -69,7 +67,6 @@ public class TransaksiKasirService {
 
     private final TransaksiRepository transaksiRepo;
     private final TitikKasirRepository titikKasirRepo;
-    private final KartuTamuRepository kartuTamuRepo;
     private final TransaksiItemRepository transaksiItemRepo;
     private final SesiKasirRepository sesiKasirRepo;
     private final JamKantin jam;
@@ -153,7 +150,6 @@ public class TransaksiKasirService {
     private HalamanResponse<TransaksiKasirItem> keHalaman(Long sekolahId, Page<Transaksi> page) {
         // Nama untuk tampilan — diambil BATCH (satu query per jenis), bukan per baris.
         Map<Long, String> namaTitik = namaTitikKasir(sekolahId, page.getContent());
-        Map<Long, String> namaSubjek = namaPemegangKartu(sekolahId, page.getContent());
 
         List<Long> trxIds = page.getContent().stream().map(Transaksi::getId).toList();
         Map<Long, List<TransaksiItem>> itemByTrx = trxIds.isEmpty() ? Map.of()
@@ -163,10 +159,6 @@ public class TransaksiKasirService {
         return HalamanResponse.<Transaksi, TransaksiKasirItem>dari(page, t -> {
             TransaksiKasirItem item = TransaksiKasirItem.dari(t);
             item.setTitikKasirNama(namaTitik.get(t.getTitikKasirId()));
-            if (t.getSubjekTipe() == SubjekTipe.KARTU_TAMU) {
-                item.setSubjekNama(namaSubjek.get(t.getSubjekId()));
-            }
-
             List<TransaksiItem> list = itemByTrx.getOrDefault(t.getId(), List.of());
             item.setItems(list.stream()
                     .map(i -> new TransaksiKasirItem.Item(
@@ -218,7 +210,6 @@ public class TransaksiKasirService {
                 Sort.by(Sort.Direction.DESC, "waktu").and(Sort.by(Sort.Direction.DESC, "id")));
 
         Map<Long, String> namaTitik = namaTitikKasir(sekolahId, trx);
-        Map<Long, String> namaSubjek = namaPemegangKartu(sekolahId, trx);
 
         Map<Long, List<TransaksiItem>> itemByTrx = trx.isEmpty() ? Map.of()
                 : transaksiItemRepo.findByTransaksiIdIn(
@@ -228,7 +219,7 @@ public class TransaksiKasirService {
         return trx.stream()
                 .map(t -> TransaksiSesiItem.dari(t,
                         namaTitik.get(t.getTitikKasirId()),
-                        namaSubjek.get(t.getSubjekId()),
+                        null,
                         itemByTrx.getOrDefault(t.getId(), List.of())))
                 .toList();
     }
@@ -296,25 +287,4 @@ public class TransaksiKasirService {
                 .collect(Collectors.toMap(TitikKasir::getId, TitikKasir::getNama, (a, b) -> a));
     }
 
-    /**
-     * Peta {@code kartuTamuId → label pemegang} untuk subjek {@code KARTU_TAMU}
-     * di halaman ini (satu query). Label kosong jatuh ke nomor kartu.
-     */
-    private Map<Long, String> namaPemegangKartu(Long sekolahId, List<Transaksi> baris) {
-        Set<Long> ids = baris.stream()
-                .filter(t -> t.getSubjekTipe() == SubjekTipe.KARTU_TAMU)
-                .map(Transaksi::getSubjekId)
-                .collect(Collectors.toSet());
-        if (ids.isEmpty()) {
-            return Map.of();
-        }
-        return kartuTamuRepo.findAllById(ids).stream()
-                .filter(k -> k.getSekolahId().equals(sekolahId))
-                .collect(Collectors.toMap(KartuTamu::getId, TransaksiKasirService::labelKartu, (a, b) -> a));
-    }
-
-    private static String labelKartu(KartuTamu k) {
-        String label = k.getLabelPemegang();
-        return (label == null || label.isBlank()) ? k.getNomorKartu() : label;
-    }
 }

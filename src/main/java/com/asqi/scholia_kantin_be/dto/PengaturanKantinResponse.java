@@ -1,6 +1,6 @@
 package com.asqi.scholia_kantin_be.dto;
 
-import com.asqi.scholia_kantin_be.model.SekolahKantinConfig;
+import com.asqi.scholia_kantin_be.model.PengaturanKantin;
 import lombok.Builder;
 import lombok.Data;
 
@@ -33,7 +33,8 @@ public class PengaturanKantinResponse {
     /** Batas saldo maksimum per siswa; {@code null} = tanpa batas. */
     private Long batasSaldoSiswa;
     /** Batas saldo maksimum per Kartu Tamu; {@code null} = tanpa batas. */
-    private Long batasSaldoKartuTamu;
+    private String kebijakanSaldoMengendap;
+    private Integer ambangHari;
 
     /** Apakah baris pengaturan sudah benar-benar tersimpan (bukan default). */
     private boolean disimpan;
@@ -41,7 +42,7 @@ public class PengaturanKantinResponse {
     private OffsetDateTime updatedAt;
 
     /** Proyeksi entitas → DTO (baris tersimpan). */
-    public static PengaturanKantinResponse dari(SekolahKantinConfig c) {
+    public static PengaturanKantinResponse dari(PengaturanKantin c) {
         return PengaturanKantinResponse.builder()
                 .sekolahId(c.getSekolahId())
                 .namaKantin(c.getNamaKantin())
@@ -51,7 +52,8 @@ public class PengaturanKantinResponse {
                 .minTopup(c.getMinTopup())
                 .maksTopup(c.getMaksTopup())
                 .batasSaldoSiswa(c.getBatasSaldoSiswa())
-                .batasSaldoKartuTamu(c.getBatasSaldoKartuTamu())
+                .kebijakanSaldoMengendap(c.getKebijakanSaldoMengendap())
+                .ambangHari(c.getAmbangHari())
                 .disimpan(true)
                 .updatedAt(c.getUpdatedAt())
                 .build();

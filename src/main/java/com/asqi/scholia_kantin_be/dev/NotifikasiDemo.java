@@ -34,7 +34,7 @@ public class NotifikasiDemo implements NotifikasiPort {
     @Override
     public HasilKirimNotifikasi kirim(PerintahNotifikasi perintah) {
         log.info("[DEMO] Notifikasi ortu (Q5) — jenis={} subjek={}:{} nominal={} : {}",
-                perintah.getJenis(), perintah.getSubjekTipe(), perintah.getSubjekId(),
+                perintah.getJenis(), perintah.getSubjekTipe(), perintah.getSiswaId(),
                 perintah.getNominal(), perintah.getRingkasan());
         return HasilKirimNotifikasi.terkirim(
                 "Demo: notifikasi disimulasikan terkirim ke mobile-be");

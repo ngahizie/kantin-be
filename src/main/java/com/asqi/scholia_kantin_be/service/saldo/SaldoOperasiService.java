@@ -8,10 +8,8 @@ import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.helper.UkuranHalaman;
-import com.asqi.scholia_kantin_be.model.KartuTamu;
-import com.asqi.scholia_kantin_be.model.SaldoLedger;
-import com.asqi.scholia_kantin_be.repository.KartuTamuRepository;
-import com.asqi.scholia_kantin_be.repository.SaldoLedgerRepository;
+import com.asqi.scholia_kantin_be.model.MutasiSaldo;
+import com.asqi.scholia_kantin_be.repository.MutasiSaldoRepository;
 import com.asqi.scholia_kantin_be.service.kasir.LedgerSaldoService;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
@@ -48,28 +46,24 @@ public class SaldoOperasiService {
     private static final int UKURAN_MAKS = 200;
 
     private final LedgerSaldoService ledgerSaldo;
-    private final SaldoLedgerRepository ledgerRepo;
-    private final KartuTamuRepository kartuTamuRepo;
+    private final MutasiSaldoRepository ledgerRepo;
     private final JamKantin jam;
 
     /** Ringkasan saldo + belanja hari ini + mutasi terbaru. */
     @Transactional(readOnly = true)
-    public SaldoResponse lihat(Long sekolahId, SubjekTipe subjekTipe, Long subjekId, int batasMutasi) {
+    public SaldoResponse lihat(Long sekolahId, Long siswaId, int batasMutasi) {
         int batas = (batasMutasi <= 0 || batasMutasi > MAKS_MUTASI) ? 20 : batasMutasi;
-        long saldo = ledgerSaldo.saldo(sekolahId, subjekTipe, subjekId);
-        long belanjaHariIni = (subjekTipe == SubjekTipe.SISWA)
-                ? ledgerSaldo.belanjaHariIni(sekolahId, subjekTipe, subjekId)
-                : 0L;
+        long saldo = ledgerSaldo.saldo(sekolahId, siswaId);
+        long belanjaHariIni = ledgerSaldo.belanjaHariIni(sekolahId, siswaId);
 
         List<MutasiSaldoItem> mutasi = ledgerSaldo
-                .riwayatTerbaru(sekolahId, subjekTipe, subjekId, batas)
+                .riwayatTerbaru(sekolahId, siswaId, batas)
                 .stream()
                 .map(MutasiSaldoItem::dari)
                 .toList();
 
         return SaldoResponse.builder()
-                .subjekTipe(subjekTipe)
-                .subjekId(subjekId)
+                .siswaId(siswaId)
                 .saldo(saldo)
                 .belanjaHariIni(belanjaHariIni)
                 .mutasiTerbaru(mutasi)
@@ -78,8 +72,8 @@ public class SaldoOperasiService {
 
     /** Hitung ulang saldo dari ledger — verifikasi/rekonsiliasi cache. */
     @Transactional(readOnly = true)
-    public long hitungUlangDariLedger(Long sekolahId, SubjekTipe subjekTipe, Long subjekId) {
-        return ledgerSaldo.hitungUlangDariLedger(sekolahId, subjekTipe, subjekId);
+    public long hitungUlangDariLedger(Long sekolahId, Long siswaId) {
+        return ledgerSaldo.hitungUlangDariLedger(sekolahId, siswaId);
     }
 
     /**
@@ -92,29 +86,22 @@ public class SaldoOperasiService {
      *
      * @param sekolahId  tenant dari token (wajib)
      * @param tanggal    filter satu hari menurut zona sekolah (opsional)
-     * @param subjekTipe filter jenis subjek, mis. {@code SISWA}/{@code KARTU_TAMU} (opsional)
-     * @param subjekId   filter subjek tertentu, dipakai bersama {@code subjekTipe} (opsional)
+     * @param siswaId   filter siswa tertentu (opsional)
      */
     @Transactional(readOnly = true)
     public HalamanResponse<MutasiKoreksiItem> daftarKoreksi(Long sekolahId, LocalDate tanggal,
-                                                            SubjekTipe subjekTipe, Long subjekId,
+                                                            Long siswaId,
                                                             int halaman, int ukuran) {
         int ukuranAman = UkuranHalaman.validasi(ukuran, UKURAN_MAKS);
         int halamanAman = Math.max(0, halaman);
         Pageable pageable = PageRequest.of(halamanAman, ukuranAman,
                 Sort.by(Sort.Direction.DESC, "waktu").and(Sort.by(Sort.Direction.DESC, "id")));
 
-        Page<SaldoLedger> page = ledgerRepo.findAll(
-                filterKoreksi(sekolahId, tanggal, subjekTipe, subjekId), pageable);
+        Page<MutasiSaldo> page = ledgerRepo.findAll(
+                filterKoreksi(sekolahId, tanggal, siswaId), pageable);
 
-        // Nama subjek (kartu tamu) diambil BATCH — hindari N+1.
-        Map<Long, String> namaSubjek = namaPemegangKartu(sekolahId, page.getContent());
-
-        return HalamanResponse.<SaldoLedger, MutasiKoreksiItem>dari(page, l -> {
+        return HalamanResponse.<MutasiSaldo, MutasiKoreksiItem>dari(page, l -> {
             MutasiKoreksiItem item = MutasiKoreksiItem.dari(l);
-            if (l.getSubjekTipe() == SubjekTipe.KARTU_TAMU) {
-                item.setSubjekNama(namaSubjek.get(l.getSubjekId()));
-            }
             return item;
         });
     }
@@ -132,17 +119,14 @@ public class SaldoOperasiService {
      * ({@code could not determine data type of parameter}) — akar bug #198
      * (endpoint daftar selalu 500).
      */
-    private Specification<SaldoLedger> filterKoreksi(Long sekolahId, LocalDate tanggal,
-                                                     SubjekTipe subjekTipe, Long subjekId) {
+    private Specification<MutasiSaldo> filterKoreksi(Long sekolahId, LocalDate tanggal,
+                                                     Long siswaId) {
         return (root, query, cb) -> {
             List<Predicate> syarat = new ArrayList<>();
             syarat.add(cb.equal(root.get("sekolahId"), sekolahId));              // tenant-scoped
             syarat.add(cb.equal(root.get("jenis"), JenisMutasiSaldo.KOREKSI));   // inti endpoint
-            if (subjekTipe != null) {
-                syarat.add(cb.equal(root.get("subjekTipe"), subjekTipe));
-            }
-            if (subjekId != null) {
-                syarat.add(cb.equal(root.get("subjekId"), subjekId));
+            if (siswaId != null) {
+                syarat.add(cb.equal(root.get("siswaId"), siswaId));
             }
             if (tanggal != null) {
                 // Batas hari menurut zona sekolah (JamKantin), bukan zona server.
@@ -154,22 +138,4 @@ public class SaldoOperasiService {
         };
     }
 
-    /** Peta {@code subjekId → label pemegang kartu} untuk baris KARTU_TAMU di halaman ini. */
-    private Map<Long, String> namaPemegangKartu(Long sekolahId, List<SaldoLedger> baris) {
-        Set<Long> ids = baris.stream()
-                .filter(l -> l.getSubjekTipe() == SubjekTipe.KARTU_TAMU)
-                .map(SaldoLedger::getSubjekId)
-                .collect(Collectors.toSet());
-        if (ids.isEmpty()) {
-            return Map.of();
-        }
-        return kartuTamuRepo.findAllById(ids).stream()
-                .filter(k -> k.getSekolahId().equals(sekolahId))
-                .collect(Collectors.toMap(KartuTamu::getId, SaldoOperasiService::labelKartu, (a, b) -> a));
-    }
-
-    private static String labelKartu(KartuTamu k) {
-        String label = k.getLabelPemegang();
-        return (label == null || label.isBlank()) ? k.getNomorKartu() : label;
-    }
 }

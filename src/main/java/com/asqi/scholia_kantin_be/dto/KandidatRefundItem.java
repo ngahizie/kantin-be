@@ -26,7 +26,7 @@ import lombok.Data;
 @Builder
 public class KandidatRefundItem {
 
-    private Long subjekId;
+    private Long siswaId;
 
     /** Saldo berjalan subjek (rupiah). */
     private long saldo;

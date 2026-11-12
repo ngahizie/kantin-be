@@ -14,7 +14,7 @@ import com.asqi.scholia_kantin_be.repository.TitikKasirRepository;
 import com.asqi.scholia_kantin_be.repository.TransaksiRepository;
 import com.asqi.scholia_kantin_be.security.SekolahGuard;
 import com.asqi.scholia_kantin_be.service.integrasi.BukuKasPostingService;
-import com.asqi.scholia_kantin_be.service.integrasi.HasilPostingBukuKas;
+import com.asqi.scholia_kantin_be.service.integrasi.HasilJurnalBukuKas;
 import com.asqi.scholia_kantin_be.service.konfigurasi.PengaturanKantinService;
 import lombok.Builder;
 import lombok.Getter;
@@ -182,7 +182,7 @@ public class SesiKasirService {
 
         // Posting Buku Kas (idempoten). Kegagalan TIDAK membatalkan penutupan —
         // sesi tetap DITUTUP & bisa di-posting ulang (INTEGRATIONS.md §3.4).
-        HasilPostingBukuKas hasilPosting = bukuKasPosting.postingSesi(tersimpan, oleh);
+        HasilJurnalBukuKas hasilPosting = bukuKasPosting.postingSesi(tersimpan, oleh);
         if (!hasilPosting.sukses()) {
             log.warn("Sesi {} ditutup tanpa posting Buku Kas ({}): {}",
                     sesiId, hasilPosting.status(), hasilPosting.pesan());

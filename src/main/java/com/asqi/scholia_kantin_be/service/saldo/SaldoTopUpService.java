@@ -49,14 +49,11 @@ public class SaldoTopUpService {
     private final PengaturanKantinService pengaturan;
 
     /**
-     * Ambang batas saldo efektif untuk subjek: per siswa atau per Kartu Tamu
-     * (PRD §9.1/§9.4). {@code null} = tanpa batas (sekolah belum mengatur).
+     * Ambang batas saldo efektif per siswa (PRD §9.1).
+     * {@code null} = tanpa batas (sekolah belum mengatur).
      */
-    private Long batasSaldoMaksimum(Long sekolahId, SubjekTipe subjekTipe) {
-        PengaturanKantinResponse p = pengaturan.ambil(sekolahId);
-        return subjekTipe == SubjekTipe.KARTU_TAMU
-                ? p.getBatasSaldoKartuTamu()
-                : p.getBatasSaldoSiswa();
+    private Long batasSaldoMaksimum(Long sekolahId) {
+        return pengaturan.ambil(sekolahId).getBatasSaldoSiswa();
     }
 
     /**
@@ -84,7 +81,7 @@ public class SaldoTopUpService {
      * @param aktorId     petugas TU (audit)
      */
     @Transactional
-    public HasilMutasiSaldo topUpTunai(Long sekolahId, SubjekTipe subjekTipe, Long subjekId,
+    public HasilMutasiSaldo topUpTunai(Long sekolahId, SubjekTipe subjekTipe, Long siswaId,
                                        long nominal, String penyetor, String referensiId, Long aktorId) {
         if (nominal <= 0) {
             throw new InvalidOperationException("Nominal top-up harus > 0");
@@ -100,11 +97,10 @@ public class SaldoTopUpService {
 
         HasilMutasiSaldo hasil = ledgerSaldo.kredit(PerintahMutasiSaldo.builder()
                 .sekolahId(sekolahId)
-                .subjekTipe(subjekTipe)
-                .subjekId(subjekId)
+                .siswaId(siswaId)
                 .jenis(JenisMutasiSaldo.TOPUP_TUNAI)
                 .nominal(nominal)
-                .batasSaldoMaksimum(batasSaldoMaksimum(sekolahId, subjekTipe))
+                .batasSaldoMaksimum(batasSaldoMaksimum(sekolahId))
                 .idempotencyKey("TOPUP-TUNAI-" + referensiId)
                 .referensiTipe("TOPUP")
                 .referensiId(referensiId)
@@ -115,15 +111,14 @@ public class SaldoTopUpService {
         // Audit hanya untuk mutasi baru (bukan replay idempotent).
         if (!hasil.isIdempotentReplay()) {
             auditLogger.catat(aktorId, sekolahId, "TOPUP_TUNAI", "Saldo",
-                    subjekTipe + ":" + subjekId, keterangan,
+                    subjekTipe + ":" + siswaId, keterangan,
                     null, String.valueOf(nominal));
 
             // Notifikasi ke ortu (PRD §8.4) — best-effort/fail-open.
             notifikasi.kirim(PerintahNotifikasi.builder()
                     .sekolahId(sekolahId)
                     .jenis(JenisNotifikasi.TOPUP_TUNAI)
-                    .subjekTipe(subjekTipe)
-                    .subjekId(subjekId)
+                    .siswaId(siswaId)
                     .nominal(nominal)
                     .saldoSetelah(hasil.getSaldoSetelah())
                     .referensiId(referensiId)
@@ -151,7 +146,7 @@ public class SaldoTopUpService {
      * @param aktorId pelaku (biasanya {@code null} — aksi sistem webhook)
      */
     @Transactional
-    public HasilMutasiSaldo topUpOnline(Long sekolahId, SubjekTipe subjekTipe, Long subjekId,
+    public HasilMutasiSaldo topUpOnline(Long sekolahId, SubjekTipe subjekTipe, Long siswaId,
                                         long nominal, String refIdPg, String penyetor,
                                         String kanal, Long aktorId) {
         if (nominal <= 0) {
@@ -171,11 +166,10 @@ public class SaldoTopUpService {
 
         HasilMutasiSaldo hasil = ledgerSaldo.kredit(PerintahMutasiSaldo.builder()
                 .sekolahId(sekolahId)
-                .subjekTipe(subjekTipe)
-                .subjekId(subjekId)
+                .siswaId(siswaId)
                 .jenis(JenisMutasiSaldo.TOPUP_ONLINE)
                 .nominal(nominal)
-                .batasSaldoMaksimum(batasSaldoMaksimum(sekolahId, subjekTipe))
+                .batasSaldoMaksimum(batasSaldoMaksimum(sekolahId))
                 .idempotencyKey("TOPUP-ONLINE-" + ref)
                 .referensiTipe("TOPUP_ONLINE")
                 .referensiId(ref)
@@ -186,15 +180,14 @@ public class SaldoTopUpService {
         // Audit hanya untuk mutasi baru (bukan replay idempotent).
         if (!hasil.isIdempotentReplay()) {
             auditLogger.catat(aktorId, sekolahId, "TOPUP_ONLINE", "Saldo",
-                    subjekTipe + ":" + subjekId, keterangan,
+                    subjekTipe + ":" + siswaId, keterangan,
                     null, String.valueOf(nominal));
 
             // Notifikasi ke ortu (PRD §8.4) — best-effort/fail-open.
             notifikasi.kirim(PerintahNotifikasi.builder()
                     .sekolahId(sekolahId)
                     .jenis(JenisNotifikasi.TOPUP_ONLINE)
-                    .subjekTipe(subjekTipe)
-                    .subjekId(subjekId)
+                    .siswaId(siswaId)
                     .nominal(nominal)
                     .saldoSetelah(hasil.getSaldoSetelah())
                     .referensiId(ref)
@@ -217,7 +210,7 @@ public class SaldoTopUpService {
      *                    (Aturan Emas §3.3).
      */
     @Transactional
-    public HasilMutasiSaldo koreksi(Long sekolahId, SubjekTipe subjekTipe, Long subjekId,
+    public HasilMutasiSaldo koreksi(Long sekolahId, SubjekTipe subjekTipe, Long siswaId,
                                     ArahMutasi arah, long nominal, String alasan,
                                     String referensiId, Long aktorId) {
         if (nominal <= 0) {
@@ -233,8 +226,7 @@ public class SaldoTopUpService {
 
         PerintahMutasiSaldo perintah = PerintahMutasiSaldo.builder()
                 .sekolahId(sekolahId)
-                .subjekTipe(subjekTipe)
-                .subjekId(subjekId)
+                .siswaId(siswaId)
                 .jenis(JenisMutasiSaldo.KOREKSI)
                 .nominal(nominal)
                 .idempotencyKey("KOREKSI-" + referensiId)
@@ -254,7 +246,7 @@ public class SaldoTopUpService {
                     ? hasil.getSaldoSetelah() - nominal
                     : hasil.getSaldoSetelah() + nominal;
             auditLogger.catat(aktorId, sekolahId, "KOREKSI_SALDO", "Saldo",
-                    subjekTipe + ":" + subjekId, alasan,
+                    subjekTipe + ":" + siswaId, alasan,
                     String.valueOf(saldoSebelum), String.valueOf(hasil.getSaldoSetelah()));
 
             // PRD §5.1/§9.2: koreksi bendahara diposting sebagai entri penyesuaian

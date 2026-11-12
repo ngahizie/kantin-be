@@ -19,7 +19,7 @@ public class KoreksiSaldoRequest {
     private SubjekTipe subjekTipe;
 
     @NotNull
-    private Long subjekId;
+    private Long siswaId;
 
     @NotNull(message = "Arah koreksi wajib (KREDIT menambah / DEBIT mengurangi)")
     private ArahMutasi arah;

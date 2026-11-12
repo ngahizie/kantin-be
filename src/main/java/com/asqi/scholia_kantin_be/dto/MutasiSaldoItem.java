@@ -2,7 +2,7 @@ package com.asqi.scholia_kantin_be.dto;
 
 import com.asqi.scholia_kantin_be.enums.ArahMutasi;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
-import com.asqi.scholia_kantin_be.model.SaldoLedger;
+import com.asqi.scholia_kantin_be.model.MutasiSaldo;
 import lombok.Builder;
 import lombok.Data;
 
@@ -22,7 +22,7 @@ public class MutasiSaldoItem {
     private OffsetDateTime waktu;
 
     /** Proyeksi entitas ledger → DTO (menyembunyikan kolom internal). */
-    public static MutasiSaldoItem dari(SaldoLedger l) {
+    public static MutasiSaldoItem dari(MutasiSaldo l) {
         return MutasiSaldoItem.builder()
                 .id(l.getId())
                 .jenis(l.getJenis())

@@ -9,7 +9,7 @@ import com.asqi.scholia_kantin_be.security.TenantContext;
 import com.asqi.scholia_kantin_be.service.saldo.RefundSaldoService;
 import com.asqi.scholia_kantin_be.service.saldo.SaldoOperasiService;
 import com.asqi.scholia_kantin_be.service.saldo.SaldoTopUpService;
-import com.asqi.scholia_kantin_be.service.saldo.SetoranTuService;
+import com.asqi.scholia_kantin_be.service.saldo.SetoranService;
 import com.asqi.scholia_kantin_be.service.kasir.HasilMutasiSaldo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
@@ -45,7 +45,7 @@ class SaldoControllerTest {
     private SaldoTopUpService topUpService;
     private SaldoOperasiService operasi;
     private RefundSaldoService refundService;
-    private SetoranTuService setoranService;
+    private SetoranService setoranService;
     private MockMvc mockMvc;
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -67,7 +67,7 @@ class SaldoControllerTest {
         topUpService = mock(SaldoTopUpService.class);
         operasi = mock(SaldoOperasiService.class);
         refundService = mock(RefundSaldoService.class);
-        setoranService = mock(SetoranTuService.class);
+        setoranService = mock(SetoranService.class);
         mockMvc = MockMvcBuilders.standaloneSetup(
                         new SaldoController(topUpService, operasi, refundService, setoranService))
                 .setCustomArgumentResolvers(new PrincipalResolver())

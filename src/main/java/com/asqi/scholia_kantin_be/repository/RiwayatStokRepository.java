@@ -1,0 +1,208 @@
+package com.asqi.scholia_kantin_be.repository;
+
+import com.asqi.scholia_kantin_be.enums.ArahStok;
+import com.asqi.scholia_kantin_be.enums.JenisMutasiStok;
+import com.asqi.scholia_kantin_be.model.RiwayatStok;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import java.time.OffsetDateTime;
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
+
+/**
+ * Akses data ledger stok ({@code mutasi_stok}).
+ *
+ * <p><b>Append-only (PRD §11.1):</b> tanpa method {@code delete}/{@code update}.
+ * {@link RiwayatStok} juga {@code @Immutable}.
+ */
+@Repository
+public interface RiwayatStokRepository extends JpaRepository<RiwayatStok, Long>,
+        JpaSpecificationExecutor<RiwayatStok> {
+
+    /** Mutasi stok yang lahir dari sebuah transaksi (void/rekonsiliasi). */
+    List<RiwayatStok> findBySekolahIdAndTransaksiId(Long sekolahId, Long transaksiId);
+
+    /** Baris ledger satu menu dalam tenant (sekolah lain ⇒ kosong). */
+    Optional<RiwayatStok> findByIdAndSekolahId(Long id, Long sekolahId);
+
+    /**
+     * Stok berjalan = Σ MASUK − Σ KELUAR untuk satu menu (PRD §11.1) — untuk
+     * verifikasi terhadap {@code stok_cache}.
+     */
+    @Query("""
+            SELECT COALESCE(SUM(CASE WHEN m.arah = :masuk THEN m.qty ELSE -m.qty END), 0)
+            FROM RiwayatStok m
+            WHERE m.sekolahId = :sekolahId
+              AND m.menuId = :menuId
+            """)
+    Long hitungStokDariLedger(@Param("sekolahId") Long sekolahId,
+                              @Param("menuId") Long menuId,
+                              @Param("masuk") ArahStok masuk);
+
+    /** Kartu stok per item: riwayat mutasi (PRD §9.5). */
+    @Query("""
+            SELECT m FROM RiwayatStok m
+            WHERE m.sekolahId = :sekolahId
+              AND m.menuId = :menuId
+            ORDER BY m.id DESC
+            """)
+    List<RiwayatStok> kartuStok(@Param("sekolahId") Long sekolahId,
+                               @Param("menuId") Long menuId,
+                               Pageable pageable);
+
+    /** Mutasi stok pada rentang waktu (laporan stok &amp; kerugian, PRD §9.5). */
+    @Query("""
+            SELECT m FROM RiwayatStok m
+            WHERE m.sekolahId = :sekolahId
+              AND m.waktu >= :dari
+              AND m.waktu < :sampai
+            ORDER BY m.id ASC
+            """)
+    List<RiwayatStok> padaRentang(@Param("sekolahId") Long sekolahId,
+                                 @Param("dari") OffsetDateTime dari,
+                                 @Param("sampai") OffsetDateTime sampai);
+
+    /*
+     * Riwayat mutasi stok berfilter (PRD §9.5) TIDAK lagi di sini.
+     *
+     * Dibangun lewat Criteria API (Specification) di
+     * StokOperasiService#riwayat agar predicate hanya ditambahkan saat filter
+     * benar-benar terisi. Pola JPQL `:x IS NULL OR ...` membuat Hibernate
+     * mengirim parameter null TANPA tipe → PostgreSQL menolak
+     * "could not determine data type of parameter $4" → GET /api/stok/riwayat
+     * selalu HTTP 500 (bug #198). Lihat RiwayatStokIT sebagai uji regresinya.
+     */
+
+    /**
+     * Barang masuk berdasarkan nomor bukti (untuk pembalik/riwayat) — terbaru
+     * dulu. {@link Pageable} untuk membatasi (mis. ambil satu teratas).
+     */
+    @Query("""
+            SELECT m FROM RiwayatStok m
+            WHERE m.sekolahId = :sekolahId
+              AND m.jenis = :jenis
+              AND m.referensiId = :referensiId
+            ORDER BY m.id DESC
+            """)
+    List<RiwayatStok> cariByReferensi(@Param("sekolahId") Long sekolahId,
+                                     @Param("jenis") JenisMutasiStok jenis,
+                                     @Param("referensiId") String referensiId,
+                                     Pageable pageable);
+
+    /**
+     * Barang masuk berdasarkan nomor bukti <b>+ menu</b> (idempotency) —
+     * terbaru dulu. Satu bukti penerimaan boleh memuat beberapa baris item,
+     * jadi kunci idempotency adalah {@code (sekolah, referensi, menu)}.
+     */
+    @Query("""
+            SELECT m FROM RiwayatStok m
+            WHERE m.sekolahId = :sekolahId
+              AND m.jenis = :jenis
+              AND m.referensiId = :referensiId
+              AND m.menuId = :menuId
+            ORDER BY m.id DESC
+            """)
+    List<RiwayatStok> cariByReferensiDanMenu(@Param("sekolahId") Long sekolahId,
+                                            @Param("jenis") JenisMutasiStok jenis,
+                                            @Param("referensiId") String referensiId,
+                                            @Param("menuId") Long menuId,
+                                            Pageable pageable);
+
+    /**
+     * Mutasi berdasarkan <b>referensi_tipe + nomor bukti</b> (idempotency batch
+     * opname). Satu berita acara batch mencatat beberapa baris (per menu), jadi
+     * dipakai untuk memeriksa replay batch secara utuh.
+     */
+    @Query("""
+            SELECT m FROM RiwayatStok m
+            WHERE m.sekolahId = :sekolahId
+              AND m.referensiTipe = :referensiTipe
+              AND m.referensiId = :referensiId
+            ORDER BY m.id ASC
+            """)
+    List<RiwayatStok> cariByReferensiTipeDanId(@Param("sekolahId") Long sekolahId,
+                                              @Param("referensiTipe") String referensiTipe,
+                                              @Param("referensiId") String referensiId);
+
+    /**
+     * Total qty yang sudah dibalik untuk sebuah barang masuk asal — dasar
+     * penentuan sisa yang masih dapat dibalik (partial reversal).
+     */
+    @Query("""
+            SELECT COALESCE(SUM(m.qty), 0)
+            FROM RiwayatStok m
+            WHERE m.sekolahId = :sekolahId
+              AND m.mutasiAsalId = :asalId
+            """)
+    long totalDibalik(@Param("sekolahId") Long sekolahId, @Param("asalId") Long asalId);
+
+    /**
+     * Total dibalik untuk sekumpulan asal dalam <b>satu</b> query — dipakai
+     * mengisi {@code sisaDapatDibalik} pada daftar riwayat (hindari N+1).
+     */
+    @Query("""
+            SELECT m.mutasiAsalId, COALESCE(SUM(m.qty), 0)
+            FROM RiwayatStok m
+            WHERE m.sekolahId = :sekolahId
+              AND m.mutasiAsalId IN :asalIds
+            GROUP BY m.mutasiAsalId
+            """)
+    List<Object[]> totalDibalikPerAsal(@Param("sekolahId") Long sekolahId,
+                                       @Param("asalIds") Collection<Long> asalIds);
+
+    /**
+     * Rekap kerugian stok per jenis pada rentang waktu (PRD §9.5): Σ qty &amp;
+     * Σ (qty × hpp_snapshot). Mengembalikan baris {@code [jenis, jumlah, Σqty,
+     * Σnilai]}. Dipakai laporan kerugian (opname keluar &amp; barang rusak).
+     */
+    @Query("""
+            SELECT m.jenis, COUNT(m), COALESCE(SUM(m.qty), 0),
+                   COALESCE(SUM(m.qty * COALESCE(m.hppSnapshot, 0)), 0)
+            FROM RiwayatStok m
+            WHERE m.sekolahId = :sekolahId
+              AND m.jenis IN :jenis
+              AND m.waktu >= :dari AND m.waktu < :sampai
+            GROUP BY m.jenis
+            """)
+    List<Object[]> rekapKerugianRentang(@Param("sekolahId") Long sekolahId,
+                                        @Param("jenis") Collection<JenisMutasiStok> jenis,
+                                        @Param("dari") OffsetDateTime dari,
+                                        @Param("sampai") OffsetDateTime sampai);
+
+    /**
+     * Barang masuk per periode (PRD §9.5) — baris mutasi {@code BARANG_MASUK},
+     * terbaru dulu.
+     */
+    @Query("""
+            SELECT m FROM RiwayatStok m
+            WHERE m.sekolahId = :sekolahId
+              AND m.jenis = com.asqi.scholia_kantin_be.enums.JenisMutasiStok.BARANG_MASUK
+              AND m.waktu >= :dari AND m.waktu < :sampai
+            ORDER BY m.id ASC
+            """)
+    List<RiwayatStok> barangMasukRentang(@Param("sekolahId") Long sekolahId,
+                                        @Param("dari") OffsetDateTime dari,
+                                        @Param("sampai") OffsetDateTime sampai);
+
+    /**
+     * Daftar mutasi kerugian stok (opname keluar & barang rusak) pada rentang waktu (PRD §9.5),
+     * terbaru dulu.
+     */
+    @Query("""
+            SELECT m FROM RiwayatStok m
+            WHERE m.sekolahId = :sekolahId
+              AND m.jenis IN :jenis
+              AND m.waktu >= :dari AND m.waktu < :sampai
+            ORDER BY m.waktu DESC, m.id DESC
+            """)
+    List<RiwayatStok> kerugianRentang(@Param("sekolahId") Long sekolahId,
+                                     @Param("jenis") Collection<JenisMutasiStok> jenis,
+                                     @Param("dari") OffsetDateTime dari,
+                                     @Param("sampai") OffsetDateTime sampai);
+}

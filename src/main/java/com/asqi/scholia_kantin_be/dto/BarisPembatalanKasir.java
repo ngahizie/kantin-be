@@ -21,7 +21,7 @@ public class BarisPembatalanKasir {
 
     private Long transaksiId;
     private SubjekTipe subjekTipe;
-    private Long subjekId;
+    private Long siswaId;
     private String kartuUid;
     private long total;
     private String alasanVoid;
@@ -35,8 +35,8 @@ public class BarisPembatalanKasir {
     public static BarisPembatalanKasir dari(Transaksi t) {
         return BarisPembatalanKasir.builder()
                 .transaksiId(t.getId())
-                .subjekTipe(t.getSubjekTipe())
-                .subjekId(t.getSubjekId())
+                .subjekTipe(SubjekTipe.SISWA)
+                .siswaId(t.getSiswaId())
                 .kartuUid(t.getKartuUid())
                 .total(t.getTotal())
                 .alasanVoid(t.getAlasanVoid())

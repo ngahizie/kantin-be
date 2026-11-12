@@ -7,12 +7,12 @@ import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.helper.IdGenerator;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
-import com.asqi.scholia_kantin_be.model.SaldoCache;
-import com.asqi.scholia_kantin_be.model.SaldoLedger;
-import com.asqi.scholia_kantin_be.repository.SaldoCacheRepository;
+import com.asqi.scholia_kantin_be.model.Saldo;
+import com.asqi.scholia_kantin_be.model.MutasiSaldo;
+import com.asqi.scholia_kantin_be.repository.SaldoRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
-import com.asqi.scholia_kantin_be.repository.SaldoLedgerRepository;
+import com.asqi.scholia_kantin_be.repository.MutasiSaldoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -49,8 +49,8 @@ import java.util.Optional;
 @Slf4j
 public class LedgerSaldoService {
 
-    private final SaldoLedgerRepository ledgerRepo;
-    private final SaldoCacheRepository cacheRepo;
+    private final MutasiSaldoRepository ledgerRepo;
+    private final SaldoRepository cacheRepo;
     private final IdGenerator idGenerator;
     private final JamKantin jam;
     private final EntityManager entityManager;
@@ -105,19 +105,19 @@ public class LedgerSaldoService {
      * @return hasil kaki <b>keluar</b> (sumber) — {@code saldoSetelah} = 0
      */
     @Transactional(propagation = Propagation.MANDATORY)
-    public HasilMutasiSaldo pindahSaldo(Long sekolahId, SubjekTipe subjekTipe, Long sumberId,
+    public HasilMutasiSaldo pindahSaldo(Long sekolahId, Long sumberId,
                                         Long tujuanId, String referensiId, String keterangan,
                                         Long aktorId) {
         String keySumber = "TRANSFER-" + referensiId;
 
         // Idempotency: replay → kembalikan kaki keluar lama tanpa menyentuh saldo.
-        Optional<SaldoLedger> lama = ledgerRepo.findBySekolahIdAndIdempotencyKey(sekolahId, keySumber);
+        Optional<MutasiSaldo> lama = ledgerRepo.findBySekolahIdAndIdempotencyKey(sekolahId, keySumber);
         if (lama.isPresent()) {
             return HasilMutasiSaldo.replay(lama.get());
         }
 
         HasilMutasiSaldo keluar = terapkan(ArahMutasi.DEBIT, PerintahMutasiSaldo.builder()
-                .sekolahId(sekolahId).subjekTipe(subjekTipe).subjekId(sumberId)
+                .sekolahId(sekolahId).siswaId(sumberId)
                 .jenis(JenisMutasiSaldo.TRANSFER).nominal(0L)
                 .idempotencyKey(keySumber).referensiTipe("TRANSFER").referensiId(referensiId)
                 .keterangan(keterangan).aktorId(aktorId).build(), true);
@@ -127,7 +127,7 @@ public class LedgerSaldoService {
         // Kaki masuk — key turunan agar tidak bentrok dengan kaki keluar, tetapi
         // tetap idempoten (replay kredit tidak menambah saldo dua kali).
         terapkan(ArahMutasi.KREDIT, PerintahMutasiSaldo.builder()
-                .sekolahId(sekolahId).subjekTipe(subjekTipe).subjekId(tujuanId)
+                .sekolahId(sekolahId).siswaId(tujuanId)
                 .jenis(JenisMutasiSaldo.TRANSFER).nominal(nominal)
                 .idempotencyKey(keySumber + "-MASUK").referensiTipe("TRANSFER").referensiId(referensiId)
                 .keterangan(keterangan).aktorId(aktorId).build(), false);
@@ -140,7 +140,7 @@ public class LedgerSaldoService {
 
         // 1) Idempotency: key sama (per sekolah) → kembalikan hasil lama (tanpa mutasi baru).
         if (perintah.getIdempotencyKey() != null) {
-            Optional<SaldoLedger> lama = ledgerRepo.findBySekolahIdAndIdempotencyKey(
+            Optional<MutasiSaldo> lama = ledgerRepo.findBySekolahIdAndIdempotencyKey(
                     perintah.getSekolahId(), perintah.getIdempotencyKey());
             if (lama.isPresent()) {
                 log.debug("Idempotency replay saldo key={} → saldoSetelah={}",
@@ -150,8 +150,8 @@ public class LedgerSaldoService {
         }
 
         // 2) Pastikan baris cache ada, lalu KUNCI (FOR UPDATE) — serialisasi per subjek.
-        cacheRepo.pastikanBarisAda(perintah.getSubjekTipe().name(), perintah.getSubjekId(), perintah.getSekolahId());
-        SaldoCache cache = cacheRepo.kunciUntukUpdate(perintah.getSekolahId(), perintah.getSubjekTipe(), perintah.getSubjekId())
+        cacheRepo.pastikanBarisAda(perintah.getSekolahId(), perintah.getSiswaId());
+        Saldo cache = cacheRepo.kunciUntukUpdate(perintah.getSekolahId(), perintah.getSiswaId())
                 .orElseThrow(() -> new NotFoundEntity("Baris saldo tidak ditemukan"));
         // SELECT FOR UPDATE tidak otomatis me-refresh entity yang sudah ada di persistence context.
         // TapService membaca cache saat validasi sebelum debit, jadi refresh setelah lock wajib.
@@ -191,11 +191,10 @@ public class LedgerSaldoService {
 
         // 5) Baris ledger baru (append-only).
         OffsetDateTime now = jam.sekarang();
-        SaldoLedger mutasi = SaldoLedger.builder()
+        MutasiSaldo mutasi = MutasiSaldo.builder()
                 .id(idGenerator.berikutnyaLong())
                 .sekolahId(perintah.getSekolahId())
-                .subjekTipe(perintah.getSubjekTipe())
-                .subjekId(perintah.getSubjekId())
+                .siswaId(perintah.getSiswaId())
                 .arah(arah)
                 .jenis(perintah.getJenis())
                 .nominal(nominal)
@@ -216,7 +215,7 @@ public class LedgerSaldoService {
             // Balapan idempotency: dua request dengan key sama (per sekolah) nyaris bersamaan.
             // Yang kalah memakai hasil pemenang (idempotent, bukan error).
             if (perintah.getIdempotencyKey() != null) {
-                SaldoLedger pemenang = ledgerRepo.findBySekolahIdAndIdempotencyKey(
+                MutasiSaldo pemenang = ledgerRepo.findBySekolahIdAndIdempotencyKey(
                                 perintah.getSekolahId(), perintah.getIdempotencyKey())
                         .orElseThrow(() -> e);
                 return HasilMutasiSaldo.replay(pemenang);
@@ -236,7 +235,7 @@ public class LedgerSaldoService {
         if (p.getSekolahId() == null) {
             throw new IllegalArgumentException("sekolahId wajib diisi");
         }
-        if (p.getSubjekTipe() == null || p.getSubjekId() == null) {
+        if (p.getSiswaId() == null) {
             throw new IllegalArgumentException("subjek wajib diisi");
         }
         if (p.getJenis() == null) {
@@ -255,9 +254,8 @@ public class LedgerSaldoService {
 
     /** Saldo berjalan satu subjek (0 bila belum pernah ada mutasi). */
     @Transactional(readOnly = true)
-    public long saldo(Long sekolahId, SubjekTipe subjekTipe, Long subjekId) {
-        return cacheRepo.findBySubjekTipeAndSubjekId(subjekTipe, subjekId)
-                .filter(c -> c.getSekolahId().equals(sekolahId))
+    public long saldo(Long sekolahId, Long siswaId) {
+        return cacheRepo.findBySekolahIdAndSiswaId(sekolahId, siswaId)
                 .map(c -> c.getSaldo() == null ? 0L : c.getSaldo())
                 .orElse(0L);
     }
@@ -267,8 +265,8 @@ public class LedgerSaldoService {
      * deteksi drift cache (PRD §11.1).
      */
     @Transactional(readOnly = true)
-    public long hitungUlangDariLedger(Long sekolahId, SubjekTipe subjekTipe, Long subjekId) {
-        Long hasil = ledgerRepo.hitungSaldoDariLedger(sekolahId, subjekTipe, subjekId, ArahMutasi.KREDIT);
+    public long hitungUlangDariLedger(Long sekolahId, Long siswaId) {
+        Long hasil = ledgerRepo.hitungSaldoDariLedger(sekolahId, siswaId, ArahMutasi.KREDIT);
         return hasil == null ? 0L : hasil;
     }
 
@@ -278,9 +276,9 @@ public class LedgerSaldoService {
      * dikurangi (net) agar tidak lagi memakan jatah limit (PRD §6.3).
      */
     @Transactional(readOnly = true)
-    public long belanjaHariIni(Long sekolahId, SubjekTipe subjekTipe, Long subjekId) {
+    public long belanjaHariIni(Long sekolahId, Long siswaId) {
         Long hasil = ledgerRepo.hitungBelanjaBersihSejak(
-                sekolahId, subjekTipe, subjekId, ArahMutasi.DEBIT,
+                sekolahId, siswaId, ArahMutasi.DEBIT,
                 List.of(JenisMutasiSaldo.PENJUALAN, JenisMutasiSaldo.VOID_PENJUALAN),
                 jam.awalHariIni());
         return hasil == null ? 0L : hasil;
@@ -288,8 +286,8 @@ public class LedgerSaldoService {
 
     /** Riwayat mutasi terbaru satu subjek (PRD §8.4). */
     @Transactional(readOnly = true)
-    public List<SaldoLedger> riwayatTerbaru(Long sekolahId, SubjekTipe subjekTipe, Long subjekId, int batas) {
-        return ledgerRepo.riwayatTerbaru(sekolahId, subjekTipe, subjekId,
+    public List<MutasiSaldo> riwayatTerbaru(Long sekolahId, Long siswaId, int batas) {
+        return ledgerRepo.riwayatTerbaru(sekolahId, siswaId,
                 org.springframework.data.domain.PageRequest.of(0, Math.max(1, batas)));
     }
 }

@@ -9,7 +9,7 @@ import java.util.Optional;
  * Port pencarian siswa (PRD §9.2) — jembatan ke data siswa milik {@code admin-be}.
  *
  * <p>Kantin-be <b>tidak menyimpan master siswa</b>; yang dimiliki hanya ledger
- * saldo (per {@code subjekId}). Pencarian nama/NIS harus bertanya ke SKOOLIA.
+ * saldo (per {@code siswaId}). Pencarian nama/NIS harus bertanya ke SKOOLIA.
  * Karena kontrak nyatanya belum final (Q7, lihat #164), port ini punya:
  * <ul>
  *   <li>{@link CariSiswaFallback} — default aman (daftar kosong) saat belum dikonfigurasi;</li>

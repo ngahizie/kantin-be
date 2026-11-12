@@ -18,7 +18,7 @@ public class BlokirItemRequest {
     private SubjekTipe subjekTipe;
 
     @NotNull(message = "ID subjek wajib diisi")
-    private Long subjekId;
+    private Long siswaId;
 
     /** Menu yang diblokir (isi salah satu dengan kategoriId). */
     private Long menuId;

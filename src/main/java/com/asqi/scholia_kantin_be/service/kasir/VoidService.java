@@ -183,8 +183,7 @@ public class VoidService {
         JenisMutasiSaldo jenis = koreksi ? JenisMutasiSaldo.KOREKSI : JenisMutasiSaldo.VOID_PENJUALAN;
         ledgerSaldo.kredit(PerintahMutasiSaldo.builder()
                 .sekolahId(sekolahId)
-                .subjekTipe(trx.getSubjekTipe())
-                .subjekId(trx.getSubjekId())
+                .siswaId(trx.getSiswaId())
                 .jenis(jenis)
                 .nominal(trx.getTotal())
                 .idempotencyKey(prefix + trx.getId())
@@ -214,14 +213,13 @@ public class VoidService {
 
         // Notifikasi ke ortu (PRD §8.4) — best-effort/fail-open: kegagalan
         // pengiriman TIDAK membatalkan pembalik yang sudah tercatat di ledger.
-        Long saldoSetelah = (trx.getSubjekTipe() == null || trx.getSubjekId() == null)
+        Long saldoSetelah = (trx.getSiswaId() == null)
                 ? null
-                : ledgerSaldo.saldo(sekolahId, trx.getSubjekTipe(), trx.getSubjekId());
+                : ledgerSaldo.saldo(sekolahId, trx.getSiswaId());
         notifikasi.kirim(PerintahNotifikasi.builder()
                 .sekolahId(sekolahId)
                 .jenis(JenisNotifikasi.VOID)
-                .subjekTipe(trx.getSubjekTipe())
-                .subjekId(trx.getSubjekId())
+                .siswaId(trx.getSiswaId())
                 .nominal(trx.getTotal())
                 .saldoSetelah(saldoSetelah)
                 .referensiId(String.valueOf(trx.getId()))

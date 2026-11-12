@@ -157,7 +157,7 @@ class BukuKasPostingServiceIT {
         sesiKasir.tutupSesi(SEKOLAH, sesiId, 555L, false);
         assertThat(fake.dipanggil).hasSize(1);
 
-        HasilPostingBukuKas hasil = posting.postingUlang(SEKOLAH, sesiId, 555L);
+        HasilJurnalBukuKas hasil = posting.postingUlang(SEKOLAH, sesiId, 555L);
 
         assertThat(hasil.sukses()).isTrue();
         assertThat(fake.dipanggil).hasSize(1); // TIDAK ada entri ganda
@@ -181,7 +181,7 @@ class BukuKasPostingServiceIT {
 
         // Integrasi pulih → retry berhasil tanpa membuat sesi/transaksi baru.
         fake.melempar = false;
-        HasilPostingBukuKas hasil = posting.postingUlang(SEKOLAH, sesiId, 555L);
+        HasilJurnalBukuKas hasil = posting.postingUlang(SEKOLAH, sesiId, 555L);
 
         assertThat(hasil.sukses()).isTrue();
         assertThat(fake.dipanggil).hasSize(2);
@@ -195,7 +195,7 @@ class BukuKasPostingServiceIT {
         SesiKasir sesi = sesiKasir.bukaSesi(SEKOLAH, TITIK); // tanpa transaksi
 
         sesiKasir.tutupSesi(SEKOLAH, sesi.getId(), 555L, false);
-        HasilPostingBukuKas hasil = posting.postingUlang(SEKOLAH, sesi.getId(), 555L);
+        HasilJurnalBukuKas hasil = posting.postingUlang(SEKOLAH, sesi.getId(), 555L);
 
         assertThat(fake.dipanggil).isEmpty();
         assertThat(hasil.dilewati()).isTrue();
@@ -262,12 +262,12 @@ class BukuKasPostingServiceIT {
         volatile boolean melempar = false;
 
         @Override
-        public HasilPostingBukuKas catat(PerintahBukuKas perintah) {
+        public HasilJurnalBukuKas catat(PerintahBukuKas perintah) {
             dipanggil.add(perintah);
             if (melempar) {
                 throw new IllegalStateException("admin-be tidak dapat dihubungi");
             }
-            return HasilPostingBukuKas.sukses(perintah.getRefId(), "ok");
+            return HasilJurnalBukuKas.sukses(perintah.getRefId(), "ok");
         }
 
         void reset() {

@@ -11,7 +11,7 @@ import lombok.Data;
 public class HasilRefundResponse {
 
     /** Subjek yang saldonya dikosongkan (siswa keluar). */
-    private Long subjekId;
+    private Long siswaId;
 
     /** Subjek penerima (saudara) — {@code null} untuk refund. */
     private Long tujuanSubjekId;

@@ -5,7 +5,7 @@ import com.asqi.scholia_kantin_be.enums.MetodeBukuKas;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.enums.TipeBukuKas;
 import com.asqi.scholia_kantin_be.service.integrasi.HasilKirimNotifikasi;
-import com.asqi.scholia_kantin_be.service.integrasi.HasilPostingBukuKas;
+import com.asqi.scholia_kantin_be.service.integrasi.HasilJurnalBukuKas;
 import com.asqi.scholia_kantin_be.service.integrasi.PerintahBukuKas;
 import com.asqi.scholia_kantin_be.service.integrasi.PerintahNotifikasi;
 import org.junit.jupiter.api.DisplayName;
@@ -38,7 +38,7 @@ class DemoAdapterTest {
                 .refModul("KANTIN")
                 .build();
 
-        HasilPostingBukuKas hasil = new BukuKasDemo().catat(perintah);
+        HasilJurnalBukuKas hasil = new BukuKasDemo().catat(perintah);
 
         assertThat(hasil.sukses()).isTrue();
         assertThat(hasil.referensi()).isEqualTo("DEMO-BK-KANTIN-SESI-1");

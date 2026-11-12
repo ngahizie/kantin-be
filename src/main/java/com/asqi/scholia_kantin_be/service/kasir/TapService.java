@@ -17,8 +17,8 @@ import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.model.SesiKasir;
 import com.asqi.scholia_kantin_be.model.Transaksi;
 import com.asqi.scholia_kantin_be.model.TransaksiItem;
-import com.asqi.scholia_kantin_be.model.TransaksiMenungguKonfirmasi;
-import com.asqi.scholia_kantin_be.repository.TransaksiMenungguKonfirmasiRepository;
+import com.asqi.scholia_kantin_be.model.TransaksiTertunda;
+import com.asqi.scholia_kantin_be.repository.TransaksiTertundaRepository;
 import com.asqi.scholia_kantin_be.repository.TitikKasirRepository;
 import com.asqi.scholia_kantin_be.repository.TransaksiRepository;
 import com.asqi.scholia_kantin_be.security.IdentitasKantin;
@@ -73,7 +73,7 @@ public class TapService {
 
     private final TransaksiRepository transaksiRepo;
     private final TitikKasirRepository titikKasirRepo;
-    private final TransaksiMenungguKonfirmasiRepository pendingRepo;
+    private final TransaksiTertundaRepository pendingRepo;
     private final TapValidator validator;
     private final LedgerSaldoService ledgerSaldo;
     private final LedgerStokService ledgerStok;
@@ -177,10 +177,10 @@ public class TapService {
 
         long saldo = 0L;
         long belanjaHariIni = 0L;
-        if (kartu.isDikenal() && kartu.getSubjekTipe() != null && kartu.getSubjekId() != null) {
-            saldo = ledgerSaldo.saldo(sekolahId, kartu.getSubjekTipe(), kartu.getSubjekId());
+        if (kartu.isDikenal() && kartu.getSubjekTipe() != null && kartu.getSiswaId() != null) {
+            saldo = ledgerSaldo.saldo(sekolahId, kartu.getSiswaId());
             if (kartu.siswa()) {
-                belanjaHariIni = ledgerSaldo.belanjaHariIni(sekolahId, kartu.getSubjekTipe(), kartu.getSubjekId());
+                belanjaHariIni = ledgerSaldo.belanjaHariIni(sekolahId, kartu.getSiswaId());
             }
         }
 
@@ -203,14 +203,13 @@ public class TapService {
         OffsetDateTime now = jam.sekarang();
         Long pendingId = idGenerator.berikutnyaLong();
 
-        TransaksiMenungguKonfirmasi pending = TransaksiMenungguKonfirmasi.builder()
+        TransaksiTertunda pending = TransaksiTertunda.builder()
                 .id(pendingId)
                 .sekolahId(sekolahId)
                 .idempotencyKey(request.getIdempotencyKey())
                 .rfidUid(request.getRfidUid())
                 .titikKasirId(request.getTitikKasirId())
-                .subjekTipe(siap.kartu().getSubjekTipe())
-                .subjekId(siap.kartu().getSubjekId())
+                .siswaId(siap.kartu().getSiswaId())
                 .petugasId(petugasId)
                 .total(siap.hasil().getTotal())
                 .itemsJson(tulisItems(request.getItems()))
@@ -235,7 +234,7 @@ public class TapService {
     public TapResponse konfirmasi(Long sekolahId, Long pendingId, IdentitasKantin identitas) {
         Long petugasId = identitas.aktorIdWajib();
         return txTemplate.execute(status -> {
-            TransaksiMenungguKonfirmasi pending = pendingRepo.kunciUntukUpdate(sekolahId, pendingId)
+            TransaksiTertunda pending = pendingRepo.kunciUntukUpdate(sekolahId, pendingId)
                     .orElseThrow(() -> new NotFoundEntity("Permintaan konfirmasi tidak ditemukan"));
             if (!pending.getSekolahId().equals(sekolahId)) {
                 throw new NotFoundEntity("Permintaan konfirmasi tidak ditemukan");
@@ -264,7 +263,7 @@ public class TapService {
     public void batal(Long sekolahId, Long pendingId, IdentitasKantin identitas) {
         Long petugasId = identitas.aktorIdWajib();
         txTemplate.executeWithoutResult(status -> {
-            TransaksiMenungguKonfirmasi pending = pendingRepo.kunciUntukUpdate(sekolahId, pendingId)
+            TransaksiTertunda pending = pendingRepo.kunciUntukUpdate(sekolahId, pendingId)
                     .orElseThrow(() -> new NotFoundEntity("Permintaan konfirmasi tidak ditemukan"));
             if (!pending.getSekolahId().equals(sekolahId)) {
                 throw new NotFoundEntity("Permintaan konfirmasi tidak ditemukan");
@@ -283,12 +282,12 @@ public class TapService {
     }
 
     /** Daftar tap pending yang masih menunggu konfirmasi untuk satu sekolah. */
-    public List<TransaksiMenungguKonfirmasi> daftarPending(Long sekolahId) {
+    public List<TransaksiTertunda> daftarPending(Long sekolahId) {
         return pendingRepo.findBySekolahIdAndStatusOrderByIdAsc(sekolahId, StatusPendingTap.MENUNGGU);
     }
 
     /** Bangun respons ringkas untuk baris pending (dipakai endpoint daftar menunggu). */
-    public TapResponse keResponse(TransaksiMenungguKonfirmasi pending) {
+    public TapResponse keResponse(TransaksiTertunda pending) {
         return bangunMenunggu(pending);
     }
 
@@ -309,8 +308,7 @@ public class TapService {
                 .sekolahId(sekolahId)
                 .sesiKasirId(sesi.getId())
                 .titikKasirId(request.getTitikKasirId())
-                .subjekTipe(kartu.getSubjekTipe())
-                .subjekId(kartu.getSubjekId())
+                .siswaId(kartu.getSiswaId())
                 .kartuUid(request.getRfidUid())
                 .petugasId(petugasId)
                 .total(hasil.getTotal())
@@ -352,8 +350,7 @@ public class TapService {
         // Debit saldo (FOR UPDATE) — atomik dengan langkah di atas.
         var hasilDebit = ledgerSaldo.debit(PerintahMutasiSaldo.builder()
                 .sekolahId(sekolahId)
-                .subjekTipe(kartu.getSubjekTipe())
-                .subjekId(kartu.getSubjekId())
+                .siswaId(kartu.getSiswaId())
                 .jenis(JenisMutasiSaldo.PENJUALAN)
                 .nominal(hasil.getTotal())
                 .idempotencyKey(request.getIdempotencyKey())
@@ -364,7 +361,7 @@ public class TapService {
                 .build());
 
         log.info("Tap sukses trx={} sekolah={} subjek={}/{} total={} saldoSisa={}",
-                transaksiId, sekolahId, kartu.getSubjekTipe(), kartu.getSubjekId(),
+                transaksiId, sekolahId, kartu.getSubjekTipe(), kartu.getSiswaId(),
                 hasil.getTotal(), hasilDebit.getSaldoSetelah());
 
         // Notifikasi ke ortu (PRD §8.4) — best-effort/fail-open: kegagalan
@@ -372,8 +369,7 @@ public class TapService {
         notifikasi.kirim(PerintahNotifikasi.builder()
                 .sekolahId(sekolahId)
                 .jenis(JenisNotifikasi.BELANJA)
-                .subjekTipe(kartu.getSubjekTipe())
-                .subjekId(kartu.getSubjekId())
+                .siswaId(kartu.getSiswaId())
                 .nominal(hasil.getTotal())
                 .saldoSetelah(hasilDebit.getSaldoSetelah())
                 .referensiId(String.valueOf(transaksiId))
@@ -385,7 +381,6 @@ public class TapService {
 
         return TapResponse.builder()
                 .transaksiId(transaksiId)
-                .subjekTipe(kartu.getSubjekTipe())
                 .nama(kartu.getNama())
                 .kelas(kartu.getKelas())
                 .fotoUrl(kartu.getFotoUrl())
@@ -417,12 +412,11 @@ public class TapService {
     }
 
     /** Respons "menunggu konfirmasi" (belum memotong saldo/stok). */
-    private TapResponse bangunMenunggu(TransaksiMenungguKonfirmasi pending) {
+    private TapResponse bangunMenunggu(TransaksiTertunda pending) {
         InfoKartu kartu = pending.getRfidUid() == null ? null
                 : kartuLookup.cariBerdasarkanUid(pending.getSekolahId(), pending.getRfidUid());
         return TapResponse.builder()
                 .transaksiId(null)
-                .subjekTipe(pending.getSubjekTipe())
                 .nama(kartu == null ? null : kartu.getNama())
                 .kelas(kartu == null ? null : kartu.getKelas())
                 .fotoUrl(kartu == null ? null : kartu.getFotoUrl())
@@ -454,8 +448,8 @@ public class TapService {
         }
 
         long saldoSisa = 0L;
-        if (trx.getSubjekTipe() != null && trx.getSubjekId() != null) {
-            saldoSisa = ledgerSaldo.saldo(sekolahId, trx.getSubjekTipe(), trx.getSubjekId());
+        if (trx.getSiswaId() != null) {
+            saldoSisa = ledgerSaldo.saldo(sekolahId, trx.getSiswaId());
         }
         InfoKartu kartu = trx.getKartuUid() == null ? null
                 : kartuLookup.cariBerdasarkanUid(sekolahId, trx.getKartuUid());
@@ -467,7 +461,6 @@ public class TapService {
 
         return TapResponse.builder()
                 .transaksiId(trx.getId())
-                .subjekTipe(trx.getSubjekTipe())
                 .nama(kartu == null ? null : kartu.getNama())
                 .kelas(kartu == null ? null : kartu.getKelas())
                 .fotoUrl(kartu == null ? null : kartu.getFotoUrl())
@@ -493,7 +486,7 @@ public class TapService {
     }
 
     /** Rekonstruksi permintaan tap dari baris pending (untuk konfirmasi). */
-    private TapRequest dariPending(TransaksiMenungguKonfirmasi pending) {
+    private TapRequest dariPending(TransaksiTertunda pending) {
         TapRequest request = new TapRequest();
         request.setRfidUid(pending.getRfidUid());
         request.setTitikKasirId(pending.getTitikKasirId());

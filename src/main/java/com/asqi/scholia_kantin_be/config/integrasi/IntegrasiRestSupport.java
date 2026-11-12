@@ -1,7 +1,7 @@
 package com.asqi.scholia_kantin_be.config.integrasi;
 
+import com.asqi.scholia_kantin_be.helper.TandaTanganHmac;
 import com.asqi.scholia_kantin_be.config.integrasi.IntegrasiRestProperties.Endpoint;
-import com.asqi.scholia_kantin_be.config.webhook.TandaTanganWebhook;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -170,7 +170,7 @@ public abstract class IntegrasiRestSupport {
         String rahasia = konfigurasi.getSecret();
         if (rahasia != null && !rahasia.isBlank()) {
             String ts = String.valueOf(System.currentTimeMillis() / 1000L);
-            String sig = TandaTanganWebhook.hitung(rahasia, ts, badan == null ? new byte[0] : badan);
+            String sig = TandaTanganHmac.hitung(rahasia, ts, badan == null ? new byte[0] : badan);
             s = s.header("X-Internal-Timestamp", ts)
                  .header("X-Internal-Signature", "sha256=" + sig);
         }

@@ -8,10 +8,10 @@ import com.asqi.scholia_kantin_be.enums.ArahStok;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiStok;
 import com.asqi.scholia_kantin_be.helper.IdGenerator;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
-import com.asqi.scholia_kantin_be.model.MutasiStok;
-import com.asqi.scholia_kantin_be.model.StokCache;
-import com.asqi.scholia_kantin_be.repository.MutasiStokRepository;
-import com.asqi.scholia_kantin_be.repository.StokCacheRepository;
+import com.asqi.scholia_kantin_be.model.RiwayatStok;
+import com.asqi.scholia_kantin_be.model.Stok;
+import com.asqi.scholia_kantin_be.repository.RiwayatStokRepository;
+import com.asqi.scholia_kantin_be.repository.StokRepository;
 import com.asqi.scholia_kantin_be.security.IdentitasKantin;
 import com.asqi.scholia_kantin_be.security.TenantContext;
 import jakarta.persistence.EntityManager;
@@ -46,8 +46,8 @@ import java.util.Optional;
 @Slf4j
 public class LedgerStokService {
 
-    private final MutasiStokRepository mutasiRepo;
-    private final StokCacheRepository cacheRepo;
+    private final RiwayatStokRepository mutasiRepo;
+    private final StokRepository cacheRepo;
     private final HppService hppService;
     private final AuditLogger auditLogger;
     private final IdGenerator idGenerator;
@@ -81,26 +81,26 @@ public class LedgerStokService {
 
         // Idempotency jalur cepat: bukti + menu yang sama sudah pernah diproses.
         if (referensiId != null && !referensiId.isBlank()) {
-            Optional<MutasiStok> lama = mutasiRepo
+            Optional<RiwayatStok> lama = mutasiRepo
                     .cariByReferensiDanMenu(sekolahId, JenisMutasiStok.BARANG_MASUK,
                             referensiId, menuId, PageRequest.of(0, 1))
                     .stream().findFirst();
             if (lama.isPresent()) {
-                MutasiStok m = lama.get();
+                RiwayatStok m = lama.get();
                 log.debug("Idempotency replay barang masuk referensi={} menu={} → mutasiId={}",
                         referensiId, menuId, m.getId());
                 return HasilMutasiStok.baru(m, m.getStokSetelah(), nolBilaNull(m.getHppSnapshot()));
             }
         }
 
-        StokCache cache = kunciStok(sekolahId, menuId);
+        Stok cache = kunciStok(sekolahId, menuId);
         int stokSebelum = cache.getStok();
         long hppSebelum = cache.getHpp();
 
         long hppBaru = hppService.hitungRataRataTertimbang(stokSebelum, hppSebelum, qty, hargaBeliPerUnit);
         int stokBaru = stokSebelum + qty;
 
-        MutasiStok mutasi = catat(ArahStok.MASUK, JenisMutasiStok.BARANG_MASUK, sekolahId, menuId,
+        RiwayatStok mutasi = catat(ArahStok.MASUK, JenisMutasiStok.BARANG_MASUK, sekolahId, menuId,
                 qty, stokBaru, hppBaru, null, referensiTipe, referensiId, null, aktorId,
                 hargaBeliPerUnit, null);
 
@@ -143,17 +143,17 @@ public class LedgerStokService {
         }
 
         // Idempotency: bukti pembalik yang sama → kembalikan hasil lama.
-        Optional<MutasiStok> replay = mutasiRepo
+        Optional<RiwayatStok> replay = mutasiRepo
                 .cariByReferensi(sekolahId, JenisMutasiStok.BARANG_MASUK_PEMBALIK, referensiId,
                         PageRequest.of(0, 1))
                 .stream().findFirst();
         if (replay.isPresent()) {
-            MutasiStok lama = replay.get();
+            RiwayatStok lama = replay.get();
             log.debug("Idempotency replay pembalik referensi={} → mutasiId={}", referensiId, lama.getId());
             return HasilMutasiStok.baru(lama, lama.getStokSetelah(), nolBilaNull(lama.getHppSnapshot()));
         }
 
-        MutasiStok asal = mutasiRepo.findByIdAndSekolahId(asalMutasiId, sekolahId)
+        RiwayatStok asal = mutasiRepo.findByIdAndSekolahId(asalMutasiId, sekolahId)
                 .orElseThrow(() -> new NotFoundEntity("Barang masuk tidak ditemukan"));
         if (asal.getJenis() != JenisMutasiStok.BARANG_MASUK) {
             throw new InvalidOperationException(
@@ -181,7 +181,7 @@ public class LedgerStokService {
                 ? asal.getHargaBeliSatuan()
                 : nolBilaNull(asal.getHppSnapshot());
 
-        StokCache cache = kunciStok(sekolahId, asal.getMenuId());
+        Stok cache = kunciStok(sekolahId, asal.getMenuId());
         int stokSebelum = cache.getStok();
         long hppSebelum = cache.getHpp();
 
@@ -194,7 +194,7 @@ public class LedgerStokService {
         long hppBaru = hppService.hitungRataRataSetelahPembalik(stokSebelum, hppSebelum, qty, hargaBeliAsal);
         int stokBaru = stokSebelum - qty;
 
-        MutasiStok mutasi = catat(ArahStok.KELUAR, JenisMutasiStok.BARANG_MASUK_PEMBALIK,
+        RiwayatStok mutasi = catat(ArahStok.KELUAR, JenisMutasiStok.BARANG_MASUK_PEMBALIK,
                 sekolahId, asal.getMenuId(), qty, stokBaru, hppBaru, null,
                 "BARANG_MASUK_PEMBALIK", referensiId, alasan, aktorId,
                 hargaBeliAsal, asal.getId());
@@ -226,7 +226,7 @@ public class LedgerStokService {
             throw new InvalidOperationException("Qty penjualan harus > 0");
         }
 
-        StokCache cache = kunciStok(sekolahId, menuId);
+        Stok cache = kunciStok(sekolahId, menuId);
         int stokSebelum = cache.getStok();
         if (stokSebelum < qty) {
             throw new ConflictException("Stok tidak cukup (sisa " + stokSebelum + ")");
@@ -234,7 +234,7 @@ public class LedgerStokService {
         long hppSnapshot = cache.getHpp();
         int stokBaru = stokSebelum - qty;
 
-        MutasiStok mutasi = catat(ArahStok.KELUAR, JenisMutasiStok.PENJUALAN, sekolahId, menuId,
+        RiwayatStok mutasi = catat(ArahStok.KELUAR, JenisMutasiStok.PENJUALAN, sekolahId, menuId,
                 qty, stokBaru, hppSnapshot, transaksiId, null, null, null, null, null, null);
 
         cache.setStok(stokBaru);
@@ -255,10 +255,10 @@ public class LedgerStokService {
             throw new InvalidOperationException("Qty void harus > 0");
         }
 
-        StokCache cache = kunciStok(sekolahId, menuId);
+        Stok cache = kunciStok(sekolahId, menuId);
         int stokBaru = cache.getStok() + qty;
 
-        MutasiStok mutasi = catat(ArahStok.MASUK, JenisMutasiStok.VOID_PENJUALAN, sekolahId, menuId,
+        RiwayatStok mutasi = catat(ArahStok.MASUK, JenisMutasiStok.VOID_PENJUALAN, sekolahId, menuId,
                 qty, stokBaru, hppSnapshot, transaksiId, null, null, null, aktorId, null, null);
 
         cache.setStok(stokBaru);
@@ -308,7 +308,7 @@ public class LedgerStokService {
             throw new InvalidOperationException("Alasan penyesuaian stok wajib diisi (PRD §7.3)");
         }
 
-        StokCache cache = kunciStok(sekolahId, menuId);
+        Stok cache = kunciStok(sekolahId, menuId);
         int stokSekarang = cache.getStok();
         int selisih = qtyFisik - stokSekarang;
 
@@ -326,7 +326,7 @@ public class LedgerStokService {
             jenis = rusak ? JenisMutasiStok.BARANG_RUSAK : JenisMutasiStok.OPNAME_KELUAR;
         }
 
-        MutasiStok mutasi = catat(arah, jenis, sekolahId, menuId, Math.abs(selisih), qtyFisik,
+        RiwayatStok mutasi = catat(arah, jenis, sekolahId, menuId, Math.abs(selisih), qtyFisik,
                 cache.getHpp(), null, referensiTipe, referensiId, alasan, aktorId, null, null);
 
         cache.setStok(qtyFisik);
@@ -350,7 +350,7 @@ public class LedgerStokService {
     public int stok(Long sekolahId, Long menuId) {
         return cacheRepo.findByMenuId(menuId)
                 .filter(c -> c.getSekolahId().equals(sekolahId))
-                .map(StokCache::getStok)
+                .map(Stok::getStok)
                 .orElse(0);
     }
 
@@ -358,12 +358,12 @@ public class LedgerStokService {
     public long hpp(Long sekolahId, Long menuId) {
         return cacheRepo.findByMenuId(menuId)
                 .filter(c -> c.getSekolahId().equals(sekolahId))
-                .map(StokCache::getHpp)
+                .map(Stok::getHpp)
                 .orElse(0L);
     }
 
     @Transactional(readOnly = true)
-    public List<StokCache> stokMenipis(Long sekolahId) {
+    public List<Stok> stokMenipis(Long sekolahId) {
         return cacheRepo.stokMenipis(sekolahId);
     }
 
@@ -376,7 +376,7 @@ public class LedgerStokService {
 
     /** Barang masuk (jenis {@code BARANG_MASUK}) berdasarkan id — tenant-scoped. */
     @Transactional(readOnly = true)
-    public MutasiStok barangMasuk(Long sekolahId, Long mutasiId) {
+    public RiwayatStok barangMasuk(Long sekolahId, Long mutasiId) {
         return mutasiRepo.findByIdAndSekolahId(mutasiId, sekolahId)
                 .orElseThrow(() -> new NotFoundEntity("Barang masuk tidak ditemukan"));
     }
@@ -392,9 +392,9 @@ public class LedgerStokService {
     // ────────────────────────────────────────────────────────────────
 
     /** Pastikan baris cache ada &amp; terkunci (FOR UPDATE) — serialisasi per menu. */
-    private StokCache kunciStok(Long sekolahId, Long menuId) {
+    private Stok kunciStok(Long sekolahId, Long menuId) {
         cacheRepo.pastikanBarisAda(menuId, sekolahId);
-        StokCache cache = cacheRepo.kunciUntukUpdate(sekolahId, menuId)
+        Stok cache = cacheRepo.kunciUntukUpdate(sekolahId, menuId)
                 .orElseThrow(() -> new NotFoundEntity("Stok menu tidak ditemukan"));
         // Refresh state yang mungkin telah dibaca validator sebelum lock.
         entityManager.refresh(cache, LockModeType.PESSIMISTIC_WRITE);
@@ -405,12 +405,12 @@ public class LedgerStokService {
         return cache;
     }
 
-    private MutasiStok catat(ArahStok arah, JenisMutasiStok jenis, Long sekolahId, Long menuId,
+    private RiwayatStok catat(ArahStok arah, JenisMutasiStok jenis, Long sekolahId, Long menuId,
                              int qty, int stokSetelah, Long hppSnapshot, Long transaksiId,
                              String referensiTipe, String referensiId, String alasan, Long aktorId,
                              Long hargaBeliSatuan, Long mutasiAsalId) {
         OffsetDateTime now = jam.sekarang();
-        MutasiStok mutasi = MutasiStok.builder()
+        RiwayatStok mutasi = RiwayatStok.builder()
                 .id(idGenerator.berikutnyaLong())
                 .sekolahId(sekolahId)
                 .menuId(menuId)

@@ -1,6 +1,7 @@
 package com.asqi.scholia_kantin_be.dto;
 
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
+import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.helper.NomorStruk;
 import com.asqi.scholia_kantin_be.model.Transaksi;
 
@@ -31,7 +32,7 @@ import java.time.OffsetDateTime;
  *                    dipakai verifikasi refund, jadi bisa langsung dicetak/ditunjukkan
  * @param waktu       waktu transaksi
  * @param subjekTipe  {@code SISWA} atau {@code KARTU_TAMU}
- * @param subjekId    id siswa / kartu tamu
+ * @param siswaId    id siswa / kartu tamu
  * @param kartuUid    UID kartu yang dipakai saat transaksi
  * @param total       nominal yang dikembalikan ke saldo
  * @param status      status setelah operasi ({@code VOID})
@@ -44,7 +45,7 @@ public record TransaksiRefundResponse(
         String nomorStruk,
         OffsetDateTime waktu,
         String subjekTipe,
-        Long subjekId,
+        Long siswaId,
         String kartuUid,
         Long total,
         StatusTransaksi status,
@@ -67,8 +68,8 @@ public record TransaksiRefundResponse(
                 t.getId(),
                 NomorStruk.dari(t.getId(), t.getWaktu()),
                 t.getWaktu(),
-                t.getSubjekTipe() == null ? null : t.getSubjekTipe().name(),
-                t.getSubjekId(),
+                SubjekTipe.SISWA.name(),
+                t.getSiswaId(),
                 t.getKartuUid(),
                 t.getTotal(),
                 t.getStatus(),

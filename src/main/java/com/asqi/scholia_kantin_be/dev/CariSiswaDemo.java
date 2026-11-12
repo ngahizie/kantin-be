@@ -68,7 +68,7 @@ public class CariSiswaDemo implements CariSiswaPort {
                         .nama(s.nama())
                         .kelas(s.kelas())
                         .tidakAktif(s.tidakAktif())
-                        .saldo(ledgerSaldo.saldo(sekolahId, SubjekTipe.SISWA, s.id()))
+                        .saldo(ledgerSaldo.saldo(sekolahId, s.id()))
                         .build())
                 .toList();
 
@@ -95,7 +95,7 @@ public class CariSiswaDemo implements CariSiswaPort {
                         .nama(s.nama())
                         .kelas(s.kelas())
                         .tidakAktif(s.tidakAktif())
-                        .saldo(ledgerSaldo.saldo(sekolahId, SubjekTipe.SISWA, s.id()))
+                        .saldo(ledgerSaldo.saldo(sekolahId, s.id()))
                         .build());
     }
 
@@ -112,7 +112,7 @@ public class CariSiswaDemo implements CariSiswaPort {
                         .nama(s.nama())
                         .kelas(s.kelas())
                         .tidakAktif(s.tidakAktif())
-                        .saldo(ledgerSaldo.saldo(sekolahId, SubjekTipe.SISWA, s.id()))
+                        .saldo(ledgerSaldo.saldo(sekolahId, s.id()))
                         .build()));
     }
 

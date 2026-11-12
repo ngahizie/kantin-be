@@ -46,7 +46,7 @@ public class TransaksiKasirItem {
 
     private SubjekTipe subjekTipe;
 
-    private Long subjekId;
+    private Long siswaId;
 
     /**
      * Label subjek: untuk {@code KARTU_TAMU} diisi label pemegang (fallback nomor
@@ -111,8 +111,8 @@ public class TransaksiKasirItem {
                 .sesiKasirId(t.getSesiKasirId())
                 .titikKasirId(t.getTitikKasirId())
                 .petugasId(t.getPetugasId())
-                .subjekTipe(t.getSubjekTipe())
-                .subjekId(t.getSubjekId())
+                .subjekTipe(SubjekTipe.SISWA)
+                .siswaId(t.getSiswaId())
                 .kartuUid(t.getKartuUid())
                 .total(t.getTotal())
                 .status(t.getStatus())

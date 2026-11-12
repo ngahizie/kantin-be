@@ -2,7 +2,7 @@ package com.asqi.scholia_kantin_be.dto;
 
 import com.asqi.scholia_kantin_be.enums.ArahStok;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiStok;
-import com.asqi.scholia_kantin_be.model.MutasiStok;
+import com.asqi.scholia_kantin_be.model.RiwayatStok;
 import lombok.Builder;
 import lombok.Data;
 
@@ -72,7 +72,7 @@ public class RiwayatStokItem {
     private OffsetDateTime waktu;
 
     /** Proyeksi entitas ledger → DTO (menyembunyikan kolom internal). */
-    public static RiwayatStokItem dari(MutasiStok m) {
+    public static RiwayatStokItem dari(RiwayatStok m) {
         boolean barangMasuk = m.getJenis() == JenisMutasiStok.BARANG_MASUK;
         Long harga = barangMasuk ? m.getHargaBeliSatuan() : null;
         return RiwayatStokItem.builder()

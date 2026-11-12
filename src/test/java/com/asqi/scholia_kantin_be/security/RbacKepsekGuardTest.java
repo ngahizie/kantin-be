@@ -189,7 +189,7 @@ class RbacKepsekGuardTest {
 
     @Test
     @DisplayName("laporan SETORAN TU (§9.5: hanya Bendahara) tertutup untuk kepsek (#143)")
-    void laporanSetoranTuTertutupUntukKepsek() {
+    void laporanSetoranTertutupUntukKepsek() {
         assertThat(peranPada(LaporanController.class, "setoranTu", LocalDate.class))
                 .doesNotContain(AktorKantin.KEPSEK);
     }

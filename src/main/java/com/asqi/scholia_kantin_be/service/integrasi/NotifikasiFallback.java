@@ -27,7 +27,7 @@ public class NotifikasiFallback implements NotifikasiPort {
     public HasilKirimNotifikasi kirim(PerintahNotifikasi perintah) {
         log.info("Notifikasi {} belum dikonfigurasi (Q5). sekolah={} subjek={}:{} dilewati.",
                 perintah.getJenis(), perintah.getSekolahId(),
-                perintah.getSubjekTipe(), perintah.getSubjekId());
+                perintah.getSubjekTipe(), perintah.getSiswaId());
         return HasilKirimNotifikasi.dilewati(
                 "Integrasi notifikasi mobile-be belum dikonfigurasi (OPEN-QUESTIONS Q5)");
     }

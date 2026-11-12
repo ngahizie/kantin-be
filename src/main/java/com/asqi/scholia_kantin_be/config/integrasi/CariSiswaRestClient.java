@@ -307,7 +307,7 @@ public class CariSiswaRestClient extends IntegrasiRestSupport implements CariSis
                 .kelas(kelas)
                 .tidakAktif(tidakAktif)
                 // Saldo selalu dari ledger kantin-be, bukan dari admin-be.
-                .saldo(ledgerSaldo.saldo(sekolahId, SubjekTipe.SISWA, siswaId))
+                .saldo(ledgerSaldo.saldo(sekolahId, siswaId))
                 .build();
     }
 

@@ -11,11 +11,11 @@ import com.asqi.scholia_kantin_be.dto.RiwayatStokItem;
 import com.asqi.scholia_kantin_be.enums.ArahStok;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiStok;
 import com.asqi.scholia_kantin_be.model.Menu;
-import com.asqi.scholia_kantin_be.model.MutasiStok;
-import com.asqi.scholia_kantin_be.model.StokCache;
+import com.asqi.scholia_kantin_be.model.RiwayatStok;
+import com.asqi.scholia_kantin_be.model.Stok;
 import com.asqi.scholia_kantin_be.repository.MenuRepository;
-import com.asqi.scholia_kantin_be.repository.MutasiStokRepository;
-import com.asqi.scholia_kantin_be.repository.StokCacheRepository;
+import com.asqi.scholia_kantin_be.repository.RiwayatStokRepository;
+import com.asqi.scholia_kantin_be.repository.StokRepository;
 import com.asqi.scholia_kantin_be.security.SekolahGuard;
 import com.asqi.scholia_kantin_be.service.integrasi.BukuKasPostingService;
 import jakarta.persistence.criteria.Predicate;
@@ -61,8 +61,8 @@ public class StokOperasiService {
     private static final int UKURAN_MAKS = 200;
 
     private final LedgerStokService ledgerStok;
-    private final StokCacheRepository cacheRepo;
-    private final MutasiStokRepository mutasiRepo;
+    private final StokRepository cacheRepo;
+    private final RiwayatStokRepository mutasiRepo;
     private final MenuRepository menuRepo;
     private final SekolahGuard sekolahGuard;
     private final BukuKasPostingService postingBukuKas;
@@ -86,7 +86,7 @@ public class StokOperasiService {
         // PRD §5.1/§7.2: setiap barang masuk diposting sebagai pengeluaran Buku Kas
         // pos "Belanja Stok Kantin". Idempoten (refId deterministik) & fail-open —
         // kegagalan posting tidak membatalkan mutasi stok yang sudah tercatat.
-        MutasiStok mutasi = hasil.getMutasi();
+        RiwayatStok mutasi = hasil.getMutasi();
         if (mutasi != null) {
             // Pakai harga & qty dari baris mutasi (bukan argumen) agar replay
             // idempotency tetap memposting nilai yang benar-benar tercatat.
@@ -116,7 +116,7 @@ public class StokOperasiService {
 
         // PRD §7.2: koreksi barang masuk diposting sebagai entri pembalik Buku Kas
         // (entri belanja lama tidak dihapus). Idempoten + fail-open seperti barang masuk.
-        MutasiStok pembalik = hasil.getMutasi();
+        RiwayatStok pembalik = hasil.getMutasi();
         if (pembalik != null) {
             long hargaBeliAsal = pembalik.getHargaBeliSatuan() != null
                     ? pembalik.getHargaBeliSatuan()
@@ -173,7 +173,7 @@ public class StokOperasiService {
         }
 
         // Idempotency: batch dengan nomor berita acara sama sudah pernah diproses.
-        List<MutasiStok> sudahAda = mutasiRepo.cariByReferensiTipeDanId(
+        List<RiwayatStok> sudahAda = mutasiRepo.cariByReferensiTipeDanId(
                 sekolahId, "OPNAME_BATCH", referensiId);
         if (!sudahAda.isEmpty()) {
             log.debug("Idempotency replay opname batch referensi={} → {} baris",
@@ -189,7 +189,7 @@ public class StokOperasiService {
                     sekolahId, item.getMenuId(), item.getQtyFisik(), item.getAlasan(),
                     referensiId, Boolean.TRUE.equals(item.getRusak()), "OPNAME_BATCH", aktorId);
 
-            MutasiStok mutasi = h.getMutasi();
+            RiwayatStok mutasi = h.getMutasi();
             int stokSebelum = mutasi == null
                     ? h.getStokSetelah()
                     : (mutasi.getArah() == ArahStok.MASUK
@@ -226,9 +226,9 @@ public class StokOperasiService {
     /** Bangun ulang ringkasan batch dari baris yang sudah tercatat (replay). */
     private OpnameBatchResponse rangkumReplayBatch(String referensiId,
                                                    List<OpnameBatchItemRequest> items,
-                                                   List<MutasiStok> sudahAda) {
-        Map<Long, MutasiStok> perMenu = new HashMap<>();
-        for (MutasiStok m : sudahAda) {
+                                                   List<RiwayatStok> sudahAda) {
+        Map<Long, RiwayatStok> perMenu = new HashMap<>();
+        for (RiwayatStok m : sudahAda) {
             perMenu.put(m.getMenuId(), m);
         }
 
@@ -236,7 +236,7 @@ public class StokOperasiService {
         int berubah = 0;
         int tanpaSelisih = 0;
         for (OpnameBatchItemRequest item : items) {
-            MutasiStok m = perMenu.get(item.getMenuId());
+            RiwayatStok m = perMenu.get(item.getMenuId());
             int stokSebelum;
             int stokSetelah;
             if (m == null) {
@@ -276,8 +276,8 @@ public class StokOperasiService {
 
     /** Stok &amp; HPP berjalan satu menu (tenant-scoped). */
     @Transactional(readOnly = true)
-    public StokCache lihat(Long sekolahId, Long menuId) {
-        StokCache cache = cacheRepo.findByMenuId(menuId)
+    public Stok lihat(Long sekolahId, Long menuId) {
+        Stok cache = cacheRepo.findByMenuId(menuId)
                 .orElseThrow(() -> new NotFoundEntity("Data stok menu tidak ditemukan"));
         // Guard ganda: bila baris ada tapi milik sekolah lain → 404 (bukan bocor).
         sekolahGuard.pastikanMilikSekolah(cache.getSekolahId(), "Stok");
@@ -289,7 +289,7 @@ public class StokOperasiService {
 
     /** Daftar menu dengan stok di bawah minimum (tenant-scoped). */
     @Transactional(readOnly = true)
-    public List<StokCache> stokMenipis(Long sekolahId) {
+    public List<Stok> stokMenipis(Long sekolahId) {
         return cacheRepo.stokMenipis(sekolahId);
     }
 
@@ -320,26 +320,26 @@ public class StokOperasiService {
         // filternya benar-benar terisi. Ini menghindari pola `:x IS NULL OR ...`
         // yang membuat Hibernate mengirim parameter null tanpa tipe → PostgreSQL
         // menolak "could not determine data type of parameter" (bug #198: 500).
-        Page<MutasiStok> page = mutasiRepo.findAll(
+        Page<RiwayatStok> page = mutasiRepo.findAll(
                 filterRiwayat(sekolahId, menuId, jenis, dari, sampai), pageable);
 
         // Hitung sisa yang dapat dibalik untuk semua BARANG_MASUK di halaman ini
         // dalam SATU query (bukan per baris).
         List<Long> asalIds = page.getContent().stream()
                 .filter(m -> m.getJenis() == JenisMutasiStok.BARANG_MASUK)
-                .map(MutasiStok::getId)
+                .map(RiwayatStok::getId)
                 .toList();
         Map<Long, Long> sudahDibalik = totalDibalikPerAsal(sekolahId, asalIds);
 
         // Nama menu untuk tampilan (batch).
         Set<Long> menuIds = page.getContent().stream()
-                .map(MutasiStok::getMenuId)
+                .map(RiwayatStok::getMenuId)
                 .collect(Collectors.toSet());
         Map<Long, String> namaMenu = menuRepo.findAllById(menuIds).stream()
                 .filter(m -> m.getSekolahId().equals(sekolahId))
                 .collect(Collectors.toMap(Menu::getId, Menu::getNama, (a, b) -> a));
 
-        return HalamanResponse.<MutasiStok, RiwayatStokItem>dari(page, m -> {
+        return HalamanResponse.<RiwayatStok, RiwayatStokItem>dari(page, m -> {
             RiwayatStokItem item = RiwayatStokItem.dari(m);
             item.setMenuNama(namaMenu.get(m.getMenuId()));
             if (m.getJenis() == JenisMutasiStok.BARANG_MASUK) {
@@ -368,7 +368,7 @@ public class StokOperasiService {
      * menolaknya ({@code could not determine data type of parameter}) — penyebab
      * bug #198 ({@code GET /api/stok/riwayat} selalu 500).
      */
-    private static Specification<MutasiStok> filterRiwayat(Long sekolahId, Long menuId,
+    private static Specification<RiwayatStok> filterRiwayat(Long sekolahId, Long menuId,
                                                            JenisMutasiStok jenis,
                                                            OffsetDateTime dari,
                                                            OffsetDateTime sampai) {

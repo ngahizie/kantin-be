@@ -3,7 +3,7 @@ package com.asqi.scholia_kantin_be.dto;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
-import com.asqi.scholia_kantin_be.model.SaldoLedger;
+import com.asqi.scholia_kantin_be.model.MutasiSaldo;
 import com.asqi.scholia_kantin_be.model.Transaksi;
 
 import java.time.OffsetDateTime;
@@ -15,7 +15,7 @@ import java.util.List;
  * komplain orang tua. Akses Bendahara/Admin.
  *
  * @param subjekTipe  tipe subjek (SISWA / KARTU_TAMU)
- * @param subjekId    id subjek
+ * @param siswaId    id subjek
  * @param saldo       saldo berjalan saat ini
  * @param periode     label periode (mis. "2025-01-01 s/d 2025-01-31")
  * @param ringkasan   agregat periode
@@ -24,7 +24,7 @@ import java.util.List;
  */
 public record LaporanPerSiswa(
         SubjekTipe subjekTipe,
-        Long subjekId,
+        Long siswaId,
         long saldo,
         String periode,
         Ringkasan ringkasan,
@@ -69,7 +69,7 @@ public record LaporanPerSiswa(
             String keterangan,
             OffsetDateTime waktu) {
 
-        public static BarisMutasi dari(SaldoLedger l) {
+        public static BarisMutasi dari(MutasiSaldo l) {
             return new BarisMutasi(l.getId(), l.getJenis(),
                     l.getArah() == null ? null : l.getArah().name(),
                     l.getNominal() == null ? 0L : l.getNominal(),

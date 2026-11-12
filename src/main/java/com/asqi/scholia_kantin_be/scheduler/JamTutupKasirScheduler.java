@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
  * yang menutup sesi tertinggal hari-hari sebelumnya), penjadwal ini berjalan
  * <b>berkala</b> dan menutup sesi <b>hari ini</b> begitu jam tutup sekolah
  * terlewati — memakai pengaturan {@code jam_tutup_otomatis} per sekolah
- * ({@code SekolahKantinConfig}).
+ * ({@code PengaturanKantin}).
  *
  * <p>Idempoten: hanya menyentuh sesi yang masih {@code TERBUKA}. Bisa dimatikan
  * lewat {@code kantin.scheduler.jam-tutup.enabled=false}.

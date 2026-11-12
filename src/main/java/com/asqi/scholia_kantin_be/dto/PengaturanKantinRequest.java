@@ -36,6 +36,9 @@ public class PengaturanKantinRequest {
     @Min(value = 0, message = "Batas saldo siswa tidak boleh negatif")
     private Long batasSaldoSiswa;
 
-    @Min(value = 0, message = "Batas saldo Kartu Tamu tidak boleh negatif")
-    private Long batasSaldoKartuTamu;
+    /** Kebijakan saldo mengendap: {@code REFUND} atau {@code PINDAH_SAUDARA}/{@code DIBIARKAN}. */
+    private String kebijakanSaldoMengendap;
+
+    @Min(value = 0, message = "Ambang hari tidak boleh negatif")
+    private Integer ambangHari;
 }

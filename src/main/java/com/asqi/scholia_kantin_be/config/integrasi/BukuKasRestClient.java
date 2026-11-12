@@ -2,7 +2,7 @@ package com.asqi.scholia_kantin_be.config.integrasi;
 
 import com.asqi.scholia_kantin_be.config.integrasi.IntegrasiRestProperties.Endpoint;
 import com.asqi.scholia_kantin_be.service.integrasi.BukuKasPort;
-import com.asqi.scholia_kantin_be.service.integrasi.HasilPostingBukuKas;
+import com.asqi.scholia_kantin_be.service.integrasi.HasilJurnalBukuKas;
 import com.asqi.scholia_kantin_be.service.integrasi.PerintahBukuKas;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -28,7 +28,7 @@ import java.util.Map;
  * yang sama. Adapter tidak menyimpan state.
  *
  * <p><b>Fail-open (INTEGRATIONS.md §3.4).</b> Kegagalan jaringan/5xx/4xx
- * diterjemahkan menjadi {@link HasilPostingBukuKas#gagal} (bukan exception) agar
+ * diterjemahkan menjadi {@link HasilJurnalBukuKas#gagal} (bukan exception) agar
  * penutupan sesi kasir <b>tidak</b> dibatalkan; sesi bisa di-posting ulang.
  */
 @Component
@@ -45,9 +45,9 @@ public class BukuKasRestClient extends IntegrasiRestSupport implements BukuKasPo
     }
 
     @Override
-    public HasilPostingBukuKas catat(PerintahBukuKas perintah) {
+    public HasilJurnalBukuKas catat(PerintahBukuKas perintah) {
         if (perintah == null || perintah.getSekolahId() == null) {
-            return HasilPostingBukuKas.gagal("Perintah Buku Kas tidak lengkap");
+            return HasilJurnalBukuKas.gagal("Perintah Buku Kas tidak lengkap");
         }
         try {
             Map<String, Object> body = badan();
@@ -71,17 +71,17 @@ public class BukuKasRestClient extends IntegrasiRestSupport implements BukuKasPo
             });
             log.info("[BukuKas] Entri {} terposting (jumlah={}).", perintah.getRefId(),
                     perintah.getJumlah());
-            return HasilPostingBukuKas.sukses(perintah.getRefId(),
+            return HasilJurnalBukuKas.sukses(perintah.getRefId(),
                     "Terposting ke Buku Kas admin-be");
         } catch (RestClientResponseException e) {
             log.warn("[BukuKas] admin-be menolak refId={} (HTTP {}): {}", perintah.getRefId(),
                     e.getStatusCode().value(), e.getResponseBodyAsString());
-            return HasilPostingBukuKas.gagal(
+            return HasilJurnalBukuKas.gagal(
                     "Buku Kas menolak (HTTP " + e.getStatusCode().value() + ")");
         } catch (RuntimeException e) {
             log.warn("[BukuKas] Gagal posting refId={} (fail-open, sesi tetap tertutup): {}",
                     perintah.getRefId(), e.getMessage());
-            return HasilPostingBukuKas.gagal("Gagal menghubungi Buku Kas: " + e.getMessage());
+            return HasilJurnalBukuKas.gagal("Gagal menghubungi Buku Kas: " + e.getMessage());
         }
     }
 }

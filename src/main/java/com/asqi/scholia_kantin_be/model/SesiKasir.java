@@ -76,7 +76,7 @@ public class SesiKasir {
     @Column(name = "auto_tutup", nullable = false)
     private boolean autoTutup;
 
-    @Column(name = "posting_buku_kas", nullable = false)
+    @Column(name = "jurnal_buku_kas", nullable = false)
     private boolean postingBukuKas;
 
     @Column(name = "referensi_buku_kas", length = 64)

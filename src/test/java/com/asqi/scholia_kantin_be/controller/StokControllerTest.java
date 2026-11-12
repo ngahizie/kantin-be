@@ -10,7 +10,7 @@ import com.asqi.scholia_kantin_be.dto.OpnameBatchResponse;
 import com.asqi.scholia_kantin_be.dto.RiwayatStokItem;
 import com.asqi.scholia_kantin_be.enums.ArahStok;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiStok;
-import com.asqi.scholia_kantin_be.model.StokCache;
+import com.asqi.scholia_kantin_be.model.Stok;
 import com.asqi.scholia_kantin_be.security.IdentitasKantin;
 import com.asqi.scholia_kantin_be.security.TenantContext;
 import com.asqi.scholia_kantin_be.service.stok.HppService;
@@ -110,7 +110,7 @@ class StokControllerTest {
 
     @Test
     void lihatStokMenghitungNilaiPersediaan() throws Exception {
-        StokCache cache = StokCache.builder()
+        Stok cache = Stok.builder()
                 .menuId(10L)
                 .sekolahId(7L)
                 .stok(20)
@@ -131,7 +131,7 @@ class StokControllerTest {
     @Test
     @DisplayName("#124: stok 0 → penanda habis true di GET /api/stok/{menuId}")
     void lihatStokHabisSaatNol() throws Exception {
-        StokCache cache = StokCache.builder()
+        Stok cache = Stok.builder()
                 .menuId(11L)
                 .sekolahId(7L)
                 .stok(0)

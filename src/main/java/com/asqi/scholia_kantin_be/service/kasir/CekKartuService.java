@@ -56,11 +56,10 @@ public class CekKartuService {
 
         long saldo = 0L;
         long belanjaHariIni = 0L;
-        if (kartu.getSubjekTipe() != null && kartu.getSubjekId() != null) {
-            saldo = ledgerSaldo.saldo(sekolahId, kartu.getSubjekTipe(), kartu.getSubjekId());
+        if (kartu.getSubjekTipe() != null && kartu.getSiswaId() != null) {
+            saldo = ledgerSaldo.saldo(sekolahId, kartu.getSiswaId());
             if (kartu.siswa()) {
-                belanjaHariIni = ledgerSaldo.belanjaHariIni(
-                        sekolahId, kartu.getSubjekTipe(), kartu.getSubjekId());
+                belanjaHariIni = ledgerSaldo.belanjaHariIni(sekolahId, kartu.getSiswaId());
             }
         }
 
@@ -73,7 +72,7 @@ public class CekKartuService {
         return new CekKartuResponse(
                 uid.toUpperCase(),
                 kartu.getSubjekTipe(),
-                kartu.getSubjekId(),
+                kartu.getSiswaId(),
                 kartu.getNama(),
                 kartu.getKelas(),
                 kartu.getFotoUrl(),

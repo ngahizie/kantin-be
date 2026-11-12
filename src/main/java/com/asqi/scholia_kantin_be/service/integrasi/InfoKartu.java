@@ -27,7 +27,7 @@ public class InfoKartu {
     private final SubjekTipe subjekTipe;
 
     /** ID siswa (lokal) atau ID Kartu Tamu. */
-    private final Long subjekId;
+    private final Long siswaId;
 
     private final String nama;
 

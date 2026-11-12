@@ -2,7 +2,7 @@ package com.asqi.scholia_kantin_be.dto;
 
 import com.asqi.scholia_kantin_be.enums.ArahMutasi;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
-import com.asqi.scholia_kantin_be.model.SaldoLedger;
+import com.asqi.scholia_kantin_be.model.MutasiSaldo;
 import lombok.Builder;
 import lombok.Data;
 
@@ -41,7 +41,7 @@ public class MutasiKoreksiItem {
 
     private SubjekTipe subjekTipe;
 
-    private Long subjekId;
+    private Long siswaId;
 
     /** Label subjek: {@code KARTU_TAMU} = label pemegang (fallback nomor kartu); {@code SISWA} = null. */
     private String subjekNama;
@@ -69,7 +69,7 @@ public class MutasiKoreksiItem {
     private Long aktorId;
 
     /** Proyeksi entitas ledger → DTO (nama subjek diisi service secara batch). */
-    public static MutasiKoreksiItem dari(SaldoLedger l) {
+    public static MutasiKoreksiItem dari(MutasiSaldo l) {
         boolean menambah = l.getArah() == ArahMutasi.KREDIT;
         long sebelum = menambah
                 ? l.getSaldoSetelah() - l.getNominal()
@@ -77,8 +77,8 @@ public class MutasiKoreksiItem {
         return MutasiKoreksiItem.builder()
                 .id(l.getId())
                 .waktu(l.getWaktu())
-                .subjekTipe(l.getSubjekTipe())
-                .subjekId(l.getSubjekId())
+                .subjekTipe(SubjekTipe.SISWA)
+                .siswaId(l.getSiswaId())
                 .arah(l.getArah())
                 .nominal(l.getNominal())
                 .saldoSebelum(sebelum)

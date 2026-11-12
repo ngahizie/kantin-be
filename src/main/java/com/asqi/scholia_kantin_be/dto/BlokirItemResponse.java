@@ -1,6 +1,7 @@
 package com.asqi.scholia_kantin_be.dto;
 
-import com.asqi.scholia_kantin_be.model.BlokirItem;
+import com.asqi.scholia_kantin_be.enums.SubjekTipe;
+import com.asqi.scholia_kantin_be.model.Pembatasan;
 import lombok.Builder;
 import lombok.Data;
 
@@ -13,22 +14,22 @@ public class BlokirItemResponse {
 
     private Long id;
     private String subjekTipe;
-    private Long subjekId;
+    private Long siswaId;
     private Long menuId;
     private Long kategoriId;
     private boolean diblokir;
     private OffsetDateTime diubahPada;
 
     /** Proyeksi entitas → DTO. */
-    public static BlokirItemResponse dari(BlokirItem b) {
+    public static BlokirItemResponse dari(Pembatasan b) {
         return BlokirItemResponse.builder()
                 .id(b.getId())
-                .subjekTipe(b.getSubjekTipe() == null ? null : b.getSubjekTipe().name())
-                .subjekId(b.getSubjekId())
+                .subjekTipe(SubjekTipe.SISWA.name())
+                .siswaId(b.getSiswaId())
                 .menuId(b.getMenuId())
                 .kategoriId(b.getKategoriId())
-                .diblokir(b.isDiblokir())
-                .diubahPada(b.getDiubahPada())
+                .diblokir(b.isAktif())
+                .diubahPada(b.getWaktu())
                 .build();
     }
 }

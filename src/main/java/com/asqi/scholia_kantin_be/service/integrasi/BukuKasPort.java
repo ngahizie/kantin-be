@@ -21,12 +21,12 @@ public interface BukuKasPort {
      * Catat satu entri Buku Kas.
      *
      * <p>Implementasi <b>tidak</b> boleh melempar untuk kondisi "belum
-     * dikonfigurasi" — kembalikan {@link HasilPostingBukuKas#dilewati}. Lempar
+     * dikonfigurasi" — kembalikan {@link HasilJurnalBukuKas#dilewati}. Lempar
      * exception hanya untuk kegagalan nyata, atau kembalikan
-     * {@link HasilPostingBukuKas#gagal}.
+     * {@link HasilJurnalBukuKas#gagal}.
      *
      * @param perintah data entri (sudah tenant-scoped oleh pemanggil)
      * @return hasil pencatatan
      */
-    HasilPostingBukuKas catat(PerintahBukuKas perintah);
+    HasilJurnalBukuKas catat(PerintahBukuKas perintah);
 }

@@ -1,1317 +1,278 @@
 -- ============================================================
--- R__seed_dev.sql — Data dev/dummy untuk FE & demo
+-- R__seed_dev.sql — Data dev/demo untuk skema v2 (23 tabel)
 -- ------------------------------------------------------------
--- Tujuan: satu dataset yang MENUTUP SEMUA LAYAR FE — katalog,
--- kasir, riwayat transaksi, koreksi saldo, stok, laporan,
--- setoran TU, dan pengaturan — tanpa mock.
---
 -- ⚠️ BUKAN data produksi.
---    Flyway REPEATABLE migration: hanya dijalankan bila lokasi `db/seed`
---    ikut didaftarkan — lihat `spring.flyway.locations` di
---    application-local.properties.example. Default TIDAK aktif, jadi
---    CI dan seluruh test (@SpringBootTest) tidak pernah memuatnya.
---    Dijalankan manual bila perlu:
---      psql "$DB_URL" -f src/main/resources/db/seed/R__seed_dev.sql
+--    Flyway REPEATABLE migration: hanya jalan bila `db/seed` ikut
+--    didaftarkan di `spring.flyway.locations` (application-local).
+--    CI & seluruh test tidak memuatnya secara default.
 --
--- Idempoten: semua INSERT memakai ON CONFLICT DO NOTHING, jadi aman
--- dijalankan berulang dan TIDAK menimpa data yang sudah diubah aplikasi.
+-- Password semua akun: Kantin#2026
 --
--- Deterministik: ID tetap, tanggal relatif ke CURRENT_DATE (zona sekolah),
--- tak ada random. Screenshot & test FE tidak berubah antar-run.
+-- Isi:
+--   sekolah 2 · pengguna 12 (6 peran x 2 sekolah) · siswa 19 (foto terisi)
+--   orang_tua 38 (2 wali per siswa) · kartu 19 · kategori_menu 8
+--   menu 24 · stok 24 · titik_kasir 4 · pengaturan_kantin 2
+--   akun_buku_kas 8 · saldo 19 · mutasi_saldo 16
 --
--- Konvensi ID pengguna (aktor_id / petugas_id / dibuat_oleh):
---   1 = Kepala Sekolah   2 = TU/Bendahara
---   3 = Pengelola Kantin 4 = Petugas Kasir
---
--- Sekolah: 1  = SMA Negeri 1 SKOOLIA (default shim login),
---          2  = SMA Negeri 2 SKOOLIA (uji isolasi tenant),
---          10 = tenant default form login FE (kantin-fe mengirim sekolah_id=10).
---               Tenant ini WAJIB berisi data, kalau tidak semua layar FE tampak
---               kosong saat QA lokal walau endpoint sudah 200 (issue #231).
+-- Sifat: DESTRUKTIF untuk data dev — tabel dikosongkan dulu, lalu diisi
+-- ulang, supaya hasilnya deterministik dan screenshot FE tidak berubah
+-- antar-run. Jangan daftarkan folder db/seed di staging/produksi.
 -- ============================================================
 
--- ── Konfigurasi kantin ───────────────────────────────────────
-INSERT INTO sekolah_kantin_config (sekolah_id, nama_kantin, jam_tutup_otomatis,
-                                   konfirmasi_manual, durasi_foto_detik,
-                                   min_topup, maks_topup,
-                                   batas_saldo_siswa, batas_saldo_kartu_tamu,
-                                   diperbarui_oleh, created_at, updated_at)
-VALUES (1, 'Kantin Sekolah', '15:00', false, 3, 5000, 500000, 500000, 1000000, 2, now(), now()),
-       (2, 'Kantin SMA 2',   '15:00', false, 3, 5000, 500000, 500000, 1000000, 2, now(), now())
-ON CONFLICT (sekolah_id) DO NOTHING;
-
--- ── Kebijakan saldo mengendap (PRD §8) ───────────────────────
-INSERT INTO kebijakan_kantin (sekolah_id, kebijakan_saldo_mengendap, ambang_hari,
-                              catatan, diperbarui_oleh, updated_at)
-VALUES (1, 'REFUND', 90, 'Saldo mengendap > 90 hari dikembalikan ke wali murid', 2, now())
-ON CONFLICT (sekolah_id) DO NOTHING;
-
--- ── Titik kasir ──────────────────────────────────────────────
-INSERT INTO titik_kasir (id, sekolah_id, nama, kode, is_active, created_at, updated_at)
-VALUES (1, 1, 'Kasir Kantin Utama', 'DEMO1', true, now(), now()),
-       (2, 1, 'Kasir Kelas 7',      'DEMO2', true, now(), now()),
-       (3, 2, 'Kasir SMA 2',        'S2-01', true, now(), now())
-ON CONFLICT DO NOTHING;
-
--- ── Kategori menu ────────────────────────────────────────────
-INSERT INTO kategori_menu (id, sekolah_id, nama, urutan, is_active, created_at, updated_at)
-VALUES (1, 1, 'Makanan',    1, true, now(), now()),
-       (2, 1, 'Minuman',    2, true, now(), now()),
-       (3, 1, 'Snack',      3, true, now(), now()),
-       (4, 1, 'Alat Tulis', 4, true, now(), now()),
-       (10, 2, 'Makanan',   1, true, now(), now())
-ON CONFLICT DO NOTHING;
-
--- ── Stok & HPP ───────────────────────────────────────────────
--- PENTING: diisi SEBELUM menu. Trigger trg_menu_sinkron_stok_minimum
--- membuat baris stok_cache (stok=0) saat menu di-insert; bila baris sudah
--- ada, trigger hanya menyinkronkan stok_minimum tanpa menyentuh stok/hpp.
--- Stok awal 50; menu yang terjual sudah dikurangi (lihat mutasi_stok).
-INSERT INTO stok_cache (menu_id, sekolah_id, stok, hpp, stok_minimum, updated_at)
-VALUES (1,  1, 49, 7000,  5,  now()),
-       (2,  1, 49, 6000,  5,  now()),
-       (3,  1, 47, 1000,  10, now()),
-       (4,  1, 48, 2000,  10, now()),
-       (5,  1, 49, 9000,  5,  now()),
-       (6,  1, 50, 3000,  10, now()),   -- terjual lalu di-void → kembali 50
-       (7,  1, 48, 5000,  5,  now()),
-       (8,  1, 50, 4000,  10, now()),
-       (9,  1, 50, 2000,  20, now()),
-       (10, 1, 50, 5000,  10, now()),
-       (11, 1, 49, 7000,  5,  now()),
-       (12, 1, 50, 5000,  5,  now()),
-       (101, 2, 39, 8000, 5,  now())
-ON CONFLICT (menu_id) DO NOTHING;
-
--- ── Menu (harga rupiah integer; satuan PCS|PORSI|BOTOL) ──────
-INSERT INTO menu (id, sekolah_id, kategori_id, nama, harga_jual, satuan,
-                  stok_minimum, is_active, created_at, updated_at)
-VALUES (1,  1, 1, 'Nasi Goreng',   12000, 'PORSI', 5,  true, now(), now()),
-       (2,  1, 1, 'Mie Ayam',      10000, 'PORSI', 5,  true, now(), now()),
-       (3,  1, 2, 'Es Teh Manis',   3000, 'PCS',   10, true, now(), now()),
-       (4,  1, 2, 'Air Mineral',    4000, 'BOTOL', 10, true, now(), now()),
-       (5,  1, 1, 'Ayam Geprek',   13000, 'PORSI', 5,  true, now(), now()),
-       (6,  1, 3, 'Keripik',        5000, 'PCS',   10, true, now(), now()),
-       (7,  1, 3, 'Roti Bakar',     8000, 'PCS',   5,  true, now(), now()),
-       (8,  1, 2, 'Susu Kotak',     6000, 'PCS',   10, true, now(), now()),
-       (9,  1, 4, 'Pulpen',         3000, 'PCS',   20, true, now(), now()),
-       (10, 1, 4, 'Buku Tulis',     7000, 'PCS',   10, true, now(), now()),
-       (11, 1, 1, 'Bakso',         11000, 'PORSI', 5,  true, now(), now()),
-       (12, 1, 2, 'Jus Jeruk',      7000, 'PCS',   5,  true, now(), now()),
-       (101, 2, 10, 'Nasi Uduk',   12000, 'PORSI', 5,  true, now(), now())
-ON CONFLICT DO NOTHING;
-
-
--- ── Sesi kasir: 1 TERBUKA hari ini + riwayat DITUTUP 2 hari ──
-INSERT INTO sesi_kasir (id, sekolah_id, titik_kasir_id, tanggal, status,
-                        total_bruto, total_void, total_bersih, dibuka_at,
-                        ditutup_at, ditutup_oleh, auto_tutup,
-                        posting_buku_kas, created_at, updated_at)
-VALUES (1, 1, 1, CURRENT_DATE, 'TERBUKA', 36000, 0, 36000,
-        ((CURRENT_DATE) + time '07:00') AT TIME ZONE 'Asia/Jakarta',
-        NULL, NULL, false, false, now(), now()),
-       (2, 1, 1, CURRENT_DATE - 1, 'DITUTUP', 21000, 5000, 16000,
-        ((CURRENT_DATE - 1) + time '07:00') AT TIME ZONE 'Asia/Jakarta',
-        ((CURRENT_DATE - 1) + time '14:30') AT TIME ZONE 'Asia/Jakarta', 4, false, true, now(), now()),
-       (3, 1, 2, CURRENT_DATE - 1, 'DITUTUP', 16000, 0, 16000,
-        ((CURRENT_DATE - 1) + time '07:15') AT TIME ZONE 'Asia/Jakarta',
-        ((CURRENT_DATE - 1) + time '12:00') AT TIME ZONE 'Asia/Jakarta', 4, false, false, now(), now()),
-       (4, 1, 1, CURRENT_DATE - 2, 'DITUTUP', 11000, 0, 11000,
-        ((CURRENT_DATE - 2) + time '07:00') AT TIME ZONE 'Asia/Jakarta',
-        ((CURRENT_DATE - 2) + time '13:45') AT TIME ZONE 'Asia/Jakarta', 4, true, true, now(), now()),
-       (10, 2, 3, CURRENT_DATE, 'TERBUKA', 12000, 0, 12000,
-        ((CURRENT_DATE) + time '07:30') AT TIME ZONE 'Asia/Jakarta',
-        NULL, NULL, false, false, now(), now())
-ON CONFLICT DO NOTHING;
-
--- ── Transaksi (7 di sekolah 1, 1 di sekolah 2) ───────────────
-INSERT INTO transaksi (id, idempotency_key, sekolah_id, sesi_kasir_id, titik_kasir_id,
-                       subjek_tipe, subjek_id, kartu_uid, petugas_id,
-                       total, total_hpp, status, alasan_void, void_at, void_oleh,
-                       waktu, created_at, updated_at)
-VALUES
-  -- hari ini, sesi 1 (TERBUKA) — bruto 36.000
-  (900101, 'seed-dev-t1', 1, 1, 1, 'SISWA', 101, '04A1B2C3D4', 4, 15000, 8000, 'SUKSES',
-   NULL, NULL, NULL, ((CURRENT_DATE) + time '09:15') AT TIME ZONE 'Asia/Jakarta', now(), now()),
-  (900102, 'seed-dev-t2', 1, 1, 1, 'SISWA', 103, '04C3D4E5F6', 4, 13000, 9000, 'SUKSES',
-   NULL, NULL, NULL, ((CURRENT_DATE) + time '10:05') AT TIME ZONE 'Asia/Jakarta', now(), now()),
-  (900103, 'seed-dev-t3', 1, 1, 1, 'SISWA', 102, '04B2C3D4E5', 4, 8000, 4000, 'SUKSES',
-   NULL, NULL, NULL, ((CURRENT_DATE) + time '11:40') AT TIME ZONE 'Asia/Jakarta', now(), now()),
-  -- kemarin, sesi 2 — bruto 21.000 / void 5.000
-  (900104, 'seed-dev-t4', 1, 2, 1, 'SISWA', 104, '04D4E5F6A1', 4, 16000, 8000, 'SUKSES',
-   NULL, NULL, NULL, ((CURRENT_DATE - 1) + time '09:30') AT TIME ZONE 'Asia/Jakarta', now(), now()),
-  (900105, 'seed-dev-t5', 1, 2, 1, 'SISWA', 105, '04E5F6A1B2', 4, 5000, 3000, 'VOID',
-   'Salah input item', ((CURRENT_DATE - 1) + time '11:10') AT TIME ZONE 'Asia/Jakarta', 2,
-   ((CURRENT_DATE - 1) + time '10:20') AT TIME ZONE 'Asia/Jakarta', now(), now()),
-  -- kemarin, sesi 3 (titik 2) — bruto 16.000
-  (900106, 'seed-dev-t6', 1, 3, 2, 'SISWA', 106, '04F1A2B3C4', 4, 16000, 10000, 'SUKSES',
-   NULL, NULL, NULL, ((CURRENT_DATE - 1) + time '10:45') AT TIME ZONE 'Asia/Jakarta', now(), now()),
-  -- dua hari lalu, sesi 4 — bruto 11.000
-  (900107, 'seed-dev-t7', 1, 4, 1, 'SISWA', 109, '04F2A3B4C5', 4, 11000, 7000, 'SUKSES',
-   NULL, NULL, NULL, ((CURRENT_DATE - 2) + time '09:50') AT TIME ZONE 'Asia/Jakarta', now(), now()),
-  -- sekolah 2
-  (900110, 'seed-dev-s2t1', 2, 10, 3, 'SISWA', 2001, 'DA200001', 4, 12000, 8000, 'SUKSES',
-   NULL, NULL, NULL, ((CURRENT_DATE) + time '08:20') AT TIME ZONE 'Asia/Jakarta', now(), now())
-ON CONFLICT DO NOTHING;
-
--- ── Item transaksi (subtotal = harga_jual × qty) ─────────────
-INSERT INTO transaksi_item (id, transaksi_id, menu_id, nama_menu, kategori_id,
-                            harga_jual, qty, hpp_snapshot, subtotal, created_at)
-VALUES
-  (900201, 900101, 1,  'Nasi Goreng',  1, 12000, 1, 7000, 12000, now()),
-  (900202, 900101, 3,  'Es Teh Manis', 2, 3000,  1, 1000, 3000,  now()),
-  (900203, 900102, 5,  'Ayam Geprek',  1, 13000, 1, 9000, 13000, now()),
-  (900204, 900103, 4,  'Air Mineral',  2, 4000,  2, 2000, 8000,  now()),
-  (900205, 900104, 2,  'Mie Ayam',     1, 10000, 1, 6000, 10000, now()),
-  (900206, 900104, 3,  'Es Teh Manis', 2, 3000,  2, 1000, 6000,  now()),
-  (900207, 900105, 6,  'Keripik',      3, 5000,  1, 3000, 5000,  now()),
-  (900208, 900106, 7,  'Roti Bakar',   3, 8000,  2, 5000, 16000, now()),
-  (900209, 900107, 11, 'Bakso',        1, 11000, 1, 7000, 11000, now()),
-  (900210, 900110, 101, 'Nasi Uduk',   10, 12000, 1, 8000, 12000, now())
-ON CONFLICT DO NOTHING;
-
--- ── Mutasi stok: MASUK awal + KELUAR penjualan + PEMBALIK void ──
--- stok_cache di atas HARUS = stok_setelah mutasi terakhir per menu.
-INSERT INTO mutasi_stok (id, sekolah_id, menu_id, arah, jenis, qty, stok_setelah,
-                         hpp_snapshot, transaksi_id, referensi_tipe, referensi_id,
-                         alasan, aktor_id, aktor_nama, waktu, created_at,
-                         harga_beli_satuan)
-VALUES
-  -- stok awal (7 hari lalu)
-  (900301, 1, 1,  'MASUK', 'BARANG_MASUK', 50, 50, 7000,  NULL, 'BARANG_MASUK', 'BM-001', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 7000),
-  (900302, 1, 2,  'MASUK', 'BARANG_MASUK', 50, 50, 6000,  NULL, 'BARANG_MASUK', 'BM-001', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 6000),
-  (900303, 1, 3,  'MASUK', 'BARANG_MASUK', 50, 50, 1000,  NULL, 'BARANG_MASUK', 'BM-001', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 1000),
-  (900304, 1, 4,  'MASUK', 'BARANG_MASUK', 50, 50, 2000,  NULL, 'BARANG_MASUK', 'BM-001', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 2000),
-  (900305, 1, 5,  'MASUK', 'BARANG_MASUK', 50, 50, 9000,  NULL, 'BARANG_MASUK', 'BM-001', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 9000),
-  (900306, 1, 6,  'MASUK', 'BARANG_MASUK', 50, 50, 3000,  NULL, 'BARANG_MASUK', 'BM-001', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 3000),
-  (900307, 1, 7,  'MASUK', 'BARANG_MASUK', 50, 50, 5000,  NULL, 'BARANG_MASUK', 'BM-001', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 5000),
-  (900308, 1, 8,  'MASUK', 'BARANG_MASUK', 50, 50, 4000,  NULL, 'BARANG_MASUK', 'BM-001', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 4000),
-  (900309, 1, 9,  'MASUK', 'BARANG_MASUK', 50, 50, 2000,  NULL, 'BARANG_MASUK', 'BM-001', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 2000),
-  (900310, 1, 10, 'MASUK', 'BARANG_MASUK', 50, 50, 5000,  NULL, 'BARANG_MASUK', 'BM-001', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 5000),
-  (900311, 1, 11, 'MASUK', 'BARANG_MASUK', 50, 50, 7000,  NULL, 'BARANG_MASUK', 'BM-001', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 7000),
-  (900312, 1, 12, 'MASUK', 'BARANG_MASUK', 50, 50, 5000,  NULL, 'BARANG_MASUK', 'BM-001', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 5000),
-  (900320, 2, 101, 'MASUK', 'BARANG_MASUK', 40, 40, 8000, NULL, 'BARANG_MASUK', 'BM-002', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 8000),
-  -- penjualan (stok_setelah menurun sesuai urutan waktu)
-  (900331, 1, 7,  'KELUAR', 'PENJUALAN', 2, 48, 5000, 900106, 'TRANSAKSI', '900106', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE - 1) + time '10:45') AT TIME ZONE 'Asia/Jakarta', now(), NULL),
-  (900332, 1, 4,  'KELUAR', 'PENJUALAN', 2, 48, 2000, 900103, 'TRANSAKSI', '900103', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE) + time '11:40') AT TIME ZONE 'Asia/Jakarta', now(), NULL),
-  (900333, 1, 3,  'KELUAR', 'PENJUALAN', 2, 48, 1000, 900104, 'TRANSAKSI', '900104', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE - 1) + time '09:30') AT TIME ZONE 'Asia/Jakarta', now(), NULL),
-  (900334, 1, 2,  'KELUAR', 'PENJUALAN', 1, 49, 6000, 900104, 'TRANSAKSI', '900104', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE - 1) + time '09:30') AT TIME ZONE 'Asia/Jakarta', now(), NULL),
-  (900335, 1, 3,  'KELUAR', 'PENJUALAN', 1, 47, 1000, 900101, 'TRANSAKSI', '900101', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE) + time '09:15') AT TIME ZONE 'Asia/Jakarta', now(), NULL),
-  (900336, 1, 1,  'KELUAR', 'PENJUALAN', 1, 49, 7000, 900101, 'TRANSAKSI', '900101', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE) + time '09:15') AT TIME ZONE 'Asia/Jakarta', now(), NULL),
-  (900337, 1, 5,  'KELUAR', 'PENJUALAN', 1, 49, 9000, 900102, 'TRANSAKSI', '900102', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE) + time '10:05') AT TIME ZONE 'Asia/Jakarta', now(), NULL),
-  (900338, 1, 11, 'KELUAR', 'PENJUALAN', 1, 49, 7000, 900107, 'TRANSAKSI', '900107', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE - 2) + time '09:50') AT TIME ZONE 'Asia/Jakarta', now(), NULL),
-  (900339, 2, 101, 'KELUAR', 'PENJUALAN', 1, 39, 8000, 900110, 'TRANSAKSI', '900110', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE) + time '08:20') AT TIME ZONE 'Asia/Jakarta', now(), NULL),
-  -- void transaksi 900105 → stok keripik kembali
-  (900340, 1, 6,  'KELUAR', 'PENJUALAN', 1, 49, 3000, 900105, 'TRANSAKSI', '900105', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE - 1) + time '10:20') AT TIME ZONE 'Asia/Jakarta', now(), NULL),
-  (900341, 1, 6,  'MASUK', 'VOID_PENJUALAN', 1, 50, 3000, 900105, 'TRANSAKSI', '900105', 'Pembalik void', 2, 'Bendahara', ((CURRENT_DATE - 1) + time '11:10') AT TIME ZONE 'Asia/Jakarta', now(), NULL)
-ON CONFLICT DO NOTHING;
-
--- ── Ledger saldo (append-only; sumber kebenaran) ─────────────
--- saldo_cache di bawah HARUS = saldo_setelah mutasi terakhir per subjek.
-INSERT INTO saldo_ledger (id, sekolah_id, subjek_tipe, subjek_id, arah, jenis,
-                          nominal, saldo_setelah, transaksi_id, idempotency_key,
-                          referensi_tipe, referensi_id, keterangan, aktor_id, waktu, created_at)
-VALUES
-  -- Siswa 101: topup 100.000 → belanja 15.000 = 85.000
-  (900001, 1, 'SISWA', 101, 'KREDIT', 'TOPUP_TUNAI', 100000, 100000, NULL, 'seed-dev-kt1-topup',    'TOPUP',     'TOPUP-001', 'Top up tunai di TU', 2, ((CURRENT_DATE - 3) + time '08:30') AT TIME ZONE 'Asia/Jakarta', now()),
-  (900002, 1, 'SISWA', 101, 'DEBIT',  'PENJUALAN',    15000,  85000, 900101, 'seed-dev-kt1-trx900101', 'TRANSAKSI', '900101',    NULL, 4, ((CURRENT_DATE) + time '09:15') AT TIME ZONE 'Asia/Jakarta', now()),
-  -- Siswa 102: topup 100.000 → belanja 8.000 = 92.000
-  (900003, 1, 'SISWA', 102, 'KREDIT', 'TOPUP_TUNAI', 100000, 100000, NULL, 'seed-dev-kt2-topup',    'TOPUP',     'TOPUP-002', 'Top up tunai di TU', 2, ((CURRENT_DATE - 3) + time '08:35') AT TIME ZONE 'Asia/Jakarta', now()),
-  (900004, 1, 'SISWA', 102, 'DEBIT',  'PENJUALAN',     8000,  92000, 900103, 'seed-dev-kt2-trx900103', 'TRANSAKSI', '900103',    NULL, 4, ((CURRENT_DATE) + time '11:40') AT TIME ZONE 'Asia/Jakarta', now()),
-  -- Siswa 103: topup 100.000 → belanja 13.000 → KOREKSI +5.000 = 92.000
-  (900005, 1, 'SISWA', 103, 'KREDIT', 'TOPUP_TUNAI', 100000, 100000, NULL, 'seed-dev-kt3-topup',    'TOPUP',     'TOPUP-003', 'Top up tunai di TU', 2, ((CURRENT_DATE - 3) + time '08:40') AT TIME ZONE 'Asia/Jakarta', now()),
-  (900006, 1, 'SISWA', 103, 'DEBIT',  'PENJUALAN',    13000,  87000, 900102, 'seed-dev-kt3-trx900102', 'TRANSAKSI', '900102',    NULL, 4, ((CURRENT_DATE) + time '10:05') AT TIME ZONE 'Asia/Jakarta', now()),
-  (900007, 1, 'SISWA', 103, 'KREDIT', 'KOREKSI',       5000,  92000, NULL, 'seed-dev-kt3-koreksi',  'KOREKSI',   'BA-001',    'Koreksi selisih setoran topup', 2, ((CURRENT_DATE) + time '12:30') AT TIME ZONE 'Asia/Jakarta', now()),
-  -- Siswa 104: topup 100.000 → belanja 16.000 = 84.000
-  (900008, 1, 'SISWA', 104, 'KREDIT', 'TOPUP_TUNAI', 100000, 100000, NULL, 'seed-dev-kt4-topup',    'TOPUP',     'TOPUP-004', 'Top up tunai di TU', 2, ((CURRENT_DATE - 3) + time '08:45') AT TIME ZONE 'Asia/Jakarta', now()),
-  (900009, 1, 'SISWA', 104, 'DEBIT',  'PENJUALAN',    16000,  84000, 900104, 'seed-dev-kt4-trx900104', 'TRANSAKSI', '900104',    NULL, 4, ((CURRENT_DATE - 1) + time '09:30') AT TIME ZONE 'Asia/Jakarta', now()),
-  -- Siswa 105: topup 50.000 → belanja 5.000 (VOID, kembali) → KOREKSI −2.000 = 48.000
-  (900010, 1, 'SISWA', 105, 'KREDIT', 'TOPUP_TUNAI',   50000,  50000, NULL, 'seed-dev-kt5-topup',    'TOPUP',     'TOPUP-005', 'Top up tunai di TU', 2, ((CURRENT_DATE - 3) + time '08:50') AT TIME ZONE 'Asia/Jakarta', now()),
-  (900011, 1, 'SISWA', 105, 'DEBIT',  'PENJUALAN',      5000,  45000, 900105, 'seed-dev-kt5-trx900105', 'TRANSAKSI', '900105',    NULL, 4, ((CURRENT_DATE - 1) + time '10:20') AT TIME ZONE 'Asia/Jakarta', now()),
-  (900012, 1, 'SISWA', 105, 'KREDIT', 'VOID_PENJUALAN', 5000,  50000, 900105, 'seed-dev-kt5-void',     'TRANSAKSI', '900105',    'Pembalik void transaksi', 2, ((CURRENT_DATE - 1) + time '11:10') AT TIME ZONE 'Asia/Jakarta', now()),
-  (900013, 1, 'SISWA', 105, 'DEBIT',  'KOREKSI',        2000,  48000, NULL, 'seed-dev-kt5-koreksi',   'KOREKSI',   'BA-002',    'Koreksi salah input nominal', 2, ((CURRENT_DATE - 1) + time '13:00') AT TIME ZONE 'Asia/Jakarta', now()),
-  -- Siswa 106: topup 100.000 → belanja 16.000 = 84.000
-  (900014, 1, 'SISWA', 106, 'KREDIT', 'TOPUP_TUNAI', 100000, 100000, NULL, 'seed-dev-kt6-topup',    'TOPUP',     'TOPUP-006', 'Top up tunai di TU', 2, ((CURRENT_DATE - 3) + time '08:55') AT TIME ZONE 'Asia/Jakarta', now()),
-  (900015, 1, 'SISWA', 106, 'DEBIT',  'PENJUALAN',    16000,  84000, 900106, 'seed-dev-kt6-trx900106', 'TRANSAKSI', '900106',    NULL, 4, ((CURRENT_DATE - 1) + time '10:45') AT TIME ZONE 'Asia/Jakarta', now()),
-  -- Siswa 109: topup 100.000 → belanja 11.000 = 89.000
-  (900016, 1, 'SISWA', 109, 'KREDIT', 'TOPUP_TUNAI', 100000, 100000, NULL, 'seed-dev-kt7-topup',    'TOPUP',     'TOPUP-007', 'Top up tunai di TU', 2, ((CURRENT_DATE - 3) + time '09:00') AT TIME ZONE 'Asia/Jakarta', now()),
-  (900017, 1, 'SISWA', 109, 'DEBIT',  'PENJUALAN',    11000,  89000, 900107, 'seed-dev-kt7-trx900107', 'TRANSAKSI', '900107',    NULL, 4, ((CURRENT_DATE - 2) + time '09:50') AT TIME ZONE 'Asia/Jakarta', now()),
-  -- Siswa 108: saldo kecil (uji tampilan saldo rendah)
-  (900018, 1, 'SISWA', 108, 'KREDIT', 'TOPUP_ONLINE',  25000,  25000, NULL, 'seed-dev-kt8-topup',    'TOPUP',     'TOPUP-008', 'Top up online via wali murid', 2, ((CURRENT_DATE - 2) + time '14:00') AT TIME ZONE 'Asia/Jakarta', now()),
-  -- Siswa 110: topup 75.000 → KOREKSI −5.000 = 70.000
-  (900019, 1, 'SISWA', 110, 'KREDIT', 'TOPUP_TUNAI', 75000,  75000, NULL, 'seed-dev-kt10-topup',   'TOPUP',     'TOPUP-010', 'Top up tunai di TU', 2, ((CURRENT_DATE - 2) + time '08:15') AT TIME ZONE 'Asia/Jakarta', now()),
-  (900020, 1, 'SISWA', 110, 'DEBIT',  'KOREKSI',      5000,  70000, NULL, 'seed-dev-kt10-koreksi', 'KOREKSI',   'BA-003',    'Koreksi kelebihan topup', 2, ((CURRENT_DATE - 1) + time '15:10') AT TIME ZONE 'Asia/Jakarta', now()),
-  -- Sekolah 2: kartu 11 topup 75.000 → belanja 12.000 = 63.000
-  (900030, 2, 'SISWA', 2001, 'KREDIT', 'TOPUP_TUNAI', 75000, 75000, NULL, 'seed-dev-s2kt1-topup',   'TOPUP',     'S2-TOPUP-001', 'Top up tunai di TU', 2, ((CURRENT_DATE - 1) + time '08:00') AT TIME ZONE 'Asia/Jakarta', now()),
-  (900031, 2, 'SISWA', 2001, 'DEBIT',  'PENJUALAN',    12000, 63000, 900110, 'seed-dev-s2kt1-trx',    'TRANSAKSI', '900110',    NULL, 4, ((CURRENT_DATE) + time '08:20') AT TIME ZONE 'Asia/Jakarta', now()),
-  -- Siswa demo 107 (Abizard, UID 1831574427): topup tunai 100.000
-  (900050, 1, 'SISWA', 107, 'KREDIT', 'TOPUP_TUNAI', 100000, 100000, NULL, 'seed-dev-siswa107-topup', 'TOPUP', 'TOPUP-SISWA-107', 'Top up tunai siswa Abizard', 2, ((CURRENT_DATE - 1) + time '08:00') AT TIME ZONE 'Asia/Jakarta', now())
-ON CONFLICT DO NOTHING;
-
--- ── Saldo cache (= saldo_setelah terakhir per subjek) ────────
-INSERT INTO saldo_cache (subjek_tipe, subjek_id, sekolah_id, saldo, updated_at)
-VALUES ('SISWA', 101, 1, 85000, now()),
-       ('SISWA', 102, 1, 92000, now()),
-       ('SISWA', 103, 1, 92000, now()),
-       ('SISWA', 104, 1, 84000, now()),
-       ('SISWA', 105, 1, 48000, now()),
-       ('SISWA', 106, 1, 84000, now()),
-       ('SISWA', 109, 1, 89000, now()),
-       ('SISWA', 108, 1, 25000, now()),
-       ('SISWA', 110, 1, 70000, now()),
-       ('SISWA', 2001, 2, 63000, now()),
-       ('SISWA',      107, 1, 100000, now())
-ON CONFLICT DO NOTHING;
-
--- ── Pengaturan per kartu (layar "Kontrol Kartu") ─────────────
-INSERT INTO limit_harian (id, sekolah_id, subjek_tipe, subjek_id, nominal,
-                          diubah_oleh, diubah_pada, created_at)
-VALUES (1, 1, 'SISWA', 101, 50000, 2, now(), now()),
-       (2, 1, 'SISWA', 108, 25000, 2, now(), now())
-ON CONFLICT DO NOTHING;
-
-INSERT INTO blokir_item (id, sekolah_id, subjek_tipe, subjek_id, menu_id, kategori_id,
-                         diblokir, diubah_oleh, diubah_pada, created_at)
-VALUES (1, 1, 'SISWA', 108, 6, NULL, true, 2, now(), now()),
-       (2, 1, 'SISWA', 108, NULL, 2, true, 2, now(), now())
-ON CONFLICT DO NOTHING;
-
-INSERT INTO blokir_kartu (id, sekolah_id, subjek_tipe, subjek_id, diblokir, alasan,
-                          diubah_oleh, diubah_pada, created_at)
-VALUES (1, 1, 'SISWA', 110, true, 'Kartu dilaporkan hilang', 2, now(), now())
-ON CONFLICT DO NOTHING;
-
--- ── Setoran TU (rekap topup tunai) ───────────────────────────
-INSERT INTO setoran_tu (id, sekolah_id, tanggal, petugas_id, total_topup,
-                        jumlah_disetor, referensi_id, catatan,
-                        dikonfirmasi_oleh, waktu, created_at)
-VALUES (1, 1, CURRENT_DATE - 1, 2, 725000, 725000, 'SETORAN-001',
-        'Setoran topup tunai kemarin', 1,
-        ((CURRENT_DATE - 1) + time '15:30') AT TIME ZONE 'Asia/Jakarta', now())
-ON CONFLICT DO NOTHING;
-
--- ── Buku kas ─────────────────────────────────────────────────
-INSERT INTO pos_buku_kas (id, sekolah_id, nama, tipe, keterangan, aktif, created_at)
-VALUES (1, 1, 'Penjualan Kantin', 'MASUK',  'Pos utama penjualan harian', true, now()),
-       (2, 1, 'Belanja Bahan',    'KELUAR', 'Pembelian bahan baku',       true, now())
-ON CONFLICT DO NOTHING;
-
-INSERT INTO posting_buku_kas (id, sekolah_id, referensi_id, entitas, mutasi_id,
-                              ref_buku_kas, jumlah, status, waktu, created_at)
-VALUES (1, 1, '900104', 'SESI_KASIR', NULL, 'BK-2026-001', 16000, 'SUKSES',
-        ((CURRENT_DATE - 1) + time '14:35') AT TIME ZONE 'Asia/Jakarta', now()),
-       (2, 1, '900106', 'SESI_KASIR', NULL, 'BK-2026-002', 16000, 'SUKSES',
-        ((CURRENT_DATE - 1) + time '12:05') AT TIME ZONE 'Asia/Jakarta', now())
-ON CONFLICT DO NOTHING;
-
--- ── Transaksi menunggu konfirmasi (sekolah dengan konfirmasi manual) ──
-INSERT INTO transaksi_menunggu_konfirmasi (id, sekolah_id, idempotency_key, rfid_uid,
-                                           titik_kasir_id, subjek_tipe, subjek_id,
-                                           petugas_id, total, items_json, status,
-                                           dibuat_at, kedaluwarsa_at, created_at, updated_at)
-VALUES (1, 2, 'seed-dev-pending-1', 'DA200001', 3, 'SISWA', 2001, 4, 12000,
-        '[{"menuId":101,"qty":1}]', 'MENUNGGU',
-        ((CURRENT_DATE) + time '12:10') AT TIME ZONE 'Asia/Jakarta',
-        ((CURRENT_DATE) + time '12:25') AT TIME ZONE 'Asia/Jakarta', now(), now())
-ON CONFLICT DO NOTHING;
-
--- ── Insiden offline (laporan monitoring) ─────────────────────
-INSERT INTO insiden_offline (id, sekolah_id, titik_kasir_id, mulai, selesai,
-                             durasi_menit, keterangan, dilaporkan_oleh, created_at)
-VALUES (1, 1, 2,
-        ((CURRENT_DATE - 2) + time '09:00') AT TIME ZONE 'Asia/Jakarta',
-        ((CURRENT_DATE - 2) + time '09:12') AT TIME ZONE 'Asia/Jakarta',
-        12, 'Koneksi internet terputus', 4, now())
-ON CONFLICT DO NOTHING;
-
-
--- ── Sekolah 10: tenant default form login FE ─────────────────
--- Form login kantin-fe mengirim `sekolah_id: 10` secara hardcoded
--- (src/features/auth/sign-in/components/user-auth-form.tsx), jadi tenant ini
--- WAJIB berisi data agar layar katalog/laporan tidak tampak kosong saat QA lokal.
---
--- Semua ID memakai rentang 1001+ supaya tidak bentrok dengan data yang dibuat
--- aplikasi (id snowflake). Kategori di-lookup lewat nama, bukan ID tetap, karena
--- tenant 10 bisa saja sudah punya kategori buatan aplikasi (mis. "Snack").
-
-INSERT INTO sekolah_kantin_config (sekolah_id, nama_kantin, jam_tutup_otomatis,
-                                   konfirmasi_manual, durasi_foto_detik,
-                                   min_topup, maks_topup,
-                                   batas_saldo_siswa, batas_saldo_kartu_tamu,
-                                   diperbarui_oleh, created_at, updated_at)
-VALUES (10, 'Kantin Sekolah 10', '15:00', false, 3, 5000, 500000, 500000, 1000000, 2, now(), now())
-ON CONFLICT (sekolah_id) DO NOTHING;
-
-INSERT INTO kebijakan_kantin (sekolah_id, kebijakan_saldo_mengendap, ambang_hari,
-                              catatan, diperbarui_oleh, updated_at)
-VALUES (10, 'REFUND', 90, 'Saldo mengendap > 90 hari dikembalikan ke wali murid', 2, now())
-ON CONFLICT (sekolah_id) DO NOTHING;
-
-INSERT INTO titik_kasir (id, sekolah_id, nama, kode, is_active, created_at, updated_at)
-VALUES (1001, 10, 'Kasir Kantin Utama', 'FE10-1', true, now(), now()),
-       (1002, 10, 'Kasir Kelas 7',      'FE10-2', true, now(), now())
-ON CONFLICT DO NOTHING;
-
-INSERT INTO kategori_menu (id, sekolah_id, nama, urutan, is_active, created_at, updated_at)
-VALUES (1001, 10, 'Makanan',    1, true, now(), now()),
-       (1002, 10, 'Minuman',    2, true, now(), now()),
-       (1003, 10, 'Snack',      3, true, now(), now()),
-       (1004, 10, 'Alat Tulis', 4, true, now(), now())
-ON CONFLICT DO NOTHING;
-
--- Stok diisi SEBELUM menu (trigger hanya menyinkronkan stok_minimum bila baris ada).
-INSERT INTO stok_cache (menu_id, sekolah_id, stok, hpp, stok_minimum, updated_at)
-VALUES (1001, 10, 49, 7000,  5,  now()),
-       (1002, 10, 50, 6000,  5,  now()),
-       (1003, 10, 48, 1000,  10, now()),
-       (1004, 10, 48, 2000,  10, now()),
-       (1005, 10, 50, 9000,  5,  now()),
-       (1006, 10, 50, 3000,  10, now()),
-       (1007, 10, 48, 5000,  5,  now()),
-       (1008, 10, 50, 2000,  20, now())
-ON CONFLICT (menu_id) DO NOTHING;
-
-INSERT INTO menu (id, sekolah_id, kategori_id, nama, harga_jual, satuan,
-                  stok_minimum, is_active, created_at, updated_at)
-SELECT v.id, 10, k.id, v.nama, v.harga, v.satuan, v.stok_minimum, true, now(), now()
-FROM (VALUES
-        (1001::bigint, 'Nasi Goreng'::varchar, 12000::bigint, 'PORSI'::varchar, 5::integer,  'Makanan'::varchar),
-        (1002, 'Mie Ayam',     10000, 'PORSI', 5,  'Makanan'),
-        (1003, 'Es Teh Manis',  3000, 'PCS',   10, 'Minuman'),
-        (1004, 'Air Mineral',   4000, 'BOTOL', 10, 'Minuman'),
-        (1005, 'Ayam Geprek',  13000, 'PORSI', 5,  'Makanan'),
-        (1006, 'Keripik',       5000, 'PCS',   10, 'Snack'),
-        (1007, 'Roti Bakar',    8000, 'PCS',   5,  'Snack'),
-        (1008, 'Pulpen',        3000, 'PCS',   20, 'Alat Tulis')
-     ) AS v(id, nama, harga, satuan, stok_minimum, kategori)
-JOIN kategori_menu k ON k.sekolah_id = 10 AND k.nama = v.kategori
-ON CONFLICT DO NOTHING;
-
-
-INSERT INTO sesi_kasir (id, sekolah_id, titik_kasir_id, tanggal, status,
-                        total_bruto, total_void, total_bersih, dibuka_at,
-                        ditutup_at, ditutup_oleh, auto_tutup,
-                        posting_buku_kas, created_at, updated_at)
-VALUES (1001, 10, 1001, CURRENT_DATE, 'TERBUKA', 23000, 0, 23000,
-        ((CURRENT_DATE) + time '07:00') AT TIME ZONE 'Asia/Jakarta',
-        NULL, NULL, false, false, now(), now()),
-       (1002, 10, 1001, CURRENT_DATE - 1, 'DITUTUP', 21000, 5000, 16000,
-        ((CURRENT_DATE - 1) + time '07:00') AT TIME ZONE 'Asia/Jakarta',
-        ((CURRENT_DATE - 1) + time '14:30') AT TIME ZONE 'Asia/Jakarta', 4, false, true, now(), now())
-ON CONFLICT DO NOTHING;
-
-INSERT INTO transaksi (id, idempotency_key, sekolah_id, sesi_kasir_id, titik_kasir_id,
-                       subjek_tipe, subjek_id, kartu_uid, petugas_id,
-                       total, total_hpp, status, alasan_void, void_at, void_oleh,
-                       waktu, created_at, updated_at)
-VALUES
-  (910101, 'seed-fe10-t1', 10, 1001, 1001, 'SISWA', 1005, 'DA100005', 4, 15000, 8000, 'SUKSES',
-   NULL, NULL, NULL, ((CURRENT_DATE) + time '09:15') AT TIME ZONE 'Asia/Jakarta', now(), now()),
-  (910102, 'seed-fe10-t2', 10, 1001, 1001, 'SISWA', 1006, 'DA100006', 4, 8000, 4000, 'SUKSES',
-   NULL, NULL, NULL, ((CURRENT_DATE) + time '10:05') AT TIME ZONE 'Asia/Jakarta', now(), now()),
-  (910103, 'seed-fe10-t3', 10, 1002, 1001, 'SISWA', 1007, 'DA100007', 4, 16000, 10000, 'SUKSES',
-   NULL, NULL, NULL, ((CURRENT_DATE - 1) + time '09:30') AT TIME ZONE 'Asia/Jakarta', now(), now()),
-  (910104, 'seed-fe10-t4', 10, 1002, 1001, 'SISWA', 1007, 'DA100007', 4, 5000, 3000, 'VOID',
-   'Salah input item', ((CURRENT_DATE - 1) + time '11:10') AT TIME ZONE 'Asia/Jakarta', 2,
-   ((CURRENT_DATE - 1) + time '10:20') AT TIME ZONE 'Asia/Jakarta', now(), now())
-ON CONFLICT DO NOTHING;
-
-INSERT INTO transaksi_item (id, transaksi_id, menu_id, nama_menu, kategori_id,
-                            harga_jual, qty, hpp_snapshot, subtotal, created_at)
-VALUES
-  (910201, 910101, 1001, 'Nasi Goreng',  1001, 12000, 1, 7000, 12000, now()),
-  (910202, 910101, 1003, 'Es Teh Manis', 1002, 3000,  1, 1000, 3000,  now()),
-  (910203, 910102, 1004, 'Air Mineral',  1002, 4000,  2, 2000, 8000,  now()),
-  (910204, 910103, 1007, 'Roti Bakar',   1003, 8000,  2, 5000, 16000, now()),
-  (910205, 910104, 1006, 'Keripik',      1003, 5000,  1, 3000, 5000,  now())
-ON CONFLICT DO NOTHING;
-
-INSERT INTO mutasi_stok (id, sekolah_id, menu_id, arah, jenis, qty, stok_setelah,
-                         hpp_snapshot, transaksi_id, referensi_tipe, referensi_id,
-                         alasan, aktor_id, aktor_nama, waktu, created_at,
-                         harga_beli_satuan)
-VALUES
-  -- stok awal (7 hari lalu)
-  (910301, 10, 1001, 'MASUK', 'BARANG_MASUK', 50, 50, 7000, NULL, 'BARANG_MASUK', 'BM-FE10-001', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 7000),
-  (910302, 10, 1002, 'MASUK', 'BARANG_MASUK', 50, 50, 6000, NULL, 'BARANG_MASUK', 'BM-FE10-001', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 6000),
-  (910303, 10, 1003, 'MASUK', 'BARANG_MASUK', 50, 50, 1000, NULL, 'BARANG_MASUK', 'BM-FE10-001', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 1000),
-  (910304, 10, 1004, 'MASUK', 'BARANG_MASUK', 50, 50, 2000, NULL, 'BARANG_MASUK', 'BM-FE10-001', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 2000),
-  (910305, 10, 1005, 'MASUK', 'BARANG_MASUK', 50, 50, 9000, NULL, 'BARANG_MASUK', 'BM-FE10-001', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 9000),
-  (910306, 10, 1006, 'MASUK', 'BARANG_MASUK', 50, 50, 3000, NULL, 'BARANG_MASUK', 'BM-FE10-001', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 3000),
-  (910307, 10, 1007, 'MASUK', 'BARANG_MASUK', 50, 50, 5000, NULL, 'BARANG_MASUK', 'BM-FE10-001', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 5000),
-  (910308, 10, 1008, 'MASUK', 'BARANG_MASUK', 50, 50, 2000, NULL, 'BARANG_MASUK', 'BM-FE10-001', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 2000),
-  -- penjualan
-  (910331, 10, 1001, 'KELUAR', 'PENJUALAN', 1, 49, 7000, 910101, 'TRANSAKSI', '910101', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE) + time '09:15') AT TIME ZONE 'Asia/Jakarta', now(), NULL),
-  (910332, 10, 1003, 'KELUAR', 'PENJUALAN', 1, 48, 1000, 910101, 'TRANSAKSI', '910101', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE) + time '09:15') AT TIME ZONE 'Asia/Jakarta', now(), NULL),
-  (910333, 10, 1004, 'KELUAR', 'PENJUALAN', 2, 48, 2000, 910102, 'TRANSAKSI', '910102', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE) + time '10:05') AT TIME ZONE 'Asia/Jakarta', now(), NULL),
-  (910334, 10, 1007, 'KELUAR', 'PENJUALAN', 2, 48, 5000, 910103, 'TRANSAKSI', '910103', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE - 1) + time '09:30') AT TIME ZONE 'Asia/Jakarta', now(), NULL),
-  (910335, 10, 1003, 'KELUAR', 'PENJUALAN', 1, 49, 1000, 910103, 'TRANSAKSI', '910103', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE - 1) + time '09:30') AT TIME ZONE 'Asia/Jakarta', now(), NULL),
-  -- void transaksi 910104 → stok keripik kembali
-  (910336, 10, 1006, 'KELUAR', 'PENJUALAN', 1, 49, 3000, 910104, 'TRANSAKSI', '910104', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE - 1) + time '10:20') AT TIME ZONE 'Asia/Jakarta', now(), NULL),
-  (910337, 10, 1006, 'MASUK', 'VOID_PENJUALAN', 1, 50, 3000, 910104, 'TRANSAKSI', '910104', 'Pembalik void', 2, 'Bendahara', ((CURRENT_DATE - 1) + time '11:10') AT TIME ZONE 'Asia/Jakarta', now(), NULL)
-ON CONFLICT DO NOTHING;
-
-INSERT INTO saldo_ledger (id, sekolah_id, subjek_tipe, subjek_id, arah, jenis,
-                          nominal, saldo_setelah, transaksi_id, idempotency_key,
-                          referensi_tipe, referensi_id, keterangan, aktor_id, waktu, created_at)
-VALUES
-  -- Siswa 1001: topup 100.000 → belanja 15.000 = 85.000
-  (910001, 10, 'SISWA', 1005, 'KREDIT', 'TOPUP_TUNAI', 100000, 100000, NULL, 'seed-fe10-kt1-topup', 'TOPUP', 'TOPUP-FE10-001', 'Top up tunai di TU', 2, ((CURRENT_DATE - 3) + time '08:30') AT TIME ZONE 'Asia/Jakarta', now()),
-  (910002, 10, 'SISWA', 1005, 'DEBIT',  'PENJUALAN',    15000,  85000, 910101, 'seed-fe10-kt1-trx910101', 'TRANSAKSI', '910101', NULL, 4, ((CURRENT_DATE) + time '09:15') AT TIME ZONE 'Asia/Jakarta', now()),
-  -- Siswa 1002: topup 50.000 → belanja 8.000 = 42.000
-  (910003, 10, 'SISWA', 1006, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, NULL, 'seed-fe10-kt2-topup', 'TOPUP', 'TOPUP-FE10-002', 'Top up tunai di TU', 2, ((CURRENT_DATE - 3) + time '08:35') AT TIME ZONE 'Asia/Jakarta', now()),
-  (910004, 10, 'SISWA', 1006, 'DEBIT',  'PENJUALAN',    8000,  42000, 910102, 'seed-fe10-kt2-trx910102', 'TRANSAKSI', '910102', NULL, 4, ((CURRENT_DATE) + time '10:05') AT TIME ZONE 'Asia/Jakarta', now()),
-  -- Siswa 1003: topup 30.000 → belanja 16.000 → void 5.000 (kembali) = 14.000
-  (910005, 10, 'SISWA', 1007, 'KREDIT', 'TOPUP_TUNAI', 30000, 30000, NULL, 'seed-fe10-kt3-topup', 'TOPUP', 'TOPUP-FE10-003', 'Top up tunai di TU', 2, ((CURRENT_DATE - 3) + time '08:40') AT TIME ZONE 'Asia/Jakarta', now()),
-  (910006, 10, 'SISWA', 1007, 'DEBIT',  'PENJUALAN',    16000,  14000, 910103, 'seed-fe10-kt3-trx910103', 'TRANSAKSI', '910103', NULL, 4, ((CURRENT_DATE - 1) + time '09:30') AT TIME ZONE 'Asia/Jakarta', now()),
-  (910007, 10, 'SISWA', 1007, 'DEBIT',  'PENJUALAN',     5000,   9000, 910104, 'seed-fe10-kt3-trx910104', 'TRANSAKSI', '910104', NULL, 4, ((CURRENT_DATE - 1) + time '10:20') AT TIME ZONE 'Asia/Jakarta', now()),
-  (910008, 10, 'SISWA', 1007, 'KREDIT', 'VOID_PENJUALAN', 5000, 14000, 910104, 'seed-fe10-kt3-void', 'TRANSAKSI', '910104', 'Pembalik void transaksi', 2, ((CURRENT_DATE - 1) + time '11:10') AT TIME ZONE 'Asia/Jakarta', now()),
-  -- SISWA demo 1001 (sekolah 10, UID RFID DA100001): topup tunai 75.000.
-  -- UID hanya dipetakan oleh KartuLookupDemo saat profil demo aktif (lokal); bukan master siswa.
-  (910009, 10, 'SISWA', 1001, 'KREDIT', 'TOPUP_TUNAI', 75000, 75000, NULL, 'seed-fe10-siswa1-topup', 'TOPUP', 'TOPUP-FE10-S001', 'Top up tunai di TU', 2, ((CURRENT_DATE - 2) + time '08:10') AT TIME ZONE 'Asia/Jakarta', now())
-ON CONFLICT DO NOTHING;
-
-INSERT INTO saldo_cache (subjek_tipe, subjek_id, sekolah_id, saldo, updated_at)
-VALUES ('SISWA', 1005, 10, 85000, now()),
-       ('SISWA', 1006, 10, 42000, now()),
-       ('SISWA', 1007, 10, 14000, now()),
-       ('SISWA',      1001, 10, 75000, now())
-ON CONFLICT DO NOTHING;
-
-INSERT INTO limit_harian (id, sekolah_id, subjek_tipe, subjek_id, nominal,
-                          diubah_oleh, diubah_pada, created_at)
-VALUES (1001, 10, 'SISWA', 1006, 50000, 2, now(), now()),
-       (1002, 10, 'SISWA',      1001, 25000, 2, now(), now())
-ON CONFLICT DO NOTHING;
-
-INSERT INTO blokir_item (id, sekolah_id, subjek_tipe, subjek_id, menu_id, kategori_id,
-                         diblokir, diubah_oleh, diubah_pada, created_at)
-VALUES (1001, 10, 'SISWA', 1001, 1006, NULL, true, 2, now(), now()),
-       (1002, 10, 'SISWA', 1001, NULL, 1003, true, 2, now(), now())
-ON CONFLICT DO NOTHING;
-
-INSERT INTO setoran_tu (id, sekolah_id, tanggal, petugas_id, total_topup,
-                        jumlah_disetor, referensi_id, catatan,
-                        dikonfirmasi_oleh, waktu, created_at)
-VALUES (1001, 10, CURRENT_DATE - 1, 2, 155000, 155000, 'SETORAN-FE10-001',
-        'Setoran topup tunai kemarin', 1,
-        ((CURRENT_DATE - 1) + time '15:30') AT TIME ZONE 'Asia/Jakarta', now())
-ON CONFLICT DO NOTHING;
-
-INSERT INTO pos_buku_kas (id, sekolah_id, nama, tipe, keterangan, aktif, created_at)
-VALUES (1001, 10, 'Penjualan Kantin', 'MASUK',  'Pos utama penjualan harian', true, now()),
-       (1002, 10, 'Belanja Bahan',    'KELUAR', 'Pembelian bahan baku',       true, now())
-ON CONFLICT DO NOTHING;
-
-INSERT INTO posting_buku_kas (id, sekolah_id, referensi_id, entitas, mutasi_id,
-                              ref_buku_kas, jumlah, status, waktu, created_at)
-VALUES (1001, 10, '910103', 'SESI_KASIR', NULL, 'BK-FE10-001', 16000, 'SUKSES',
-        ((CURRENT_DATE - 1) + time '14:35') AT TIME ZONE 'Asia/Jakarta', now())
-ON CONFLICT DO NOTHING;
-
-INSERT INTO insiden_offline (id, sekolah_id, titik_kasir_id, mulai, selesai,
-                             durasi_menit, keterangan, dilaporkan_oleh, created_at)
-VALUES (1001, 10, 1002,
-        ((CURRENT_DATE - 2) + time '09:00') AT TIME ZONE 'Asia/Jakarta',
-        ((CURRENT_DATE - 2) + time '09:12') AT TIME ZONE 'Asia/Jakarta',
-        12, 'Koneksi internet terputus', 4, now())
-ON CONFLICT DO NOTHING;
-
--- ── Mapping kartu siswa demo (tabel HANYA ada di lokal) ───────
--- Bukan master siswa: hanya fixture untuk lookup satu UID saat profil demo aktif.
-CREATE TABLE IF NOT EXISTS dev_siswa_rfid (
-    sekolah_id BIGINT NOT NULL,
-    siswa_id BIGINT NOT NULL,
-    nomor_kartu VARCHAR(32) NOT NULL,
-    rfid_uid VARCHAR(50) NOT NULL UNIQUE,
-    aktif BOOLEAN NOT NULL DEFAULT true,
-    -- Nama & kelas hanya untuk tampilan struk saat demo; data asli milik pusat.
-    nama VARCHAR(100),
-    kelas VARCHAR(30),
-    PRIMARY KEY (sekolah_id, siswa_id),
-    UNIQUE (sekolah_id, nomor_kartu)
-);
-
--- DB lokal yang dibuat sebelum kolom ini ada: tambahkan tanpa menghapus data.
-ALTER TABLE dev_siswa_rfid ADD COLUMN IF NOT EXISTS nama  VARCHAR(100);
-ALTER TABLE dev_siswa_rfid ADD COLUMN IF NOT EXISTS kelas VARCHAR(30);
-
-INSERT INTO dev_siswa_rfid (sekolah_id, siswa_id, nomor_kartu, rfid_uid, aktif)
-VALUES (10, 1001, 'RFID-SISWA-001', 'DA100001', true)
-ON CONFLICT DO NOTHING;
-
--- ── Akun login dev (tabel HANYA ada di lokal) ────────────────
--- Dibuat di sini, BUKAN sebagai migrasi biasa: skema produksi tidak boleh
--- punya tabel akun — kantin-be tidak menyimpan master pengguna (ADR-0002),
--- identitas asli datang dari admin-be lewat JWT.
--- Password seluruh akun: Kantin#2026  (BCrypt cost 10). Hanya untuk lokal.
-CREATE TABLE IF NOT EXISTS dev_pengguna (
-    id            bigint  PRIMARY KEY,
-    sekolah_id    bigint  NOT NULL,
-    username      text    NOT NULL UNIQUE,
-    nama          text    NOT NULL,
-    role          text    NOT NULL,
-    password_hash text    NOT NULL,
-    aktif         boolean NOT NULL DEFAULT true
-);
-
-INSERT INTO dev_pengguna (id, sekolah_id, username, nama, role, password_hash, aktif)
-VALUES
-    (1, 1, 'kepsek1',    'Wibisana Bama (Kepsek)',        'KEPSEK',
-     '$2a$10$QuQdle/cq0LmMnK6NuzTn.FamhgtEtsPlLXBXbLX6M5qvN.MIF2B.', true),
-    (2, 1, 'tu1',        'Sri Wahyuni (TU)',              'TATA_USAHA',
-     '$2a$10$gIRI1JII3tHKLy.JqJQgS.6Oh2aO.5awJMLPKOAXZct1/b1wKjvIC', true),
-    (3, 1, 'pengelola1', 'Deryl Fabiensyah (Pengelola)',  'PENGELOLA',
-     '$2a$10$dzn8cuWxXJX0HXEtVohumuWYg9ri41W4jC8DA4c6moZghqtOcvH5W', true),
-    (4, 1, 'kasir1',     'Ahmad Kasir (Petugas POS)',     'PETUGAS',
-     '$2a$10$LGt9ZvDWW97jh0ozfFEIrOlwkp.DQ7HSpq7Eg/VxbHLn3UDuD.Xem', true),
-    (5, 1, 'bendahara1', 'Siti Rahma (Bendahara)',        'BENDAHARA',
-     '$2a$10$0PkEyDmQ0sxGV/kdv5XE.udnbKO1N1yWLx7hnbA3cTBFG17fE9Byu', true),
-    (6, 2, 'tu2',        'Andika Pratama (TU Sekolah 2)', 'TATA_USAHA',
-     '$2a$10$3vynpehMjgcknvLbhkE4kuucUfxfSsSxiq9fTAJ0VYbLzGbcXRJwa', true),
-    (7, 10, 'kasir10',     'Rizky Pratama (Petugas POS 10)', 'PETUGAS',
-     '$2a$10$LGt9ZvDWW97jh0ozfFEIrOlwkp.DQ7HSpq7Eg/VxbHLn3UDuD.Xem', true),
-    (8, 10, 'bendahara10', 'Nurul Hidayah (Bendahara 10)',    'BENDAHARA',
-     '$2a$10$0PkEyDmQ0sxGV/kdv5XE.udnbKO1N1yWLx7hnbA3cTBFG17fE9Byu', true),
-    -- Satu akun admin dev untuk menguji role ADMIN_SEKOLAH.
-    -- Hash disamakan dengan akun dev yang password-nya Kantin#2026.
-    (9, 1, 'admin1', 'Budi Santoso (Admin Sekolah)', 'ADMIN_SEKOLAH',
-     '$2a$10$LGt9ZvDWW97jh0ozfFEIrOlwkp.DQ7HSpq7Eg/VxbHLn3UDuD.Xem', true)
-ON CONFLICT (id) DO NOTHING;
-
--- ── Data pelengkap: menutup semua jalur fitur ─────────────────────
--- Ditambahkan setelah data dasar agar ID tetap stabil; blok self-healing
--- di bawah tetap menjadi penentu nilai cache akhir.
-
-INSERT INTO titik_kasir (id, sekolah_id, nama, kode, is_active, created_at, updated_at)
-VALUES (4, 2, 'Kasir Kantin Belakang', 'S2-02', true, now(), now())
-ON CONFLICT DO NOTHING;
-
-INSERT INTO kategori_menu (id, sekolah_id, nama, urutan, is_active, created_at, updated_at)
-VALUES (11, 2, 'Minuman',    2, true, now(), now()),
-       (12, 2, 'Snack',      3, true, now(), now()),
-       (13, 2, 'Alat Tulis', 4, true, now(), now())
-ON CONFLICT DO NOTHING;
-
--- Stok diisi sebelum menu: trg_menu_sinkron_stok_minimum hanya
--- menyinkronkan stok_minimum bila baris sudah ada.
-INSERT INTO stok_cache (menu_id, sekolah_id, stok, hpp, stok_minimum, updated_at)
-VALUES (13, 1, 50, 10000, 5, now()),
-       (14, 1, 50, 6000, 5, now()),
-       (15, 1, 6, 5000, 10, now()),
-       (16, 1, 8, 3500, 10, now()),
-       (17, 1, 50, 1200, 20, now()),
-       (18, 1, 50, 2500, 10, now()),
-       (102, 2, 50, 9000, 5, now()),
-       (103, 2, 50, 7000, 5, now()),
-       (104, 2, 50, 3000, 10, now()),
-       (105, 2, 50, 4500, 10, now()),
-       (106, 2, 50, 5500, 10, now()),
-       (107, 2, 50, 2000, 20, now()),
-       (1009, 10, 50, 7000, 5, now()),
-       (1010, 10, 50, 6000, 10, now()),
-       (1011, 10, 50, 3500, 10, now())
-ON CONFLICT (menu_id) DO NOTHING;
-
-INSERT INTO menu (id, sekolah_id, kategori_id, nama, harga_jual, satuan,
-                  stok_minimum, is_active, created_at, updated_at)
-VALUES (13, 1, 1, 'Nasi Padang', 15000, 'PORSI', 5, true, now(), now()),
-       (14, 1, 1, 'Soto Ayam', 9000, 'PORSI', 5, true, now(), now()),
-       (15, 1, 2, 'Kopi Susu', 8000, 'PCS', 10, true, now(), now()),
-       (16, 1, 3, 'Pisang Goreng', 6000, 'PCS', 10, true, now(), now()),
-       (17, 1, 4, 'Penghapus', 2000, 'PCS', 20, true, now(), now()),
-       (18, 1, 2, 'Teh Botol', 4500, 'BOTOL', 10, true, now(), now()),
-       (102, 2, 10, 'Nasi Goreng Spesial', 14000, 'PORSI', 5, true, now(), now()),
-       (103, 2, 10, 'Mie Goreng', 11000, 'PORSI', 5, true, now(), now()),
-       (104, 2, 11, 'Es Jeruk', 5000, 'PCS', 10, true, now(), now()),
-       (105, 2, 11, 'Susu Coklat', 7000, 'PCS', 10, true, now(), now()),
-       (106, 2, 12, 'Kentang Goreng', 9000, 'PCS', 10, true, now(), now()),
-       (107, 2, 13, 'Pensil', 3500, 'PCS', 20, true, now(), now()),
-       (1009, 10, 1001, 'Nasi Kuning', 11000, 'PORSI', 5, true, now(), now()),
-       (1010, 10, 1002, 'Jus Alpukat', 9000, 'PCS', 10, true, now(), now()),
-       (1011, 10, (SELECT id FROM kategori_menu WHERE sekolah_id=10 AND nama='Snack'), 'Pisang Goreng', 6000, 'PCS', 5, true, now(), now())
-ON CONFLICT DO NOTHING;
-
-
-INSERT INTO sesi_kasir (id, sekolah_id, titik_kasir_id, tanggal, status,
-                        total_bruto, total_void, total_bersih, dibuka_at,
-                        ditutup_at, ditutup_oleh, auto_tutup,
-                        posting_buku_kas, created_at, updated_at)
-VALUES (5, 1, 2, CURRENT_DATE, 'TERBUKA', 0, 0, 0, ((CURRENT_DATE + 0) + time '07:10') AT TIME ZONE 'Asia/Jakarta', NULL, NULL, false, false, now(), now()),
-       (11, 2, 4, CURRENT_DATE, 'TERBUKA', 0, 0, 0, ((CURRENT_DATE + 0) + time '07:25') AT TIME ZONE 'Asia/Jakarta', NULL, NULL, false, false, now(), now()),
-       (1003, 10, 1002, CURRENT_DATE, 'TERBUKA', 0, 0, 0, ((CURRENT_DATE + 0) + time '07:05') AT TIME ZONE 'Asia/Jakarta', NULL, NULL, false, false, now(), now())
-ON CONFLICT DO NOTHING;
-
-INSERT INTO transaksi (id, idempotency_key, sekolah_id, sesi_kasir_id, titik_kasir_id,
-                       subjek_tipe, subjek_id, kartu_uid, petugas_id,
-                       total, total_hpp, status, alasan_void, void_at, void_oleh,
-                       waktu, created_at, updated_at)
-VALUES
-  (900201, 'seed-add-t900201', 1, 5, 2, 'SISWA', 12, '04A2B3C4D5', 4, 27500, 17500, 'SUKSES', NULL, NULL, NULL, ((CURRENT_DATE + 0) + time '08:40') AT TIME ZONE 'Asia/Jakarta', now(), now()),
-  (900202, 'seed-add-t900202', 1, 5, 2, 'SISWA', 13, '04B3C4D5E6', 4, 20000, 11700, 'SUKSES', NULL, NULL, NULL, ((CURRENT_DATE + 0) + time '09:20') AT TIME ZONE 'Asia/Jakarta', now(), now()),
-  (900203, 'seed-add-t900203', 1, 5, 2, 'SISWA', 104, '04D4E5F6A1', 4, 5000, 3000, 'VOID', 'Salah pilih menu', ((CURRENT_DATE + 0) + time '11:59') AT TIME ZONE 'Asia/Jakarta', 2, ((CURRENT_DATE + 0) + time '10:10') AT TIME ZONE 'Asia/Jakarta', now(), now()),
-  (900204, 'seed-add-t900204', 1, 5, 2, 'SISWA', 105, '04E5F6A1B2', 4, 8000, 4000, 'SUKSES', NULL, NULL, NULL, ((CURRENT_DATE + 0) + time '12:20') AT TIME ZONE 'Asia/Jakarta', now(), now()),
-  (900205, 'seed-add-t900205', 1, 5, 2, 'SISWA', 106, '04F1A2B3C4', 4, 12000, 7400, 'SUKSES', NULL, NULL, NULL, ((CURRENT_DATE + 0) + time '11:30') AT TIME ZONE 'Asia/Jakarta', now(), now()),
-  (900206, 'seed-add-t900206', 1, 5, 2, 'SISWA', 109, '04F2A3B4C5', 4, 15000, 10200, 'SUKSES', NULL, NULL, NULL, ((CURRENT_DATE + 0) + time '12:05') AT TIME ZONE 'Asia/Jakarta', now(), now()),
-  (900211, 'seed-add-t900211', 2, 11, 3, 'SISWA', 14, 'DA200002', 4, 19000, 12000, 'SUKSES', NULL, NULL, NULL, ((CURRENT_DATE + 0) + time '08:10') AT TIME ZONE 'Asia/Jakarta', now(), now()),
-  (900212, 'seed-add-t900212', 2, 11, 3, 'SISWA', 15, 'DA200003', 4, 20000, 12500, 'SUKSES', NULL, NULL, NULL, ((CURRENT_DATE + 0) + time '09:05') AT TIME ZONE 'Asia/Jakarta', now(), now()),
-  (900213, 'seed-add-t900213', 2, 11, 3, 'SISWA', 14, 'DA200002', 4, 3500, 2000, 'VOID', 'Kartu tidak terbaca', ((CURRENT_DATE + 0) + time '11:59') AT TIME ZONE 'Asia/Jakarta', 2, ((CURRENT_DATE + 0) + time '09:45') AT TIME ZONE 'Asia/Jakarta', now(), now()),
-  (900221, 'seed-add-t900221', 10, 1003, 1001, 'SISWA', 1004, 'DA000004', 4, 20000, 13000, 'SUKSES', NULL, NULL, NULL, ((CURRENT_DATE + 0) + time '09:40') AT TIME ZONE 'Asia/Jakarta', now(), now())
-ON CONFLICT DO NOTHING;
-
-INSERT INTO transaksi_item (id, transaksi_id, menu_id, nama_menu, kategori_id,
-                            harga_jual, qty, hpp_snapshot, subtotal, created_at)
-VALUES
-  (900401, 900201, 13, 'Nasi Padang', 1, 15000, 1, 10000, 15000, now()),
-  (900402, 900201, 18, 'Teh Botol', 2, 4500, 1, 2500, 4500, now()),
-  (900403, 900201, 15, 'Kopi Susu', 2, 8000, 1, 5000, 8000, now()),
-  (900404, 900202, 14, 'Soto Ayam', 1, 9000, 1, 6000, 9000, now()),
-  (900405, 900202, 16, 'Pisang Goreng', 3, 6000, 1, 3500, 6000, now()),
-  (900406, 900202, 17, 'Penghapus', 4, 2000, 1, 1200, 2000, now()),
-  (900407, 900202, 3, 'Es Teh Manis', 2, 3000, 1, 1000, 3000, now()),
-  (900408, 900203, 6, 'Keripik', 3, 5000, 1, 3000, 5000, now()),
-  (900409, 900204, 4, 'Air Mineral', 2, 4000, 2, 2000, 8000, now()),
-  (900410, 900205, 7, 'Roti Bakar', 3, 8000, 1, 5000, 8000, now()),
-  (900411, 900205, 17, 'Penghapus', 4, 2000, 2, 1200, 4000, now()),
-  (900412, 900206, 5, 'Ayam Geprek', 1, 13000, 1, 9000, 13000, now()),
-  (900413, 900206, 17, 'Penghapus', 4, 2000, 1, 1200, 2000, now()),
-  (900414, 900211, 102, 'Nasi Goreng Spesial', 10, 14000, 1, 9000, 14000, now()),
-  (900415, 900211, 104, 'Es Jeruk', 11, 5000, 1, 3000, 5000, now()),
-  (900416, 900212, 103, 'Mie Goreng', 10, 11000, 1, 7000, 11000, now()),
-  (900417, 900212, 106, 'Kentang Goreng', 12, 9000, 1, 5500, 9000, now()),
-  (900418, 900213, 107, 'Pensil', 13, 3500, 1, 2000, 3500, now()),
-  (900419, 900221, 1009, 'Nasi Kuning', 1001, 11000, 1, 7000, 11000, now()),
-  (900420, 900221, 1010, 'Jus Alpukat', 1002, 9000, 1, 6000, 9000, now())
-ON CONFLICT DO NOTHING;
-
-INSERT INTO mutasi_stok (id, sekolah_id, menu_id, arah, jenis, qty, stok_setelah,
-                         hpp_snapshot, transaksi_id, referensi_tipe, referensi_id,
-                         alasan, aktor_id, aktor_nama, waktu, created_at,
-                         harga_beli_satuan)
-VALUES
-  (900522, 1, 3, 'KELUAR', 'PENJUALAN', 1, 46, 1000, '900202', 'TRANSAKSI', '900202', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE + 0) + time '09:20') AT TIME ZONE 'Asia/Jakarta', now(), 1000),
-  (900525, 1, 4, 'KELUAR', 'PENJUALAN', 2, 46, 2000, '900204', 'TRANSAKSI', '900204', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE + 0) + time '12:20') AT TIME ZONE 'Asia/Jakarta', now(), 2000),
-  (900528, 1, 5, 'KELUAR', 'PENJUALAN', 1, 48, 9000, '900206', 'TRANSAKSI', '900206', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE + 0) + time '12:05') AT TIME ZONE 'Asia/Jakarta', now(), 9000),
-  (900523, 1, 6, 'KELUAR', 'PENJUALAN', 1, 49, 3000, '900203', 'TRANSAKSI', '900203', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE + 0) + time '10:10') AT TIME ZONE 'Asia/Jakarta', now(), 3000),
-  (900524, 1, 6, 'MASUK', 'VOID_PENJUALAN', 1, 50, 3000, '900203', 'TRANSAKSI', '900203', 'Pembalik void', 2, 'Bendahara', ((CURRENT_DATE + 0) + time '13:00') AT TIME ZONE 'Asia/Jakarta', now(), 3000),
-  (900526, 1, 7, 'KELUAR', 'PENJUALAN', 1, 47, 5000, '900205', 'TRANSAKSI', '900205', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE + 0) + time '11:30') AT TIME ZONE 'Asia/Jakarta', now(), 5000),
-  (900540, 1, 8, 'KELUAR', 'BARANG_RUSAK', 2, 48, 4000, NULL, 'BARANG_RUSAK', 'RSK-001', 'Susu kedaluwarsa', 3, 'Pengelola Kantin', ((CURRENT_DATE + 0) + time '07:40') AT TIME ZONE 'Asia/Jakarta', now(), 4000),
-  (900538, 1, 9, 'MASUK', 'OPNAME_MASUK', 5, 55, 2000, NULL, 'OPNAME', 'OP-001', 'Opname bertambah', 3, 'Pengelola Kantin', ((CURRENT_DATE - 1) + time '16:00') AT TIME ZONE 'Asia/Jakarta', now(), 2000),
-  (900539, 1, 10, 'KELUAR', 'OPNAME_KELUAR', 3, 47, 5000, NULL, 'OPNAME', 'OP-002', 'Opname berkurang', 3, 'Pengelola Kantin', ((CURRENT_DATE - 1) + time '16:05') AT TIME ZONE 'Asia/Jakarta', now(), 5000),
-  (900541, 1, 12, 'MASUK', 'BARANG_MASUK_PEMBALIK', 1, 51, 5000, NULL, 'BARANG_MASUK', 'BM-PLG-001', 'Pembeli mengembalikan pesanan', 3, 'Pengelola Kantin', ((CURRENT_DATE + 0) + time '07:50') AT TIME ZONE 'Asia/Jakarta', now(), 5000),
-  (900501, 1, 13, 'MASUK', 'BARANG_MASUK', 50, 50, 10000, NULL, 'BARANG_MASUK', 'BM-013', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 10000),
-  (900516, 1, 13, 'KELUAR', 'PENJUALAN', 1, 49, 10000, '900201', 'TRANSAKSI', '900201', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE + 0) + time '08:40') AT TIME ZONE 'Asia/Jakarta', now(), 10000),
-  (900502, 1, 14, 'MASUK', 'BARANG_MASUK', 50, 50, 6000, NULL, 'BARANG_MASUK', 'BM-014', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 6000),
-  (900519, 1, 14, 'KELUAR', 'PENJUALAN', 1, 49, 6000, '900202', 'TRANSAKSI', '900202', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE + 0) + time '09:20') AT TIME ZONE 'Asia/Jakarta', now(), 6000),
-  (900503, 1, 15, 'MASUK', 'BARANG_MASUK', 6, 6, 5000, NULL, 'BARANG_MASUK', 'BM-015', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 5000),
-  (900518, 1, 15, 'KELUAR', 'PENJUALAN', 1, 5, 5000, '900201', 'TRANSAKSI', '900201', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE + 0) + time '08:40') AT TIME ZONE 'Asia/Jakarta', now(), 5000),
-  (900504, 1, 16, 'MASUK', 'BARANG_MASUK', 8, 8, 3500, NULL, 'BARANG_MASUK', 'BM-016', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 3500),
-  (900520, 1, 16, 'KELUAR', 'PENJUALAN', 1, 7, 3500, '900202', 'TRANSAKSI', '900202', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE + 0) + time '09:20') AT TIME ZONE 'Asia/Jakarta', now(), 3500),
-  (900505, 1, 17, 'MASUK', 'BARANG_MASUK', 50, 50, 1200, NULL, 'BARANG_MASUK', 'BM-017', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 1200),
-  (900521, 1, 17, 'KELUAR', 'PENJUALAN', 1, 49, 1200, '900202', 'TRANSAKSI', '900202', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE + 0) + time '09:20') AT TIME ZONE 'Asia/Jakarta', now(), 1200),
-  (900527, 1, 17, 'KELUAR', 'PENJUALAN', 2, 47, 1200, '900205', 'TRANSAKSI', '900205', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE + 0) + time '11:30') AT TIME ZONE 'Asia/Jakarta', now(), 1200),
-  (900529, 1, 17, 'KELUAR', 'PENJUALAN', 1, 46, 1200, '900206', 'TRANSAKSI', '900206', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE + 0) + time '12:05') AT TIME ZONE 'Asia/Jakarta', now(), 1200),
-  (900506, 1, 18, 'MASUK', 'BARANG_MASUK', 50, 50, 2500, NULL, 'BARANG_MASUK', 'BM-018', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 2500),
-  (900517, 1, 18, 'KELUAR', 'PENJUALAN', 1, 49, 2500, '900201', 'TRANSAKSI', '900201', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE + 0) + time '08:40') AT TIME ZONE 'Asia/Jakarta', now(), 2500),
-  (900507, 2, 102, 'MASUK', 'BARANG_MASUK', 50, 50, 9000, NULL, 'BARANG_MASUK', 'BM-102', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 9000),
-  (900530, 2, 102, 'KELUAR', 'PENJUALAN', 1, 49, 9000, '900211', 'TRANSAKSI', '900211', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE + 0) + time '08:10') AT TIME ZONE 'Asia/Jakarta', now(), 9000),
-  (900508, 2, 103, 'MASUK', 'BARANG_MASUK', 50, 50, 7000, NULL, 'BARANG_MASUK', 'BM-103', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 7000),
-  (900532, 2, 103, 'KELUAR', 'PENJUALAN', 1, 49, 7000, '900212', 'TRANSAKSI', '900212', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE + 0) + time '09:05') AT TIME ZONE 'Asia/Jakarta', now(), 7000),
-  (900509, 2, 104, 'MASUK', 'BARANG_MASUK', 50, 50, 3000, NULL, 'BARANG_MASUK', 'BM-104', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 3000),
-  (900531, 2, 104, 'KELUAR', 'PENJUALAN', 1, 49, 3000, '900211', 'TRANSAKSI', '900211', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE + 0) + time '08:10') AT TIME ZONE 'Asia/Jakarta', now(), 3000),
-  (900510, 2, 105, 'MASUK', 'BARANG_MASUK', 50, 50, 4500, NULL, 'BARANG_MASUK', 'BM-105', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 4500),
-  (900511, 2, 106, 'MASUK', 'BARANG_MASUK', 50, 50, 5500, NULL, 'BARANG_MASUK', 'BM-106', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 5500),
-  (900533, 2, 106, 'KELUAR', 'PENJUALAN', 1, 49, 5500, '900212', 'TRANSAKSI', '900212', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE + 0) + time '09:05') AT TIME ZONE 'Asia/Jakarta', now(), 5500),
-  (900512, 2, 107, 'MASUK', 'BARANG_MASUK', 50, 50, 2000, NULL, 'BARANG_MASUK', 'BM-107', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 2000),
-  (900534, 2, 107, 'KELUAR', 'PENJUALAN', 1, 49, 2000, '900213', 'TRANSAKSI', '900213', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE + 0) + time '09:45') AT TIME ZONE 'Asia/Jakarta', now(), 2000),
-  (900535, 2, 107, 'MASUK', 'VOID_PENJUALAN', 1, 50, 2000, '900213', 'TRANSAKSI', '900213', 'Pembalik void', 2, 'Bendahara', ((CURRENT_DATE + 0) + time '13:00') AT TIME ZONE 'Asia/Jakarta', now(), 2000),
-  (900513, 10, 1009, 'MASUK', 'BARANG_MASUK', 50, 50, 7000, NULL, 'BARANG_MASUK', 'BM-1009', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 7000),
-  (900536, 10, 1009, 'KELUAR', 'PENJUALAN', 1, 49, 7000, '900221', 'TRANSAKSI', '900221', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE + 0) + time '09:40') AT TIME ZONE 'Asia/Jakarta', now(), 7000),
-  (900514, 10, 1010, 'MASUK', 'BARANG_MASUK', 50, 50, 6000, NULL, 'BARANG_MASUK', 'BM-1010', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 6000),
-  (900537, 10, 1010, 'KELUAR', 'PENJUALAN', 1, 49, 6000, '900221', 'TRANSAKSI', '900221', NULL, 4, 'Petugas Kasir', ((CURRENT_DATE + 0) + time '09:40') AT TIME ZONE 'Asia/Jakarta', now(), 6000),
-  (900515, 10, 1011, 'MASUK', 'BARANG_MASUK', 50, 50, 3500, NULL, 'BARANG_MASUK', 'BM-1011', NULL, 3, 'Pengelola Kantin', ((CURRENT_DATE - 7) + time '07:00') AT TIME ZONE 'Asia/Jakarta', now(), 3500)
-ON CONFLICT DO NOTHING;
-
-INSERT INTO saldo_ledger (id, sekolah_id, subjek_tipe, subjek_id, arah, jenis,
-                          nominal, saldo_setelah, transaksi_id, idempotency_key,
-                          referensi_tipe, referensi_id, keterangan, aktor_id, waktu, created_at)
-VALUES
-  (900601, 1, 'SISWA', 12, 'KREDIT', 'TOPUP_TUNAI', 200000, 200000, NULL, 'seed-add-900601', 'TOPUP', 'TOPUP-012', 'Top up tunai di TU', 2, ((CURRENT_DATE - 2) + time '08:00') AT TIME ZONE 'Asia/Jakarta', now()),
-  (900611, 2, 'SISWA', 14, 'KREDIT', 'TOPUP_TUNAI', 100000, 100000, NULL, 'seed-add-900611', 'TOPUP', 'S2-TOPUP-012', 'Top up tunai di TU', 6, ((CURRENT_DATE - 2) + time '08:05') AT TIME ZONE 'Asia/Jakarta', now()),
-  (900604, 1, 'SISWA', 13, 'KREDIT', 'TOPUP_ONLINE', 150000, 150000, NULL, 'seed-add-900604', 'TOPUP', 'TOPUP-013', 'Top up online via wali murid', 2, ((CURRENT_DATE - 2) + time '09:00') AT TIME ZONE 'Asia/Jakarta', now()),
-  (900621, 10, 'SISWA', 1004, 'KREDIT', 'TOPUP_TUNAI', 40000, 40000, NULL, 'seed-add-900621', 'TOPUP', 'TOPUP-FE10-004', 'Top up tunai di TU', 8, ((CURRENT_DATE - 1) + time '08:25') AT TIME ZONE 'Asia/Jakarta', now()),
-  (900605, 1, 'SISWA', 13, 'DEBIT', 'TRANSFER', 50000, 100000, NULL, 'seed-add-900605', 'KOREKSI', 'TR-013', 'Transfer saldo ke kartu siswa', 2, ((CURRENT_DATE - 1) + time '09:30') AT TIME ZONE 'Asia/Jakarta', now()),
-  (900612, 2, 'SISWA', 15, 'KREDIT', 'TOPUP_ONLINE', 60000, 60000, NULL, 'seed-add-900612', 'TOPUP', 'S2-TOPUP-013', 'Top up online via wali murid', 6, ((CURRENT_DATE - 1) + time '10:15') AT TIME ZONE 'Asia/Jakarta', now()),
-  (900606, 1, 'SISWA', 9, 'KREDIT', 'TOPUP_ONLINE', 20000, 20000, NULL, 'seed-add-900606', 'TOPUP', 'TOPUP-009', 'Top up online via wali murid', 2, ((CURRENT_DATE - 1) + time '13:20') AT TIME ZONE 'Asia/Jakarta', now()),
-  (900211, 2, 'SISWA', 14, 'DEBIT', 'PENJUALAN', 19000, 81000, 900211, 'seed-add-trx900211', 'TRANSAKSI', '900211', NULL, 4, ((CURRENT_DATE + 0) + time '08:10') AT TIME ZONE 'Asia/Jakarta', now()),
-  (900201, 1, 'SISWA', 12, 'DEBIT', 'PENJUALAN', 27500, 172500, 900201, 'seed-add-trx900201', 'TRANSAKSI', '900201', NULL, 4, ((CURRENT_DATE + 0) + time '08:40') AT TIME ZONE 'Asia/Jakarta', now()),
-  (900212, 2, 'SISWA', 15, 'DEBIT', 'PENJUALAN', 20000, 40000, 900212, 'seed-add-trx900212', 'TRANSAKSI', '900212', NULL, 4, ((CURRENT_DATE + 0) + time '09:05') AT TIME ZONE 'Asia/Jakarta', now()),
-  (900202, 1, 'SISWA', 13, 'DEBIT', 'PENJUALAN', 20000, 80000, 900202, 'seed-add-trx900202', 'TRANSAKSI', '900202', NULL, 4, ((CURRENT_DATE + 0) + time '09:20') AT TIME ZONE 'Asia/Jakarta', now()),
-  (900221, 10, 'SISWA', 1004, 'DEBIT', 'PENJUALAN', 20000, 20000, 900221, 'seed-add-trx900221', 'TRANSAKSI', '900221', NULL, 4, ((CURRENT_DATE + 0) + time '09:40') AT TIME ZONE 'Asia/Jakarta', now()),
-  (900613, 2, 'SISWA', 15, 'DEBIT', 'KOREKSI', 5000, 35000, NULL, 'seed-add-900613', 'KOREKSI', 'S2-BA-013', 'Koreksi kelebihan topup', 6, ((CURRENT_DATE + 0) + time '09:50') AT TIME ZONE 'Asia/Jakarta', now()),
-  (900205, 1, 'SISWA', 106, 'DEBIT', 'PENJUALAN', 12000, 72000, 900205, 'seed-add-trx900205', 'TRANSAKSI', '900205', NULL, 4, ((CURRENT_DATE + 0) + time '11:30') AT TIME ZONE 'Asia/Jakarta', now()),
-  (900206, 1, 'SISWA', 109, 'DEBIT', 'PENJUALAN', 15000, 74000, 900206, 'seed-add-trx900206', 'TRANSAKSI', '900206', NULL, 4, ((CURRENT_DATE + 0) + time '12:05') AT TIME ZONE 'Asia/Jakarta', now()),
-  (900204, 1, 'SISWA', 105, 'DEBIT', 'PENJUALAN', 8000, 40000, 900204, 'seed-add-trx900204', 'TRANSAKSI', '900204', NULL, 4, ((CURRENT_DATE + 0) + time '12:20') AT TIME ZONE 'Asia/Jakarta', now()),
-  (900603, 1, 'SISWA', 12, 'KREDIT', 'REFUND', 10000, 182500, NULL, 'seed-add-900603', 'KOREKSI', 'RF-012', 'Refund saldo mengendap ke wali murid', 2, ((CURRENT_DATE + 0) + time '14:00') AT TIME ZONE 'Asia/Jakarta', now()),
-  (900602, 1, 'SISWA', 12, 'KREDIT', 'PENYESUAIAN', 5000, 187500, NULL, 'seed-add-900602', 'KOREKSI', 'BA-012', 'Penyesuaian selisih hitung uang', 2, ((CURRENT_DATE + 0) + time '16:00') AT TIME ZONE 'Asia/Jakarta', now())
-ON CONFLICT DO NOTHING;
-
-INSERT INTO saldo_cache (subjek_tipe, subjek_id, sekolah_id, saldo, updated_at)
-VALUES ('SISWA', 101, 1, 85000, now()),
-       ('SISWA', 102, 1, 92000, now()),
-       ('SISWA', 103, 1, 92000, now()),
-       ('SISWA', 104, 1, 84000, now()),
-       ('SISWA', 105, 1, 40000, now()),
-       ('SISWA', 106, 1, 72000, now()),
-       ('SISWA', 109, 1, 74000, now()),
-       ('SISWA', 108, 1, 25000, now()),
-       ('SISWA', 9, 1, 20000, now()),
-       ('SISWA', 110, 1, 70000, now()),
-       ('SISWA', 2001, 2, 63000, now()),
-       ('SISWA', 12, 1, 187500, now()),
-       ('SISWA', 13, 1, 80000, now()),
-       ('SISWA', 1005, 10, 85000, now()),
-       ('SISWA', 1006, 10, 42000, now()),
-       ('SISWA', 1007, 10, 14000, now()),
-       ('SISWA', 1004, 10, 20000, now()),
-       ('SISWA', 14, 2, 81000, now()),
-       ('SISWA', 15, 2, 35000, now())
-ON CONFLICT DO NOTHING;
-
-INSERT INTO setoran_tu (id, sekolah_id, tanggal, petugas_id, total_topup,
-                        jumlah_disetor, referensi_id, catatan,
-                        dikonfirmasi_oleh, waktu, created_at)
-VALUES (3, 1, ((CURRENT_DATE - 2) + time '15:30') AT TIME ZONE 'Asia/Jakarta', 2, 915000, 915000, 'SETORAN-002', 'Setoran topup tunai dua hari lalu', 1, ((CURRENT_DATE - 2) + time '15:30') AT TIME ZONE 'Asia/Jakarta', now()),
-       (1002, 10, ((CURRENT_DATE - 2) + time '15:30') AT TIME ZONE 'Asia/Jakarta', 8, 60000, 60000, 'SETORAN-FE10-002', 'Setoran topup tunai dua hari lalu', 1, ((CURRENT_DATE - 2) + time '15:30') AT TIME ZONE 'Asia/Jakarta', now())
-ON CONFLICT DO NOTHING;
-
-INSERT INTO posting_buku_kas (id, sekolah_id, referensi_id, entitas, mutasi_id,
-                              ref_buku_kas, jumlah, status, waktu, created_at)
-VALUES (3, 1, '900107', 'SESI_KASIR', NULL, 'BK-2026-003', 11000, 'SUKSES', ((CURRENT_DATE - 2) + time '14:00') AT TIME ZONE 'Asia/Jakarta', now()),
-       (1002, 10, '910101', 'SESI_KASIR', NULL, 'BK-FE10-002', 15000, 'SUKSES', ((CURRENT_DATE + 0) + time '14:20') AT TIME ZONE 'Asia/Jakarta', now())
-ON CONFLICT DO NOTHING;
-
-INSERT INTO insiden_offline (id, sekolah_id, titik_kasir_id, mulai, selesai,
-                             durasi_menit, keterangan, dilaporkan_oleh, created_at)
-VALUES (3, 1, 1, ((CURRENT_DATE - 1) + time '10:00') AT TIME ZONE 'Asia/Jakarta', ((CURRENT_DATE - 1) + time '10:18') AT TIME ZONE 'Asia/Jakarta', 18, 'Printer struk macet', 4, now()),
-       (1002, 10, 1001, ((CURRENT_DATE - 1) + time '11:00') AT TIME ZONE 'Asia/Jakarta', ((CURRENT_DATE - 1) + time '11:05') AT TIME ZONE 'Asia/Jakarta', 5, 'Koneksi terputus sebentar', 7, now())
-ON CONFLICT DO NOTHING;
-
-INSERT INTO webhook_event (id, sumber, event_id, event_type, payload_hash,
-                           sekolah_id, status, keterangan, waktu, created_at)
-VALUES (900801, 'WA_GW', 'seed-dev-wh-1', 'PESAN', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 1, 'DIABAIKAN', 'Gateway tidak terpasang', ((CURRENT_DATE - 1) + time '09:00') AT TIME ZONE 'Asia/Jakarta', now()),
-       (900802, 'ADMIN_BE', 'seed-dev-wh-2', 'SINKRONISASI_SISWA', 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', 1, 'DIPROSES', NULL, ((CURRENT_DATE + 0) + time '08:00') AT TIME ZONE 'Asia/Jakarta', now()),
-       (900803, 'WA_GW', 'seed-dev-wh-3', 'PESAN', 'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc', 10, 'DIPROSES', NULL, ((CURRENT_DATE + 0) + time '08:30') AT TIME ZONE 'Asia/Jakarta', now())
-ON CONFLICT DO NOTHING;
-
-INSERT INTO audit_log (id, sekolah_id, aktor_id, aksi, entitas, entitas_id,
-                       nilai_lama, nilai_baru, alasan, waktu, created_at)
-VALUES (900901, 1, 2, 'UBAH', 'SISWA', '108', NULL, '{"batasHarian":100000}', 'Batas harian dinaikkan', ((CURRENT_DATE + 0) + time '08:45') AT TIME ZONE 'Asia/Jakarta', now()),
-       (900902, 1, 4, 'BLOKIR', 'SISWA', '110', NULL, '{"diblokir":true}', 'Kartu dilaporkan hilang', ((CURRENT_DATE + 0) + time '08:45') AT TIME ZONE 'Asia/Jakarta', now()),
-       (900903, 10, 8, 'UBAH', 'MENU', '1009', '{"hargaJual":11000}', '{"hargaJual":12000}', 'Harga naik', ((CURRENT_DATE + 0) + time '08:45') AT TIME ZONE 'Asia/Jakarta', now())
-ON CONFLICT DO NOTHING;
-
-INSERT INTO limit_harian (id, sekolah_id, subjek_tipe, subjek_id, nominal,
-                          diubah_oleh, diubah_pada, created_at)
-VALUES (3, 1, 'SISWA', 12, 100000, 2, now(), now()),
-       (4, 1, 'SISWA', 104, 40000, 2, now(), now()),
-       (1003, 2, 'SISWA', 14, 40000, 2, now(), now())
-ON CONFLICT DO NOTHING;
-
-INSERT INTO blokir_item (id, sekolah_id, subjek_tipe, subjek_id, menu_id, kategori_id,
-                         diblokir, diubah_oleh, diubah_pada, created_at)
-VALUES (3, 1, 'SISWA', 12, '15', NULL, true, 2, now(), now()),
-       (4, 1, 'SISWA', 13, NULL, '2', true, 2, now(), now())
-ON CONFLICT DO NOTHING;
-
-INSERT INTO blokir_kartu (id, sekolah_id, subjek_tipe, subjek_id, diblokir, alasan,
-                          diubah_oleh, diubah_pada, created_at)
-VALUES (2, 1, 'SISWA', 13, true, 'Kartu rusak', 2, now(), now()),
-       (1002, 10, 'SISWA', 1004, true, 'Menunggu kartu pengganti', 2, now(), now())
-ON CONFLICT DO NOTHING;
-
-INSERT INTO transaksi_menunggu_konfirmasi (id, sekolah_id, idempotency_key, rfid_uid,
-                                           titik_kasir_id, subjek_tipe, subjek_id,
-                                           petugas_id, total, items_json, status,
-                                           dibuat_at, kedaluwarsa_at, created_at, updated_at)
-VALUES (2, 1, 'seed-dev-pending-2', '04B3C4D5E6', 2, 'SISWA', 13, 4, 9000, '[{"menuId":14,"qty":1}]', 'MENUNGGU', ((CURRENT_DATE + 0) + time '13:10') AT TIME ZONE 'Asia/Jakarta', ((CURRENT_DATE + 0) + time '13:25') AT TIME ZONE 'Asia/Jakarta', now(), now()),
-       (3, 10, 'seed-dev-pending-3', 'DA000004', 1001, 'SISWA', 1004, 7, 6000, '[{"menuId":1011,"qty":1}]', 'DIKONFIRMASI', ((CURRENT_DATE + 0) + time '12:40') AT TIME ZONE 'Asia/Jakarta', ((CURRENT_DATE + 0) + time '12:55') AT TIME ZONE 'Asia/Jakarta', now(), now())
-ON CONFLICT DO NOTHING;
-
--- ── Perbaikan cache dari ledger (issue #255) ──────────────────
--- Seed harus SELF-HEALING: INSERT di atas memakai ON CONFLICT DO NOTHING,
--- jadi baris cache lama yang sudah DRIFT tidak pernah disentuh. Dua perintah
--- ini menurunkan ulang cache dari ledger — menjadikan seed sebagai jalan
--- perbaikan DB dev yang sudah tidak seimbang, sekaligus memastikan angka
--- cache di berkas ini tidak perlu dihafal (selalu = turunan ledger).
--- Trigger V24 menjamin hal yang sama untuk setiap tulisan setelahnya.
-UPDATE saldo_cache c
-   SET saldo      = GREATEST(COALESCE((SELECT sum(CASE WHEN l.arah = 'KREDIT' THEN l.nominal
-                                                        ELSE -l.nominal END)
-                                        FROM saldo_ledger l
-                                       WHERE l.sekolah_id  = c.sekolah_id
-                                         AND l.subjek_tipe = c.subjek_tipe
-                                         AND l.subjek_id   = c.subjek_id), 0), 0),
-       updated_at = now()
- WHERE c.saldo IS DISTINCT FROM COALESCE(
-       (SELECT sum(CASE WHEN l.arah = 'KREDIT' THEN l.nominal ELSE -l.nominal END)
-          FROM saldo_ledger l
-         WHERE l.sekolah_id  = c.sekolah_id
-           AND l.subjek_tipe = c.subjek_tipe
-           AND l.subjek_id   = c.subjek_id), 0);
-
-UPDATE stok_cache c
-   SET stok       = GREATEST(COALESCE((SELECT sum(CASE WHEN m.arah = 'MASUK' THEN m.qty
-                                                        ELSE -m.qty END)
-                                        FROM mutasi_stok m
-                                       WHERE m.menu_id    = c.menu_id
-                                         AND m.sekolah_id = c.sekolah_id), 0), 0),
-       updated_at = now()
- WHERE c.stok IS DISTINCT FROM COALESCE(
-       (SELECT sum(CASE WHEN m.arah = 'MASUK' THEN m.qty ELSE -m.qty END)
-          FROM mutasi_stok m
-         WHERE m.menu_id    = c.menu_id
-           AND m.sekolah_id = c.sekolah_id), 0);
-
--- ── Ringkas ──────────────────────────────────────────────────
--- Isi seed: 3 sekolah | 36 menu | 19 kartu tamu | 10 sesi kasir |
--- 22 transaksi | 49 mutasi saldo | 80 mutasi stok | 36 baris stok |
--- 9 akun login dev | pengaturan kantin.
--- Sekolah 10 (tenant FE) menyumbang: 11 menu, 4 kartu tamu, 3 sesi kasir,
--- 5 transaksi, 5 baris saldo_cache (4 kartu tamu + 1 siswa), 2 akun dev.
--- (Tanpa blok DO $$ agar berkas ini aman dijalankan psql, Flyway, maupun
---  ResourceDatabasePopulator yang memecah pernyataan pada titik koma.)
-
-
--- ── Sinkronisasi data fixture RFID siswa (issue #268) ────────────────────
--- Data ini digunakan oleh KartuLookupDemo untuk lookup UID -> Siswa saat
--- profil demo aktif. Sinkron dengan FE demo card: RFID-SISWA-101..105 (S1)
--- dan RFID-SISWA-001 (S10).
-INSERT INTO dev_siswa_rfid (sekolah_id, siswa_id, nomor_kartu, rfid_uid, aktif)
-VALUES (1, 101, 'RFID-SISWA-101', '04A1B2C3D4', true),
-       (1, 102, 'RFID-SISWA-102', '04B2C3D4E5', true),
-       (1, 103, 'RFID-SISWA-103', '04C3D4E5F6', false),  -- kartu diblokir
-       (1, 104, 'RFID-SISWA-104', '04D4E5F6A1', true),
-       (1, 105, 'RFID-SISWA-105', '04E5F6A1B2', true),
-       (1, 106, 'RFID-SISWA-106', '04F1A2B3C4', true),
-       (1, 107, 'RFID-SISWA-107', '1831574427', true),
-       (1, 108, 'RFID-SISWA-108', '2225414394', true),
-       (1, 109, 'RFID-SISWA-109', '0830267682', true),
-       (1, 110, 'RFID-SISWA-110', '04F5A6B7C8', true),
-       (1, 12, 'RFID-SISWA-012', '04A2B3C4D5', true),
-       (1, 13, 'RFID-SISWA-013', '04B3C4D5E6', true),
-       (2, 2001, 'RFID-SISWA-2001', 'DA200001', true),
-       (2, 14, 'RFID-SISWA-2014', 'DA200002', true),
-       (2, 15, 'RFID-SISWA-2015', 'DA200003', true),
-       (10, 1001, 'RFID-SISWA-001', 'DA100001', true),
-       (10, 1005, 'RFID-SISWA-005', 'DA100005', true),
-       (10, 1006, 'RFID-SISWA-006', 'DA100006', true),
-       (10, 1007, 'RFID-SISWA-007', 'DA100007', true)
-ON CONFLICT DO NOTHING;
-
-
-
-
--- ── Foto menu demo (seed dev) ────────────────────────────────────────────────
--- Sumber: Wikimedia Commons (berkas bebas, hotlink diizinkan) — HANYA untuk
--- demo/lokal, jadi butuh koneksi internet. Untuk produksi: unggah lewat
--- POST /api/storage/upload lalu simpan `path`/`url` hasilnya ke kolom ini.
--- Catatan: blok ini MENIMPA foto menu demo (sekolah 1, 2, 10) setiap seed
--- dijalankan ulang, termasuk foto yang pernah diunggah manual.
-UPDATE menu m
-SET foto_url = v.url,
-    updated_at = now()
-FROM (VALUES
-    ('Air Mineral',
-     'https://upload.wikimedia.org/wikipedia/commons/0/02/Stilles_Mineralwasser.jpg'),
-    ('Ayam Geprek',
-     'https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5c/Ayam_Geprek_Uyat.jpg/500px-Ayam_Geprek_Uyat.jpg'),
-    ('Bakso',
-     'https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6e/Bakso_Indonesian_Meatball_Soup_from_Solo.jpg/500px-Bakso_Indonesian_Meatball_Soup_from_Solo.jpg'),
-    ('Buku Tulis',
-     'https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f0/Notebook_writing.jpg/500px-Notebook_writing.jpg'),
-    ('Es Jeruk',
-     'https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8e/Orange_Juice_in_ice_cap_cafe.jpg/500px-Orange_Juice_in_ice_cap_cafe.jpg'),
-    ('Es Teh Manis',
-     'https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d4/Iced_lychee_tea_and_Es_teh_manis_-_Bali_2025-09-25.jpg/500px-Iced_lychee_tea_and_Es_teh_manis_-_Bali_2025-09-25.jpg'),
-    ('Jus Alpukat',
-     'https://thumb.wikimedia.org/wikipedia/commons/thumb/4/49/Ovacado_juice_in_a_drinking_glass.jpg/500px-Ovacado_juice_in_a_drinking_glass.jpg'),
-    ('Jus Jeruk',
-     'https://thumb.wikimedia.org/wikipedia/commons/thumb/6/67/Orange_juice_1_edit1.jpg/500px-Orange_juice_1_edit1.jpg'),
-    ('Kentang Goreng',
-     'https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7e/Papas_fritas_%28plato%29.jpg/500px-Papas_fritas_%28plato%29.jpg'),
-    ('Keripik',
-     'https://thumb.wikimedia.org/wikipedia/commons/thumb/7/70/Keripik_sanjay.JPG/500px-Keripik_sanjay.JPG'),
-    ('Kopi Susu',
-     'https://thumb.wikimedia.org/wikipedia/commons/thumb/5/54/Es_kopi_susu_kekinian_di_Yogyakarta%2C_Indonesia.jpg/500px-Es_kopi_susu_kekinian_di_Yogyakarta%2C_Indonesia.jpg'),
-    ('Mie Ayam',
-     'https://thumb.wikimedia.org/wikipedia/commons/thumb/8/82/Mi_ayam_jamur.JPG/500px-Mi_ayam_jamur.JPG'),
-    ('Mie Goreng',
-     'https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f0/Mi_Goreng_GM.jpg/500px-Mi_Goreng_GM.jpg'),
-    ('Nasi Goreng',
-     'https://thumb.wikimedia.org/wikipedia/commons/thumb/3/34/Nasi_goreng_pattaya_20231028_120535.jpg/500px-Nasi_goreng_pattaya_20231028_120535.jpg'),
-    ('Nasi Goreng Spesial',
-     'https://thumb.wikimedia.org/wikipedia/commons/thumb/3/34/Nasi_goreng_pattaya_20231028_120535.jpg/500px-Nasi_goreng_pattaya_20231028_120535.jpg'),
-    ('Nasi Kuning',
-     'https://thumb.wikimedia.org/wikipedia/commons/thumb/9/96/Nasi_Kuning_dan_Ungkep_Ayam.jpg/500px-Nasi_Kuning_dan_Ungkep_Ayam.jpg'),
-    ('Nasi Padang',
-     'https://thumb.wikimedia.org/wikipedia/commons/thumb/9/93/Nasi_padang.jpg/500px-Nasi_padang.jpg'),
-    ('Nasi Uduk',
-     'https://thumb.wikimedia.org/wikipedia/commons/thumb/c/ca/Nasi_uduk_lila.jpg/500px-Nasi_uduk_lila.jpg'),
-    ('Penghapus',
-     'https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2f/Pink_Pearl_eraser.jpg/500px-Pink_Pearl_eraser.jpg'),
-    ('Pensil',
-     'https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3c/YosriFeb05Kalam2.JPG/500px-YosriFeb05Kalam2.JPG'),
-    ('Pisang Goreng',
-     'https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2f/Pisang_goreng_fried_banana.JPG/500px-Pisang_goreng_fried_banana.JPG'),
-    ('Pulpen',
-     'https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7b/Fountain_pen_writing_%28literacy%29.jpg/500px-Fountain_pen_writing_%28literacy%29.jpg'),
-    ('Roti Bakar',
-     'https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1a/Roti_bakar_kekinian.jpg/500px-Roti_bakar_kekinian.jpg'),
-    ('Soto Ayam',
-     'https://thumb.wikimedia.org/wikipedia/commons/thumb/0/05/Soto_ayam.JPG/500px-Soto_ayam.JPG'),
-    ('Susu Coklat',
-     'https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7d/New_chocolate_milk.JPG/500px-New_chocolate_milk.JPG'),
-    ('Susu Kotak',
-     'https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f8/2025.04.10_Milk_Glass_Sugar_Bowl_and_Antique_Glass_Creamer.jpg/500px-2025.04.10_Milk_Glass_Sugar_Bowl_and_Antique_Glass_Creamer.jpg'),
-    ('Teh Botol',
-     'https://thumb.wikimedia.org/wikipedia/commons/thumb/c/ce/Teh_botol_Sosro_Less_Sugar.JPG/500px-Teh_botol_Sosro_Less_Sugar.JPG')
-) AS v(nama, url)
-WHERE m.nama = v.nama
-  AND m.sekolah_id IN (1, 2, 10);
-
--- ═══════════════════════════════════════════════════════════════════════
--- AKUN PENGETESAN RFID (khusus dev/demo)
--- Kartu uji untuk mencoba alur tap sebelum data kartu siswa dikirim pusat.
--- Kartu fisik cukup ditulis UID di bawah (NTAG/Mifare), lalu tap di kasir.
---   201 → 04AA000201  aktif, saldo 50.000
---   202 → 04AA000202  aktif, saldo 50.000
---   203 → 04AA000203  aktif, saldo 50.000
---   204 → 04AA000204  aktif, saldo 0        (uji "saldo tidak cukup")
---   205 → 04AA000205  NONAKTIF              (uji "kartu diblokir")
---   3001 → 04BB003001 aktif, saldo 75.000   (sekolah 10 / tenant FE)
---   3002 → 04BB003002 aktif, saldo 25.000   (sekolah 10 / tenant FE)
--- ═══════════════════════════════════════════════════════════════════════
-INSERT INTO saldo_ledger (id, sekolah_id, subjek_tipe, subjek_id, arah, jenis,
-                          nominal, saldo_setelah, transaksi_id, idempotency_key,
-                          referensi_tipe, referensi_id, keterangan, aktor_id, waktu, created_at)
-VALUES
-  (950001, 1, 'SISWA', 201, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, NULL, 'seed-uji-rfid-201',
-   'TOPUP', 'UJI-201', 'Saldo awal akun uji RFID', 2, ((CURRENT_DATE - 1) + time '07:30') AT TIME ZONE 'Asia/Jakarta', now()),
-  (950002, 1, 'SISWA', 202, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, NULL, 'seed-uji-rfid-202',
-   'TOPUP', 'UJI-202', 'Saldo awal akun uji RFID', 2, ((CURRENT_DATE - 1) + time '07:32') AT TIME ZONE 'Asia/Jakarta', now()),
-  (950003, 1, 'SISWA', 203, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, NULL, 'seed-uji-rfid-203',
-   'TOPUP', 'UJI-203', 'Saldo awal akun uji RFID', 2, ((CURRENT_DATE - 1) + time '07:34') AT TIME ZONE 'Asia/Jakarta', now()),
-  (950004, 10, 'SISWA', 3001, 'KREDIT', 'TOPUP_TUNAI', 75000, 75000, NULL, 'seed-uji-rfid-3001',
-   'TOPUP', 'UJI-3001', 'Saldo awal akun uji RFID', 2, ((CURRENT_DATE - 1) + time '07:36') AT TIME ZONE 'Asia/Jakarta', now()),
-  (950005, 10, 'SISWA', 3002, 'KREDIT', 'TOPUP_TUNAI', 25000, 25000, NULL, 'seed-uji-rfid-3002',
-   'TOPUP', 'UJI-3002', 'Saldo awal akun uji RFID', 2, ((CURRENT_DATE - 1) + time '07:38') AT TIME ZONE 'Asia/Jakarta', now())
-ON CONFLICT DO NOTHING;
-
-INSERT INTO saldo_cache (subjek_tipe, subjek_id, sekolah_id, saldo, updated_at)
-VALUES ('SISWA', 201, 1, 50000, now()),
-       ('SISWA', 202, 1, 50000, now()),
-       ('SISWA', 203, 1, 50000, now()),
-       ('SISWA', 3001, 10, 75000, now()),
-       ('SISWA', 3002, 10, 25000, now())
-ON CONFLICT DO NOTHING;
-
-INSERT INTO dev_siswa_rfid (sekolah_id, siswa_id, nomor_kartu, rfid_uid, aktif)
-VALUES (1, 201, 'UJI-RFID-201', '04AA000201', true),
-       (1, 202, 'UJI-RFID-202', '04AA000202', true),
-       (1, 203, 'UJI-RFID-203', '04AA000203', true),
-       (1, 204, 'UJI-RFID-204', '04AA000204', true),
-       (1, 205, 'UJI-RFID-205', '04AA000205', false),
-       (10, 3001, 'UJI-RFID-3001', '04BB003001', true),
-       (10, 3002, 'UJI-RFID-3002', '04BB003002', true)
-ON CONFLICT DO NOTHING;
-
-
--- ── Nama pemilik kartu (khusus tampilan struk demo) ───────────
--- Identitas asli tetap milik pusat (ADR-0002); ini hanya pengganti sementara
--- supaya struk menampilkan nama, bukan kosong.
-UPDATE dev_siswa_rfid d
-   SET nama = v.nama, kelas = v.kelas
-  FROM (VALUES
-    (1,  101,  'Raka Aditya Pratama', '7A'),
-    (1,  102,  'Nadia Safitri',       '7A'),
-    (1,  103,  'Bima Arya Nugraha',   '7B'),
-    (1,  104,  'Salsabila Putri',     '7B'),
-    (1,  105,  'Fajar Ramadhan',      '8A'),
-    (1,  106,  'Kirana Dewi Lestari', '8A'),
-    (1,  107,  'Abizard',             '8B'),
-    (1,  108,  'Fajar Nugraha',       '7B'),
-    (1,  109,  'Citra Kirana',        '8A'),
-    (1,  110,  'Daffa Alfarizi',      '9A'),
-    (1,  12,   'Alya Rahmawati',      '7C'),
-    (1,  13,   'Bagas Saputra',       '7C'),
-    (2,  14,   'Rizky Hidayat',       '8A'),
-    (2,  15,   'Melati Anggraini',    '8B'),
-    (2,  2001, 'Nabila Zahra',        '7A'),
-    (10, 1001, 'Ahmad Fauzan',        '7A'),
-    (10, 1005, 'Citra Ayu Lestari',   '7A'),
-    (10, 1006, 'Dimas Prakoso',       '7B'),
-    (10, 1007, 'Eka Wulandari',       '7B'),
-    -- akun pengetesan RFID
-    (1,  201,  'Rangga Pratama',      '7A'),
-    (1,  202,  'Sinta Maharani',      '7B'),
-    (1,  203,  'Galih Purnomo',       '8A'),
-    (1,  204,  'Wulan Sari',          '8B'),
-    (1,  205,  'Hendra Wijaya',       '9A'),
-    (10, 3001, 'Anisa Rahma',         '7A'),
-    (10, 3002, 'Bayu Setiawan',       '7B')
-  ) AS v(sekolah_id, siswa_id, nama, kelas)
- WHERE d.sekolah_id = v.sekolah_id
-   AND d.siswa_id = v.siswa_id;
-
-
--- ════════════════════════════════════════════════════════════════
--- Tren penjualan 7 hari terakhir (D-6 … hari ini)
---
--- Dashboard & laporan butuh pola naik-turun yang wajar, bukan 1–2 transaksi.
--- Semua baris deterministik (id tetap) dan idempoten (ON CONFLICT DO NOTHING),
--- jadi repeatable seed aman dijalankan berkali-kali.
---
--- Rentang id (tidak bertabrakan dengan blok seed lain):
---   sesi 94xxxx · transaksi 96xxxx · item 97xxxx · mutasi 98xxxx · ledger 99xxxx
---
--- Cakupan: sekolah 1 (titik 1 & 2) + sekolah 2 (titik 3)
---   15 transaksi/hari × 7 hari = 105 transaksi, 210 item,
---   105 baris ledger, 210 baris mutasi stok.
--- ════════════════════════════════════════════════════════════════
-
-DROP TABLE IF EXISTS seed_tren_tutup;
-DROP TABLE IF EXISTS seed_tren_item;
-DROP TABLE IF EXISTS seed_tren_trx;
-
--- 0) Pastikan baris cache saldo ada, supaya trigger sinkron punya sasaran UPDATE.
-INSERT INTO saldo_cache (subjek_tipe, subjek_id, sekolah_id, saldo, updated_at)
-SELECT 'SISWA', v.siswa_id, v.sekolah_id, 0, now()
-  FROM (VALUES (1, 12), (1, 13), (1, 204), (2, 14), (2, 15)) AS v(sekolah_id, siswa_id)
-ON CONFLICT DO NOTHING;
-
--- 1) Top up awal supaya saldo siswa cukup menutup 7 hari penjualan.
-INSERT INTO saldo_ledger (id, sekolah_id, subjek_tipe, subjek_id, arah, jenis,
-                          nominal, saldo_setelah, transaksi_id, idempotency_key,
-                          referensi_tipe, referensi_id, keterangan, aktor_id, waktu, created_at)
-SELECT 991000 + v.seq, v.sekolah_id, 'SISWA', v.siswa_id, 'KREDIT', 'TOPUP_TUNAI',
-       v.nominal,
-       COALESCE((SELECT sum(CASE WHEN l.arah = 'KREDIT' THEN l.nominal ELSE -l.nominal END)
-                   FROM saldo_ledger l
-                  WHERE l.subjek_tipe = 'SISWA'
-                    AND l.subjek_id = v.siswa_id
-                    AND l.sekolah_id = v.sekolah_id
-                    AND l.waktu < ((CURRENT_DATE - 6) + time '07:30') AT TIME ZONE 'Asia/Jakarta'), 0)
-         + v.nominal,
-       NULL, 'seed-tren-topup-' || v.siswa_id, 'TOPUP', 'TOPUP-TREN-' || v.siswa_id,
-       'Top up awal untuk data tren penjualan', 2,
-       ((CURRENT_DATE - 6) + time '07:30') AT TIME ZONE 'Asia/Jakarta', now()
-FROM (VALUES (1, 1, 12, 1000000), (2, 1, 13, 1000000), (3, 1, 204, 1000000),
-             (4, 2, 14, 700000), (5, 2, 15, 700000)
-     ) AS v(seq, sekolah_id, siswa_id, nominal)
-ON CONFLICT DO NOTHING;
-
--- 2) Sesi kasir untuk setiap (tanggal, titik) di 7 hari terakhir.
-INSERT INTO sesi_kasir (id, sekolah_id, titik_kasir_id, tanggal, status,
-                        total_bruto, total_void, total_bersih, dibuka_at,
-                        ditutup_at, ditutup_oleh, auto_tutup,
-                        posting_buku_kas, created_at, updated_at)
-SELECT 940000 + d * 10 + t.idx, t.sekolah_id, t.titik_id, CURRENT_DATE - d,
-       CASE WHEN d = 0 THEN 'TERBUKA' ELSE 'DITUTUP' END,
-       0, 0, 0,
-       (((CURRENT_DATE - d) + time '07:00') AT TIME ZONE 'Asia/Jakarta'),
-       CASE WHEN d = 0 THEN NULL
-            ELSE (((CURRENT_DATE - d) + time '14:30') AT TIME ZONE 'Asia/Jakarta') END,
-       CASE WHEN d = 0 THEN NULL ELSE 4 END,
-       false, false, now(), now()
-FROM generate_series(0, 6) AS d
-CROSS JOIN (VALUES (1, 1, 1), (2, 1, 2), (3, 2, 3)) AS t(idx, sekolah_id, titik_id)
-ON CONFLICT DO NOTHING;
-
--- 3) Rencana item: 2 item per transaksi (makanan/minuman utama + minuman).
-CREATE TEMP TABLE seed_tren_item AS
-WITH rencana AS (
-    SELECT d, t.idx, t.sekolah_id, t.titik_id, seq, k,
-           960000 + d * 100 + (t.idx - 1) * 20 + seq AS trx_id,
-           ((CURRENT_DATE - d) + time '13:10'
-             + ((seq * 4 + t.idx * 2) || ' minutes')::interval) AT TIME ZONE 'Asia/Jakarta' AS waktu,
-           CASE WHEN t.sekolah_id = 1 THEN ARRAY[1, 2, 5, 6, 7, 8, 9, 11]
-                ELSE ARRAY[101, 102, 103, 104] END AS utama_pool,
-           CASE WHEN t.sekolah_id = 1 THEN ARRAY[3, 4, 10, 12]
-                ELSE ARRAY[105, 106, 107] END AS minum_pool
-      FROM generate_series(0, 6) AS d
-      CROSS JOIN (VALUES (1, 1, 1), (2, 1, 2), (3, 2, 3)) AS t(idx, sekolah_id, titik_id)
-      CROSS JOIN generate_series(1, CASE t.idx WHEN 1 THEN 8 + (d % 3)
-                                             WHEN 2 THEN 4 + (d % 2)
-                                             ELSE 3 + (d % 2) END) AS seq
-      CROSS JOIN (VALUES (1), (2)) AS k(k)
-), pilih AS (
-    SELECT r.*,
-           CASE WHEN r.k = 1
-                THEN r.utama_pool[1 + ((r.d * 5 + r.seq * 3) % array_length(r.utama_pool, 1))]
-                ELSE r.minum_pool[1 + ((r.d * 2 + r.seq + r.idx) % array_length(r.minum_pool, 1))]
-           END AS menu_id,
-           CASE WHEN r.k = 1 AND (r.d * 3 + r.seq) % 4 = 0 THEN 2
-                WHEN r.k = 2 AND (r.d + r.seq) % 5 = 0 THEN 2
-                ELSE 1 END AS qty
-      FROM rencana r
-)
-SELECT 970000 + (p.trx_id - 960000) * 2 + (p.k - 1) AS item_id,
-       p.trx_id, p.sekolah_id, p.titik_id, p.waktu, p.k,
-       p.menu_id, m.nama, m.kategori_id, m.harga_jual AS harga, p.qty,
-       COALESCE(sc.hpp, 0) AS hpp,
-       m.harga_jual * p.qty AS subtotal,
-       COALESCE(sc.hpp, 0) * p.qty AS subtotal_hpp,
-       COALESCE(sc.stok, 0) AS stok_awal
-  FROM pilih p
-  JOIN menu m ON m.id = p.menu_id
-  LEFT JOIN stok_cache sc ON sc.menu_id = p.menu_id;
-
--- 4) Rencana transaksi: agregat item + sesi + siswa + saldo awal + kartu.
-CREATE TEMP TABLE seed_tren_trx AS
-SELECT i.trx_id, i.sekolah_id, i.titik_id, i.waktu, s.id AS sesi_id,
-       (SELECT d.siswa_id
-          FROM (VALUES (1, 1, 12), (2, 1, 13), (3, 1, 204),
-                       (1, 2, 14), (2, 2, 15)) AS d(seq, sekolah_id, siswa_id)
-         WHERE d.sekolah_id = i.sekolah_id
-           AND d.seq = 1 + ((i.trx_id - 960000) % CASE WHEN i.sekolah_id = 1 THEN 3 ELSE 2 END)) AS subjek_id,
-       sum(i.subtotal) AS total, sum(i.subtotal_hpp) AS total_hpp
-  FROM seed_tren_item i
-  JOIN sesi_kasir s
-    ON s.titik_kasir_id = i.titik_id
-   AND s.tanggal = (i.waktu AT TIME ZONE 'Asia/Jakarta')::date
- GROUP BY i.trx_id, i.sekolah_id, i.titik_id, i.waktu, s.id;
-
-ALTER TABLE seed_tren_trx ADD COLUMN saldo_awal bigint;
-ALTER TABLE seed_tren_trx ADD COLUMN rfid_uid text;
-
-UPDATE seed_tren_trx t
-   SET saldo_awal = COALESCE((SELECT c.saldo FROM saldo_cache c
-                               WHERE c.subjek_tipe = 'SISWA' AND c.subjek_id = t.subjek_id), 0);
-
-UPDATE seed_tren_trx t
-   SET rfid_uid = (SELECT d.rfid_uid FROM dev_siswa_rfid d
-                    WHERE d.sekolah_id = t.sekolah_id AND d.siswa_id = t.subjek_id);
-
--- 5) Transaksi & item.
-INSERT INTO transaksi (id, idempotency_key, sekolah_id, sesi_kasir_id, titik_kasir_id,
-                       subjek_tipe, subjek_id, kartu_uid, petugas_id,
-                       total, total_hpp, status, alasan_void, void_at, void_oleh,
-                       waktu, created_at, updated_at)
-SELECT trx_id, 'seed-tren-' || trx_id, sekolah_id, sesi_id, titik_id,
-       'SISWA', subjek_id, rfid_uid, 4,
-       total, total_hpp, 'SUKSES', NULL, NULL, NULL, waktu, now(), now()
-  FROM seed_tren_trx
-ON CONFLICT DO NOTHING;
-
-INSERT INTO transaksi_item (id, transaksi_id, menu_id, nama_menu, kategori_id,
-                            harga_jual, qty, hpp_snapshot, subtotal, created_at)
-SELECT item_id, trx_id, menu_id, nama, kategori_id, harga, qty, hpp, subtotal, now()
-  FROM seed_tren_item
-ON CONFLICT DO NOTHING;
-
--- 6) Mutasi stok KELUAR.
---    stok_setelah dihitung dari SELURUH mutasi menu itu (baris seed lain + blok ini),
---    supaya nilainya benar relatif terhadap riwayat yang sudah ada.
-INSERT INTO mutasi_stok (id, sekolah_id, menu_id, arah, jenis, qty, stok_setelah,
-                         hpp_snapshot, transaksi_id, referensi_tipe, referensi_id,
-                         alasan, aktor_id, aktor_nama, waktu, created_at,
-                         harga_beli_satuan)
-WITH baru AS (
-    SELECT 980000 + (i.item_id - 970000) AS id, i.sekolah_id, i.menu_id, i.waktu,
-           i.qty, i.hpp, i.trx_id
-      FROM seed_tren_item i
-     WHERE NOT EXISTS (SELECT 1 FROM mutasi_stok m
-                        WHERE m.id = 980000 + (i.item_id - 970000))
-), gabung AS (
-    SELECT m.id, m.menu_id, m.waktu,
-           CASE WHEN m.arah = 'MASUK' THEN m.qty ELSE -m.qty END AS delta
-      FROM mutasi_stok m
-     WHERE m.menu_id IN (SELECT DISTINCT menu_id FROM baru)
-    UNION ALL
-    SELECT b.id, b.menu_id, b.waktu, -b.qty FROM baru b
-), urut AS (
-    SELECT g.id, sum(g.delta) OVER (PARTITION BY g.menu_id ORDER BY g.waktu, g.id) AS stok_setelah
-      FROM gabung g
-)
-SELECT b.id, b.sekolah_id, b.menu_id, 'KELUAR', 'PENJUALAN', b.qty, u.stok_setelah,
-       b.hpp, b.trx_id, 'TRANSAKSI', b.trx_id::text, NULL, 4, 'Petugas Kasir',
-       b.waktu, now(), NULL
-  FROM baru b
-  JOIN urut u ON u.id = b.id;
-
--- 7) Ledger DEBIT.
---    saldo_setelah dihitung dari SELURUH baris ledger subjek (baris lama + blok ini).
-INSERT INTO saldo_ledger (id, sekolah_id, subjek_tipe, subjek_id, arah, jenis,
-                          nominal, saldo_setelah, transaksi_id, idempotency_key,
-                          referensi_tipe, referensi_id, keterangan, aktor_id, waktu, created_at)
-WITH baru AS (
-    SELECT 990000 + (t.trx_id - 960000) AS id, t.sekolah_id, t.subjek_id, t.waktu, t.total
-      FROM seed_tren_trx t
-     WHERE NOT EXISTS (SELECT 1 FROM saldo_ledger l
-                        WHERE l.id = 990000 + (t.trx_id - 960000))
-), gabung AS (
-    SELECT l.id, l.subjek_id, l.waktu,
-           CASE WHEN l.arah = 'KREDIT' THEN l.nominal ELSE -l.nominal END AS delta
-      FROM saldo_ledger l
-     WHERE l.subjek_tipe = 'SISWA'
-       AND l.sekolah_id IN (SELECT DISTINCT sekolah_id FROM baru)
-    UNION ALL
-    SELECT b.id, b.subjek_id, b.waktu, -b.total FROM baru b
-), urut AS (
-    SELECT g.id, sum(g.delta) OVER (PARTITION BY g.subjek_id ORDER BY g.waktu, g.id) AS saldo_setelah
-      FROM gabung g
-)
-SELECT b.id, b.sekolah_id, 'SISWA', b.subjek_id, 'DEBIT', 'PENJUALAN', b.total, u.saldo_setelah,
-       b.id - 990000 + 960000, 'seed-tren-trx-' || (b.id - 990000 + 960000), 'TRANSAKSI',
-       (b.id - 990000 + 960000)::text, NULL, 4, b.waktu, now()
-  FROM baru b
-  JOIN urut u ON u.id = b.id;
-
--- 8) Selaraskan total sesi dengan transaksi (idempoten, memperbaiki drift).
-UPDATE sesi_kasir s
-   SET total_bruto  = COALESCE(a.bruto, 0),
-       total_void   = COALESCE(a.void, 0),
-       total_bersih = COALESCE(a.bruto, 0) - COALESCE(a.void, 0),
-       updated_at   = now()
-  FROM (SELECT sesi_kasir_id,
-               sum(total) FILTER (WHERE status = 'SUKSES') AS bruto,
-               sum(total) FILTER (WHERE status = 'VOID')   AS void
-          FROM transaksi GROUP BY sesi_kasir_id) a
- WHERE a.sesi_kasir_id = s.id;
-
-DROP TABLE IF EXISTS seed_tren_tutup;
-DROP TABLE IF EXISTS seed_tren_item;
-DROP TABLE IF EXISTS seed_tren_trx;
-
--- 9) Contoh kode_barcode untuk item kemasan & alat tulis pada data dev/seed.
---    Idempoten: hanya mengisi baris yang kode_barcode-nya masih NULL agar tidak
---    menimpa barcode yang sudah diubah manual oleh pengelola.
-UPDATE menu
-   SET kode_barcode = v.kode_barcode,
-       updated_at   = now()
-  FROM (VALUES
-          (4::bigint,    '8992761135017'::varchar),
-          (6::bigint,    '8992753101015'::varchar),
-          (8::bigint,    '8998009010012'::varchar),
-          (9::bigint,    '8993988010094'::varchar),
-          (10::bigint,   '8993988010100'::varchar),
-          (15::bigint,   '8996001300155'::varchar),
-          (17::bigint,   '8993988010179'::varchar),
-          (18::bigint,   '8996001300018'::varchar),
-          (105::bigint,  '8998009010105'::varchar),
-          (107::bigint,  '8993988010107'::varchar),
-          (1004::bigint, '8992761135104'::varchar),
-          (1006::bigint, '8992753101106'::varchar),
-          (1008::bigint, '8993988011008'::varchar)
-       ) AS v(id, kode_barcode)
- WHERE menu.id = v.id
-   AND menu.kode_barcode IS NULL
-   AND menu.deleted_at IS NULL
-   AND NOT EXISTS (
-         SELECT 1
-           FROM menu x
-          WHERE x.sekolah_id = menu.sekolah_id
-            AND x.kode_barcode = v.kode_barcode
-            AND x.deleted_at IS NULL
-       );
+begin;
+
+-- kosongkan dulu (deterministik). cascade karena banyak FK.
+truncate table catatan_audit, kejadian_offline, jurnal_buku_kas, akun_buku_kas, transaksi_tertunda, pembatasan, setoran, mutasi_saldo, saldo, transaksi_item, transaksi, sesi_kasir, titik_kasir, riwayat_stok, stok, menu, kategori_menu, kartu, orang_tua, siswa, pengguna, pengaturan_kantin, sekolah restart identity cascade;
+
+-- 1. SEKOLAH
+insert into sekolah (id, nama, npsn, alamat, aktif) values
+  (1,  'SMP Negeri 1 Skoolia',  '20260001', 'Jl. Merdeka No. 1',      true),
+  (10, 'SMP Negeri 10 Skoolia', '20260010', 'Jl. Diponegoro No. 10', true);
+
+-- 2. PENGGUNA — 12 akun, password: Kantin#2026
+insert into pengguna (id, sekolah_id, nama, username, role, password_hash, aktif) values
+  (1, 1, 'Wibisana Bama', 'kepsek1', 'KEPSEK', '$2a$10$LGt9ZvDWW97jh0ozfFEIrOlwkp.DQ7HSpq7Eg/VxbHLn3UDuD.Xem', true),
+  (2, 1, 'Sri Wahyuni', 'tu1', 'TATA_USAHA', '$2a$10$LGt9ZvDWW97jh0ozfFEIrOlwkp.DQ7HSpq7Eg/VxbHLn3UDuD.Xem', true),
+  (3, 1, 'Deryl Fabiensyah', 'pengelola1', 'PENGELOLA', '$2a$10$LGt9ZvDWW97jh0ozfFEIrOlwkp.DQ7HSpq7Eg/VxbHLn3UDuD.Xem', true),
+  (4, 1, 'Ahmad Kasir', 'kasir1', 'PETUGAS', '$2a$10$LGt9ZvDWW97jh0ozfFEIrOlwkp.DQ7HSpq7Eg/VxbHLn3UDuD.Xem', true),
+  (5, 1, 'Siti Rahma', 'bendahara1', 'BENDAHARA', '$2a$10$LGt9ZvDWW97jh0ozfFEIrOlwkp.DQ7HSpq7Eg/VxbHLn3UDuD.Xem', true),
+  (6, 1, 'Budi Santoso', 'admin1', 'ADMIN_SEKOLAH', '$2a$10$LGt9ZvDWW97jh0ozfFEIrOlwkp.DQ7HSpq7Eg/VxbHLn3UDuD.Xem', true),
+  (11, 10, 'Hendra Kusuma', 'kepsek10', 'KEPSEK', '$2a$10$LGt9ZvDWW97jh0ozfFEIrOlwkp.DQ7HSpq7Eg/VxbHLn3UDuD.Xem', true),
+  (12, 10, 'Rina Marlina', 'tu10', 'TATA_USAHA', '$2a$10$LGt9ZvDWW97jh0ozfFEIrOlwkp.DQ7HSpq7Eg/VxbHLn3UDuD.Xem', true),
+  (13, 10, 'Yusuf Hamdani', 'pengelola10', 'PENGELOLA', '$2a$10$LGt9ZvDWW97jh0ozfFEIrOlwkp.DQ7HSpq7Eg/VxbHLn3UDuD.Xem', true),
+  (14, 10, 'Rizky Pratama', 'kasir10', 'PETUGAS', '$2a$10$LGt9ZvDWW97jh0ozfFEIrOlwkp.DQ7HSpq7Eg/VxbHLn3UDuD.Xem', true),
+  (15, 10, 'Nurul Hidayah', 'bendahara10', 'BENDAHARA', '$2a$10$LGt9ZvDWW97jh0ozfFEIrOlwkp.DQ7HSpq7Eg/VxbHLn3UDuD.Xem', true),
+  (16, 10, 'Dewi Anggraini', 'admin10', 'ADMIN_SEKOLAH', '$2a$10$LGt9ZvDWW97jh0ozfFEIrOlwkp.DQ7HSpq7Eg/VxbHLn3UDuD.Xem', true);
+
+-- 3. SISWA — 19 siswa, foto_url ikut pola menu.foto_url
+insert into siswa (id, sekolah_id, nis, nisn, nama, kelas, foto_url, aktif) values
+  (101, 1, '24250101', '001010000', 'Raka Aditya Pratama', '7A', 'https://ui-avatars.com/api/?name=Raka+Aditya+Pratama&size=256&background=0F766E&color=ffffff&bold=true&format=png', true),
+  (102, 1, '24250102', '001020000', 'Nadia Safitri', '7A', 'https://ui-avatars.com/api/?name=Nadia+Safitri&size=256&background=1D4ED8&color=ffffff&bold=true&format=png', true),
+  (103, 1, '24250103', '001030000', 'Bima Arya Nugraha', '7B', 'https://ui-avatars.com/api/?name=Bima+Arya+Nugraha&size=256&background=0F766E&color=ffffff&bold=true&format=png', true),
+  (104, 1, '24250104', '001040000', 'Salsabila Putri', '7B', 'https://ui-avatars.com/api/?name=Salsabila+Putri&size=256&background=1D4ED8&color=ffffff&bold=true&format=png', true),
+  (105, 1, '24250105', '001050000', 'Fajar Ramadhan', '8A', 'https://ui-avatars.com/api/?name=Fajar+Ramadhan&size=256&background=0F766E&color=ffffff&bold=true&format=png', true),
+  (106, 1, '24250106', '001060000', 'Kirana Dewi Lestari', '8A', 'https://ui-avatars.com/api/?name=Kirana+Dewi+Lestari&size=256&background=1D4ED8&color=ffffff&bold=true&format=png', true),
+  (107, 1, '24250107', '001070000', 'Abizard', '8B', 'https://ui-avatars.com/api/?name=Abizard&size=256&background=0F766E&color=ffffff&bold=true&format=png', true),
+  (108, 1, '24250108', '001080000', 'Fajar Nugraha', '7B', 'https://ui-avatars.com/api/?name=Fajar+Nugraha&size=256&background=1D4ED8&color=ffffff&bold=true&format=png', true),
+  (109, 1, '24250109', '001090000', 'Citra Kirana', '8A', 'https://ui-avatars.com/api/?name=Citra+Kirana&size=256&background=0F766E&color=ffffff&bold=true&format=png', true),
+  (110, 1, '24250110', '001100000', 'Daffa Alfarizi', '9A', 'https://ui-avatars.com/api/?name=Daffa+Alfarizi&size=256&background=1D4ED8&color=ffffff&bold=true&format=png', true),
+  (12, 1, '24250012', '00120000', 'Alya Rahmawati', '7C', 'https://ui-avatars.com/api/?name=Alya+Rahmawati&size=256&background=1D4ED8&color=ffffff&bold=true&format=png', true),
+  (13, 1, '24250013', '00130000', 'Bagas Saputra', '7C', 'https://ui-avatars.com/api/?name=Bagas+Saputra&size=256&background=0F766E&color=ffffff&bold=true&format=png', true),
+  (201, 1, '24250201', '002010000', 'Rangga Pratama', '7A', 'https://ui-avatars.com/api/?name=Rangga+Pratama&size=256&background=0F766E&color=ffffff&bold=true&format=png', true),
+  (202, 1, '24250202', '002020000', 'Sinta Maharani', '7B', 'https://ui-avatars.com/api/?name=Sinta+Maharani&size=256&background=1D4ED8&color=ffffff&bold=true&format=png', true),
+  (1001, 10, '24251001', '0010010000', 'Ahmad Fauzan', '7A', 'https://ui-avatars.com/api/?name=Ahmad+Fauzan&size=256&background=0F766E&color=ffffff&bold=true&format=png', true),
+  (1005, 10, '24251005', '0010050000', 'Citra Ayu Lestari', '7A', 'https://ui-avatars.com/api/?name=Citra+Ayu+Lestari&size=256&background=0F766E&color=ffffff&bold=true&format=png', true),
+  (1006, 10, '24251006', '0010060000', 'Dimas Prakoso', '7B', 'https://ui-avatars.com/api/?name=Dimas+Prakoso&size=256&background=1D4ED8&color=ffffff&bold=true&format=png', true),
+  (1007, 10, '24251007', '0010070000', 'Eka Wulandari', '7B', 'https://ui-avatars.com/api/?name=Eka+Wulandari&size=256&background=0F766E&color=ffffff&bold=true&format=png', true),
+  (3001, 10, '24253001', '0030010000', 'Anisa Rahma', '7A', 'https://ui-avatars.com/api/?name=Anisa+Rahma&size=256&background=0F766E&color=ffffff&bold=true&format=png', true);
+
+-- 4. ORANG TUA — 2 wali per siswa (ayah + ibu)
+insert into orang_tua (sekolah_id, siswa_id, nama, telepon, hubungan, punya_aplikasi, aktif) values
+  (1, 101, 'Bapak Pratama', '081200000101', 'AYAH', true, true),
+  (1, 101, 'Ibu Pratama',  '081300000101', 'IBU',  true, true),
+  (1, 102, 'Bapak Safitri', '081200000102', 'AYAH', true, true),
+  (1, 102, 'Ibu Safitri',  '081300000102', 'IBU',  true, true),
+  (1, 103, 'Bapak Nugraha', '081200000103', 'AYAH', true, true),
+  (1, 103, 'Ibu Nugraha',  '081300000103', 'IBU',  true, true),
+  (1, 104, 'Bapak Putri', '081200000104', 'AYAH', true, true),
+  (1, 104, 'Ibu Putri',  '081300000104', 'IBU',  true, true),
+  (1, 105, 'Bapak Ramadhan', '081200000105', 'AYAH', true, true),
+  (1, 105, 'Ibu Ramadhan',  '081300000105', 'IBU',  true, true),
+  (1, 106, 'Bapak Lestari', '081200000106', 'AYAH', true, true),
+  (1, 106, 'Ibu Lestari',  '081300000106', 'IBU',  true, true),
+  (1, 107, 'Bapak Abizard', '081200000107', 'AYAH', true, true),
+  (1, 107, 'Ibu Abizard',  '081300000107', 'IBU',  true, true),
+  (1, 108, 'Bapak Nugraha', '081200000108', 'AYAH', true, true),
+  (1, 108, 'Ibu Nugraha',  '081300000108', 'IBU',  true, true),
+  (1, 109, 'Bapak Kirana', '081200000109', 'AYAH', true, true),
+  (1, 109, 'Ibu Kirana',  '081300000109', 'IBU',  true, true),
+  (1, 110, 'Bapak Alfarizi', '081200000110', 'AYAH', true, true),
+  (1, 110, 'Ibu Alfarizi',  '081300000110', 'IBU',  true, true),
+  (1, 12, 'Bapak Rahmawati', '081200000012', 'AYAH', true, true),
+  (1, 12, 'Ibu Rahmawati',  '081300000012', 'IBU',  true, true),
+  (1, 13, 'Bapak Saputra', '081200000013', 'AYAH', true, true),
+  (1, 13, 'Ibu Saputra',  '081300000013', 'IBU',  true, true),
+  (1, 201, 'Bapak Pratama', '081200000201', 'AYAH', true, true),
+  (1, 201, 'Ibu Pratama',  '081300000201', 'IBU',  true, true),
+  (1, 202, 'Bapak Maharani', '081200000202', 'AYAH', true, true),
+  (1, 202, 'Ibu Maharani',  '081300000202', 'IBU',  true, true),
+  (10, 1001, 'Bapak Fauzan', '081200001001', 'AYAH', true, true),
+  (10, 1001, 'Ibu Fauzan',  '081300001001', 'IBU',  true, true),
+  (10, 1005, 'Bapak Lestari', '081200001005', 'AYAH', true, true),
+  (10, 1005, 'Ibu Lestari',  '081300001005', 'IBU',  true, true),
+  (10, 1006, 'Bapak Prakoso', '081200001006', 'AYAH', true, true),
+  (10, 1006, 'Ibu Prakoso',  '081300001006', 'IBU',  false, true),
+  (10, 1007, 'Bapak Wulandari', '081200001007', 'AYAH', true, true),
+  (10, 1007, 'Ibu Wulandari',  '081300001007', 'IBU',  false, true),
+  (10, 3001, 'Bapak Rahma', '081200003001', 'AYAH', true, true),
+  (10, 3001, 'Ibu Rahma',  '081300003001', 'IBU',  false, true);
+
+-- 5. KARTU — 1 kartu per siswa
+insert into kartu (uid, sekolah_id, siswa_id, nomor_kartu, aktif) values
+  ('04A1B2C3D4', 1, 101, 'RFID-SISWA-101', true),
+  ('04B2C3D4E5', 1, 102, 'RFID-SISWA-102', true),
+  ('04C3D4E5F6', 1, 103, 'RFID-SISWA-103', true),
+  ('04D4E5F6A1', 1, 104, 'RFID-SISWA-104', true),
+  ('04E5F6A1B2', 1, 105, 'RFID-SISWA-105', true),
+  ('04F1A2B3C4', 1, 106, 'RFID-SISWA-106', true),
+  ('1831574427', 1, 107, 'RFID-SISWA-107', true),
+  ('2225414394', 1, 108, 'RFID-SISWA-108', true),
+  ('0830267682', 1, 109, 'RFID-SISWA-109', true),
+  ('04F5A6B7C8', 1, 110, 'RFID-SISWA-110', true),
+  ('04A2B3C4D5', 1, 12, 'RFID-SISWA-012', true),
+  ('04B3C4D5E6', 1, 13, 'RFID-SISWA-013', true),
+  ('04AA000201', 1, 201, 'UJI-RFID-201', true),
+  ('04AA000202', 1, 202, 'UJI-RFID-202', true),
+  ('DA100001', 10, 1001, 'RFID-SISWA-001', true),
+  ('DA100005', 10, 1005, 'RFID-SISWA-005', true),
+  ('DA100006', 10, 1006, 'RFID-SISWA-006', true),
+  ('DA100007', 10, 1007, 'RFID-SISWA-007', true),
+  ('04BB003001', 10, 3001, 'UJI-RFID-3001', true);
+
+-- 6. KATEGORI MENU
+insert into kategori_menu (id, sekolah_id, nama, urutan, is_active) values
+  (1, 1, 'Makanan', 1, true),
+  (2, 1, 'Minuman', 2, true),
+  (3, 1, 'Snack', 3, true),
+  (4, 1, 'Alat Tulis', 4, true),
+  (11, 10, 'Makanan', 1, true),
+  (12, 10, 'Minuman', 2, true),
+  (13, 10, 'Snack', 3, true),
+  (14, 10, 'Alat Tulis', 4, true);
+
+-- 7. MENU — 12 menu per sekolah (foto_url dari data lama)
+insert into menu (id, sekolah_id, kategori_id, nama, kode_barcode, satuan, foto_url, harga_jual, stok_minimum, is_active) values
+  (1, 1, 1, 'Nasi Goreng', 'MNU-0001', 'PORSI', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/3/34/Nasi_goreng_pattaya_20231028_120535.jpg/500px-Nasi_goreng_pattaya_20231028_120535.jpg', 12000, 5, true),
+  (2, 1, 1, 'Mie Ayam', 'MNU-0002', 'PORSI', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/8/82/Mi_ayam_jamur.JPG/500px-Mi_ayam_jamur.JPG', 10000, 5, true),
+  (3, 1, 2, 'Es Teh Manis', 'MNU-0003', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d4/Iced_lychee_tea_and_Es_teh_manis_-_Bali_2025-09-25.jpg/500px-Iced_lychee_tea_and_Es_teh_manis_-_Bali_2025-09-25.jpg', 3000, 10, true),
+  (4, 1, 2, 'Air Mineral', 'MNU-0004', 'BOTOL', 'https://upload.wikimedia.org/wikipedia/commons/0/02/Stilles_Mineralwasser.jpg', 4000, 10, true),
+  (5, 1, 1, 'Ayam Geprek', 'MNU-0005', 'PORSI', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5c/Ayam_Geprek_Uyat.jpg/500px-Ayam_Geprek_Uyat.jpg', 13000, 5, true),
+  (6, 1, 3, 'Keripik', 'MNU-0006', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/7/70/Keripik_sanjay.JPG/500px-Keripik_sanjay.JPG', 5000, 10, true),
+  (7, 1, 3, 'Roti Bakar', 'MNU-0007', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1a/Roti_bakar_kekinian.jpg/500px-Roti_bakar_kekinian.jpg', 8000, 5, true),
+  (8, 1, 2, 'Susu Kotak', 'MNU-0008', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f8/2025.04.10_Milk_Glass_Sugar_Bowl_and_Antique_Glass_Creamer.jpg/500px-2025.04.10_Milk_Glass_Sugar_Bowl_and_Antique_Glass_Creamer.jpg', 6000, 10, true),
+  (9, 1, 4, 'Pulpen', 'MNU-0009', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7b/Fountain_pen_writing_%28literacy%29.jpg/500px-Fountain_pen_writing_%28literacy%29.jpg', 3000, 20, true),
+  (10, 1, 4, 'Buku Tulis', 'MNU-0010', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f0/Notebook_writing.jpg/500px-Notebook_writing.jpg', 7000, 10, true),
+  (11, 1, 1, 'Bakso', 'MNU-0011', 'PORSI', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6e/Bakso_Indonesian_Meatball_Soup_from_Solo.jpg/500px-Bakso_Indonesian_Meatball_Soup_from_Solo.jpg', 11000, 5, true),
+  (12, 1, 2, 'Jus Jeruk', 'MNU-0012', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/6/67/Orange_juice_1_edit1.jpg/500px-Orange_juice_1_edit1.jpg', 7000, 5, true),
+  (1000, 10, 11, 'Nasi Goreng', 'MNU-1000', 'PORSI', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/3/34/Nasi_goreng_pattaya_20231028_120535.jpg/500px-Nasi_goreng_pattaya_20231028_120535.jpg', 12000, 5, true),
+  (1001, 10, 11, 'Mie Ayam', 'MNU-1001', 'PORSI', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/8/82/Mi_ayam_jamur.JPG/500px-Mi_ayam_jamur.JPG', 10000, 5, true),
+  (1002, 10, 12, 'Es Teh Manis', 'MNU-1002', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d4/Iced_lychee_tea_and_Es_teh_manis_-_Bali_2025-09-25.jpg/500px-Iced_lychee_tea_and_Es_teh_manis_-_Bali_2025-09-25.jpg', 3000, 10, true),
+  (1003, 10, 12, 'Air Mineral', 'MNU-1003', 'BOTOL', 'https://upload.wikimedia.org/wikipedia/commons/0/02/Stilles_Mineralwasser.jpg', 4000, 10, true),
+  (1004, 10, 11, 'Ayam Geprek', 'MNU-1004', 'PORSI', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5c/Ayam_Geprek_Uyat.jpg/500px-Ayam_Geprek_Uyat.jpg', 13000, 5, true),
+  (1005, 10, 13, 'Keripik', 'MNU-1005', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/7/70/Keripik_sanjay.JPG/500px-Keripik_sanjay.JPG', 5000, 10, true),
+  (1006, 10, 13, 'Roti Bakar', 'MNU-1006', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1a/Roti_bakar_kekinian.jpg/500px-Roti_bakar_kekinian.jpg', 8000, 5, true),
+  (1007, 10, 12, 'Susu Kotak', 'MNU-1007', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f8/2025.04.10_Milk_Glass_Sugar_Bowl_and_Antique_Glass_Creamer.jpg/500px-2025.04.10_Milk_Glass_Sugar_Bowl_and_Antique_Glass_Creamer.jpg', 6000, 10, true),
+  (1008, 10, 14, 'Pulpen', 'MNU-1008', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7b/Fountain_pen_writing_%28literacy%29.jpg/500px-Fountain_pen_writing_%28literacy%29.jpg', 3000, 20, true),
+  (1009, 10, 14, 'Buku Tulis', 'MNU-1009', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f0/Notebook_writing.jpg/500px-Notebook_writing.jpg', 7000, 10, true),
+  (1010, 10, 11, 'Bakso', 'MNU-1010', 'PORSI', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6e/Bakso_Indonesian_Meatball_Soup_from_Solo.jpg/500px-Bakso_Indonesian_Meatball_Soup_from_Solo.jpg', 11000, 5, true),
+  (1011, 10, 12, 'Jus Jeruk', 'MNU-1011', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/6/67/Orange_juice_1_edit1.jpg/500px-Orange_juice_1_edit1.jpg', 7000, 5, true);
+
+-- 8. STOK — 1 baris per menu
+insert into stok (menu_id, sekolah_id, stok, hpp, stok_minimum) values
+  (1, 1, 21, 7000, 5),
+  (2, 1, 39, 6000, 5),
+  (3, 1, 19, 1000, 10),
+  (4, 1, 14, 2000, 10),
+  (5, 1, 37, 9000, 5),
+  (6, 1, 39, 3000, 10),
+  (7, 1, 23, 5000, 5),
+  (8, 1, 36, 4000, 10),
+  (9, 1, 44, 2000, 20),
+  (10, 1, 19, 5000, 10),
+  (11, 1, 37, 7000, 5),
+  (12, 1, 26, 5000, 5),
+  (1000, 10, 21, 7000, 5),
+  (1001, 10, 39, 6000, 5),
+  (1002, 10, 19, 1000, 10),
+  (1003, 10, 14, 2000, 10),
+  (1004, 10, 37, 9000, 5),
+  (1005, 10, 39, 3000, 10),
+  (1006, 10, 23, 5000, 5),
+  (1007, 10, 36, 4000, 10),
+  (1008, 10, 44, 2000, 20),
+  (1009, 10, 19, 5000, 10),
+  (1010, 10, 37, 7000, 5),
+  (1011, 10, 26, 5000, 5)
+on conflict (menu_id) do update
+    set stok         = excluded.stok,
+        hpp          = excluded.hpp,
+        stok_minimum = excluded.stok_minimum;
+
+-- 9. TITIK KASIR
+insert into titik_kasir (id, sekolah_id, kode, nama, is_active) values
+  (1,  1,  'DEMO1',  'Kasir Kantin Utama', true),
+  (2,  1,  'DEMO2',  'Kasir Kelas 7',      true),
+  (11, 10, 'FE10-1', 'Kasir Kantin 10 A',  true),
+  (12, 10, 'FE10-2', 'Kasir Kantin 10 B',  true);
+
+-- 10. PENGATURAN KANTIN
+insert into pengaturan_kantin (sekolah_id, nama_kantin, jam_tutup_otomatis, konfirmasi_manual, durasi_foto_detik, min_topup, maks_topup, batas_saldo_siswa, kebijakan_saldo_mengendap, ambang_hari, diperbarui_oleh) values
+  (1,  'Kantin Sekolah',     '15:00', false, 3, 5000, 500000, 1000000, 'REFUND', 90, 2),
+  (10, 'Kantin Sekolah 10',  '14:30', false, 3, 5000, 300000,  750000, 'REFUND', 90, 12);
+
+-- 11. AKUN BUKU KAS
+insert into akun_buku_kas (id, sekolah_id, nama, tipe, aktif) values
+  (1,  1,  'Penjualan Kantin', 'MASUK',  true),
+  (2,  1,  'Top Up Saldo',     'MASUK',  true),
+  (3,  1,  'Belanja Bahan',    'KELUAR', true),
+  (4,  1,  'Operasional',      'KELUAR', true),
+  (11, 10, 'Penjualan Kantin', 'MASUK',  true),
+  (12, 10, 'Top Up Saldo',     'MASUK',  true),
+  (13, 10, 'Belanja Bahan',    'KELUAR', true),
+  (14, 10, 'Operasional',      'KELUAR', true);
+
+-- 12. SALDO AWAL + MUTASI (hanya siswa bersaldo > 0)
+insert into saldo (sekolah_id, siswa_id, saldo) values
+  (1, 101, 85000),
+  (1, 102, 50000),
+  (1, 103, 50000),
+  (1, 104, 50000),
+  (1, 105, 50000),
+  (1, 106, 50000),
+  (1, 107, 50000),
+  (1, 108, 50000),
+  (1, 109, 50000),
+  (1, 110, 50000),
+  (1, 12, 50000),
+  (1, 13, 50000),
+  (1, 201, 0),
+  (1, 202, 0),
+  (10, 1001, 85000),
+  (10, 1005, 50000),
+  (10, 1006, 50000),
+  (10, 1007, 50000),
+  (10, 3001, 0);
+
+insert into mutasi_saldo (id, sekolah_id, siswa_id, arah, jenis, nominal, saldo_setelah, keterangan, aktor_id) values
+  (1, 1, 101, 'KREDIT', 'TOPUP_TUNAI', 85000, 85000, 'Saldo awal seed', 2),
+  (2, 1, 102, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 2),
+  (3, 1, 103, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 2),
+  (4, 1, 104, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 2),
+  (5, 1, 105, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 2),
+  (6, 1, 106, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 2),
+  (7, 1, 107, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 2),
+  (8, 1, 108, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 2),
+  (9, 1, 109, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 2),
+  (10, 1, 110, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 2),
+  (11, 1, 12, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 2),
+  (12, 1, 13, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 2),
+  (13, 10, 1001, 'KREDIT', 'TOPUP_TUNAI', 85000, 85000, 'Saldo awal seed', 12),
+  (14, 10, 1005, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 12),
+  (15, 10, 1006, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 12),
+  (16, 10, 1007, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 12);
+
+-- 13. SINKRONKAN SEQUENCE (karena id diisi manual)
+select setval(pg_get_serial_sequence('pengguna','id'), (select max(id) from pengguna));
+select setval(pg_get_serial_sequence('kategori_menu','id'), (select max(id) from kategori_menu));
+select setval(pg_get_serial_sequence('menu','id'), (select max(id) from menu));
+select setval(pg_get_serial_sequence('titik_kasir','id'), (select max(id) from titik_kasir));
+select setval(pg_get_serial_sequence('akun_buku_kas','id'), (select max(id) from akun_buku_kas));
+
+commit;
+
+-- =====================================================================
+-- RINGKASAN ISI
+--   sekolah 2 | pengguna 12 | siswa 19 | orang_tua 38 | kartu 19
+--   kategori_menu 8 | menu 24 | stok 24 | titik_kasir 4
+--   pengaturan_kantin 2 | akun_buku_kas 8 | saldo 19 | mutasi_saldo 16
+-- =====================================================================
