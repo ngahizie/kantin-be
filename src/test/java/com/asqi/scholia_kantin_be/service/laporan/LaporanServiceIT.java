@@ -132,7 +132,8 @@ class LaporanServiceIT {
 
         // Induk wajib skema v2 (FK): sekolah → siswa/pengguna.
         FixtureInduk.sekolah(jdbc, SEKOLAH, SEKOLAH_LAIN);
-        FixtureInduk.pengguna(jdbc, SEKOLAH, PETUGAS, ADMIN_VOID, PETUGAS_SETORAN);
+        FixtureInduk.penggunaUmum(jdbc, SEKOLAH);
+        FixtureInduk.pengguna(jdbc, SEKOLAH, PETUGAS, ADMIN_VOID, PETUGAS_SETORAN, 6L);
         FixtureInduk.siswa(jdbc, SEKOLAH, SISWA, SISWA2, SISWA_DIMENSI);
 
         jdbc.update("INSERT INTO titik_kasir (id, sekolah_id, nama, is_active, created_at, updated_at) "

@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.List;
@@ -50,6 +51,8 @@ class OpnameBatchIT {
     @BeforeEach
     void bersihkan() {
         jdbc.execute("TRUNCATE TABLE riwayat_stok, stok CASCADE");
+
+        FixtureInduk.sekolah(jdbc, SEKOLAH);
         jdbc.execute("TRUNCATE TABLE menu CASCADE");
         menu(MENU_A, SEKOLAH, "Nasi Uduk");
         menu(MENU_B, SEKOLAH, "Es Jeruk");

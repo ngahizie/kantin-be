@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -54,6 +55,11 @@ class LedgerStokServiceIT {
     void bersihkan() {
         TenantContext.clear();
         jdbc.execute("TRUNCATE TABLE riwayat_stok, stok CASCADE");
+
+        FixtureInduk.sekolah(jdbc, SEKOLAH);
+
+        FixtureInduk.penggunaUmum(jdbc, SEKOLAH);
+        FixtureInduk.menu(jdbc, SEKOLAH, MENU);
     }
 
     @Test
@@ -72,7 +78,7 @@ class LedgerStokServiceIT {
     void penjualanPakaiSnapshot() {
         tx.executeWithoutResult(s -> ledger.masukBarang(SEKOLAH, MENU, 10, 5_000, "BARANG_MASUK", "BM-1", 1L));
 
-        var hasil = tx.execute(s -> ledger.keluarPenjualan(SEKOLAH, MENU, 3, 999L));
+        var hasil = tx.execute(s -> ledger.keluarPenjualan(SEKOLAH, MENU, 3, null));
         assertThat(hasil.getStokSetelah()).isEqualTo(7);
         assertThat(hasil.getHppSetelah()).isEqualTo(5_000L); // snapshot = HPP berjalan
     }
@@ -221,7 +227,7 @@ class LedgerStokServiceIT {
         TenantContext.set(IdentitasKantin.builder()
                 .userId("77").nama("Pak Kasir").sekolahId(SEKOLAH).build());
         try {
-            Long penjualanId = tx.execute(s -> ledger.keluarPenjualan(SEKOLAH, MENU, 2, 999L)
+            Long penjualanId = tx.execute(s -> ledger.keluarPenjualan(SEKOLAH, MENU, 2, null)
                     .getMutasi().getId());
 
             var baris = jdbc.queryForMap(
@@ -328,7 +334,7 @@ class LedgerStokServiceIT {
     @DisplayName("pembalik menolak baris bukan BARANG_MASUK (mis. penjualan)")
     void pembalikHanyaBarangMasuk() {
         tx.executeWithoutResult(s -> ledger.masukBarang(SEKOLAH, MENU, 10, 5_000, "BARANG_MASUK", "BM-1", 1L));
-        Long penjualanId = tx.execute(s -> ledger.keluarPenjualan(SEKOLAH, MENU, 2, 999L).getMutasi().getId());
+        Long penjualanId = tx.execute(s -> ledger.keluarPenjualan(SEKOLAH, MENU, 2, null).getMutasi().getId());
 
         assertThatThrownBy(() -> tx.executeWithoutResult(s ->
                 ledger.pembalikBarangMasuk(SEKOLAH, penjualanId, null, "KOREKSI", "PB-1", 2L)))

@@ -61,11 +61,11 @@ class SeedDevIT {
                 38,   // orang_tua: 2 wali per siswa
                 19,   // kartu: 1 kartu per siswa
                 19,   // saldo: 1 baris per siswa
-                16,   // mutasi_saldo: hanya siswa bersaldo > 0
+                53,   // mutasi_saldo: topup + belanja + void + refund seeder
                 2,    // pengaturan_kantin: 1 per sekolah
                 4,    // titik_kasir: 2 per sekolah
                 8,    // akun_buku_kas: 4 per sekolah
-                0));  // transaksi: seed v2 tidak membuat transaksi contoh
+                36)); // transaksi contoh: 26 di sekolah 1, 10 di sekolah 10
 
         // Tenant default form login FE (sekolah_id=10) wajib punya data —
         // tanpa ini semua layar FE tampak kosong walau endpoint sudah 200 (issue #231).

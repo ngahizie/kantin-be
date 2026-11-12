@@ -33,7 +33,7 @@ public interface RiwayatStokRepository extends JpaRepository<RiwayatStok, Long>,
 
     /**
      * Stok berjalan = Σ MASUK − Σ KELUAR untuk satu menu (PRD §11.1) — untuk
-     * verifikasi terhadap {@code stok_cache}.
+     * verifikasi terhadap {@code stok}.
      */
     @Query("""
             SELECT COALESCE(SUM(CASE WHEN m.arah = :masuk THEN m.qty ELSE -m.qty END), 0)

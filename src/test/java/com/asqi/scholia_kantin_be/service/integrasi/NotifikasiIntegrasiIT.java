@@ -27,6 +27,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -47,7 +48,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 // v2: KartuLookupLokal/CariSiswaLokal @Primary aktif saat kantin.siswa.sumber=lokal
 // (default) sehingga bertabrakan dengan fake @Primary milik kelas ini.
-@SpringBootTest(properties = "kantin.siswa.sumber=integrasi")
+@SpringBootTest(properties = {"kantin.siswa.sumber=integrasi", "kantin.notifikasi.enabled=true"})
 @Import({TestcontainersConfig.class, NotifikasiIntegrasiIT.FakePortConfig.class,
         NotifikasiIntegrasiIT.FakeNotifikasiConfig.class})
 @EnabledIfDockerAvailable
@@ -87,6 +88,16 @@ class NotifikasiIntegrasiIT {
         fakeNotifikasi.reset();
         jdbc.execute("TRUNCATE TABLE transaksi_item, transaksi, sesi_kasir, titik_kasir, "
                 + "mutasi_saldo, saldo, riwayat_stok, stok CASCADE");
+
+        FixtureInduk.sekolah(jdbc, SEKOLAH);
+
+        FixtureInduk.penggunaUmum(jdbc, SEKOLAH);
+
+        FixtureInduk.kategoriUmum(jdbc, SEKOLAH);
+
+        FixtureInduk.kartu(jdbc, SEKOLAH, SISWA, UID);
+        FixtureInduk.siswa(jdbc, SEKOLAH, SISWA);
+        FixtureInduk.menu(jdbc, SEKOLAH, MENU_NASI);
         jdbc.update("INSERT INTO titik_kasir (id, sekolah_id, nama, is_active, created_at, updated_at) "
                 + "VALUES (?, ?, 'Kasir 1', true, now(), now())", TITIK, SEKOLAH);
         tx.executeWithoutResult(s -> ledgerSaldo.kredit(PerintahMutasiSaldo.builder()

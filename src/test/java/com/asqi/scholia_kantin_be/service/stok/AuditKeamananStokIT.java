@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.concurrent.CountDownLatch;
@@ -51,6 +52,8 @@ class AuditKeamananStokIT {
     @BeforeEach
     void bersihkan() {
         jdbc.execute("TRUNCATE TABLE riwayat_stok, stok CASCADE");
+
+        FixtureInduk.sekolah(jdbc, SEKOLAH);
         jdbc.execute("TRUNCATE TABLE menu CASCADE");
         // Menu milik sekolah 1 — prasyarat sah untuk barang masuk.
         jdbc.update("INSERT INTO menu (id, sekolah_id, nama, harga_jual) VALUES (?, ?, ?, ?)",
