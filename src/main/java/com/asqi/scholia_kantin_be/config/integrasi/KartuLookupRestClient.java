@@ -1,5 +1,6 @@
 package com.asqi.scholia_kantin_be.config.integrasi;
 
+import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoKartu;
 import com.asqi.scholia_kantin_be.service.integrasi.KartuLookupPort;
 import lombok.extern.slf4j.Slf4j;
@@ -89,6 +90,7 @@ public class KartuLookupRestClient extends IntegrasiRestSupport implements Kartu
         return InfoKartu.builder()
                 .dikenal(true)
                 .diblokir(false)
+                .subjekTipe(SubjekTipe.SISWA)
                 .siswaId(id)
                 .nama(nama)
                 .kelas(kelas)

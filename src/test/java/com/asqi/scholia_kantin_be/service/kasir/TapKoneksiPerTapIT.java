@@ -93,7 +93,7 @@ class TapKoneksiPerTapIT {
                 + "VALUES (?, ?, 'Kasir 1', true, now(), now())", TITIK, SEKOLAH);
 
         tx.executeWithoutResult(s -> ledgerSaldo.kredit(PerintahMutasiSaldo.builder()
-                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).subjekId(SISWA)
+                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).siswaId(SISWA)
                 .jenis(JenisMutasiSaldo.TOPUP_TUNAI).nominal(500_000).idempotencyKey("seed-saldo").build()));
         tx.executeWithoutResult(s -> ledgerStok.masukBarang(SEKOLAH, MENU_NASI, 100, 4_000, "BARANG_MASUK", "BM-1", 1L));
     }
@@ -192,7 +192,7 @@ class TapKoneksiPerTapIT {
                 if (UID.equals(rfidUid) && sekolahId == SEKOLAH) {
                     return InfoKartu.builder()
                             .dikenal(true).diblokir(false)
-                            .subjekTipe(SubjekTipe.SISWA).subjekId(SISWA)
+                            .subjekTipe(SubjekTipe.SISWA).siswaId(SISWA)
                             .nama("Budi").kelas("5A")
                             .limitHarian(1_000_000L)
                             .build();

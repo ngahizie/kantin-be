@@ -43,16 +43,6 @@ Batas per-subjek ditegakkan di dalam `KontrolKartuController#ubahBlokir`.
 |---|---|---|---|---|
 | `POST` | `/api/auth/cabut` | tu, admin | — | di luar keputusan #250 — dipertahankan |
 | `GET` | `/api/auth/me` | — | — | di luar keputusan #250 — dipertahankan |
-| `GET` | `/api/internal/kartu-tamu/cek-uid` | — | — | di luar keputusan #250 — dipertahankan |
-| `GET` | `/api/kartu-tamu/` | tu | §9.4 & §9.6 — *Kartu Tamu: TU, Bendahara (CRUD, blokir, refund)* | PRD diikuti |
-| `POST` | `/api/kartu-tamu/` | tu | §9.4 & §9.6 — *Kartu Tamu: TU, Bendahara (CRUD, blokir, refund)* | PRD diikuti |
-| `GET` | `/api/kartu-tamu/nomor-berikutnya` | tu | §9.4 & §9.6 — *Kartu Tamu: TU, Bendahara (CRUD, blokir, refund)* | PRD diikuti |
-| `POST` | `/api/kartu-tamu/pindah-saldo` | tu | §9.4 & §9.6 — *Kartu Tamu: TU, Bendahara (CRUD, blokir, refund)* | PRD diikuti |
-| `POST` | `/api/kartu-tamu/refund` | tu | §9.4 & §9.6 — *Kartu Tamu: TU, Bendahara (CRUD, blokir, refund)* | PRD diikuti |
-| `DELETE` | `/api/kartu-tamu/{kartuId}` | tu | §9.4 & §9.6 — *Kartu Tamu: TU, Bendahara (CRUD, blokir, refund)* | PRD diikuti |
-| `GET` | `/api/kartu-tamu/{kartuId}` | tu | §9.4 & §9.6 — *Kartu Tamu: TU, Bendahara (CRUD, blokir, refund)* | PRD diikuti |
-| `PUT` | `/api/kartu-tamu/{kartuId}` | tu | §9.4 & §9.6 — *Kartu Tamu: TU, Bendahara (CRUD, blokir, refund)* | PRD diikuti |
-| `GET` | `/api/kartu-tamu/{kartuId}/riwayat` | tu | §9.4 & §9.6 — *Kartu Tamu: TU, Bendahara (CRUD, blokir, refund)* | PRD diikuti |
 | `GET` | `/api/kasir/sesi/aktif` | kasir | §9.6 — *Kasir: Petugas kantin (create, read)* | PRD diikuti |
 | `POST` | `/api/kasir/sesi/buka` | kasir | §9.6 — *Kasir: Petugas kantin (create, read)* | PRD diikuti |
 | `GET` | `/api/kasir/sesi/{sesiId}` | kasir | §9.6 — *Kasir: Petugas kantin (create, read)* | PRD diikuti |
@@ -89,11 +79,10 @@ Batas per-subjek ditegakkan di dalam `KontrolKartuController#ubahBlokir`.
 | `POST` | `/api/kontrol-kartu/blokir` | tu, admin | §9.4 (blokir Kartu Tamu: TU/Bendahara) & §9.6 (kontrol siswa: Admin) | PRD diikuti |
 | `POST` | `/api/kontrol-kartu/blokir-item` | admin, tu | §9.6 — *Kontrol Siswa: Admin (update)* | PRD diikuti |
 | `PUT` | `/api/kontrol-kartu/limit-harian` | admin, tu | §9.6 — *Kontrol Siswa: Admin (update)* | PRD diikuti |
-| `GET` | `/api/kontrol-kartu/{subjekTipe}/{subjekId}` | kasir, pengelola, tu, admin | §9.6 | di luar keputusan #250 — dipertahankan |
+| `GET` | `/api/kontrol-kartu/{siswaId}` | kasir, pengelola, tu, admin | §9.6 | di luar keputusan #250 — dipertahankan |
 | `GET` | `/api/kontrol-kartu/bulk` | kasir, pengelola, tu, admin | §9.6 — batch query kontrol subjek (hindari N+1) | di luar keputusan #250 — dipertahankan |
 | `GET` | `/api/laporan/ekspor` | pengelola, tu, admin, kepsek | §9.5 — *Semua laporan dapat diekspor; akses mengikuti laporan asal* | PRD diikuti |
 | `GET` | `/api/laporan/kartu-stok/{menuId}` | pengelola, tu | §9.5 — *Kartu stok per item: Pengelola, Bendahara* | PRD diikuti |
-| `GET` | `/api/laporan/kartu-tamu` | tu | §9.5 — *Kartu Tamu: TU, Bendahara* | PRD diikuti |
 | `GET` | `/api/laporan/kerugian-stok` | pengelola, tu, kepsek | §9.5 — *Kerugian stok: Pengelola, Bendahara, Kepsek* | PRD diikuti |
 | `GET` | `/api/laporan/kerugian-stok/ringkasan` | pengelola, tu, kepsek | §9.5 — *Kerugian stok: Pengelola, Bendahara, Kepsek* | PRD diikuti |
 | `GET` | `/api/laporan/pembatalan` | tu, admin | §9.5 — *Pembatalan kasir: Bendahara, Admin* | PRD diikuti |
@@ -106,7 +95,6 @@ Batas per-subjek ditegakkan di dalam `KontrolKartuController#ubahBlokir`.
 | `GET` | `/api/laporan/per-siswa` | tu, admin | §9.5 — *Per siswa: Bendahara, Admin* | PRD diikuti |
 | `GET` | `/api/laporan/rekonsiliasi` | tu, admin, kepsek | §9.5 — *Rekonsiliasi: Bendahara, Kepsek, Admin* | PRD diikuti |
 | `GET` | `/api/laporan/saldo-mengendap` | tu, admin, kepsek | §9.5 — *Saldo mengendap: Bendahara, Kepsek, Admin* | PRD diikuti |
-| `GET` | `/api/laporan/saldo-mengendap/kartu-tamu` | tu | §9.5 — *Kartu Tamu: TU, Bendahara* | PRD diikuti |
 | `GET` | `/api/laporan/saldo-mengendap/siswa` | tu, admin | §9.5 — *Saldo mengendap: Bendahara, Kepsek, Admin* | PRD diikuti |
 | `GET` | `/api/laporan/setoran-tu` | tu | §9.5 — *Setoran kas TU: Bendahara* | PRD diikuti |
 | `GET` | `/api/laporan/siswa/{siswaId}/riwayat` | tu, admin | §9.5 — *Per siswa: Bendahara, Admin* | PRD diikuti |
@@ -143,7 +131,6 @@ Batas per-subjek ditegakkan di dalam `KontrolKartuController#ubahBlokir`.
 | `GET` | `/api/stok/{menuId}/rekonsiliasi` | pengelola, tu, admin | §9.6 (read stok) | di luar keputusan #250 — dipertahankan |
 | `GET` | `/api/storage/file` | kasir, pengelola, tu, admin | — | di luar keputusan #250 — dipertahankan |
 | `POST` | `/api/storage/upload` | pengelola, tu, admin | — | di luar keputusan #250 — dipertahankan |
-| `POST` | `/api/webhook/{sumber}` | — | — | di luar keputusan #250 — dipertahankan |
 
 ## Catatan
 

@@ -155,7 +155,7 @@ class RefundSaldoServiceIT {
 
     private void isiSaldo(long siswaId, long nominal) {
         tx.executeWithoutResult(s -> ledger.kredit(PerintahMutasiSaldo.builder()
-                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).subjekId(siswaId)
+                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).siswaId(siswaId)
                 .jenis(JenisMutasiSaldo.TOPUP_TUNAI).nominal(nominal)
                 .idempotencyKey("seed-" + siswaId + "-" + System.nanoTime()).build()));
     }
@@ -175,7 +175,7 @@ class RefundSaldoServiceIT {
         assertThat(hasil.getNominal()).isEqualTo(35_000L);
         assertThat(hasil.getSaldoSetelah()).isZero();
         assertThat(hasil.isKartuDiblokir()).isTrue();
-        assertThat(ledger.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA_KELUAR)).isZero();
+        assertThat(ledger.saldo(SEKOLAH, SISWA_KELUAR)).isZero();
         assertThat(status.diblokir).contains(SISWA_KELUAR);
 
         String jenis = jdbc.queryForObject(
@@ -195,7 +195,7 @@ class RefundSaldoServiceIT {
         assertThat(pertama.isIdempoten()).isFalse();
         assertThat(kedua.isIdempoten()).isTrue();
         assertThat(kedua.getNominal()).isEqualTo(20_000L);
-        assertThat(ledger.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA_KELUAR)).isZero();
+        assertThat(ledger.saldo(SEKOLAH, SISWA_KELUAR)).isZero();
 
         Integer baris = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM saldo_ledger WHERE subjek_id = ? AND jenis = 'REFUND'",
@@ -226,8 +226,8 @@ class RefundSaldoServiceIT {
         assertThat(hasil.getNominal()).isEqualTo(12_000L);
         assertThat(hasil.getSaldoSetelah()).isZero();
         assertThat(hasil.getTujuanSubjekId()).isEqualTo(SISWA_SAUDARA);
-        assertThat(ledger.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA_KELUAR)).isZero();
-        assertThat(ledger.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA_SAUDARA)).isEqualTo(17_000L);
+        assertThat(ledger.saldo(SEKOLAH, SISWA_KELUAR)).isZero();
+        assertThat(ledger.saldo(SEKOLAH, SISWA_SAUDARA)).isEqualTo(17_000L);
         assertThat(status.diblokir).contains(SISWA_KELUAR);
 
         Integer transferRows = jdbc.queryForObject(
@@ -243,7 +243,7 @@ class RefundSaldoServiceIT {
         service.pindahKeSaudara(SEKOLAH, SISWA_KELUAR, SISWA_SAUDARA, "BA-2", null, 9L);
         service.pindahKeSaudara(SEKOLAH, SISWA_KELUAR, SISWA_SAUDARA, "BA-2", null, 9L);
 
-        assertThat(ledger.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA_SAUDARA)).isEqualTo(8_000L);
+        assertThat(ledger.saldo(SEKOLAH, SISWA_SAUDARA)).isEqualTo(8_000L);
 
         Integer transferRows = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM saldo_ledger WHERE jenis = 'TRANSFER'", Integer.class);
@@ -285,11 +285,11 @@ class RefundSaldoServiceIT {
         // SISWA_LAIN tidak diisi → tak ada baris saldo (tidak muncul).
 
         List<KandidatRefundItem> semua = service.daftarKandidat(SEKOLAH, false);
-        assertThat(semua).extracting(KandidatRefundItem::getSubjekId)
+        assertThat(semua).extracting(KandidatRefundItem::getSiswaId)
                 .containsExactlyInAnyOrder(SISWA_KELUAR, SISWA_SAUDARA);
 
         List<KandidatRefundItem> hanyaNonaktif = service.daftarKandidat(SEKOLAH, true);
-        assertThat(hanyaNonaktif).extracting(KandidatRefundItem::getSubjekId)
+        assertThat(hanyaNonaktif).extracting(KandidatRefundItem::getSiswaId)
                 .containsExactly(SISWA_KELUAR);
         assertThat(hanyaNonaktif.get(0).getTidakAktif()).isTrue();
     }
@@ -307,14 +307,14 @@ class RefundSaldoServiceIT {
         List<KandidatRefundItem> hasil = service.daftarKandidat(SEKOLAH, false);
 
         KandidatRefundItem keluar = hasil.stream()
-                .filter(k -> k.getSubjekId().equals(SISWA_KELUAR)).findFirst().orElseThrow();
+                .filter(k -> k.getSiswaId().equals(SISWA_KELUAR)).findFirst().orElseThrow();
         assertThat(keluar.getNis()).isEqualTo("2023001");
         assertThat(keluar.getNama()).isEqualTo("Maya Sari");
         assertThat(keluar.getKelas()).isEqualTo("9C");
         assertThat(keluar.getTidakAktif()).isTrue();
 
         KandidatRefundItem saudara = hasil.stream()
-                .filter(k -> k.getSubjekId().equals(SISWA_SAUDARA)).findFirst().orElseThrow();
+                .filter(k -> k.getSiswaId().equals(SISWA_SAUDARA)).findFirst().orElseThrow();
         assertThat(saudara.getNis()).isNull();
         assertThat(saudara.getNama()).isNull();
         assertThat(saudara.getKelas()).isNull();

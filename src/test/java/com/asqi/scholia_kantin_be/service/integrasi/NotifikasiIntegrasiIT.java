@@ -88,7 +88,7 @@ class NotifikasiIntegrasiIT {
         jdbc.update("INSERT INTO titik_kasir (id, sekolah_id, nama, is_active, created_at, updated_at) "
                 + "VALUES (?, ?, 'Kasir 1', true, now(), now())", TITIK, SEKOLAH);
         tx.executeWithoutResult(s -> ledgerSaldo.kredit(PerintahMutasiSaldo.builder()
-                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).subjekId(SISWA)
+                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).siswaId(SISWA)
                 .jenis(JenisMutasiSaldo.TOPUP_TUNAI).nominal(50_000)
                 .idempotencyKey("seed-" + System.nanoTime()).build()));
         tx.executeWithoutResult(s -> ledgerStok.masukBarang(SEKOLAH, MENU_NASI, 20, 4_000,
@@ -120,7 +120,7 @@ class NotifikasiIntegrasiIT {
         PerintahNotifikasi p = fakeNotifikasi.satu(JenisNotifikasi.BELANJA);
         assertThat(p.getSekolahId()).isEqualTo(SEKOLAH);
         assertThat(p.getSubjekTipe()).isEqualTo(SubjekTipe.SISWA);
-        assertThat(p.getSubjekId()).isEqualTo(SISWA);
+        assertThat(p.getSiswaId()).isEqualTo(SISWA);
         assertThat(p.getNominal()).isEqualTo(16_000L);
         assertThat(p.getSaldoSetelah()).isEqualTo(34_000L);
         assertThat(p.getReferensiId()).isNotBlank();
@@ -135,7 +135,7 @@ class NotifikasiIntegrasiIT {
                 NomorStruk.dari(tap.getTransaksiId(), tap.getWaktu()));
 
         PerintahNotifikasi p = fakeNotifikasi.satu(JenisNotifikasi.VOID);
-        assertThat(p.getSubjekId()).isEqualTo(SISWA);
+        assertThat(p.getSiswaId()).isEqualTo(SISWA);
         assertThat(p.getNominal()).isEqualTo(8_000L);
         assertThat(p.getRingkasan()).contains("dibatalkan");
     }
@@ -180,7 +180,7 @@ class NotifikasiIntegrasiIT {
         TapResponse resp = tap("tap-3", 1); // tidak boleh melempar
 
         assertThat(resp.getSaldoSisa()).isEqualTo(42_000L);
-        assertThat(ledgerSaldo.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA)).isEqualTo(42_000L);
+        assertThat(ledgerSaldo.saldo(SEKOLAH, SISWA)).isEqualTo(42_000L);
         assertThat(fakeNotifikasi.terkirim).isEmpty();
     }
 
@@ -231,7 +231,7 @@ class NotifikasiIntegrasiIT {
                 if (UID.equals(rfidUid) && sekolahId == SEKOLAH) {
                     return InfoKartu.builder()
                             .dikenal(true).diblokir(false)
-                            .subjekTipe(SubjekTipe.SISWA).subjekId(SISWA)
+                            .subjekTipe(SubjekTipe.SISWA).siswaId(SISWA)
                             .nama("Budi").kelas("5A")
                             .limitHarian(1_000_000L)
                             .build();

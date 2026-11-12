@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
+import com.asqi.scholia_kantin_be.helper.TandaTanganHmac;
+
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
@@ -42,7 +44,7 @@ class InternalSignatureFilterTest {
 
     private MockHttpServletRequest requestSah() {
         long ts = Instant.now().getEpochSecond();
-        String ttd = TandaTanganWebhook.hitung(RAHASIA, String.valueOf(ts), BADAN);
+        String ttd = TandaTanganHmac.hitung(RAHASIA, String.valueOf(ts), BADAN);
         MockHttpServletRequest r = new MockHttpServletRequest(
                 "GET", "/api/internal/kartu-tamu/cek-uid");
         r.setRemoteAddr("203.0.113.7");
@@ -85,7 +87,7 @@ class InternalSignatureFilterTest {
         MockHttpServletRequest r = new MockHttpServletRequest(
                 "GET", "/api/internal/kartu-tamu/cek-uid");
         r.addHeader("X-Internal-Timestamp", String.valueOf(tsLama));
-        r.addHeader("X-Internal-Signature", TandaTanganWebhook.hitung(RAHASIA, String.valueOf(tsLama), BADAN));
+        r.addHeader("X-Internal-Signature", TandaTanganHmac.hitung(RAHASIA, String.valueOf(tsLama), BADAN));
 
         FilterChain chain = mock(FilterChain.class);
         MockHttpServletResponse resp = new MockHttpServletResponse();
@@ -133,7 +135,7 @@ class InternalSignatureFilterTest {
         long ts = Instant.now().getEpochSecond();
         r.addHeader("X-Internal-Timestamp", String.valueOf(ts));
         r.addHeader("X-Internal-Signature",
-                TandaTanganWebhook.hitung("rahasia-penyerang", String.valueOf(ts), BADAN));
+                TandaTanganHmac.hitung("rahasia-penyerang", String.valueOf(ts), BADAN));
 
         FilterChain chain = mock(FilterChain.class);
         MockHttpServletResponse resp = new MockHttpServletResponse();

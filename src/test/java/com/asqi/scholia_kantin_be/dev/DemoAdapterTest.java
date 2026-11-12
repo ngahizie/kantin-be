@@ -51,7 +51,7 @@ class DemoAdapterTest {
                 .sekolahId(1L)
                 .jenis(JenisNotifikasi.BELANJA)
                 .subjekTipe(SubjekTipe.SISWA)
-                .subjekId(10L)
+                .siswaId(10L)
                 .nominal(8000L)
                 .ringkasan("Budi belanja Rp8.000 di Kantin")
                 .build();

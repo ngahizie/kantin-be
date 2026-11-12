@@ -54,7 +54,7 @@ class AuditKeamananSaldoIT {
         return PerintahMutasiSaldo.builder()
                 .sekolahId(sekolahId)
                 .subjekTipe(SubjekTipe.SISWA)
-                .subjekId(subjekId)
+                .siswaId(subjekId)
                 .jenis(JenisMutasiSaldo.TOPUP_TUNAI)
                 .nominal(nominal)
                 .idempotencyKey("TOPUP-TUNAI-" + referensiId)
@@ -79,10 +79,10 @@ class AuditKeamananSaldoIT {
                 .as("top-up sekolah B harus mutasi BARU, bukan replay milik sekolah A")
                 .isFalse();
 
-        assertThat(ledger.saldo(SEKOLAH_B, SubjekTipe.SISWA, subjekB))
+        assertThat(ledger.saldo(SEKOLAH_B, subjekB))
                 .as("saldo sekolah B harus 30000 (top-up-nya sendiri)")
                 .isEqualTo(30_000L);
-        assertThat(ledger.saldo(SEKOLAH_A, SubjekTipe.SISWA, subjekA))
+        assertThat(ledger.saldo(SEKOLAH_A, subjekA))
                 .as("saldo sekolah A tidak boleh berubah oleh aksi sekolah B")
                 .isEqualTo(50_000L);
         assertThat(hasilB.getSaldoSetelah())

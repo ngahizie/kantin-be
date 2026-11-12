@@ -219,14 +219,10 @@ class RbacKepsekGuardTest {
                 .doesNotContain(AktorKantin.KEPSEK);
         assertThat(peranPada(LaporanController.class, "pembatalan", PERIODE))
                 .doesNotContain(AktorKantin.KEPSEK);
-        assertThat(peranPada(LaporanController.class, "kartuTamu"))
-                .doesNotContain(AktorKantin.KEPSEK);
-        assertThat(peranPada(LaporanController.class, "saldoKartuTamu"))
-                .doesNotContain(AktorKantin.KEPSEK);
         assertThat(peranPada(LaporanController.class, "setoranTu", LocalDate.class))
                 .doesNotContain(AktorKantin.KEPSEK);
         assertThat(peranPada(LaporanController.class, "perSiswa",
-                SubjekTipe.class, Long.class, LocalDate.class, OffsetDateTime.class, OffsetDateTime.class))
+                Long.class, LocalDate.class, OffsetDateTime.class, OffsetDateTime.class))
                 .doesNotContain(AktorKantin.KEPSEK);
         assertThat(peranPada(LaporanController.class, "riwayatSiswa", Long.class, OffsetDateTime.class, OffsetDateTime.class))
                 .doesNotContain(AktorKantin.KEPSEK);
@@ -243,7 +239,6 @@ class RbacKepsekGuardTest {
     void eksporKepsekBolehDimensiPenjualan() {
         LaporanExportService exportService = org.mockito.Mockito.mock(LaporanExportService.class);
         org.mockito.Mockito.when(exportService.ekspor(
-                        org.mockito.Mockito.anyLong(),
                         org.mockito.Mockito.any(),
                         org.mockito.Mockito.any(),
                         org.mockito.Mockito.any(),
@@ -259,7 +254,7 @@ class RbacKepsekGuardTest {
 
         for (JenisLaporan jenis : List.of(JenisLaporan.PENJUALAN_TITIK, JenisLaporan.PENJUALAN_PETUGAS, JenisLaporan.PENJUALAN_KASIR)) {
             org.assertj.core.api.Assertions.assertThatNoException()
-                    .isThrownBy(() -> controller.ekspor(jenis, null, null, null, null, null, null));
+                    .isThrownBy(() -> controller.ekspor(jenis, null, null, null, null, null));
         }
     }
 
@@ -280,7 +275,7 @@ class RbacKepsekGuardTest {
         );
 
         for (JenisLaporan jenis : dilarang) {
-            assertThatThrownBy(() -> controller.ekspor(jenis, null, null, null, null, null, null))
+            assertThatThrownBy(() -> controller.ekspor(jenis, null, null, null, null, null))
                     .isInstanceOf(ForbiddenException.class);
         }
     }

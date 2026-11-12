@@ -61,19 +61,18 @@ class BatasSaldoTopUpIT {
         jdbc.execute("TRUNCATE TABLE saldo_ledger, saldo_cache, sekolah_kantin_config, audit_log CASCADE");
     }
 
-    private void aturBatas(Long minTopup, Long maksTopup, Long batasSiswa, Long batasKartu) {
+    private void aturBatas(Long minTopup, Long maksTopup, Long batasSiswa) {
         PengaturanKantinRequest req = new PengaturanKantinRequest();
         req.setMinTopup(minTopup);
         req.setMaksTopup(maksTopup);
         req.setBatasSaldoSiswa(batasSiswa);
-        req.setBatasSaldoKartuTamu(batasKartu);
         pengaturan.ubah(SEKOLAH, req, 99L);
     }
 
     @Test
     @DisplayName("#112: top-up di bawah minimum ditolak")
     void tolakDiBawahMinimum() {
-        aturBatas(10_000L, 1_000_000L, null, null);
+        aturBatas(10_000L, 1_000_000L, null);
 
         assertThatThrownBy(() -> saldoTopUp.topUpTunai(SEKOLAH, SubjekTipe.SISWA, SISWA,
                 5_000L, "Ibu", "TU-1", 99L))
@@ -84,7 +83,7 @@ class BatasSaldoTopUpIT {
     @Test
     @DisplayName("#112: top-up di atas maksimum ditolak")
     void tolakDiAtasMaksimum() {
-        aturBatas(10_000L, 100_000L, null, null);
+        aturBatas(10_000L, 100_000L, null);
 
         assertThatThrownBy(() -> saldoTopUp.topUpTunai(SEKOLAH, SubjekTipe.SISWA, SISWA,
                 150_000L, "Ibu", "TU-2", 99L))
@@ -95,7 +94,7 @@ class BatasSaldoTopUpIT {
     @Test
     @DisplayName("#112: top-up melebihi batas saldo siswa ditolak; saldo tidak bertambah")
     void tolakMelebihiBatasSaldoSiswa() {
-        aturBatas(1_000L, 1_000_000L, 100_000L, null);
+        aturBatas(1_000L, 1_000_000L, 100_000L);
         saldoTopUp.topUpTunai(SEKOLAH, SubjekTipe.SISWA, SISWA, 90_000L, "Ibu", "TU-3", 99L);
 
         assertThatThrownBy(() -> saldoTopUp.topUpTunai(SEKOLAH, SubjekTipe.SISWA, SISWA,
@@ -104,36 +103,21 @@ class BatasSaldoTopUpIT {
                 .hasMessageContaining("batas maksimum");
 
         // Top-up kedua di-rollback: saldo tetap 90.000 (bukan 110.000).
-        assertThat(ledgerSaldo.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA)).isEqualTo(90_000L);
+        assertThat(ledgerSaldo.saldo(SEKOLAH, SISWA)).isEqualTo(90_000L);
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM saldo_ledger WHERE subjek_tipe = 'SISWA' AND subjek_id = ?",
                 Integer.class, SISWA)).isEqualTo(1);
     }
 
-    @Test
-    @DisplayName("#112: batas saldo Kartu Tamu terpisah dari batas siswa")
-    void batasKartuTamuTerpisah() {
-        aturBatas(1_000L, 1_000_000L, 1_000_000L, 50_000L);
-
-        // Kartu tamu dibatasi 50.000 → top-up 60.000 ditolak.
-        assertThatThrownBy(() -> saldoTopUp.topUpTunai(SEKOLAH, SubjekTipe.KARTU_TAMU, KARTU_TAMU,
-                60_000L, "Guru", "TU-5", 99L))
-                .isInstanceOf(ConflictException.class)
-                .hasMessageContaining("batas maksimum");
-
-        // Siswa dengan nominal sama boleh (batasnya 1.000.000).
-        saldoTopUp.topUpTunai(SEKOLAH, SubjekTipe.SISWA, SISWA, 60_000L, "Ibu", "TU-6", 99L);
-        assertThat(ledgerSaldo.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA)).isEqualTo(60_000L);
-    }
 
     @Test
     @DisplayName("#112: top-up tepat menyentuh batas tetap diterima")
     void tepatDiBatasDiterima() {
-        aturBatas(1_000L, 1_000_000L, 100_000L, null);
+        aturBatas(1_000L, 1_000_000L, 100_000L);
 
         saldoTopUp.topUpTunai(SEKOLAH, SubjekTipe.SISWA, SISWA, 100_000L, "Ibu", "TU-7", 99L);
 
-        assertThat(ledgerSaldo.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA)).isEqualTo(100_000L);
+        assertThat(ledgerSaldo.saldo(SEKOLAH, SISWA)).isEqualTo(100_000L);
     }
 
     @Test
@@ -142,13 +126,13 @@ class BatasSaldoTopUpIT {
         // Tidak ada baris sekolah_kantin_config → semua null.
         saldoTopUp.topUpTunai(SEKOLAH_LAIN, SubjekTipe.SISWA, SISWA, 5_000_000L, "Ibu", "TU-8", 99L);
 
-        assertThat(ledgerSaldo.saldo(SEKOLAH_LAIN, SubjekTipe.SISWA, SISWA)).isEqualTo(5_000_000L);
+        assertThat(ledgerSaldo.saldo(SEKOLAH_LAIN, SISWA)).isEqualTo(5_000_000L);
     }
 
     @Test
     @DisplayName("#112: batas ditegakkan juga pada top-up online (webhook)")
     void batasBerlakuTopUpOnline() {
-        aturBatas(null, null, 100_000L, null);
+        aturBatas(null, null, 100_000L);
 
         assertThatThrownBy(() -> saldoTopUp.topUpOnline(SEKOLAH, SubjekTipe.SISWA, SISWA,
                 120_000L, "PG-REF-1", "Ortu", "QRIS", null))
@@ -161,7 +145,7 @@ class BatasSaldoTopUpIT {
     void batasDitegakkanDiLedgerLangsung() {
         // Seed 20.000 (di bawah batas 25.000) → sukses.
         tx.executeWithoutResult(s -> ledgerSaldo.kredit(PerintahMutasiSaldo.builder()
-                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).subjekId(SISWA)
+                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).siswaId(SISWA)
                 .jenis(JenisMutasiSaldo.KOREKSI).nominal(20_000)
                 .batasSaldoMaksimum(25_000L)
                 .idempotencyKey("seed-" + System.nanoTime()).build()));
@@ -169,7 +153,7 @@ class BatasSaldoTopUpIT {
         // Kredit 10.000 lagi → 30.000 > 25.000 → ditolak di seksi terkunci.
         assertThatThrownBy(() -> tx.executeWithoutResult(s -> ledgerSaldo.kredit(
                 PerintahMutasiSaldo.builder()
-                        .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).subjekId(SISWA)
+                        .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).siswaId(SISWA)
                         .jenis(JenisMutasiSaldo.KOREKSI).nominal(10_000)
                         .batasSaldoMaksimum(25_000L)
                         .idempotencyKey("k-" + System.nanoTime()).build())))
@@ -177,6 +161,6 @@ class BatasSaldoTopUpIT {
                 .hasMessageContaining("batas maksimum");
 
         // Saldo tetap 20.000 (kredit kedua di-rollback).
-        assertThat(ledgerSaldo.saldo(SEKOLAH, SubjekTipe.SISWA, SISWA)).isEqualTo(20_000L);
+        assertThat(ledgerSaldo.saldo(SEKOLAH, SISWA)).isEqualTo(20_000L);
     }
 }
