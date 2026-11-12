@@ -38,6 +38,10 @@ import java.util.Objects;
  * <ol>
  *   <li>Header {@code Authorization: Bearer &lt;token&gt;} — jalur utama (klien API).</li>
  *   <li>Cookie (nama dari {@code jwt.cookieName}) — kompatibilitas FE SKOOLIA.</li>
+ *   <li>Cookie {@value #COOKIE_FE} — cookie yang ditulis kantin-fe
+ *       ({@code src/stores/auth-store.ts}). Diperlukan agar {@code <img>} bisa
+ *       memuat {@code /api/storage/file} karena tag gambar tidak mengirim header
+ *       {@code Authorization}.</li>
  * </ol>
  *
  * <p>kantin-be tidak tahu issuer dari token mentah, jadi filter mencoba
@@ -57,6 +61,9 @@ import java.util.Objects;
 public class JwtAuthTokenFilter extends OncePerRequestFilter {
 
     private static final String BEARER = "Bearer ";
+
+    /** Cookie token milik kantin-fe; nilainya JSON string (berkutip). */
+    static final String COOKIE_FE = "kantin_access_token";
 
     private final KantinJwtDecoder decoder;
     private final KlaimResolver klaimResolver;
@@ -153,15 +160,55 @@ public class JwtAuthTokenFilter extends OncePerRequestFilter {
                 return token;
             }
         }
-        Cookie[] cookies = request.getCookies();
-        if (cookies != null) {
-            for (Cookie c : cookies) {
-                if (Objects.equals(c.getName(), configValues.getCookieName())) {
-                    return c.getValue();
+        return tokenDariCookie(request.getCookies(), configValues.getCookieName());
+    }
+
+    /**
+     * Ambil token dari cookie: nama resmi ({@code jwt.cookieName}) lebih dulu,
+     * lalu cookie milik kantin-fe ({@value #COOKIE_FE}).
+     *
+     * <p>Cookie FE menyimpan nilainya sebagai JSON string ({@code "eyJ..."}),
+     * jadi kutip pembungkusnya dibuang di sini.
+     *
+     * @param cookies    cookie permintaan (boleh {@code null})
+     * @param namaUtama  nama cookie resmi dari konfigurasi
+     * @return token siap verifikasi, atau {@code null} bila tidak ada
+     */
+    static String tokenDariCookie(Cookie[] cookies, String namaUtama) {
+        if (cookies == null) {
+            return null;
+        }
+        for (Cookie c : cookies) {
+            if (Objects.equals(c.getName(), namaUtama)) {
+                String token = bersihkanNilaiCookie(c.getValue());
+                if (token != null) {
+                    return token;
                 }
             }
         }
+        for (Cookie c : cookies) {
+            if (Objects.equals(c.getName(), COOKIE_FE)) {
+                return bersihkanNilaiCookie(c.getValue());
+            }
+        }
         return null;
+    }
+
+    /**
+     * Normalisasi nilai cookie token: buang spasi dan kutip JSON pembungkus.
+     *
+     * @param nilai nilai mentah cookie
+     * @return token bersih, atau {@code null} bila kosong
+     */
+    static String bersihkanNilaiCookie(String nilai) {
+        if (nilai == null) {
+            return null;
+        }
+        String bersih = nilai.trim();
+        if (bersih.length() >= 2 && bersih.startsWith("\"") && bersih.endsWith("\"")) {
+            bersih = bersih.substring(1, bersih.length() - 1).trim();
+        }
+        return bersih.isEmpty() ? null : bersih;
     }
 
     private void tolak(HttpServletResponse response, int status, String message) throws IOException {
