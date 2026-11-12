@@ -34,7 +34,7 @@ import java.util.Optional;
  * <ul>
  *   <li><b>Append-only</b> pada {@code mutasi_stok}; stok = turunan (Σ MASUK − Σ KELUAR).</li>
  *   <li><b>Stok tak boleh minus</b> — diperiksa di sini (409) + CHECK DB.</li>
- *   <li><b>Locking</b> {@code SELECT ... FOR UPDATE} pada {@code stok_cache} saat
+ *   <li><b>Locking</b> {@code SELECT ... FOR UPDATE} pada {@code stok} saat
  *       penjualan, sehingga dua kasir tak menjual stok yang sama bersamaan.</li>
  *   <li><b>HPP rata-rata tertimbang</b> dihitung ulang saat barang masuk; nilai
  *       saat transaksi disimpan sebagai snapshot (lihat {@link HppService}).</li>
