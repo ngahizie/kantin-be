@@ -102,10 +102,10 @@
 
 | Method | Path | Peran | Keterangan |
 |---|---|---|---|
-| `GET` | `/api/katalog/kategori` | TU, admin, pengelola, kasir | Daftar kategori. Query: `hanyaAktif` |
+| `GET` | `/api/katalog/kategori` | TU, admin, pengelola, kasir | Daftar kategori yang belum dihapus (+ `jumlahItem`). Query: `hanyaAktif` |
 | `POST` | `/api/katalog/kategori` | pengelola | Buat kategori |
-| `PUT` | `/api/katalog/kategori/{kategoriId}` | pengelola | Ubah kategori |
-| `DELETE` | `/api/katalog/kategori/{kategoriId}` | pengelola | Nonaktifkan (soft delete) — gagal bila masih dipakai item aktif |
+| `PUT` | `/api/katalog/kategori/{kategoriId}` | pengelola | Ubah kategori (termasuk toggle aktif/nonaktif) |
+| `DELETE` | `/api/katalog/kategori/{kategoriId}` | pengelola | Hapus kategori (`deleted_at`) — hilang dari daftar, nama boleh dipakai ulang; gagal bila masih ada menu terkait |
 | `GET` | `/api/katalog/menu` | TU, admin, pengelola, kasir | Daftar item (+ `stokBerjalan`, satu query batch anti-N+1). Query: `kategoriId?`, `hanyaAktif` |
 | `GET` | `/api/katalog/menu/{menuId}` | TU, admin, pengelola, kasir | Detail item (+ `stokBerjalan`) |
 | `POST` | `/api/katalog/menu` | pengelola | Buat item |

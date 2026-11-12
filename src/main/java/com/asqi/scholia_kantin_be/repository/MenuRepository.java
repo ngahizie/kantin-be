@@ -64,6 +64,18 @@ public interface MenuRepository extends JpaRepository<Menu, Long>, JpaSpecificat
     /** Jumlah item aktif dan belum dihapus dalam satu kategori. */
     long countByKategoriIdAndIsActiveTrueAndDeletedAtIsNull(Long kategoriId);
 
+    /** Semua menu terkait (aktif maupun nonaktif) yang belum dihapus. */
+    long countByKategoriIdAndDeletedAtIsNull(Long kategoriId);
+
+    /**
+     * Jumlah menu per kategori dalam satu sekolah (hanya yang belum dihapus) —
+     * satu query untuk melengkapi {@code jumlahItem} di daftar kategori.
+     */
+    @Query("SELECT m.kategoriId, COUNT(m) FROM Menu m "
+            + "WHERE m.sekolahId = :sekolahId AND m.deletedAt IS NULL "
+            + "GROUP BY m.kategoriId")
+    List<Object[]> hitungMenuPerKategori(@Param("sekolahId") Long sekolahId);
+
     /** Apakah kode barcode sudah dipakai menu lain yang belum dihapus dalam tenant ini. */
     boolean existsBySekolahIdAndKodeBarcodeAndDeletedAtIsNull(Long sekolahId, String kodeBarcode);
 

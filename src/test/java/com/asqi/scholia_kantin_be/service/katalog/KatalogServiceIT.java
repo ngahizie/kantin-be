@@ -96,15 +96,65 @@ class KatalogServiceIT {
     }
 
     @Test
-    @DisplayName("kategori yang masih dipakai item aktif tidak boleh dinonaktifkan")
-    void kategoriTerpakaiTidakBisaDinonaktifkan() {
+    @DisplayName("kategori yang masih punya menu (aktif maupun nonaktif) tidak boleh dihapus")
+    void kategoriTerpakaiTidakBisaDihapus() {
         var kategori = katalog.buatKategori(SEKOLAH, "Minuman", 1, 1L);
         katalog.buatMenu(SEKOLAH, kategori.getId(), "Teh Manis",
                 3_000L, SatuanMenu.PCS, null, 0, 1L);
 
-        assertThatThrownBy(() -> katalog.nonaktifkanKategori(SEKOLAH, kategori.getId(), 1L))
+        assertThatThrownBy(() -> katalog.hapusKategori(SEKOLAH, kategori.getId(), 1L))
                 .isInstanceOf(InvalidOperationException.class)
                 .hasMessageContaining("masih dipakai");
+    }
+
+    @Test
+    @DisplayName("menu nonaktif tetap menghalangi hapus kategori (tidak boleh menggantung)")
+    void kategoriDenganMenuNonaktifTidakBisaDihapus() {
+        var kategori = katalog.buatKategori(SEKOLAH, "Snack", 1, 1L);
+        var menu = katalog.buatMenu(SEKOLAH, kategori.getId(), "Keripik",
+                5_000L, SatuanMenu.PCS, null, 0, 1L);
+        katalog.nonaktifkanMenu(SEKOLAH, menu.getId(), 1L);
+
+        assertThatThrownBy(() -> katalog.hapusKategori(SEKOLAH, kategori.getId(), 1L))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("masih dipakai");
+    }
+
+    @Test
+    @DisplayName("hapus kategori kosong: hilang dari daftar & nama boleh dipakai ulang")
+    void hapusKategoriKosongHilangDanNamaBolehDipakaiUlang() {
+        var kategori = katalog.buatKategori(SEKOLAH, "Snack", 1, 1L);
+
+        katalog.hapusKategori(SEKOLAH, kategori.getId(), 1L);
+
+        assertThat(katalog.daftarKategori(SEKOLAH, false)).isEmpty();
+        assertThatThrownBy(() -> katalog.ubahKategori(SEKOLAH, kategori.getId(), "Snack2", 2, null, 1L))
+                .isInstanceOf(NotFoundEntity.class);
+
+        // Nama & urutan yang sama boleh dipakai kategori baru (partial unique).
+        var baru = katalog.buatKategori(SEKOLAH, "Snack", 1, 1L);
+        assertThat(baru.getId()).isNotEqualTo(kategori.getId());
+        assertThat(katalog.daftarKategori(SEKOLAH, false)).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("daftar kategori menyertakan jumlahItem (menu belum dihapus)")
+    void daftarKategoriMenyertakanJumlahItem() {
+        var makanan = katalog.buatKategori(SEKOLAH, "Makanan", 1, 1L);
+        var minuman = katalog.buatKategori(SEKOLAH, "Minuman", 2, 1L);
+        katalog.buatMenu(SEKOLAH, makanan.getId(), "Nasi Goreng", 15_000L, SatuanMenu.PORSI, null, 0, 1L);
+        var teh = katalog.buatMenu(SEKOLAH, makanan.getId(), "Teh", 3_000L, SatuanMenu.PCS, null, 0, 1L);
+        katalog.hapusMenu(SEKOLAH, teh.getId(), 1L);
+
+        var hasil = katalog.daftarKategori(SEKOLAH, false);
+
+        assertThat(hasil).hasSize(2);
+        assertThat(hasil).filteredOn(k -> k.getNama().equals("Makanan"))
+                .singleElement()
+                .satisfies(k -> assertThat(k.getJumlahItem()).isEqualTo(1L));
+        assertThat(hasil).filteredOn(k -> k.getNama().equals("Minuman"))
+                .singleElement()
+                .satisfies(k -> assertThat(k.getJumlahItem()).isZero());
     }
 
     @Test
@@ -230,9 +280,10 @@ class KatalogServiceIT {
                 null, null, null, null, true, 1L))
                 .isInstanceOf(NotFoundEntity.class);
 
-        // Kategori bisa dinonaktifkan karena satu-satunya itemnya sudah dihapus.
-        var katNonaktif = katalog.nonaktifkanKategori(SEKOLAH, kategori.getId(), 1L);
-        assertThat(katNonaktif.getIsActive()).isFalse();
+        // Kategori bisa dihapus karena satu-satunya itemnya sudah dihapus.
+        var katTerhapus = katalog.hapusKategori(SEKOLAH, kategori.getId(), 1L);
+        assertThat(katTerhapus.getJumlahItem()).isZero();
+        assertThat(katalog.daftarKategori(SEKOLAH, false)).isEmpty();
 
         // Lookup riwayat transaksi lama tetap mempertahankan nama sambil menandai nonaktif.
         InfoMenu info = lookup.cari(SEKOLAH, menu.getId());
