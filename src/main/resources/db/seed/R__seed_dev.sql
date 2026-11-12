@@ -30,7 +30,7 @@ insert into sekolah (id, nama, npsn, alamat, aktif) values
   (10, 'SMP Negeri 10 Skoolia', '20260010', 'Jl. Diponegoro No. 10', true);
 
 -- 2. PENGGUNA — 12 akun, password: Kantin#2026
-insert into pengguna (id, sekolah_id, nama, username, peran, password_hash, aktif) values
+insert into pengguna (id, sekolah_id, nama, username, role, password_hash, aktif) values
   (1, 1, 'Wibisana Bama', 'kepsek1', 'KEPSEK', '$2a$10$LGt9ZvDWW97jh0ozfFEIrOlwkp.DQ7HSpq7Eg/VxbHLn3UDuD.Xem', true),
   (2, 1, 'Sri Wahyuni', 'tu1', 'TATA_USAHA', '$2a$10$LGt9ZvDWW97jh0ozfFEIrOlwkp.DQ7HSpq7Eg/VxbHLn3UDuD.Xem', true),
   (3, 1, 'Deryl Fabiensyah', 'pengelola1', 'PENGELOLA', '$2a$10$LGt9ZvDWW97jh0ozfFEIrOlwkp.DQ7HSpq7Eg/VxbHLn3UDuD.Xem', true),
@@ -130,7 +130,7 @@ insert into kartu (uid, sekolah_id, siswa_id, nomor_kartu, aktif) values
   ('04BB003001', 10, 3001, 'UJI-RFID-3001', true);
 
 -- 6. KATEGORI MENU
-insert into kategori_menu (id, sekolah_id, nama, urutan, aktif) values
+insert into kategori_menu (id, sekolah_id, nama, urutan, is_active) values
   (1, 1, 'Makanan', 1, true),
   (2, 1, 'Minuman', 2, true),
   (3, 1, 'Snack', 3, true),
@@ -141,34 +141,34 @@ insert into kategori_menu (id, sekolah_id, nama, urutan, aktif) values
   (14, 10, 'Alat Tulis', 4, true);
 
 -- 7. MENU — 12 menu per sekolah (foto_url dari data lama)
-insert into menu (id, sekolah_id, kategori_id, nama, kode_barcode, satuan, foto_url, harga_jual, hpp, stok_minimum, aktif) values
-  (1, 1, 1, 'Nasi Goreng', 'MNU-0001', 'PORSI', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/3/34/Nasi_goreng_pattaya_20231028_120535.jpg/500px-Nasi_goreng_pattaya_20231028_120535.jpg', 12000, 7000, 5, true),
-  (2, 1, 1, 'Mie Ayam', 'MNU-0002', 'PORSI', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/8/82/Mi_ayam_jamur.JPG/500px-Mi_ayam_jamur.JPG', 10000, 6000, 5, true),
-  (3, 1, 2, 'Es Teh Manis', 'MNU-0003', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d4/Iced_lychee_tea_and_Es_teh_manis_-_Bali_2025-09-25.jpg/500px-Iced_lychee_tea_and_Es_teh_manis_-_Bali_2025-09-25.jpg', 3000, 1000, 10, true),
-  (4, 1, 2, 'Air Mineral', 'MNU-0004', 'BOTOL', 'https://upload.wikimedia.org/wikipedia/commons/0/02/Stilles_Mineralwasser.jpg', 4000, 2000, 10, true),
-  (5, 1, 1, 'Ayam Geprek', 'MNU-0005', 'PORSI', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5c/Ayam_Geprek_Uyat.jpg/500px-Ayam_Geprek_Uyat.jpg', 13000, 9000, 5, true),
-  (6, 1, 3, 'Keripik', 'MNU-0006', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/7/70/Keripik_sanjay.JPG/500px-Keripik_sanjay.JPG', 5000, 3000, 10, true),
-  (7, 1, 3, 'Roti Bakar', 'MNU-0007', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1a/Roti_bakar_kekinian.jpg/500px-Roti_bakar_kekinian.jpg', 8000, 5000, 5, true),
-  (8, 1, 2, 'Susu Kotak', 'MNU-0008', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f8/2025.04.10_Milk_Glass_Sugar_Bowl_and_Antique_Glass_Creamer.jpg/500px-2025.04.10_Milk_Glass_Sugar_Bowl_and_Antique_Glass_Creamer.jpg', 6000, 4000, 10, true),
-  (9, 1, 4, 'Pulpen', 'MNU-0009', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7b/Fountain_pen_writing_%28literacy%29.jpg/500px-Fountain_pen_writing_%28literacy%29.jpg', 3000, 2000, 20, true),
-  (10, 1, 4, 'Buku Tulis', 'MNU-0010', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f0/Notebook_writing.jpg/500px-Notebook_writing.jpg', 7000, 5000, 10, true),
-  (11, 1, 1, 'Bakso', 'MNU-0011', 'PORSI', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6e/Bakso_Indonesian_Meatball_Soup_from_Solo.jpg/500px-Bakso_Indonesian_Meatball_Soup_from_Solo.jpg', 11000, 7000, 5, true),
-  (12, 1, 2, 'Jus Jeruk', 'MNU-0012', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/6/67/Orange_juice_1_edit1.jpg/500px-Orange_juice_1_edit1.jpg', 7000, 5000, 5, true),
-  (1000, 10, 11, 'Nasi Goreng', 'MNU-1000', 'PORSI', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/3/34/Nasi_goreng_pattaya_20231028_120535.jpg/500px-Nasi_goreng_pattaya_20231028_120535.jpg', 12000, 7000, 5, true),
-  (1001, 10, 11, 'Mie Ayam', 'MNU-1001', 'PORSI', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/8/82/Mi_ayam_jamur.JPG/500px-Mi_ayam_jamur.JPG', 10000, 6000, 5, true),
-  (1002, 10, 12, 'Es Teh Manis', 'MNU-1002', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d4/Iced_lychee_tea_and_Es_teh_manis_-_Bali_2025-09-25.jpg/500px-Iced_lychee_tea_and_Es_teh_manis_-_Bali_2025-09-25.jpg', 3000, 1000, 10, true),
-  (1003, 10, 12, 'Air Mineral', 'MNU-1003', 'BOTOL', 'https://upload.wikimedia.org/wikipedia/commons/0/02/Stilles_Mineralwasser.jpg', 4000, 2000, 10, true),
-  (1004, 10, 11, 'Ayam Geprek', 'MNU-1004', 'PORSI', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5c/Ayam_Geprek_Uyat.jpg/500px-Ayam_Geprek_Uyat.jpg', 13000, 9000, 5, true),
-  (1005, 10, 13, 'Keripik', 'MNU-1005', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/7/70/Keripik_sanjay.JPG/500px-Keripik_sanjay.JPG', 5000, 3000, 10, true),
-  (1006, 10, 13, 'Roti Bakar', 'MNU-1006', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1a/Roti_bakar_kekinian.jpg/500px-Roti_bakar_kekinian.jpg', 8000, 5000, 5, true),
-  (1007, 10, 12, 'Susu Kotak', 'MNU-1007', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f8/2025.04.10_Milk_Glass_Sugar_Bowl_and_Antique_Glass_Creamer.jpg/500px-2025.04.10_Milk_Glass_Sugar_Bowl_and_Antique_Glass_Creamer.jpg', 6000, 4000, 10, true),
-  (1008, 10, 14, 'Pulpen', 'MNU-1008', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7b/Fountain_pen_writing_%28literacy%29.jpg/500px-Fountain_pen_writing_%28literacy%29.jpg', 3000, 2000, 20, true),
-  (1009, 10, 14, 'Buku Tulis', 'MNU-1009', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f0/Notebook_writing.jpg/500px-Notebook_writing.jpg', 7000, 5000, 10, true),
-  (1010, 10, 11, 'Bakso', 'MNU-1010', 'PORSI', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6e/Bakso_Indonesian_Meatball_Soup_from_Solo.jpg/500px-Bakso_Indonesian_Meatball_Soup_from_Solo.jpg', 11000, 7000, 5, true),
-  (1011, 10, 12, 'Jus Jeruk', 'MNU-1011', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/6/67/Orange_juice_1_edit1.jpg/500px-Orange_juice_1_edit1.jpg', 7000, 5000, 5, true);
+insert into menu (id, sekolah_id, kategori_id, nama, kode_barcode, satuan, foto_url, harga_jual, stok_minimum, is_active) values
+  (1, 1, 1, 'Nasi Goreng', 'MNU-0001', 'PORSI', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/3/34/Nasi_goreng_pattaya_20231028_120535.jpg/500px-Nasi_goreng_pattaya_20231028_120535.jpg', 12000, 5, true),
+  (2, 1, 1, 'Mie Ayam', 'MNU-0002', 'PORSI', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/8/82/Mi_ayam_jamur.JPG/500px-Mi_ayam_jamur.JPG', 10000, 5, true),
+  (3, 1, 2, 'Es Teh Manis', 'MNU-0003', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d4/Iced_lychee_tea_and_Es_teh_manis_-_Bali_2025-09-25.jpg/500px-Iced_lychee_tea_and_Es_teh_manis_-_Bali_2025-09-25.jpg', 3000, 10, true),
+  (4, 1, 2, 'Air Mineral', 'MNU-0004', 'BOTOL', 'https://upload.wikimedia.org/wikipedia/commons/0/02/Stilles_Mineralwasser.jpg', 4000, 10, true),
+  (5, 1, 1, 'Ayam Geprek', 'MNU-0005', 'PORSI', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5c/Ayam_Geprek_Uyat.jpg/500px-Ayam_Geprek_Uyat.jpg', 13000, 5, true),
+  (6, 1, 3, 'Keripik', 'MNU-0006', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/7/70/Keripik_sanjay.JPG/500px-Keripik_sanjay.JPG', 5000, 10, true),
+  (7, 1, 3, 'Roti Bakar', 'MNU-0007', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1a/Roti_bakar_kekinian.jpg/500px-Roti_bakar_kekinian.jpg', 8000, 5, true),
+  (8, 1, 2, 'Susu Kotak', 'MNU-0008', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f8/2025.04.10_Milk_Glass_Sugar_Bowl_and_Antique_Glass_Creamer.jpg/500px-2025.04.10_Milk_Glass_Sugar_Bowl_and_Antique_Glass_Creamer.jpg', 6000, 10, true),
+  (9, 1, 4, 'Pulpen', 'MNU-0009', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7b/Fountain_pen_writing_%28literacy%29.jpg/500px-Fountain_pen_writing_%28literacy%29.jpg', 3000, 20, true),
+  (10, 1, 4, 'Buku Tulis', 'MNU-0010', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f0/Notebook_writing.jpg/500px-Notebook_writing.jpg', 7000, 10, true),
+  (11, 1, 1, 'Bakso', 'MNU-0011', 'PORSI', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6e/Bakso_Indonesian_Meatball_Soup_from_Solo.jpg/500px-Bakso_Indonesian_Meatball_Soup_from_Solo.jpg', 11000, 5, true),
+  (12, 1, 2, 'Jus Jeruk', 'MNU-0012', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/6/67/Orange_juice_1_edit1.jpg/500px-Orange_juice_1_edit1.jpg', 7000, 5, true),
+  (1000, 10, 11, 'Nasi Goreng', 'MNU-1000', 'PORSI', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/3/34/Nasi_goreng_pattaya_20231028_120535.jpg/500px-Nasi_goreng_pattaya_20231028_120535.jpg', 12000, 5, true),
+  (1001, 10, 11, 'Mie Ayam', 'MNU-1001', 'PORSI', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/8/82/Mi_ayam_jamur.JPG/500px-Mi_ayam_jamur.JPG', 10000, 5, true),
+  (1002, 10, 12, 'Es Teh Manis', 'MNU-1002', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d4/Iced_lychee_tea_and_Es_teh_manis_-_Bali_2025-09-25.jpg/500px-Iced_lychee_tea_and_Es_teh_manis_-_Bali_2025-09-25.jpg', 3000, 10, true),
+  (1003, 10, 12, 'Air Mineral', 'MNU-1003', 'BOTOL', 'https://upload.wikimedia.org/wikipedia/commons/0/02/Stilles_Mineralwasser.jpg', 4000, 10, true),
+  (1004, 10, 11, 'Ayam Geprek', 'MNU-1004', 'PORSI', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5c/Ayam_Geprek_Uyat.jpg/500px-Ayam_Geprek_Uyat.jpg', 13000, 5, true),
+  (1005, 10, 13, 'Keripik', 'MNU-1005', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/7/70/Keripik_sanjay.JPG/500px-Keripik_sanjay.JPG', 5000, 10, true),
+  (1006, 10, 13, 'Roti Bakar', 'MNU-1006', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1a/Roti_bakar_kekinian.jpg/500px-Roti_bakar_kekinian.jpg', 8000, 5, true),
+  (1007, 10, 12, 'Susu Kotak', 'MNU-1007', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f8/2025.04.10_Milk_Glass_Sugar_Bowl_and_Antique_Glass_Creamer.jpg/500px-2025.04.10_Milk_Glass_Sugar_Bowl_and_Antique_Glass_Creamer.jpg', 6000, 10, true),
+  (1008, 10, 14, 'Pulpen', 'MNU-1008', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7b/Fountain_pen_writing_%28literacy%29.jpg/500px-Fountain_pen_writing_%28literacy%29.jpg', 3000, 20, true),
+  (1009, 10, 14, 'Buku Tulis', 'MNU-1009', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f0/Notebook_writing.jpg/500px-Notebook_writing.jpg', 7000, 10, true),
+  (1010, 10, 11, 'Bakso', 'MNU-1010', 'PORSI', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6e/Bakso_Indonesian_Meatball_Soup_from_Solo.jpg/500px-Bakso_Indonesian_Meatball_Soup_from_Solo.jpg', 11000, 5, true),
+  (1011, 10, 12, 'Jus Jeruk', 'MNU-1011', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/6/67/Orange_juice_1_edit1.jpg/500px-Orange_juice_1_edit1.jpg', 7000, 5, true);
 
 -- 8. STOK — 1 baris per menu
-insert into stok (menu_id, sekolah_id, jumlah, hpp, stok_minimum) values
+insert into stok (menu_id, sekolah_id, stok, hpp, stok_minimum) values
   (1, 1, 21, 7000, 5),
   (2, 1, 39, 6000, 5),
   (3, 1, 19, 1000, 10),
@@ -192,10 +192,14 @@ insert into stok (menu_id, sekolah_id, jumlah, hpp, stok_minimum) values
   (1008, 10, 44, 2000, 20),
   (1009, 10, 19, 5000, 10),
   (1010, 10, 37, 7000, 5),
-  (1011, 10, 26, 5000, 5);
+  (1011, 10, 26, 5000, 5)
+on conflict (menu_id) do update
+    set stok         = excluded.stok,
+        hpp          = excluded.hpp,
+        stok_minimum = excluded.stok_minimum;
 
 -- 9. TITIK KASIR
-insert into titik_kasir (id, sekolah_id, kode, nama, aktif) values
+insert into titik_kasir (id, sekolah_id, kode, nama, is_active) values
   (1,  1,  'DEMO1',  'Kasir Kantin Utama', true),
   (2,  1,  'DEMO2',  'Kasir Kelas 7',      true),
   (11, 10, 'FE10-1', 'Kasir Kantin 10 A',  true),
@@ -239,23 +243,23 @@ insert into saldo (sekolah_id, siswa_id, saldo) values
   (10, 1007, 50000),
   (10, 3001, 0);
 
-insert into mutasi_saldo (sekolah_id, siswa_id, arah, jenis, nominal, saldo_setelah, keterangan, aktor_id) values
-  (1, 101, 'KREDIT', 'TOPUP_TUNAI', 85000, 85000, 'Saldo awal seed', 2),
-  (1, 102, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 2),
-  (1, 103, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 2),
-  (1, 104, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 2),
-  (1, 105, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 2),
-  (1, 106, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 2),
-  (1, 107, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 2),
-  (1, 108, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 2),
-  (1, 109, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 2),
-  (1, 110, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 2),
-  (1, 12, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 2),
-  (1, 13, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 2),
-  (10, 1001, 'KREDIT', 'TOPUP_TUNAI', 85000, 85000, 'Saldo awal seed', 12),
-  (10, 1005, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 12),
-  (10, 1006, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 12),
-  (10, 1007, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 12);
+insert into mutasi_saldo (id, sekolah_id, siswa_id, arah, jenis, nominal, saldo_setelah, keterangan, aktor_id) values
+  (1, 1, 101, 'KREDIT', 'TOPUP_TUNAI', 85000, 85000, 'Saldo awal seed', 2),
+  (2, 1, 102, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 2),
+  (3, 1, 103, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 2),
+  (4, 1, 104, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 2),
+  (5, 1, 105, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 2),
+  (6, 1, 106, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 2),
+  (7, 1, 107, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 2),
+  (8, 1, 108, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 2),
+  (9, 1, 109, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 2),
+  (10, 1, 110, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 2),
+  (11, 1, 12, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 2),
+  (12, 1, 13, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 2),
+  (13, 10, 1001, 'KREDIT', 'TOPUP_TUNAI', 85000, 85000, 'Saldo awal seed', 12),
+  (14, 10, 1005, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 12),
+  (15, 10, 1006, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 12),
+  (16, 10, 1007, 'KREDIT', 'TOPUP_TUNAI', 50000, 50000, 'Saldo awal seed', 12);
 
 -- 13. SINKRONKAN SEQUENCE (karena id diisi manual)
 select setval(pg_get_serial_sequence('pengguna','id'), (select max(id) from pengguna));
