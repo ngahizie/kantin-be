@@ -145,6 +145,34 @@ class KontrolKartuServiceIT {
     // ────────────────────────────────────────────────────────────────
 
     @Test
+    @DisplayName("blokir item tetap berhasil saat id pembatasan 1..N sudah terpakai (seed)")
+    void blokirItemSaatIdSudahTerpakai() {
+        // Meniru kondisi database yang sudah berisi data seed: id 1..2 terpakai
+        // dengan id eksplisit, sehingga sequence identity (kalau masih ada)
+        // berada di posisi awal dan INSERT baru akan menabrak primary key.
+        jdbc.update("INSERT INTO kategori_menu (id, sekolah_id, nama, urutan, is_active, created_at, updated_at) "
+                + "VALUES (201, ?, 'Snack', 0, true, now(), now()) ON CONFLICT DO NOTHING", SEKOLAH);
+        long[] kategoriFiller = {201L, KATEGORI_ES};
+        for (int i = 0; i < kategoriFiller.length; i++) {
+            jdbc.update("INSERT INTO pembatasan (id, sekolah_id, siswa_id, jenis, kategori_id, aktif, waktu, created_at) "
+                            + "VALUES (?, ?, ?, 'BLOKIR_ITEM', ?, false, now(), now())",
+                    (long) (i + 1), SEKOLAH, SISWA, kategoriFiller[i]);
+        }
+
+        var hasil = kontrol.ubahBlokirItem(SEKOLAH, SISWA, MENU_ES, null, true, PETUGAS_AKTOR);
+
+        assertThat(hasil.getMenuDiblokir()).contains(MENU_ES);
+        Integer baris = jdbc.queryForObject(
+                "SELECT count(*) FROM pembatasan WHERE siswa_id = ? AND jenis = 'BLOKIR_ITEM' AND menu_id = ?",
+                Integer.class, SISWA, MENU_ES);
+        assertThat(baris).isEqualTo(1);
+        Long idBaru = jdbc.queryForObject(
+                "SELECT id FROM pembatasan WHERE siswa_id = ? AND jenis = 'BLOKIR_ITEM' AND menu_id = ?",
+                Long.class, SISWA, MENU_ES);
+        assertThat(idBaru).isNotIn(1L, 2L);
+    }
+
+    @Test
     @DisplayName("#40: blokir kartu berlaku INSTAN — tap berikutnya ditolak")
     void blokirInstan() {
         // Tap pertama lolos (belum diblokir).
