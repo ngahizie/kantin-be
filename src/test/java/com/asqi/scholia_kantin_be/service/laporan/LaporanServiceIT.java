@@ -388,7 +388,7 @@ class LaporanServiceIT {
                 new java.io.ByteArrayInputStream(hasil.isi()))) {
             var sheet = wb.getSheetAt(0);
             assertThat(sheet.getPhysicalNumberOfRows()).isGreaterThan(0);
-            assertThat(sheet.getRow(0).getCell(0).getStringCellValue()).contains("Penjualan");
+            assertThat(sheet.getRow(0).getCell(1).getStringCellValue()).contains("Penjualan");
         }
     }
 
@@ -459,7 +459,7 @@ class LaporanServiceIT {
                 new java.io.ByteArrayInputStream(hasil.isi()))) {
             var sheet = wb.getSheetAt(0);
             assertThat(sheet.getPhysicalNumberOfRows()).isGreaterThan(0);
-            assertThat(sheet.getRow(0).getCell(0).getStringCellValue()).contains("Pembatalan");
+            assertThat(sheet.getRow(0).getCell(1).getStringCellValue()).contains("Pembatalan");
         }
     }
 
@@ -598,7 +598,7 @@ class LaporanServiceIT {
                 new java.io.ByteArrayInputStream(hasil.isi()))) {
             var sheet = wb.getSheetAt(0);
             assertThat(sheet.getPhysicalNumberOfRows()).isGreaterThan(0);
-            assertThat(sheet.getRow(0).getCell(0).getStringCellValue()).contains("Penjualan per Kasir");
+            assertThat(sheet.getRow(0).getCell(1).getStringCellValue()).contains("Penjualan per Kasir");
         }
     }
 
@@ -616,7 +616,7 @@ class LaporanServiceIT {
                     new java.io.ByteArrayInputStream(hasil.isi()))) {
                 var sheet = wb.getSheetAt(0);
                 assertThat(sheet.getPhysicalNumberOfRows()).isGreaterThan(0);
-                assertThat(sheet.getRow(0).getCell(0).getStringCellValue()).contains("Penjualan per");
+                assertThat(sheet.getRow(0).getCell(1).getStringCellValue()).contains("Penjualan per");
             }
         }
     }
@@ -787,7 +787,7 @@ class LaporanServiceIT {
                 new java.io.ByteArrayInputStream(hasil.isi()))) {
             var sheet = wb.getSheetAt(0);
             assertThat(sheet.getPhysicalNumberOfRows()).isGreaterThan(0);
-            assertThat(sheet.getRow(0).getCell(0).getStringCellValue()).contains("Kartu Stok");
+            assertThat(sheet.getRow(0).getCell(1).getStringCellValue()).contains("Kartu Stok");
         }
     }
 
@@ -860,7 +860,7 @@ class LaporanServiceIT {
                 new java.io.ByteArrayInputStream(hasil.isi()))) {
             var sheet = wb.getSheetAt(0);
             assertThat(sheet.getPhysicalNumberOfRows()).isGreaterThan(0);
-            assertThat(sheet.getRow(0).getCell(0).getStringCellValue()).contains("Setoran");
+            assertThat(sheet.getRow(0).getCell(1).getStringCellValue()).contains("Setoran");
         }
     }
 
@@ -883,7 +883,7 @@ class LaporanServiceIT {
                 new java.io.ByteArrayInputStream(hasil.isi()))) {
             var sheet = wb.getSheetAt(0);
             assertThat(sheet.getPhysicalNumberOfRows()).isGreaterThan(0);
-            assertThat(sheet.getRow(0).getCell(0).getStringCellValue()).contains("Per Siswa");
+            assertThat(sheet.getRow(0).getCell(1).getStringCellValue()).contains("Per Siswa");
             // Isi memuat judul + ketiga bagian (ringkasan/transaksi/mutasi).
             StringBuilder semua = new StringBuilder();
             for (int i = 0; i <= sheet.getLastRowNum(); i++) {
