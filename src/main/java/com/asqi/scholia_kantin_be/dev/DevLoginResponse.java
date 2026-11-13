@@ -16,6 +16,6 @@ public record DevLoginResponse(String token, DevUser user) {
             Sekolah sekolah) {
     }
 
-    public record Sekolah(long id, String nama) {
+    public record Sekolah(long id, String nama, String logoUrl) {
     }
 }

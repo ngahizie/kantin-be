@@ -5,12 +5,14 @@
 
 begin;
 
--- 1. SEKOLAH
-insert into sekolah (id, nama, npsn, alamat, aktif) values
+-- 1. SEKOLAH — logo_url berisi TAUTAN gambar (pola sama dengan siswa.foto_url)
+insert into sekolah (id, nama, npsn, alamat, aktif, logo_url) values
   (1,  'SMP Negeri 1 Skoolia',  '20260001',
-   'Jl. Merdeka No. 1, Kel. Sukamaju, Kec. Cilodong, Kota Depok, Jawa Barat 16415', true),
+   'Jl. Merdeka No. 1, Kel. Sukamaju, Kec. Cilodong, Kota Depok, Jawa Barat 16415', true,
+   'https://ui-avatars.com/api/?name=SMPN+1+Skoolia&size=256&background=1D4ED8&color=ffffff&bold=true&format=png'),
   (10, 'SMP Negeri 10 Skoolia', '20260010',
-   'Jl. Diponegoro No. 10, Kel. Tugu, Kec. Cimanggis, Kota Depok, Jawa Barat 16451', true);
+   'Jl. Diponegoro No. 10, Kel. Tugu, Kec. Cimanggis, Kota Depok, Jawa Barat 16451', true,
+   'https://ui-avatars.com/api/?name=SMPN+10+Skoolia&size=256&background=0F766E&color=ffffff&bold=true&format=png');
 
 -- 2. PENGGUNA — 12 akun, password: Kantin#2026
 insert into pengguna (id, sekolah_id, nama, username, peran, password_hash, aktif) values
