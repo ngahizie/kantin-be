@@ -5,6 +5,7 @@ import com.asqi.scholia_kantin_be.component.logging.AuditLogger;
 import com.asqi.scholia_kantin_be.dto.BlokirItemResponse;
 import com.asqi.scholia_kantin_be.dto.KontrolSubjekResponse;
 import com.asqi.scholia_kantin_be.enums.JenisPembatasan;
+import com.asqi.scholia_kantin_be.helper.IdGenerator;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.model.Pembatasan;
@@ -47,6 +48,7 @@ public class KontrolKartuService {
     private final PembatasanRepository pembatasanRepo;
     private final JamKantin jam;
     private final AuditLogger auditLogger;
+    private final IdGenerator idGenerator;
 
     // ────────────────────────────────────────────────────────────────
     // BLOKIR SISWA (PRD §6.1 tahap 2, §8.3)
@@ -69,6 +71,7 @@ public class KontrolKartuService {
                         .sekolahId(sekolahId)
                         .siswaId(siswaId)
                         .jenis(JenisPembatasan.BLOKIR_SISWA)
+                        .id(idGenerator.berikutnyaLong())
                         .createdAt(now)
                         .build());
         boolean lama = baris.isAktif();
@@ -114,6 +117,7 @@ public class KontrolKartuService {
                     .sekolahId(sekolahId)
                     .siswaId(siswaId)
                     .jenis(JenisPembatasan.LIMIT_HARIAN)
+                    .id(idGenerator.berikutnyaLong())
                     .createdAt(now)
                     .build());
             baris.setNominal(nominal);
@@ -166,6 +170,7 @@ public class KontrolKartuService {
                         .jenis(JenisPembatasan.BLOKIR_ITEM)
                         .menuId(menuId)
                         .kategoriId(kategoriId)
+                        .id(idGenerator.berikutnyaLong())
                         .createdAt(now)
                         .build());
         boolean lama = baris.isAktif();

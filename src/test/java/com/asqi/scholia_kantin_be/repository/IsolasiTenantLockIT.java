@@ -56,6 +56,9 @@ class IsolasiTenantLockIT {
         jdbc.execute("TRUNCATE TABLE mutasi_saldo, saldo, riwayat_stok, stok CASCADE");
 
         FixtureInduk.sekolah(jdbc, SEKOLAH_A, SEKOLAH_B);
+        // Aktor 1 dipakai sebagai aktor_id pada riwayat_stok (FK fk_riwayat_stok_aktor);
+        // siapkan sendiri agar uji tidak bergantung pada sisa data kelas IT lain.
+        FixtureInduk.pengguna(jdbc, SEKOLAH_A, 1L);
         FixtureInduk.siswa(jdbc, SEKOLAH_A, SUBJEK);
         FixtureInduk.menu(jdbc, SEKOLAH_A, MENU);
     }
