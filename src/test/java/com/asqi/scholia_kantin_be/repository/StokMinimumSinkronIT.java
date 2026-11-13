@@ -46,8 +46,10 @@ class StokMinimumSinkronIT {
     void siapkan() {
         jdbc.execute("TRUNCATE TABLE riwayat_stok, stok CASCADE");
         jdbc.execute("TRUNCATE TABLE menu CASCADE");
-        // Skema v2: menu ber-FK ke sekolah.
-        FixtureInduk.sekolah(jdbc, 1L);
+        // Skema v2: menu ber-FK ke sekolah. Sekolah 2 ikut disiapkan karena
+        // tenantScoped menulis menu milik tenant lain — tanpa itu uji ini
+        // bergantung pada sisa data kelas IT yang kebetulan jalan lebih dulu.
+        FixtureInduk.sekolah(jdbc, 1L, 2L);
     }
 
     @Test

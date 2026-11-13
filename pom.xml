@@ -331,6 +331,16 @@
 						jalan tetapi cakupannya tidak tercatat.
 					-->
 					<argLine>${argLine}</argLine>
+					<!--
+						Urutan kelas IT dibuat deterministik (alfabetis). Default
+						"filesystem" bisa berbeda antar-run sehingga uji yang masih
+						bergantung pada sisa data kelas lain gagal hanya kadang-kadang
+						(contoh nyata: StokMinimumSinkronIT & IsolasiTenantLockIT,
+						PR #327). Dengan urutan tetap, kegagalan selalu bisa
+						direproduksi. Setiap IT tetap wajib menyiapkan induknya
+						sendiri lewat FixtureInduk.
+					-->
+					<runOrder>alphabetical</runOrder>
 					<systemPropertyVariables>
 						<api.version>${docker.api.version}</api.version>
 					</systemPropertyVariables>
