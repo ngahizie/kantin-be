@@ -252,7 +252,8 @@ public class LaporanService {
                             siswaId, siswa.getNis(), null, siswa.getNama(), siswa.getKelas(),
                             cache == null || cache.getSaldo() == null ? 0L : cache.getSaldo(),
                             ledgerSaldo.belanjaHariIni(sekolahId, siswaId),
-                            limit, diblokir, null, null,
+                            limit, diblokir,
+                            siswa.getNamaOrangTua(), siswa.getTeleponOrangTua(),
                             waktuTerakhir.get(siswaId));
                 })
                 .toList();
