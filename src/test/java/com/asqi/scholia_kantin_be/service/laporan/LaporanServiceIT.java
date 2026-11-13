@@ -388,7 +388,9 @@ class LaporanServiceIT {
                 new java.io.ByteArrayInputStream(hasil.isi()))) {
             var sheet = wb.getSheetAt(0);
             assertThat(sheet.getPhysicalNumberOfRows()).isGreaterThan(0);
-            assertThat(sheet.getRow(0).getCell(1).getStringCellValue()).contains("Penjualan");
+            // Template resmi (navy zebra) menampilkan judul laporan dalam HURUF BESAR
+            // lewat ExcelWriter; judul di service tetap mixed-case.
+            assertThat(sheet.getRow(0).getCell(1).getStringCellValue()).contains("PENJUALAN");
         }
     }
 
@@ -459,7 +461,7 @@ class LaporanServiceIT {
                 new java.io.ByteArrayInputStream(hasil.isi()))) {
             var sheet = wb.getSheetAt(0);
             assertThat(sheet.getPhysicalNumberOfRows()).isGreaterThan(0);
-            assertThat(sheet.getRow(0).getCell(1).getStringCellValue()).contains("Pembatalan");
+            assertThat(sheet.getRow(0).getCell(1).getStringCellValue()).contains("PEMBATALAN");
         }
     }
 
@@ -598,7 +600,7 @@ class LaporanServiceIT {
                 new java.io.ByteArrayInputStream(hasil.isi()))) {
             var sheet = wb.getSheetAt(0);
             assertThat(sheet.getPhysicalNumberOfRows()).isGreaterThan(0);
-            assertThat(sheet.getRow(0).getCell(1).getStringCellValue()).contains("Penjualan per Kasir");
+            assertThat(sheet.getRow(0).getCell(1).getStringCellValue()).contains("PENJUALAN PER KASIR");
         }
     }
 
@@ -616,7 +618,7 @@ class LaporanServiceIT {
                     new java.io.ByteArrayInputStream(hasil.isi()))) {
                 var sheet = wb.getSheetAt(0);
                 assertThat(sheet.getPhysicalNumberOfRows()).isGreaterThan(0);
-                assertThat(sheet.getRow(0).getCell(1).getStringCellValue()).contains("Penjualan per");
+                assertThat(sheet.getRow(0).getCell(1).getStringCellValue()).contains("PENJUALAN PER");
             }
         }
     }
@@ -787,7 +789,7 @@ class LaporanServiceIT {
                 new java.io.ByteArrayInputStream(hasil.isi()))) {
             var sheet = wb.getSheetAt(0);
             assertThat(sheet.getPhysicalNumberOfRows()).isGreaterThan(0);
-            assertThat(sheet.getRow(0).getCell(1).getStringCellValue()).contains("Kartu Stok");
+            assertThat(sheet.getRow(0).getCell(1).getStringCellValue()).contains("KARTU STOK");
         }
     }
 
@@ -860,7 +862,7 @@ class LaporanServiceIT {
                 new java.io.ByteArrayInputStream(hasil.isi()))) {
             var sheet = wb.getSheetAt(0);
             assertThat(sheet.getPhysicalNumberOfRows()).isGreaterThan(0);
-            assertThat(sheet.getRow(0).getCell(1).getStringCellValue()).contains("Setoran");
+            assertThat(sheet.getRow(0).getCell(1).getStringCellValue()).contains("SETORAN");
         }
     }
 
@@ -883,7 +885,7 @@ class LaporanServiceIT {
                 new java.io.ByteArrayInputStream(hasil.isi()))) {
             var sheet = wb.getSheetAt(0);
             assertThat(sheet.getPhysicalNumberOfRows()).isGreaterThan(0);
-            assertThat(sheet.getRow(0).getCell(1).getStringCellValue()).contains("Per Siswa");
+            assertThat(sheet.getRow(0).getCell(1).getStringCellValue()).contains("PER SISWA");
             // Isi memuat judul + ketiga bagian (ringkasan/transaksi/mutasi).
             StringBuilder semua = new StringBuilder();
             for (int i = 0; i <= sheet.getLastRowNum(); i++) {

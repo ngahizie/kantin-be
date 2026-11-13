@@ -42,6 +42,7 @@ public class DevLoginController {
 
     private final DevTokenService tokenService;
     private final DevLoginValidator validator;
+    private final DevSekolahLookup sekolahLookup;
     private final JwtConfigValues jwtConfig;
 
     @PostMapping("login")
@@ -72,6 +73,8 @@ public class DevLoginController {
         log.info("[DEV-LOGIN] token diterbitkan untuk {} (role={}, sekolah={})",
                 akun.username(), akun.role(), akun.sekolahId());
 
+        DevSekolahLookup.InfoSekolah sekolah = sekolahLookup.cari(akun.sekolahId());
+
         DevLoginResponse body = new DevLoginResponse(
                 token,
                 new DevLoginResponse.DevUser(
@@ -80,7 +83,7 @@ public class DevLoginController {
                         akun.username(),
                         roleFe(akun.role()),
                         List.of("ROLE_" + akun.role()),
-                        new DevLoginResponse.Sekolah(akun.sekolahId(), namaSekolah(akun.sekolahId()))));
+                        new DevLoginResponse.Sekolah(sekolah.id(), sekolah.nama(), sekolah.logoUrl())));
 
         return CommonResponse.data(body, "Login berhasil (dev shim)");
     }
@@ -94,14 +97,6 @@ public class DevLoginController {
             case "BENDAHARA" -> "bendahara";
             // FE belum punya role kepsek (UserRole hanya 5 nilai) → tampil sebagai admin.
             default -> "admin";
-        };
-    }
-
-    private String namaSekolah(long sekolahId) {
-        return switch ((int) sekolahId) {
-            case 1 -> "SMA Negeri 1 SKOOLIA";
-            case 2 -> "SMA Negeri 2 SKOOLIA";
-            default -> "Sekolah " + sekolahId;
         };
     }
 }

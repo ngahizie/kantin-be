@@ -30,11 +30,14 @@ begin;
 -- kosongkan dulu (deterministik). cascade karena banyak FK.
 truncate table catatan_audit, kejadian_offline, jurnal_buku_kas, akun_buku_kas, transaksi_tertunda, pembatasan, setoran, mutasi_saldo, saldo, transaksi_item, transaksi, sesi_kasir, titik_kasir, riwayat_stok, stok, menu, kategori_menu, kartu, orang_tua, siswa, pengguna, pengaturan_kantin, sekolah restart identity cascade;
 
--- 1. SEKOLAH — logo_url berisi URL gambar (pola sama dengan siswa.foto_url)
+-- 1. SEKOLAH — alamat lengkap (jalan, kelurahan, kecamatan, kota, provinsi, kode pos)
+--    logo_url berisi URL gambar (pola sama dengan siswa.foto_url)
 insert into sekolah (id, nama, npsn, alamat, aktif, logo_url) values
-  (1,  'SMP Negeri 1 Skoolia',  '20260001', 'Jl. Merdeka No. 1',      true,
+  (1,  'SMP Negeri 1 Skoolia',  '20260001',
+   'Jl. Merdeka No. 1, Kel. Sukamaju, Kec. Cilodong, Kota Depok, Jawa Barat 16415', true,
    '/logo-sekolah-1.png'),
-  (10, 'SMP Negeri 10 Skoolia', '20260010', 'Jl. Diponegoro No. 10', true,
+  (10, 'SMP Negeri 10 Skoolia', '20260010',
+   'Jl. Diponegoro No. 10, Kel. Tugu, Kec. Cimanggis, Kota Depok, Jawa Barat 16451', true,
    '/logo-sekolah-10.png');
 
 -- 2. PENGGUNA — 12 akun, password: Kantin#2026
