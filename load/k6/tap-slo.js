@@ -26,8 +26,10 @@ import exec from 'k6/execution';
 // ── Konfigurasi (override via env) ──────────────────────────────────────────
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8082';
 const SEKOLAH = Number(__ENV.SEKOLAH || 1);
-const TITIK_KASIR = Number(__ENV.TITIK_KASIR || 1);
-const MENU_ID = Number(__ENV.MENU_ID || 1);
+// Id titik kasir & menu milik seed uji beban (9xxx) — sengaja terpisah dari
+// data demo (id 1..24) supaya uji beban tidak bergantung isi seed dev.
+const TITIK_KASIR = Number(__ENV.TITIK_KASIR || 9001);
+const MENU_ID = Number(__ENV.MENU_ID || 9001);
 const QTY = Number(__ENV.QTY || 1);
 
 // Beban: constant-arrival-rate → laju tap/detik tetap (mensimulasikan puncak).
