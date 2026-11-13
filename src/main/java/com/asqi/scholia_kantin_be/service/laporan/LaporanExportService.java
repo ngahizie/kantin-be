@@ -17,7 +17,8 @@ import com.asqi.scholia_kantin_be.enums.JenisLaporan;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.model.RiwayatStok;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,7 +36,6 @@ import java.util.List;
  * lewat {@link LaporanService}.
  */
 @Service
-@RequiredArgsConstructor
 public class LaporanExportService {
 
     private static final DateTimeFormatter FMT =
@@ -44,6 +44,53 @@ public class LaporanExportService {
     private final LaporanService laporan;
     private final ExcelWriter excel;
     private final JamKantin jam;
+    private final JdbcTemplate jdbc;
+
+    public LaporanExportService(LaporanService laporan, ExcelWriter excel, JamKantin jam) {
+        this(laporan, excel, jam, null);
+    }
+
+    @Autowired
+    public LaporanExportService(LaporanService laporan, ExcelWriter excel, JamKantin jam,
+                                @Autowired(required = false) JdbcTemplate jdbc) {
+        this.laporan = laporan;
+        this.excel = excel;
+        this.jam = jam;
+        this.jdbc = jdbc;
+    }
+
+    /** Profil sekolah untuk kop laporan. */
+    public record ProfilSekolah(String nama, String alamat) {
+    }
+
+    /**
+     * Cari nama dan alamat sekolah untuk kop laporan resmi.
+     * Fallback ke default bila tidak ditemukan / jdbc null.
+     */
+    public ProfilSekolah cariProfilSekolah(Long sekolahId) {
+        if (jdbc != null && sekolahId != null) {
+            try {
+                List<ProfilSekolah> list = jdbc.query(
+                        "SELECT nama, alamat FROM sekolah WHERE id = ?",
+                        (rs, rowNum) -> {
+                            String nama = rs.getString("nama");
+                            String alamat = rs.getString("alamat");
+                            return new ProfilSekolah(
+                                    (nama != null && !nama.isBlank()) ? nama : "SMP NEGERI 1 SKOOLIA",
+                                    (alamat != null && !alamat.isBlank()) ? alamat : "Jl. Merdeka No. 1, Lingkungan Pendidikan SKOOLIA"
+                            );
+                        },
+                        sekolahId
+                );
+                if (!list.isEmpty()) {
+                    return list.get(0);
+                }
+            } catch (Exception ignored) {
+                // fallback bila tabel belum siap / mock environment
+            }
+        }
+        return new ProfilSekolah("SMP NEGERI 1 SKOOLIA", "Jl. Merdeka No. 1, Lingkungan Pendidikan SKOOLIA");
+    }
 
     /** Hasil ekspor: nama berkas + byte .xlsx. */
     public record HasilEkspor(String namaBerkas, byte[] isi) {
@@ -118,7 +165,7 @@ public class LaporanExportService {
                 List.of("Total modal", r.totalModal()),
                 List.of("Laba", r.laba()),
                 List.of("Margin (%)", r.marginPersen()));
-        return berkas("Penjualan & Laba Kotor", label, header, baris);
+        return berkas(sekolahId, "Penjualan & Laba Kotor", label, header, baris);
     }
 
     private HasilEkspor eksporBarisPenjualan(Long sekolahId, LocalDate tgl, OffsetDateTime dari,
@@ -130,7 +177,7 @@ public class LaporanExportService {
             baris.add(List.of(nvl(b.kunciId()), nvl(b.nama()), b.qty(),
                     nvl(b.hargaSatuan()), b.total(), b.modal(), b.marginPersen()));
         }
-        return berkas(judul, label, header, baris);
+        return berkas(sekolahId, judul, label, header, baris);
     }
 
     private HasilEkspor eksporSaldoMengendap(Long sekolahId, String label) {
@@ -139,7 +186,7 @@ public class LaporanExportService {
         List<List<Object>> baris = List.of(
                 List.of("Saldo Siswa", r.jumlahSiswa(), r.saldoSiswa()),
                 List.of("TOTAL (kewajiban sekolah)", "", r.total()));
-        return berkas("Saldo Mengendap", label, header, baris);
+        return berkas(sekolahId, "Saldo Mengendap", label, header, baris);
     }
 
     private HasilEkspor eksporRekonsiliasi(Long sekolahId, LocalDate tgl, OffsetDateTime dari,
@@ -160,7 +207,7 @@ public class LaporanExportService {
                 List.of("Total debit (semua waktu)", r.totalDebitSemua()),
                 List.of("Selisih", r.selisih()),
                 List.of("SEIMBANG?", r.seimbang() ? "YA" : "TIDAK — PERIKSA!"));
-        return berkas("Rekonsiliasi", label, header, baris);
+        return berkas(sekolahId, "Rekonsiliasi", label, header, baris);
     }
 
     private HasilEkspor eksporStok(Long sekolahId, String label) {
@@ -172,7 +219,7 @@ public class LaporanExportService {
             baris.add(List.of(nvl(b.menuId()), nvl(b.nama()), b.stok(), b.stokMinimum(),
                     b.hpp(), b.nilaiPersediaan(), b.menipis() ? "YA" : ""));
         }
-        return berkas("Laporan Stok", label, header, baris);
+        return berkas(sekolahId, "Laporan Stok", label, header, baris);
     }
 
     private HasilEkspor eksporKerugianStok(Long sekolahId, LocalDate tgl, OffsetDateTime dari,
@@ -194,7 +241,7 @@ public class LaporanExportService {
                     nvl(b.alasan()),
                     nvl(b.petugas())));
         }
-        return berkas("Kerugian Stok", label, header, baris);
+        return berkas(sekolahId, "Kerugian Stok", label, header, baris);
     }
 
     private HasilEkspor eksporBarangMasuk(Long sekolahId, LocalDate tgl, OffsetDateTime dari,
@@ -209,7 +256,7 @@ public class LaporanExportService {
                     nvl(m.getMenuId()), m.getQty(), nvl(m.getHargaBeliSatuan()),
                     nvl(m.getReferensiId()), nvl(m.getAlasan())));
         }
-        return berkas("Barang Masuk", label, header, baris);
+        return berkas(sekolahId, "Barang Masuk", label, header, baris);
     }
 
     private HasilEkspor eksporKartuStok(Long sekolahId, Long menuId, String label) {
@@ -232,7 +279,7 @@ public class LaporanExportService {
                 }
             }
         }
-        return berkas(judul, label, header, baris);
+        return berkas(sekolahId, judul, label, header, baris);
     }
 
     private HasilEkspor eksporPembatalan(Long sekolahId, LocalDate tgl, OffsetDateTime dari,
@@ -251,7 +298,7 @@ public class LaporanExportService {
                     nvl(b.getPetugasId()), nvl(b.getTitikKasirId()),
                     b.getWaktu() == null ? "" : FMT.format(b.getWaktu())));
         }
-        return berkas("Pembatalan Kasir", label, header, baris);
+        return berkas(sekolahId, "Pembatalan Kasir", label, header, baris);
     }
 
     private HasilEkspor eksporPenjualanDimensi(Long sekolahId, LocalDate tgl, OffsetDateTime dari,
@@ -263,7 +310,7 @@ public class LaporanExportService {
             baris.add(List.of(nvl(b.kunciId()), nvl(b.nama()), b.jumlahTransaksi(),
                     b.nilai(), b.hpp(), b.labaKotor()));
         }
-        return berkas(judul, label, header, baris);
+        return berkas(sekolahId, judul, label, header, baris);
     }
 
     /**
@@ -282,7 +329,7 @@ public class LaporanExportService {
                     nvl(b.petugasId()), nvl(b.petugas()), b.jumlahTransaksi(),
                     b.penjualanBruto(), b.nilaiVoid(), b.penjualanBersih()));
         }
-        return berkas("Penjualan per Kasir", label, header, baris);
+        return berkas(sekolahId, "Penjualan per Kasir", label, header, baris);
     }
 
     /**
@@ -301,7 +348,7 @@ public class LaporanExportService {
                     nvl(b.getPetugasId()), b.getTotalTopup(), b.getJumlahDisetor(),
                     b.getSelisih(), nvl(b.getReferensiId())));
         }
-        return berkas("Laporan Setoran TU", label, header, baris);
+        return berkas(sekolahId, "Laporan Setoran TU", label, header, baris);
     }
 
     /**
@@ -315,8 +362,8 @@ public class LaporanExportService {
      * {@code subjekTipe} default {@code SISWA}.
      */
     private HasilEkspor eksporPerSiswa(Long sekolahId, Long siswaId,
-                                       LocalDate tgl, OffsetDateTime dari, OffsetDateTime sampai,
-                                       String label) {
+                                        LocalDate tgl, OffsetDateTime dari, OffsetDateTime sampai,
+                                        String label) {
         if (siswaId == null) {
             throw new InvalidOperationException(
                     "Ekspor laporan PER_SISWA membutuhkan parameter siswaId (PRD §9.5)");
@@ -361,21 +408,26 @@ public class LaporanExportService {
                 new ExcelWriter.Bagian(List.of("Mutasi ID", "Jenis", "Arah", "Nominal",
                         "Saldo Setelah", "Transaksi ID", "Keterangan", "Waktu"), mutasi));
 
+        ProfilSekolah profil = cariProfilSekolah(sekolahId);
         String judul = "Laporan Per Siswa - " + tipe.name() + " " + siswaId;
-        List<String> judulBaris = List.of(judul, "Periode: " + label);
-        byte[] isi = excel.tulisBagian(judul, judulBaris, bagian);
+        byte[] isi = excel.tulisBagian(judul, judul, profil.nama(), profil.alamat(), "Periode: " + label, bagian);
         String nama = judul.replaceAll("\\s+", "-").toLowerCase() + ".xlsx";
         return new HasilEkspor(nama, isi);
     }
 
     // ────────────────────────────────────────────────────────────────
 
-    private HasilEkspor berkas(String judul, String label, List<String> header,
+    private HasilEkspor berkas(Long sekolahId, String judul, String label, List<String> header,
                                List<List<Object>> baris) {
-        List<String> judulBaris = List.of(judul, "Periode: " + label);
-        byte[] isi = excel.tulis(judul, judulBaris, header, baris);
+        ProfilSekolah profil = cariProfilSekolah(sekolahId);
+        byte[] isi = excel.tulis(judul, judul, profil.nama(), profil.alamat(), "Periode: " + label, header, baris);
         String nama = judul.replaceAll("\\s+", "-").toLowerCase() + ".xlsx";
         return new HasilEkspor(nama, isi);
+    }
+
+    private HasilEkspor berkas(String judul, String label, List<String> header,
+                               List<List<Object>> baris) {
+        return berkas(null, judul, label, header, baris);
     }
 
     private String labelPeriode(LocalDate tanggal, OffsetDateTime dari, OffsetDateTime sampai) {
