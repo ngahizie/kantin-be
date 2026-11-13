@@ -1,0 +1,54 @@
+name: IT Urutan Acak (nightly)
+
+# Penjaga ketergantungan urutan antar kelas integration test.
+#
+# Latar belakang (PR #327): CI pernah merah padahal kode tidak berubah, karena
+# `StokMinimumSinkronIT` menulis `menu` untuk sekolah 2 sementara `@BeforeEach`-nya
+# hanya membuat sekolah 1, dan `IsolasiTenantLockIT` memakai `aktor_id = 1` tanpa
+# membuat baris `pengguna`. Keduanya hanya lolos bila kelas lain kebetulan jalan
+# lebih dulu — urutan `filesystem` bisa berbeda antar-run.
+#
+# Job CI utama memakai urutan alfabetis (deterministik). Workflow ini menjalankan
+# suite yang sama dengan urutan ACAK, sehingga ketergantungan urutan baru langsung
+# kelihatan sebelum menumpuk jadi kegagalan acak di PR.
+on:
+  schedule:
+    # 18:30 UTC = 01:30 WIB.
+    - cron: '30 18 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: it-urutan-acak
+  cancel-in-progress: true
+
+jobs:
+  it-acak:
+    name: Integration test urutan acak
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      # Failsafe di pom memakai runOrder=alphabetical; di sini ditimpa ke random.
+      - name: Jalankan seluruh test dengan urutan acak
+        run: ./mvnw -B -ntp verify -Dfailsafe.runOrder=random
+
+      - name: Unggah laporan test
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: laporan-test-urutan-acak
+          path: |
+            target/surefire-reports/
+            target/failsafe-reports/
+          if-no-files-found: ignore
+          retention-days: 7

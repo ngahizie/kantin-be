@@ -189,3 +189,28 @@ java -classpath "$MVN_DIR/boot/plexus-classworlds-2.9.0.jar" \
 - [ ] Panggilan lintas-sistem lewat `service/integrasi/`
 - [ ] Status blokir kartu **tidak** di-cache
 - [ ] `./mvnw clean package` hijau
+
+## 9. Aturan Integration Test (IT) — Wajib Mandiri
+
+CI pernah merah padahal kode tidak berubah (PR #327): `StokMinimumSinkronIT` menulis
+`menu` untuk sekolah 2 sementara `@BeforeEach`-nya hanya membuat sekolah 1, dan
+`IsolasiTenantLockIT` memakai `aktor_id = 1` pada `riwayat_stok` tanpa membuat baris
+`pengguna`. Keduanya hanya lolos bila kelas lain kebetulan jalan lebih dulu, sehingga
+hasil CI bergantung pada urutan `filesystem` yang bisa berbeda tiap run.
+
+Aturan yang berlaku sekarang:
+
+1. **Setiap IT menyiapkan sendiri semua baris induk yang dipakai** (`sekolah`,
+   `pengguna`, `siswa`, `menu`, `kategori_menu`) lewat `FixtureInduk`. Jangan
+   mengandalkan sisa data kelas IT lain. Insert-nya memakai `ON CONFLICT DO NOTHING`
+   sehingga aman dipanggil berulang.
+2. **Jangan mengandalkan urutan kelas.** `runOrder` Failsafe diset `alphabetical`
+   (deterministik): kalau ada ketergantungan urutan, kegagalan selalu muncul dan bisa
+   direproduksi, bukan gagal-acak.
+3. **Uji kelas yang tersentuh satu per satu** sebelum push:
+   `./mvnw -o verify -Dit.test='NamaIT' -DfailIfNoTests=false`.
+4. **Workflow `it-urutan-acak-nightly.yml`** menjalankan seluruh suite dengan urutan
+   acak setiap malam untuk menangkap ketergantungan urutan baru lebih awal.
+
+Kalau CI gagal di kelas yang tidak ada hubungannya dengan perubahanmu, curigai dulu
+ketergantungan urutan seperti di atas sebelum menuduh kode.
