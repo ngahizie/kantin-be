@@ -12,7 +12,7 @@ test *correctness*). Berkas uji beban ada di [`load/`](../load/):
 |---|---|
 | `load/k6/tap-slo.js` | Skrip k6: skenario N kasir tap bersamaan + threshold SLO |
 | `load/k6/p95-prometheus.py` | Hitung p95 tap dari metrik **server** `kantin_tap_duration_seconds` (silang-cek AC #2, issue #172) |
-| `load/seed/seed-loadtest.sql` | Seed data (kartu, menu, stok, saldo, sesi) |
+| `load/seed/seed-loadtest.sql` | Seed data (skema v2: siswa+kartu, sesi, menu 9001; saldo & stok lewat ledger) |
 | `.github/workflows/uji-beban-nightly.yml` | Wiring CI nightly: jalankan **50–100 tap/dtk** + silang-cek Prometheus |
 
 ## 1. Alat & alasan
@@ -33,7 +33,7 @@ docker compose up -d
 docker compose ps            # pastikan postgres & redis "healthy"
 
 # 2) Jalankan aplikasi dengan profil uji beban
-#    - loadtest     : aktifkan KartuLookupLoadTest (lookup Kartu Tamu nyata)
+#    - loadtest     : rate limit OFF (lookup kartu sudah lokal sejak skema v2)
 #    - dev-login    : agar skrip bisa minta token (kantin-be tanpa login sendiri)
 #    - rate limit off: agar 429 tidak mengotori pengukuran latensi jalur sukses
 SPRING_PROFILES_ACTIVE=local,loadtest \
@@ -83,7 +83,7 @@ TAP_RATE=100 DURATION=3m k6 run load/k6/tap-slo.js
 | `TOKEN` | *(kosong)* | JWT; bila kosong → login via shim dev |
 | `TAP_RATE` | `50` | Tap/detik (50–100 = jam istirahat) |
 | `DURATION` | `2m` | Lama skenario |
-| `SEKOLAH` / `TITIK_KASIR` / `MENU_ID` / `QTY` | `1` / `1` / `1` / `1` | Data seed |
+| `SEKOLAH` / `TITIK_KASIR` / `MENU_ID` / `QTY` | `1` / `9001` / `9001` / `1` | Data seed (id 9xxx khusus uji beban) |
 | `KARTU_COUNT` | `20` | Jumlah kartu uji (sebar beban) |
 | `P95_MS` | `1000` | Ambang SLO (ms) |
 | `MAX_FAIL_RATE` | `0.01` | Ambang rasio gagal |
@@ -124,7 +124,7 @@ Build **gagal** bila salah satu tak terpenuhi:
 Lingkungan: **laptop dev** (Intel i5-8265U, 4 fisik/8 thread, 15 GiB RAM,
 Fedora 44) — **bukan** runner khusus. PostgreSQL 18 & Redis 7 via **Podman**
 (rootless), app `local,loadtest`, rate-limit OFF, `kantin_tap_duration_seconds`
-sebagai silang-cek. Seed `seed-loadtest.sql` (1 menu, 20 kartu).
+sebagai silang-cek. Seed `seed-loadtest.sql` (menu 9001, 20 kartu).
 
 | TAP_RATE | Durasi | p95 (ms) | p99 (ms) | Gagal | Lulus SLO? |
 |---|---|---|---|---|---|
@@ -145,7 +145,7 @@ sebagai silang-cek. Seed `seed-loadtest.sql` (1 menu, 20 kartu).
 yang diminta issue #172.** Dijalankan lewat workflow nightly
 `.github/workflows/uji-beban-nightly.yml` (`workflow_dispatch`), runner
 `ubuntu-latest`, PostgreSQL 18 & Redis 7 sebagai *service container*, app
-`local,loadtest`, rate-limit OFF. Seed `seed-loadtest.sql` (1 menu, 20 kartu).
+`local,loadtest`, rate-limit OFF. Seed `seed-loadtest.sql` (menu 9001, 20 kartu).
 
 **Steady state (setelah warmup 30 dtk @20 tap/dtk)** — run
 [38235819198](https://github.com/ngahizie/kantin-be/actions/runs/38235819198):
@@ -261,15 +261,22 @@ Perubahan ini menyentuh **jalur uang**, jadi diverifikasi ketat:
 
 ## 6. Lookup kartu ke SKOOLIA (Q7)
 
-SLO ini *termasuk* lookup kartu. Kontrak lookup **siswa** ke admin-be masih
-terbuka (OPEN-QUESTIONS **Q7**, ADR-0004) → implementasi nyata belum ada, dan
-`KartuLookupFallback` bersifat **gagal-tertutup** ("kartu tidak dikenal").
+SLO ini *termasuk* lookup kartu. Sejak **skema v2 (V28)** kontrak yang dulu
+menunggu Q7 sudah diputuskan: kartu & siswa disimpan **di kantin-be sendiri**,
+jadi `KartuLookupLokal` (`@Primary`, `kantin.siswa.sumber=lokal` default) yang
+melayani lookup — satu query `kartu.uid`, satu baris `siswa`, lalu pembatasan
+siswa (dibaca segar tiap tap, PRD §11.11). `KartuLookupFallback` hanya dipakai
+bila lookup lokal dimatikan, dan `KartuLookupRestClient` tetap tersedia untuk
+mode integrasi.
 
-Agar uji beban tetap bisa menembus jalur sukses **tanpa** menunggu Q7, profil
-`loadtest` mengaktifkan `KartuLookupLoadTest`: lookup ke tabel **Kartu Tamu**
-(data milik kantin-be sendiri, PRD §9.4), bukan ke siswa. Saat Q7 terjawab:
+Konsekuensi untuk uji beban: **tidak ada lagi profil/kelas khusus** (dulu
+`KartuLookupLoadTest` menembus `kartu_tamu` v1). Yang dibutuhkan hanya data:
+`siswa` + `kartu` aktif dengan UID yang sama dengan yang dibangkitkan skrip k6
+(`04` + 6 digit), dan itulah yang dibuat `load/seed/seed-loadtest.sql`.
 
-1. Tambahkan `SiswaKartuClient` (REST) dengan **timeout ≤ 250 ms** dan
+Saat integrasi ke admin-be benar-benar dipakai (mode `kantin.siswa.sumber=rest`):
+
+1. Tambahkan/aktifkan client REST dengan **timeout ≤ 250 ms** dan
    **gagal-tertutup** bila admin-be tak merespons (jangan diam-diam meloloskan).
 2. Jalankan skrip k6 yang sama (tanpa perubahan) — kini lookup memanggil
    admin-be nyata, sehingga SLO terukur end-to-end.

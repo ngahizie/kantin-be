@@ -7,8 +7,10 @@ begin;
 
 -- 1. SEKOLAH
 insert into sekolah (id, nama, npsn, alamat, aktif) values
-  (1,  'SMP Negeri 1 Skoolia',  '20260001', 'Jl. Merdeka No. 1',      true),
-  (10, 'SMP Negeri 10 Skoolia', '20260010', 'Jl. Diponegoro No. 10', true);
+  (1,  'SMP Negeri 1 Skoolia',  '20260001',
+   'Jl. Merdeka No. 1, Kel. Sukamaju, Kec. Cilodong, Kota Depok, Jawa Barat 16415', true),
+  (10, 'SMP Negeri 10 Skoolia', '20260010',
+   'Jl. Diponegoro No. 10, Kel. Tugu, Kec. Cimanggis, Kota Depok, Jawa Barat 16451', true);
 
 -- 2. PENGGUNA — 12 akun, password: Kantin#2026
 insert into pengguna (id, sekolah_id, nama, username, peran, password_hash, aktif) values

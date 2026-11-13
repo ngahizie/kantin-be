@@ -75,7 +75,8 @@ jobs:
       DB_PASSWORD: kantin_dev
       REDIS_HOST: localhost
       REDIS_PORT: '6379'
-      # Profil uji beban: aktifkan lookup Kartu Tamu nyata (KartuLookupLoadTest).
+      # Profil uji beban: rate-limit OFF + shim login dev. Lookup kartu sudah
+      # lokal sejak skema v2 (KartuLookupLokal), jadi tidak butuh profil khusus.
       SPRING_PROFILES_ACTIVE: local,loadtest
       # Shim login dev agar k6 bisa minta token (kantin-be tanpa login sendiri).
       KANTIN_DEV_LOGIN_ENABLED: 'true'
