@@ -35,10 +35,10 @@ truncate table catatan_audit, kejadian_offline, jurnal_buku_kas, akun_buku_kas, 
 insert into sekolah (id, nama, npsn, alamat, aktif, logo_url) values
   (1,  'SMP Negeri 1 Skoolia',  '20260001',
    'Jl. Merdeka No. 1, Kel. Sukamaju, Kec. Cilodong, Kota Depok, Jawa Barat 16415', true,
-   'https://ui-avatars.com/api/?name=SMPN+1+Skoolia&size=256&background=1D4ED8&color=ffffff&bold=true&format=png'),
+   '/logo-sekolah-1.png'),
   (10, 'SMP Negeri 10 Skoolia', '20260010',
    'Jl. Diponegoro No. 10, Kel. Tugu, Kec. Cimanggis, Kota Depok, Jawa Barat 16451', true,
-   'https://ui-avatars.com/api/?name=SMPN+10+Skoolia&size=256&background=0F766E&color=ffffff&bold=true&format=png');
+   '/logo-sekolah-10.png');
 
 -- 2. PENGGUNA — 12 akun, password: Kantin#2026
 insert into pengguna (id, sekolah_id, nama, username, role, password_hash, aktif) values
@@ -55,27 +55,27 @@ insert into pengguna (id, sekolah_id, nama, username, role, password_hash, aktif
   (15, 10, 'Nurul Hidayah', 'bendahara10', 'BENDAHARA', '$2a$10$LGt9ZvDWW97jh0ozfFEIrOlwkp.DQ7HSpq7Eg/VxbHLn3UDuD.Xem', true),
   (16, 10, 'Dewi Anggraini', 'admin10', 'ADMIN_SEKOLAH', '$2a$10$LGt9ZvDWW97jh0ozfFEIrOlwkp.DQ7HSpq7Eg/VxbHLn3UDuD.Xem', true);
 
--- 3. SISWA — 19 siswa, foto_url ikut pola menu.foto_url
+-- 3. SISWA — 19 siswa, foto_url potret nyata pelajar
 insert into siswa (id, sekolah_id, nis, nisn, nama, kelas, foto_url, aktif) values
-  (101, 1, '24250101', '001010000', 'Raka Aditya Pratama', '7A', 'https://ui-avatars.com/api/?name=Raka+Aditya+Pratama&size=256&background=0F766E&color=ffffff&bold=true&format=png', true),
-  (102, 1, '24250102', '001020000', 'Nadia Safitri', '7A', 'https://ui-avatars.com/api/?name=Nadia+Safitri&size=256&background=1D4ED8&color=ffffff&bold=true&format=png', true),
-  (103, 1, '24250103', '001030000', 'Bima Arya Nugraha', '7B', 'https://ui-avatars.com/api/?name=Bima+Arya+Nugraha&size=256&background=0F766E&color=ffffff&bold=true&format=png', true),
-  (104, 1, '24250104', '001040000', 'Salsabila Putri', '7B', 'https://ui-avatars.com/api/?name=Salsabila+Putri&size=256&background=1D4ED8&color=ffffff&bold=true&format=png', true),
-  (105, 1, '24250105', '001050000', 'Fajar Ramadhan', '8A', 'https://ui-avatars.com/api/?name=Fajar+Ramadhan&size=256&background=0F766E&color=ffffff&bold=true&format=png', true),
-  (106, 1, '24250106', '001060000', 'Kirana Dewi Lestari', '8A', 'https://ui-avatars.com/api/?name=Kirana+Dewi+Lestari&size=256&background=1D4ED8&color=ffffff&bold=true&format=png', true),
-  (107, 1, '24250107', '001070000', 'Abizard', '8B', 'https://ui-avatars.com/api/?name=Abizard&size=256&background=0F766E&color=ffffff&bold=true&format=png', true),
-  (108, 1, '24250108', '001080000', 'Fajar Nugraha', '7B', 'https://ui-avatars.com/api/?name=Fajar+Nugraha&size=256&background=1D4ED8&color=ffffff&bold=true&format=png', true),
-  (109, 1, '24250109', '001090000', 'Citra Kirana', '8A', 'https://ui-avatars.com/api/?name=Citra+Kirana&size=256&background=0F766E&color=ffffff&bold=true&format=png', true),
-  (110, 1, '24250110', '001100000', 'Daffa Alfarizi', '9A', 'https://ui-avatars.com/api/?name=Daffa+Alfarizi&size=256&background=1D4ED8&color=ffffff&bold=true&format=png', true),
-  (12, 1, '24250012', '00120000', 'Alya Rahmawati', '7C', 'https://ui-avatars.com/api/?name=Alya+Rahmawati&size=256&background=1D4ED8&color=ffffff&bold=true&format=png', true),
-  (13, 1, '24250013', '00130000', 'Bagas Saputra', '7C', 'https://ui-avatars.com/api/?name=Bagas+Saputra&size=256&background=0F766E&color=ffffff&bold=true&format=png', true),
-  (201, 1, '24250201', '002010000', 'Rangga Pratama', '7A', 'https://ui-avatars.com/api/?name=Rangga+Pratama&size=256&background=0F766E&color=ffffff&bold=true&format=png', true),
-  (202, 1, '24250202', '002020000', 'Sinta Maharani', '7B', 'https://ui-avatars.com/api/?name=Sinta+Maharani&size=256&background=1D4ED8&color=ffffff&bold=true&format=png', true),
-  (1001, 10, '24251001', '0010010000', 'Ahmad Fauzan', '7A', 'https://ui-avatars.com/api/?name=Ahmad+Fauzan&size=256&background=0F766E&color=ffffff&bold=true&format=png', true),
-  (1005, 10, '24251005', '0010050000', 'Citra Ayu Lestari', '7A', 'https://ui-avatars.com/api/?name=Citra+Ayu+Lestari&size=256&background=0F766E&color=ffffff&bold=true&format=png', true),
-  (1006, 10, '24251006', '0010060000', 'Dimas Prakoso', '7B', 'https://ui-avatars.com/api/?name=Dimas+Prakoso&size=256&background=1D4ED8&color=ffffff&bold=true&format=png', true),
-  (1007, 10, '24251007', '0010070000', 'Eka Wulandari', '7B', 'https://ui-avatars.com/api/?name=Eka+Wulandari&size=256&background=0F766E&color=ffffff&bold=true&format=png', true),
-  (3001, 10, '24253001', '0030010000', 'Anisa Rahma', '7A', 'https://ui-avatars.com/api/?name=Anisa+Rahma&size=256&background=0F766E&color=ffffff&bold=true&format=png', true);
+  (101, 1, '24250101', '001010000', 'Raka Aditya Pratama', '7A', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400', true),
+  (102, 1, '24250102', '001020000', 'Nadia Safitri', '7A', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400', true),
+  (103, 1, '24250103', '001030000', 'Bima Arya Nugraha', '7B', 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400', true),
+  (104, 1, '24250104', '001040000', 'Salsabila Putri', '7B', 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400', true),
+  (105, 1, '24250105', '001050000', 'Fajar Ramadhan', '8A', 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400', true),
+  (106, 1, '24250106', '001060000', 'Kirana Dewi Lestari', '8A', 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400', true),
+  (107, 1, '24250107', '001070000', 'Abizard', '8B', 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=400', true),
+  (108, 1, '24250108', '001080000', 'Fajar Nugraha', '7B', 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=400', true),
+  (109, 1, '24250109', '001090000', 'Citra Kirana', '8A', 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400', true),
+  (110, 1, '24250110', '001100000', 'Daffa Alfarizi', '9A', 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=400', true),
+  (12, 1, '24250012', '00120000', 'Alya Rahmawati', '7C', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400', true),
+  (13, 1, '24250013', '00130000', 'Bagas Saputra', '7C', 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400', true),
+  (201, 1, '24250201', '002010000', 'Rangga Pratama', '7A', 'https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?w=400', true),
+  (202, 1, '24250202', '002020000', 'Sinta Maharani', '7B', 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=400', true),
+  (1001, 10, '24251001', '0010010000', 'Ahmad Fauzan', '7A', 'https://images.unsplash.com/photo-1543610892-0b1f7e6d8ac1?w=400', true),
+  (1005, 10, '24251005', '0010050000', 'Citra Ayu Lestari', '7A', 'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=400', true),
+  (1006, 10, '24251006', '0010060000', 'Dimas Prakoso', '7B', 'https://images.unsplash.com/photo-1499952127939-9bbf5af6c51c?w=400', true),
+  (1007, 10, '24251007', '0010070000', 'Eka Wulandari', '7B', 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=400', true),
+  (3001, 10, '24253001', '0030010000', 'Anisa Rahma', '7A', 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=400', true);
 
 -- 4. ORANG TUA — 2 wali per siswa (ayah + ibu)
 insert into orang_tua (sekolah_id, siswa_id, nama, telepon, hubungan, punya_aplikasi, aktif) values

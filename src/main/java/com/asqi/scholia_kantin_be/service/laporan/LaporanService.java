@@ -34,6 +34,8 @@ import com.asqi.scholia_kantin_be.model.MutasiSaldo;
 import com.asqi.scholia_kantin_be.model.Stok;
 import com.asqi.scholia_kantin_be.model.Transaksi;
 import com.asqi.scholia_kantin_be.model.TransaksiItem;
+import com.asqi.scholia_kantin_be.model.Pengguna;
+import com.asqi.scholia_kantin_be.repository.PenggunaRepository;
 import com.asqi.scholia_kantin_be.repository.KategoriMenuRepository;
 import com.asqi.scholia_kantin_be.repository.PembatasanRepository;
 import com.asqi.scholia_kantin_be.repository.MenuRepository;
@@ -105,6 +107,7 @@ public class LaporanService {
     private final com.asqi.scholia_kantin_be.service.kasir.LedgerSaldoService ledgerSaldo;
     private final com.asqi.scholia_kantin_be.service.saldo.SetoranService setoranTuService;
     private final com.asqi.scholia_kantin_be.service.CariSiswaService cariSiswaService;
+    private final PenggunaRepository penggunaRepo;
 
     // ────────────────────────────────────────────────────────────────
     // Periode
@@ -252,7 +255,8 @@ public class LaporanService {
                             siswaId, siswa.getNis(), null, siswa.getNama(), siswa.getKelas(),
                             cache == null || cache.getSaldo() == null ? 0L : cache.getSaldo(),
                             ledgerSaldo.belanjaHariIni(sekolahId, siswaId),
-                            limit, diblokir, null, null,
+                            limit, diblokir,
+                            siswa.getNamaOrangTua(), siswa.getTeleponOrangTua(),
                             waktuTerakhir.get(siswaId));
                 })
                 .toList();
@@ -528,6 +532,8 @@ public class LaporanService {
                 : transaksiItemRepo.findByTransaksiIdIn(transaksiIds).stream()
                 .collect(Collectors.groupingBy(i -> i.getTransaksi().getId()));
 
+        Map<Long, String> namaPetugas = ambilNamaPetugas(sekolahId, mutasi, transaksiById);
+
         List<LaporanRiwayatSiswa.Baris> riwayat = mutasi.stream().map(l -> {
             Transaksi t = l.getTransaksiId() == null ? null : transaksiById.get(l.getTransaksiId());
             List<LaporanRiwayatSiswa.Item> items = t == null ? List.of()
@@ -535,6 +541,8 @@ public class LaporanService {
                     .map(i -> new LaporanRiwayatSiswa.Item(i.getMenuId(), i.getNamaMenu(),
                             i.getQty(), i.getHargaJual(), i.getSubtotal()))
                     .toList();
+
+            String petugas = resolveNamaPetugas(l, t, namaPetugas);
 
             return new LaporanRiwayatSiswa.Baris(
                     String.valueOf(l.getId()),
@@ -544,7 +552,7 @@ public class LaporanService {
                     l.getNominal() == null ? 0L : l.getNominal(),
                     l.getSaldoSetelah() == null ? 0L : l.getSaldoSetelah(),
                     t == null ? "-" : namaTitik.getOrDefault(t.getTitikKasirId(), "-"),
-                    "-",   // nama petugas tidak ada di kantin-be (ADR-0002)
+                    petugas,
                     t == null ? String.valueOf(l.getId()) : String.valueOf(t.getId()),
                     l.getKeterangan() == null ? "" : l.getKeterangan(),
                     items);
@@ -630,6 +638,8 @@ public class LaporanService {
                 : transaksiItemRepo.findByTransaksiIdIn(transaksiIds).stream()
                 .collect(Collectors.groupingBy(i -> i.getTransaksi().getId()));
 
+        Map<Long, String> namaPetugas = ambilNamaPetugas(sekolahId, mutasi, transaksiById);
+
         Map<Long, com.asqi.scholia_kantin_be.service.integrasi.InfoSiswa> siswaById = new HashMap<>();
         try {
             for (com.asqi.scholia_kantin_be.service.integrasi.InfoSiswa s : cariSiswaService.cari(sekolahId, "", false, 50)) {
@@ -654,6 +664,8 @@ public class LaporanService {
             String siswaNis = info != null ? info.getNis() : null;
             String siswaKelas = info != null ? info.getKelas() : null;
 
+            String petugas = resolveNamaPetugas(l, t, namaPetugas);
+
             return new LaporanRiwayatKeseluruhanItem(
                     String.valueOf(l.getId()),
                     l.getWaktu(),
@@ -662,7 +674,7 @@ public class LaporanService {
                     l.getNominal() == null ? 0L : l.getNominal(),
                     l.getSaldoSetelah() == null ? 0L : l.getSaldoSetelah(),
                     t == null ? "-" : namaTitik.getOrDefault(t.getTitikKasirId(), "-"),
-                    "-",
+                    petugas,
                     t == null ? String.valueOf(l.getId()) : String.valueOf(t.getId()),
                     l.getKeterangan() == null ? "" : l.getKeterangan(),
                     items,
@@ -673,6 +685,38 @@ public class LaporanService {
         }).toList();
     }
 
+
+    private Map<Long, String> ambilNamaPetugas(Long sekolahId, List<MutasiSaldo> mutasi, Map<Long, Transaksi> transaksiById) {
+        Set<Long> penggunaIds = new java.util.HashSet<>();
+        for (MutasiSaldo m : mutasi) {
+            if (m.getAktorId() != null) {
+                penggunaIds.add(m.getAktorId());
+            }
+        }
+        for (Transaksi t : transaksiById.values()) {
+            if (t.getPetugasId() != null) {
+                penggunaIds.add(t.getPetugasId());
+            }
+            if (t.getVoidOleh() != null) {
+                penggunaIds.add(t.getVoidOleh());
+            }
+        }
+        if (penggunaIds.isEmpty()) {
+            return Map.of();
+        }
+        return penggunaRepo.findByIdInAndSekolahId(penggunaIds, sekolahId).stream()
+                .collect(Collectors.toMap(Pengguna::getId, Pengguna::getNama));
+    }
+
+    private String resolveNamaPetugas(MutasiSaldo l, Transaksi t, Map<Long, String> namaPetugas) {
+        if (t != null && t.getPetugasId() != null && namaPetugas.containsKey(t.getPetugasId())) {
+            return namaPetugas.get(t.getPetugasId());
+        }
+        if (l.getAktorId() != null && namaPetugas.containsKey(l.getAktorId())) {
+            return namaPetugas.get(l.getAktorId());
+        }
+        return "-";
+    }
 
     /** Jenis mutasi BE → istilah riwayat yang dipakai FE. */
     private static String jenisRiwayat(JenisMutasiSaldo jenis) {
