@@ -78,10 +78,16 @@ public class StokOperasiService {
     @Transactional
     public HasilMutasiStok masukBarang(Long sekolahId, Long menuId, int qty,
                                        long hargaBeliPerUnit, String referensiId, Long aktorId) {
+        return masukBarang(sekolahId, menuId, qty, hargaBeliPerUnit, referensiId, aktorId, null);
+    }
+
+    @Transactional
+    public HasilMutasiStok masukBarang(Long sekolahId, Long menuId, int qty,
+                                       long hargaBeliPerUnit, String referensiId, Long aktorId, String alasan) {
         validasiReferensi(referensiId, "Nomor bukti barang masuk");
         pastikanMenuMilikSekolah(sekolahId, menuId);
         HasilMutasiStok hasil = ledgerStok.masukBarang(sekolahId, menuId, qty, hargaBeliPerUnit,
-                "BARANG_MASUK", referensiId, aktorId);
+                "BARANG_MASUK", referensiId, aktorId, alasan);
 
         // PRD §5.1/§7.2: setiap barang masuk diposting sebagai pengeluaran Buku Kas
         // pos "Belanja Stok Kantin". Idempoten (refId deterministik) & fail-open —

@@ -72,6 +72,13 @@ public class LedgerStokService {
     public HasilMutasiStok masukBarang(Long sekolahId, Long menuId, int qty,
                                        long hargaBeliPerUnit, String referensiTipe,
                                        String referensiId, Long aktorId) {
+        return masukBarang(sekolahId, menuId, qty, hargaBeliPerUnit, referensiTipe, referensiId, aktorId, null);
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public HasilMutasiStok masukBarang(Long sekolahId, Long menuId, int qty,
+                                       long hargaBeliPerUnit, String referensiTipe,
+                                       String referensiId, Long aktorId, String alasan) {
         if (qty <= 0) {
             throw new InvalidOperationException("Qty barang masuk harus > 0");
         }
@@ -101,7 +108,7 @@ public class LedgerStokService {
         int stokBaru = stokSebelum + qty;
 
         RiwayatStok mutasi = catat(ArahStok.MASUK, JenisMutasiStok.BARANG_MASUK, sekolahId, menuId,
-                qty, stokBaru, hppBaru, null, referensiTipe, referensiId, null, aktorId,
+                qty, stokBaru, hppBaru, null, referensiTipe, referensiId, alasan, aktorId,
                 hargaBeliPerUnit, null);
 
         cache.setStok(stokBaru);

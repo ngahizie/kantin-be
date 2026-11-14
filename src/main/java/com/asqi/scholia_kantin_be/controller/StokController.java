@@ -58,7 +58,8 @@ public class StokController {
 
         HasilMutasiStok hasil = operasi.masukBarang(
                 TenantContext.sekolahIdWajib(), request.getMenuId(), request.getQty(),
-                request.getHargaBeliPerUnit(), request.getReferensiId(), identitas.aktorIdWajib());
+                request.getHargaBeliPerUnit(), request.getReferensiId(), identitas.aktorIdWajib(),
+                request.getAlasan());
         return CommonResponse.data(hasil, "Barang masuk tercatat");
     }
 
