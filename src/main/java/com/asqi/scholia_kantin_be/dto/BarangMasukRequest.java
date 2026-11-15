@@ -28,4 +28,7 @@ public class BarangMasukRequest {
     @NotBlank(message = "Nomor bukti barang masuk wajib diisi")
     @Size(max = 60)
     private String referensiId;
+
+    @Size(max = 255)
+    private String alasan;
 }
