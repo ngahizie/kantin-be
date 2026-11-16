@@ -33,6 +33,8 @@
 			Versi 0.8.13 mendukung bytecode Java 25.
 		-->
 		<jacoco.version>0.8.13</jacoco.version>
+		<!-- ArchUnit 1.4.1: uji aturan arsitektur (lihat ArsitekturTenantArchTest). -->
+		<archunit.version>1.4.1</archunit.version>
 	</properties>
 
 	<!-- Testcontainers BOM: Spring Boot 4 tidak lagi mengelola versinya. -->
@@ -232,6 +234,15 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-testcontainers</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<!-- ArchUnit: menjaga aturan arsitektur (isolasi tenant/A01) agar tidak
+		     hanya jadi kesepakatan lisan. Gagal build bila controller baru
+		     lupa menyentuh TenantContext. -->
+		<dependency>
+			<groupId>com.tngtech.archunit</groupId>
+			<artifactId>archunit-junit5</artifactId>
+			<version>${archunit.version}</version>
 			<scope>test</scope>
 		</dependency>
 		<!-- ============================================================ -->
