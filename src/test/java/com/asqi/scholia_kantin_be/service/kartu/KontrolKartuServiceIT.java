@@ -1,5 +1,6 @@
 package com.asqi.scholia_kantin_be.service.kartu;
 
+import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
 import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.dto.TapRequest;
 import com.asqi.scholia_kantin_be.dto.TapResponse;
@@ -294,14 +295,14 @@ class KontrolKartuServiceIT {
     }
 
     @Test
-    @DisplayName("#40: tenant scoping — kontrol sekolah lain tidak bocor")
+    @DisplayName("#40: tenant scoping — kontrol siswa sekolah lain dijawab 404")
     void kontrolTenantScoped() {
         kontrol.ubahBlokir(SEKOLAH, SISWA, true, "hilang", ADMIN);
 
-        var lain = kontrol.kontrol(SEKOLAH_LAIN, SISWA);
-        assertThat(lain.isDiblokir()).isFalse();
-        assertThat(lain.isAdaLimit()).isFalse();
-        assertThat(lain.getMenuDiblokir()).isEmpty();
+        // Dulu: mengembalikan ringkasan kosong (tidak bocor data, tapi juga tidak
+        // menegaskan batas tenant). Sekarang: 404, konsisten dengan layanan lain.
+        assertThatThrownBy(() -> kontrol.kontrol(SEKOLAH_LAIN, SISWA))
+                .isInstanceOf(NotFoundEntity.class);
     }
 
     /** Fake port: kartu siswa "Budi" & katalog dua menu (menyembunyikan Q7/Fase 5). */

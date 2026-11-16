@@ -1,6 +1,7 @@
 package com.asqi.scholia_kantin_be.service.kartu;
 
 import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
+import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
 import com.asqi.scholia_kantin_be.component.logging.AuditLogger;
 import com.asqi.scholia_kantin_be.dto.BlokirItemResponse;
 import com.asqi.scholia_kantin_be.dto.KontrolSubjekResponse;
@@ -10,6 +11,7 @@ import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.model.Pembatasan;
 import com.asqi.scholia_kantin_be.repository.PembatasanRepository;
+import com.asqi.scholia_kantin_be.repository.SiswaRepository;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoKartu;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -46,6 +48,7 @@ import java.util.Set;
 public class KontrolKartuService {
 
     private final PembatasanRepository pembatasanRepo;
+    private final SiswaRepository siswaRepo;
     private final JamKantin jam;
     private final AuditLogger auditLogger;
     private final IdGenerator idGenerator;
@@ -62,7 +65,7 @@ public class KontrolKartuService {
     @Transactional
     public KontrolSubjekResponse ubahBlokir(Long sekolahId, Long siswaId,
                                             boolean diblokir, String alasan, Long aktorId) {
-        validasiSiswa(siswaId);
+        pastikanSiswaMilikSekolah(sekolahId, siswaId);
         OffsetDateTime now = jam.sekarang();
 
         Pembatasan baris = pembatasanRepo
@@ -100,7 +103,7 @@ public class KontrolKartuService {
     @Transactional
     public KontrolSubjekResponse setLimit(Long sekolahId, Long siswaId,
                                           Long nominal, Long aktorId) {
-        validasiSiswa(siswaId);
+        pastikanSiswaMilikSekolah(sekolahId, siswaId);
         if (nominal != null && nominal < 0) {
             throw new InvalidOperationException("Limit harian tidak boleh negatif");
         }
@@ -150,7 +153,7 @@ public class KontrolKartuService {
     public KontrolSubjekResponse ubahBlokirItem(Long sekolahId, Long siswaId,
                                                 Long menuId, Long kategoriId, boolean diblokir,
                                                 Long aktorId) {
-        validasiSiswa(siswaId);
+        pastikanSiswaMilikSekolah(sekolahId, siswaId);
         boolean adaMenu = menuId != null;
         boolean adaKategori = kategoriId != null;
         if (adaMenu == adaKategori) {
@@ -198,7 +201,6 @@ public class KontrolKartuService {
         if (siswaIds == null || siswaIds.isEmpty()) {
             return List.of();
         }
-        validasiSiswa(null);
 
         List<Pembatasan> semua = pembatasanRepo.findBySekolahIdAndSiswaIdIn(sekolahId, siswaIds);
         return siswaIds.stream()
@@ -264,16 +266,24 @@ public class KontrolKartuService {
                 .build();
     }
 
-    private void validasiSiswa(Long siswaId) {
-        if (siswaId != null && siswaId <= 0) {
+    /**
+     * Pastikan subjek ada <b>dan</b> milik sekolah pemanggil. Tanpa ini,
+     * sekolah A bisa membuat/membaca pembatasan yang menunjuk siswa sekolah B
+     * (barisnya masuk ke lingkup A, tapi referensi subjeknya milik tenant lain).
+     */
+    private void pastikanSiswaMilikSekolah(Long sekolahId, Long siswaId) {
+        if (siswaId == null || siswaId <= 0) {
             throw new InvalidOperationException("ID subjek harus positif");
+        }
+        if (siswaRepo.findByIdAndSekolahId(siswaId, sekolahId).isEmpty()) {
+            throw new NotFoundEntity("Siswa tidak ditemukan");
         }
     }
 
     /** Ringkasan kontrol satu siswa (tenant-scoped). */
     @Transactional(readOnly = true)
     public KontrolSubjekResponse kontrol(Long sekolahId, Long siswaId) {
-        validasiSiswa(siswaId);
+        pastikanSiswaMilikSekolah(sekolahId, siswaId);
         return ringkas(sekolahId, siswaId, pembatasanRepo.findBySekolahIdAndSiswaId(sekolahId, siswaId));
     }
 
