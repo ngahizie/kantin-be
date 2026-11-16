@@ -19,5 +19,11 @@ public record BarisStok(
         long nilaiPersediaan,
         boolean menipis,
         String namaMenu,
-        int stokBerjalan) {
+        int stokBerjalan,
+        String kodeBarcode) {
+
+    public BarisStok(Long menuId, String nama, Long kategoriId, int stok, int stokMinimum,
+                     long hpp, long nilaiPersediaan, boolean menipis, String namaMenu, int stokBerjalan) {
+        this(menuId, nama, kategoriId, stok, stokMinimum, hpp, nilaiPersediaan, menipis, namaMenu, stokBerjalan, null);
+    }
 }
