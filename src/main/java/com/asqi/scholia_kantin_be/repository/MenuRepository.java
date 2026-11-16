@@ -82,4 +82,17 @@ public interface MenuRepository extends JpaRepository<Menu, Long>, JpaSpecificat
     /** Apakah kode barcode sudah dipakai menu selain {@code id} dalam tenant ini. */
     boolean existsBySekolahIdAndKodeBarcodeAndIdNotAndDeletedAtIsNull(
             Long sekolahId, String kodeBarcode, Long id);
+
+    /**
+     * Apakah nama menu sudah dipakai menu lain yang belum dihapus dalam tenant ini.
+     * Dipakai menolak nama ganda sebelum menyimpan.
+     */
+    boolean existsBySekolahIdAndNamaIgnoreCaseAndDeletedAtIsNull(Long sekolahId, String nama);
+
+    /**
+     * Apakah nama menu sudah dipakai menu selain {@code id} dalam tenant ini.
+     * Versi ini dipakai saat mengubah menu agar menu tidak menolak namanya sendiri.
+     */
+    boolean existsBySekolahIdAndNamaIgnoreCaseAndIdNotAndDeletedAtIsNull(
+            Long sekolahId, String nama, Long id);
 }
