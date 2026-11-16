@@ -10,18 +10,27 @@
 |---|---|
 | `scripts/backup-kantin-db.sh` | `pg_dump` format custom + rotasi harian |
 | `scripts/restore-kantin-db.sh` | Uji restore ke DB terpisah, atau restore sungguhan |
+| `scripts/install-backup-timer.sh` | Pemasang timer portabel (mengganti `__ROOT__` sesuai lokasi repo) |
 | `scripts/systemd/kantin-backup.service` | Unit oneshot pemanggil script backup |
 | `scripts/systemd/kantin-backup.timer` | Jadwal harian 02:30 (dengan `Persistent=true`) |
 
 Dump ditulis ke `tmp/backups/` (sudah di-gitignore — **tidak** ikut ter-commit).
 
-## Pemasangan (sekali)
+## Pemasangan (sekali, portabel)
 
 ```bash
-cp scripts/systemd/kantin-backup.{service,timer} ~/.config/systemd/user/
-systemctl --user daemon-reload
-systemctl --user enable --now kantin-backup.timer
-systemctl --user list-timers kantin-backup.timer
+scripts/install-backup-timer.sh
+```
+
+Script ini mengganti placeholder `__ROOT__` di unit systemd dengan path repo
+saat ini, menyalinnya ke `~/.config/systemd/user/`, lalu mengaktifkan timer.
+Tidak perlu sudo, dan **tidak** mengasumsikan lokasi folder repo — jadi bisa
+dipakai di mesin siapa pun setelah `git clone`.
+
+Mencopot pemasangan:
+
+```bash
+scripts/install-backup-timer.sh --uninstall
 ```
 
 `Persistent=true` membuat backup tetap dijalankan bila mesin mati saat jadwal.
