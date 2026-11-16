@@ -209,6 +209,7 @@ public class KatalogService {
                          SatuanMenu satuan, String fotoUrl, Integer stokMinimum,
                          String kodeBarcode, Long aktorId) {
         String bersih = normalisasiNama(nama);
+        pastikanNamaMenuUnik(sekolahId, bersih, null);
         String barcodeBersih = normalisasiKodeBarcode(kodeBarcode);
         validasiHarga(hargaJual);
         if (kategoriId != null) {
@@ -269,7 +270,9 @@ public class KatalogService {
                 .orElseThrow(() -> new NotFoundEntity("Menu tidak ditemukan"));
 
         if (nama != null && !nama.isBlank()) {
-            menu.setNama(normalisasiNama(nama));
+            String namaBaru = normalisasiNama(nama);
+            pastikanNamaMenuUnik(sekolahId, namaBaru, menuId);
+            menu.setNama(namaBaru);
         }
         if (kodeBarcode != null) {
             String barcodeBersih = normalisasiKodeBarcode(kodeBarcode);
@@ -392,6 +395,24 @@ public class KatalogService {
                         sekolahId, kodeBarcode, kecualikanMenuId);
         if (sudahDipakai) {
             throw new ConflictException("Kode barcode '" + kodeBarcode + "' sudah digunakan oleh menu lain");
+        }
+    }
+
+    /**
+     * Nama menu harus unik di dalam satu sekolah. Tanpa ini, dua baris bernama sama
+     * bisa dibuat lewat UI dan kasir tidak tahu harus memilih yang mana.
+     *
+     * <p>Cakupan sengaja per sekolah: "Ayam Geprek" yang dijual sekolah 1 dan
+     * sekolah 10 adalah dua produk sah yang berbeda. Perbandingan tidak peka huruf
+     * besar/kecil karena {@code normalisasiNama} hanya merapikan spasi, bukan kapital.
+     */
+    private void pastikanNamaMenuUnik(Long sekolahId, String nama, Long kecualikanMenuId) {
+        boolean sudahDipakai = kecualikanMenuId == null
+                ? menuRepo.existsBySekolahIdAndNamaIgnoreCaseAndDeletedAtIsNull(sekolahId, nama)
+                : menuRepo.existsBySekolahIdAndNamaIgnoreCaseAndIdNotAndDeletedAtIsNull(
+                        sekolahId, nama, kecualikanMenuId);
+        if (sudahDipakai) {
+            throw new ConflictException("Menu '" + nama + "' sudah ada");
         }
     }
 }
