@@ -14,7 +14,7 @@ stok → tutup sesi → cek laporan* — **tanpa** menunggu data/keys tim SKOOLI
 ```
 docker compose up -d            # PostgreSQL + Redis
 SPRING_PROFILES_ACTIVE=local,demo  (butuh private key JWT dummy)
-                                # seed dev dimuat Flyway otomatis saat start
+                                # seed dev TIDAK otomatis — jalankan psql -f (lihat §3)
 POST /api/v1/auth/login         # ambil token (shim dev)
 POST /api/kasir/tap             # tap kartu → transaksi
 POST /api/kasir/sesi/1/tutup    # tutup sesi
@@ -71,17 +71,25 @@ Aplikasi siap di `http://localhost:8082` (health: `/actuator/health`).
 > `kantin.dev-login.enabled=true`, dan mematikan rate limit — jadi env di atas
 > hanya menegaskan.
 
-## 3. Seed data demo (otomatis)
+## 3. Seed data demo (manual, tidak lagi otomatis)
 
-Tidak ada langkah manual. Seed dimuat **Flyway** saat aplikasi start:
+Seed **tidak** lagi dimuat otomatis saat aplikasi start — supaya data dev tidak
+terhapus dan transaksi dummy tidak dibuat ulang setiap hari. Jalankan sekali
+secara manual saat butuh dataset demo:
+
+```bash
+psql -h localhost -U kantin -d kantin_db \
+     -f src/main/resources/db/seed/R__seed_dev.sql
+```
 
 - file: `src/main/resources/db/seed/R__seed_dev.sql` (repeatable migration)
-- aktif bila `spring.flyway.locations` memuat `classpath:db/seed`
-  (sudah ada di `application-local.properties.example`)
+- jalan otomatis **hanya** bila kamu sendiri menambahkan `classpath:db/seed` ke
+  `spring.flyway.locations` di `application-local.properties` (tidak default)
 
-**Idempoten** — aman start berulang; baris yang sudah diubah aplikasi tidak
-ditimpa (`ON CONFLICT DO NOTHING`). Ingin DB kosong? Komentari baris
-`spring.flyway.locations` di `application-local.properties`.
+**Destruktif & deterministik** — tabel dikosongkan dulu lalu diisi ulang, supaya
+hasilnya sama antar-run. Karena itu jangan dijalankan kalau ada data dev yang
+ingin dipertahankan. Ingin DB kosong? Cukup jangan jalankan perintah di atas
+(migrasi skema tetap jalan sendiri).
 
 ## 4. Ambil token (shim login dev)
 
@@ -176,7 +184,9 @@ Karena ledger & transaksi bersifat **append-only**, untuk mengulang dari nol:
 
 ```bash
 docker compose down -v && docker compose up -d    # hapus volume → DB bersih
-./mvnw spring-boot:run                            # migrasi + seed Flyway otomatis
+./mvnw spring-boot:run                            # migrasi skema saja
+psql -h localhost -U kantin -d kantin_db \
+     -f src/main/resources/db/seed/R__seed_dev.sql  # seed manual, bila perlu
 ```
 
 ## 9. Kenapa ini aman (tidak bocor ke produksi)

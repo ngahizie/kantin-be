@@ -2,9 +2,12 @@
 -- R__seed_dev.sql — Data dev/demo untuk skema v2 (23 tabel)
 -- ------------------------------------------------------------
 -- ⚠️ BUKAN data produksi.
---    Flyway REPEATABLE migration: hanya jalan bila `db/seed` ikut
---    didaftarkan di `spring.flyway.locations` (application-local).
---    CI & seluruh test tidak memuatnya secara default.
+--    Flyway REPEATABLE migration. Sejak folder `db/seed` TIDAK lagi
+--    didaftarkan di `application-local.properties.example`, file ini hanya
+--    berjalan bila diminta manual:
+--      psql -h localhost -U kantin -d kantin_db -f <file ini>
+--    CI & seluruh test tidak memuatnya secara default (SeedDevIT mendaftarkan
+--    lokasi seed sendiri).
 --
 -- Password semua akun: Kantin#2026
 --

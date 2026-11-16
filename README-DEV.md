@@ -47,24 +47,43 @@ Port aplikasi: **8082** (admin-be 8081, agar tidak bentrok).
 
 ### Data seed dev (untuk FE)
 
-`application-local.properties.example` sudah memuat baris ini:
+`application-local.properties.example` **tidak** lagi mendaftarkan folder seed:
 
 ```properties
-spring.flyway.locations=classpath:db/migration,classpath:db/seed
+spring.flyway.locations=classpath:db/migration
+spring.flyway.ignore-migration-patterns=*:missing
 ```
 
-Artinya saat `./mvnw spring-boot:run`, Flyway menerapkan 23 migrasi **lalu**
-`db/seed/R__seed_dev.sql` — dataset dummy deterministik (3 sekolah, 21 menu,
-14 Kartu Tamu, 12 transaksi, 5 titik kasir, sesi kasir terbuka & tertutup,
-saldo/HPP/stok, koreksi saldo, setoran TU, pengaturan kantin) supaya FE
-**tidak perlu mock**. Tenant `sekolah_id = 10` ikut diisi karena form login
-`kantin-fe` mengirim angka itu langsung di kode — tanpa data di tenant tersebut
-semua layar FE tampak kosong walau endpoint sudah membalas 200.
+Artinya `./mvnw spring-boot:run` hanya menerapkan migrasi skema; data dummy
+**tidak** ikut dimuat. Seeder `db/seed/R__seed_dev.sql` dijalankan manual saat
+kamu memang butuh dataset demo:
 
-Idempoten: start berulang tidak menggandakan baris dan tidak menimpa data yang
-sudah diubah aplikasi. Ingin DB kosong? Komentari baris di atas. CI dan seluruh
-`@SpringBootTest` **tidak** memuatnya (lokasi seed hanya ditambahkan lewat file
-lokal yang gitignored).
+```bash
+psql -h localhost -U kantin -d kantin_db -f src/main/resources/db/seed/R__seed_dev.sql
+```
+
+Kenapa tidak otomatis lagi: file itu Flyway *repeatable migration*, jadi
+dijalankan ulang setiap isinya berubah — dan hampir setiap PR menyentuhnya
+(menu, foto, istilah, alamat). Isi seeder sendiri meng-`TRUNCATE` semua tabel
+lalu menulis ulang 36 transaksi bertanggal `current_date - n`. Akibatnya data
+dev terhapus dan transaksi dummy "baru" muncul lagi setiap hari, termasuk jam
+yang belum terjadi. Sekarang seeder hanya jalan saat diminta.
+
+Isi dataset (dummy deterministik, supaya FE **tidak perlu mock**): 2 sekolah,
+24 menu, 19 siswa, 6 sesi kasir (2 terbuka), 36 transaksi (1 void),
+saldo/HPP/stok, setoran TU, pengaturan kantin. Tenant `sekolah_id = 10` ikut
+diisi karena form login `kantin-fe` mengirim angka itu langsung di kode — tanpa
+data di tenant tersebut semua layar FE tampak kosong walau endpoint sudah
+membalas 200.
+
+`spring.flyway.ignore-migration-patterns=*:missing` wajib ada karena DB dev yang
+pernah memuat seeder sudah mencatat `R__seed_dev.sql` di `flyway_schema_history`;
+tanpa baris itu Flyway menolak start dengan *"Detected applied migration not
+resolved locally"*. CI dan seluruh `@SpringBootTest` tidak terpengaruh —
+`SeedDevIT` mendaftarkan lokasi seed sendiri.
+
+Ingin mulai bersih? Drop database lokal lalu start ulang (hanya migrasi), dan
+jalankan seeder manual bila perlu.
 
 Seed juga membuat tabel **`dev_pengguna`** (hanya ada di lokal, bukan migrasi)
 berisi 8 akun login dev dengan password `Kantin#2026`: `kepsek1`, `tu1`,
