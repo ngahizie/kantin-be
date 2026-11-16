@@ -204,7 +204,7 @@ class BukuKasPostingServiceIT {
     @Test
     @DisplayName("total bersih 0 → tidak ada yang diposting ke Buku Kas")
     void bersihNolDilewati() {
-        SesiKasir sesi = sesiKasir.bukaSesi(SEKOLAH, TITIK); // tanpa transaksi
+        SesiKasir sesi = sesiKasir.bukaSesi(SEKOLAH, TITIK, null); // tanpa transaksi, tanpa aktor
 
         sesiKasir.tutupSesi(SEKOLAH, sesi.getId(), 555L, false);
         HasilJurnalBukuKas hasil = posting.postingUlang(SEKOLAH, sesi.getId(), 555L);

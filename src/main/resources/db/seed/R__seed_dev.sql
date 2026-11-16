@@ -12,7 +12,7 @@
 -- Password semua akun: Kantin#2026
 --
 -- Isi:
---   sekolah 2 · pengguna 12 (6 peran x 2 sekolah) · siswa 19 (foto terisi)
+--   sekolah 2 · pengguna 14 (7 peran x 2 sekolah, 2 kasir per sekolah) · siswa 19 (foto terisi)
 --   orang_tua 38 (2 wali per siswa) · kartu 19 · kategori_menu 8
 --   menu 24 · stok 24 · titik_kasir 4 · pengaturan_kantin 2
 --   akun_buku_kas 8 · saldo 19
@@ -43,7 +43,7 @@ insert into sekolah (id, nama, npsn, alamat, aktif, logo_url) values
    'Jl. Diponegoro No. 10, Kel. Tugu, Kec. Cimanggis, Kota Depok, Jawa Barat 16451', true,
    '/logo-sekolah-10.png');
 
--- 2. PENGGUNA — 12 akun, password: Kantin#2026
+-- 2. PENGGUNA — 14 akun (2 kasir di tiap sekolah), password: Kantin#2026
 insert into pengguna (id, sekolah_id, nama, username, role, password_hash, aktif) values
   (1, 1, 'Wibisana Bama', 'kepsek1', 'KEPSEK', '$2a$10$LGt9ZvDWW97jh0ozfFEIrOlwkp.DQ7HSpq7Eg/VxbHLn3UDuD.Xem', true),
   (2, 1, 'Sri Wahyuni', 'tu1', 'TATA_USAHA', '$2a$10$LGt9ZvDWW97jh0ozfFEIrOlwkp.DQ7HSpq7Eg/VxbHLn3UDuD.Xem', true),
@@ -56,7 +56,12 @@ insert into pengguna (id, sekolah_id, nama, username, role, password_hash, aktif
   (13, 10, 'Yusuf Hamdani', 'pengelola10', 'PENGELOLA', '$2a$10$LGt9ZvDWW97jh0ozfFEIrOlwkp.DQ7HSpq7Eg/VxbHLn3UDuD.Xem', true),
   (14, 10, 'Rizky Pratama', 'kasir10', 'PETUGAS', '$2a$10$LGt9ZvDWW97jh0ozfFEIrOlwkp.DQ7HSpq7Eg/VxbHLn3UDuD.Xem', true),
   (15, 10, 'Nurul Hidayah', 'bendahara10', 'BENDAHARA', '$2a$10$LGt9ZvDWW97jh0ozfFEIrOlwkp.DQ7HSpq7Eg/VxbHLn3UDuD.Xem', true),
-  (16, 10, 'Dewi Anggraini', 'admin10', 'ADMIN_SEKOLAH', '$2a$10$LGt9ZvDWW97jh0ozfFEIrOlwkp.DQ7HSpq7Eg/VxbHLn3UDuD.Xem', true);
+  (16, 10, 'Dewi Anggraini', 'admin10', 'ADMIN_SEKOLAH', '$2a$10$LGt9ZvDWW97jh0ozfFEIrOlwkp.DQ7HSpq7Eg/VxbHLn3UDuD.Xem', true),
+  -- Kasir kedua per sekolah untuk uji operasional multi-titik (issue #345):
+  -- sekolah 1 → Titik 2 (DEMO2 "Kasir Kelas 7"), sekolah 10 → Titik 12 (FE10-2).
+  -- Password sama dengan akun dev lain: Kantin#2026.
+  (7,  1, 'Dimas Prasetyo', 'kasir2', 'PETUGAS', '$2a$10$LGt9ZvDWW97jh0ozfFEIrOlwkp.DQ7HSpq7Eg/VxbHLn3UDuD.Xem', true),
+  (17, 10, 'Wulan Sari', 'kasir20', 'PETUGAS', '$2a$10$LGt9ZvDWW97jh0ozfFEIrOlwkp.DQ7HSpq7Eg/VxbHLn3UDuD.Xem', true);
 
 -- 3. SISWA — 19 siswa, foto_url potret nyata pelajar
 insert into siswa (id, sekolah_id, nis, nisn, nama, kelas, foto_url, aktif) values
@@ -274,6 +279,17 @@ insert into sesi_kasir (id, sekolah_id, titik_kasir_id, tanggal, status, total_b
   (34, 10, 11, (current_date - 4), 'DITUTUP', 15000, 0, 15000, (current_date - 4 + time '07:30')::timestamptz, (current_date - 4 + time '15:00')::timestamptz, 4, false, true, 'SESI-34', 15000, 0, 'Tutup normal, uang fisik sesuai sistem'),
   (35, 10, 11, (current_date - 5), 'DITUTUP', 15000, 0, 15000, (current_date - 5 + time '07:30')::timestamptz, (current_date - 5 + time '15:00')::timestamptz, 4, false, true, 'SESI-35', 15000, 0, 'Tutup normal, uang fisik sesuai sistem'),
   (36, 10, 11, (current_date - 6), 'DITUTUP', 15000, 0, 15000, (current_date - 6 + time '07:30')::timestamptz, (current_date - 6 + time '15:00')::timestamptz, 4, false, true, 'SESI-36', 15000, 0, 'Tutup normal, uang fisik sesuai sistem');
+
+-- Jejak pembuka sesi (issue #345). Demo multi-titik: titik 1 sekolah 1 dibuka
+-- kasir1 (4), titik 2 sekolah 1 dibuka kasir2 (7), semua sesi sekolah 10 dibuka
+-- kasir10 (14).
+update sesi_kasir
+   set dibuka_oleh = case
+       when sekolah_id = 1 and titik_kasir_id = 2 then 7
+       when sekolah_id = 1 then 4
+       else 14
+   end
+ where dibuka_oleh is null;
 
 -- 14. TRANSAKSI — 56 transaksi 7 hari terakhir (1 void untuk demo pembatalan)
 insert into transaksi (id, idempotency_key, sekolah_id, sesi_kasir_id, titik_kasir_id, kartu_uid, petugas_id, total, total_hpp, status, alasan_void, void_at, void_oleh, waktu, siswa_id, metode_bayar) values
@@ -745,7 +761,7 @@ commit;
 
 -- =====================================================================
 -- RINGKASAN ISI (dipakai juga oleh SeedDevIT)
---   sekolah 2 | pengguna 12 | siswa 19 | orang_tua 38 | kartu 19
+--   sekolah 2 | pengguna 14 | siswa 19 | orang_tua 38 | kartu 19
 --   kategori_menu 8 | menu 24 | stok 24 | titik_kasir 4
 --   pengaturan_kantin 2 | akun_buku_kas 8 | saldo 19
 --   sesi_kasir 14 (12 ditutup, 2 terbuka) | transaksi 56 (55 sukses, 1 void)

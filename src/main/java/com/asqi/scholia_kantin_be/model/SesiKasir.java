@@ -67,6 +67,15 @@ public class SesiKasir {
     @Column(name = "dibuka_at", nullable = false)
     private OffsetDateTime dibukaAt;
 
+    /**
+     * ID petugas yang membuka sesi — audit shift (issue #345).
+     *
+     * <p>Nullable: sesi lama dan sesi yang dibuka otomatis oleh jalur tap tanpa
+     * identitas petugas tidak punya jejak pembuka.
+     */
+    @Column(name = "dibuka_oleh")
+    private Long dibukaOleh;
+
     @Column(name = "ditutup_at")
     private OffsetDateTime ditutupAt;
 
