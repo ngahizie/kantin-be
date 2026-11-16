@@ -1,0 +1,14 @@
+[Unit]
+Description=Jadwal backup harian kantin_db (02:30 waktu lokal)
+
+[Timer]
+# Setiap hari 02:30 — di luar jam operasional kantin.
+OnCalendar=*-*-* 02:30:00
+# Bila mesin mati saat jadwal, jalankan begitu hidup lagi.
+Persistent=true
+# Beri jeda acak 0–10 menit agar tidak bertabrakan dengan job lain.
+RandomizedDelaySec=10m
+Unit=kantin-backup.service
+
+[Install]
+WantedBy=timers.target

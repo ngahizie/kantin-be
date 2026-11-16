@@ -1,0 +1,12 @@
+[Unit]
+Description=Backup harian PostgreSQL kantin_db (pg_dump)
+Documentation=file://__ROOT__/scripts/backup-kantin-db.sh
+After=network-online.target
+
+[Service]
+Type=oneshot
+# __ROOT__ diganti path absolut repo oleh scripts/install-backup-timer.sh,
+# supaya unit ini bisa dipakai di mesin siapa pun (path repo berbeda-beda).
+ExecStart=__ROOT__/scripts/backup-kantin-db.sh
+# Backup tidak boleh menggantung: batas 10 menit.
+TimeoutStartSec=600
