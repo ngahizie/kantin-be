@@ -341,7 +341,7 @@ class KasirControllerTest {
                 .thenReturn(new com.asqi.scholia_kantin_be.dto.SesiKasirAktifData(
                         900L, 7L, 1L, "Kasir 1", LocalDate.parse("2026-10-21"),
                         com.asqi.scholia_kantin_be.enums.StatusSesiKasir.TERBUKA,
-                        16_000L, 8_000L, 8_000L, 1L, null, null, null, false));
+                        16_000L, 8_000L, 8_000L, 1L, null, null, null, null, false));
 
         mockMvc.perform(get("/api/kasir/sesi/aktif").param("titikKasirId", "1"))
                 .andExpect(status().isOk())
@@ -370,6 +370,32 @@ class KasirControllerTest {
                 .andExpect(jsonPath("$.message").value("Tidak ada sesi kasir terbuka"));
 
         verify(sesiKasirService).ambilSesiAktif(eq(7L), eq(1L));
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // POST sesi/buka (issue #345)
+    // ────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("sesi buka (#345): 200 + titikKasirNama, petugas pembuka diteruskan ke service")
+    void bukaSesiMengembalikanNamaTitikDanMencatatPembuka() throws Exception {
+        when(sesiKasirService.ambilSesiAktif(eq(7L), eq(1L)))
+                .thenReturn(new com.asqi.scholia_kantin_be.dto.SesiKasirAktifData(
+                        900L, 7L, 1L, "Kasir Kelas 7", LocalDate.parse("2026-11-16"),
+                        com.asqi.scholia_kantin_be.enums.StatusSesiKasir.TERBUKA,
+                        0L, 0L, 0L, 0L, OffsetDateTime.parse("2026-11-16T07:20:00+07:00"),
+                        null, 42L, null, false));
+
+        mockMvc.perform(post("/api/kasir/sesi/buka")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"titikKasirId\":1}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.titikKasirNama").value("Kasir Kelas 7"))
+                .andExpect(jsonPath("$.data.dibukaOleh").value(42))
+                .andExpect(jsonPath("$.message").value("Sesi kasir dibuka"));
+
+        // Aktor dari token (userId "42"), tenant dari TenantContext (7) — bukan dari body.
+        verify(sesiKasirService).bukaSesi(eq(7L), eq(1L), eq(42L));
     }
 
     /**

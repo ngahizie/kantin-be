@@ -11,12 +11,15 @@ import java.time.OffsetDateTime;
  * — bentuk mengikuti tipe FE {@code SesiKasirData}
  * ({@code src/features/kasir/types.ts}).
  *
- * <p>Identik dengan entitas {@link SesiKasir} untuk field inti, ditambah dua
+ * <p>Identik dengan entitas {@link SesiKasir} untuk field inti, ditambah tiga
  * field kenyamanan FE yang tidak tersimpan di {@code sesi_kasir}:
  * <ul>
- *   <li>{@code titikKasirNama} — dari tabel {@code titik_kasir} milik tenant.</li>
+ *   <li>{@code titikKasirNama} — dari tabel {@code titik_kasir} milik tenant
+ *       (dipakai juga oleh {@code POST /api/kasir/sesi/buka}, issue #345, agar
+ *       klien yang baru membuka sesi langsung tahu nama loketnya).</li>
  *   <li>{@code totalTransaksi} — jumlah transaksi SUKSES sesi ini
  *       (sama dengan sumber rekap; bukan duplikasi logika).</li>
+ *   <li>{@code dibukaOleh} — ID petugas yang membuka sesi (audit shift).</li>
  * </ul>
  *
  * <p>Bila belum ada sesi terbuka, endpoint mengembalikan <b>200 dengan
@@ -38,6 +41,7 @@ public record SesiKasirAktifData(
         Long totalTransaksi,
         OffsetDateTime dibukaAt,
         OffsetDateTime ditutupAt,
+        Long dibukaOleh,
         Long ditutupOleh,
         boolean autoTutup) {
 
@@ -64,6 +68,7 @@ public record SesiKasirAktifData(
                 totalTransaksi,
                 s.getDibukaAt(),
                 s.getDitutupAt(),
+                s.getDibukaOleh(),
                 s.getDitutupOleh(),
                 s.isAutoTutup());
     }

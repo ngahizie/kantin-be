@@ -298,7 +298,7 @@ public class TapService {
         TapValidator.Hasil hasil = siap.hasil();
 
         // Sesi kasir hari ini (buka bila belum ada).
-        SesiKasir sesi = sesiKasir.sesiTerbukaAtauBuka(sekolahId, request.getTitikKasirId());
+        SesiKasir sesi = sesiKasir.sesiTerbukaAtauBuka(sekolahId, request.getTitikKasirId(), petugasId);
 
         OffsetDateTime now = jam.sekarang();
         Long transaksiId = idGenerator.berikutnyaLong();

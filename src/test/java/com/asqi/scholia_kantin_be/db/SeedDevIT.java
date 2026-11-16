@@ -53,7 +53,7 @@ class SeedDevIT {
         Jumlah awal = hitung(jdbc);
         assertThat(awal).as("isi seed v2").isEqualTo(new Jumlah(
                 2,    // sekolah: 1 dan 10
-                12,   // pengguna: 6 per sekolah
+                14,   // pengguna: 6 peran + 1 kasir kedua, per sekolah (#345)
                 24,   // menu: 12 per sekolah
                 8,    // kategori_menu: 4 per sekolah
                 24,   // stok: 1 baris per menu
@@ -80,7 +80,7 @@ class SeedDevIT {
                 .as("saldo tenant FE").isEqualTo(5);
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM pengguna WHERE sekolah_id = 10", Integer.class))
-                .as("akun tenant FE").isEqualTo(6);
+                .as("akun tenant FE").isEqualTo(7); // 6 peran + kasir20 (#345)
 
         // Fixture tap lokal: kartu uji harus aktif dan menunjuk siswa yang ada.
         assertThat(jdbc.queryForObject(
@@ -123,6 +123,27 @@ class SeedDevIT {
         assertThat(akunFe).as("akun dev tenant FE").isPresent();
         assertThat(akunFe.get().sekolahId()).as("sekolah akun tenant FE").isEqualTo(10L);
         assertThat(akunFe.get().role()).as("role akun tenant FE").isEqualTo("PETUGAS");
+
+        // Kasir kedua per sekolah (issue #345) — syarat uji multi-titik: dua loket
+        // di sekolah yang sama harus bisa dibuka petugas berbeda.
+        var kasir2 = validator.autentikasi("kasir2", PASSWORD);
+        assertThat(kasir2).as("akun kasir kedua sekolah 1").isPresent();
+        assertThat(kasir2.get().sekolahId()).as("sekolah akun kasir2").isEqualTo(1L);
+        assertThat(kasir2.get().role()).as("role akun kasir2").isEqualTo("PETUGAS");
+
+        var kasir20 = validator.autentikasi("kasir20", PASSWORD);
+        assertThat(kasir20).as("akun kasir kedua sekolah 10").isPresent();
+        assertThat(kasir20.get().sekolahId()).as("sekolah akun kasir20").isEqualTo(10L);
+        assertThat(kasir20.get().role()).as("role akun kasir20").isEqualTo("PETUGAS");
+
+        // Sesi seed harus punya jejak pembuka (issue #345), dan titik 2 sekolah 1
+        // dibuka kasir2 — bukan kasir1 — supaya demo multi-titik realistis.
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM sesi_kasir WHERE dibuka_oleh IS NULL", Integer.class))
+                .as("sesi seed tanpa jejak pembuka").isZero();
+        assertThat(jdbc.queryForObject(
+                "SELECT dibuka_oleh FROM sesi_kasir WHERE sekolah_id = 1 AND titik_kasir_id = 2",
+                Long.class)).as("pembuka sesi titik 2 sekolah 1").isEqualTo(7L);
 
         // Jalankan ulang isi seed: harus idempoten, tidak menggandakan baris.
         new ResourceDatabasePopulator(new ClassPathResource("db/seed/R__seed_dev.sql"))

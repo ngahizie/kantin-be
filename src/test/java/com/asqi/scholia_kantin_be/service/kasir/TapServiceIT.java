@@ -242,7 +242,7 @@ class TapServiceIT {
         jdbc.update("INSERT INTO titik_kasir (id, sekolah_id, nama, is_active, created_at, updated_at) "
                 + "VALUES (?, ?, 'Kasir sekolah lain', true, now(), now())", titikSekolahLain, 10L);
 
-        assertThatThrownBy(() -> sesiKasirService.bukaSesi(SEKOLAH, titikSekolahLain))
+        assertThatThrownBy(() -> sesiKasirService.bukaSesi(SEKOLAH, titikSekolahLain, null))
                 .isInstanceOf(com.asqi.scholia_kantin_be.component.exception.NotFoundEntity.class)
                 .hasMessageContaining("Titik kasir tidak ditemukan");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM sesi_kasir", Integer.class)).isZero();

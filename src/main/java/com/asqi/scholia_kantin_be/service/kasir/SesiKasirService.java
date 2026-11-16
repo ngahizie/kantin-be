@@ -63,7 +63,7 @@ public class SesiKasirService {
      * transaksi kasir yang sama.
      */
     @Transactional(propagation = Propagation.MANDATORY)
-    public SesiKasir sesiTerbukaAtauBuka(Long sekolahId, Long titikKasirId) {
+    public SesiKasir sesiTerbukaAtauBuka(Long sekolahId, Long titikKasirId, Long aktorId) {
         pastikanTitikKasirMilikSekolah(sekolahId, titikKasirId);
         LocalDate hariIni = jam.hariIni();
         var ada = sesiRepo.kunciBerdasarkanTitikTanggal(sekolahId, titikKasirId, hariIni);
@@ -77,12 +77,18 @@ public class SesiKasirService {
             }
             return sesi;
         }
-        return buatSesiBaru(sekolahId, titikKasirId, hariIni);
+        return buatSesiBaru(sekolahId, titikKasirId, hariIni, aktorId);
     }
 
-    /** Buka sesi eksplisit (mis. saat petugas mulai shift). */
+    /**
+     * Buka sesi eksplisit (mis. saat petugas mulai shift).
+     *
+     * @param aktorId ID petugas yang membuka; dicatat sebagai jejak audit
+     *                {@code dibuka_oleh} bila sesi baru dibuat (issue #345).
+     *                Sesi yang sudah ada tidak mengubah pembuka aslinya.
+     */
     @Transactional
-    public SesiKasir bukaSesi(Long sekolahId, Long titikKasirId) {
+    public SesiKasir bukaSesi(Long sekolahId, Long titikKasirId, Long aktorId) {
         pastikanTitikKasirMilikSekolah(sekolahId, titikKasirId);
         LocalDate hariIni = jam.hariIni();
         var ada = sesiRepo.kunciBerdasarkanTitikTanggal(sekolahId, titikKasirId, hariIni);
@@ -96,7 +102,7 @@ public class SesiKasirService {
             }
             return sesi;
         }
-        return buatSesiBaru(sekolahId, titikKasirId, hariIni);
+        return buatSesiBaru(sekolahId, titikKasirId, hariIni, aktorId);
     }
 
     private void pastikanTitikKasirMilikSekolah(Long sekolahId, Long titikKasirId) {
@@ -105,7 +111,7 @@ public class SesiKasirService {
                 .orElseThrow(() -> new NotFoundEntity("Titik kasir tidak ditemukan"));
     }
 
-    private SesiKasir buatSesiBaru(Long sekolahId, Long titikKasirId, LocalDate tanggal) {
+    private SesiKasir buatSesiBaru(Long sekolahId, Long titikKasirId, LocalDate tanggal, Long aktorId) {
         OffsetDateTime now = jam.sekarang();
         SesiKasir sesi = SesiKasir.builder()
                 .id(idGenerator.berikutnyaLong())
@@ -117,12 +123,13 @@ public class SesiKasirService {
                 .totalVoid(0L)
                 .totalBersih(0L)
                 .dibukaAt(now)
+                .dibukaOleh(aktorId)
                 .autoTutup(false)
                 .postingBukuKas(false)
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
-        log.info("Buka sesi kasir titik={} tanggal={}", titikKasirId, tanggal);
+        log.info("Buka sesi kasir titik={} tanggal={} oleh={}", titikKasirId, tanggal, aktorId);
         return sesiRepo.save(sesi);
     }
 

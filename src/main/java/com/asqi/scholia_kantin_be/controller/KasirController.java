@@ -304,14 +304,23 @@ public class KasirController {
      * Ambil sesi kasir terbuka hari ini untuk titik kasir, atau buka sesi baru
      * (PRD §6.4). Idempoten per (sekolah, titik, hari) — aman dipanggil
      * berkali-kali oleh klien kasir saat mulai shift.
+     *
+     * <p>Sejak issue <b>#345</b> responsnya memakai {@link SesiKasirAktifData},
+     * sama seperti {@code GET /api/kasir/sesi/aktif}: klien yang baru membuka
+     * sesi langsung menerima {@code titikKasirNama} dan rekap live, tanpa perlu
+     * memanggil endpoint kedua. Petugas yang membuka dicatat di
+     * {@code sesi_kasir.dibuka_oleh} untuk audit shift multi-titik.
      */
     @PerluPeran({AktorKantin.PETUGAS_KANTIN})
     @PostMapping("sesi/buka")
-    public ResponseEntity<Response<SesiKasir>> bukaSesi(
-            @Valid @RequestBody BukaSesiRequest request) {
+    public ResponseEntity<Response<SesiKasirAktifData>> bukaSesi(
+            @Valid @RequestBody BukaSesiRequest request,
+            @AuthenticationPrincipal IdentitasKantin identitas) {
 
-        SesiKasir sesi = sesiKasirService.bukaSesi(
-                TenantContext.sekolahIdWajib(), request.getTitikKasirId());
+        Long sekolahId = TenantContext.sekolahIdWajib();
+        sesiKasirService.bukaSesi(sekolahId, request.getTitikKasirId(), identitas.aktorIdWajib());
+
+        SesiKasirAktifData sesi = sesiKasirService.ambilSesiAktif(sekolahId, request.getTitikKasirId());
         return CommonResponse.data(sesi, "Sesi kasir dibuka");
     }
 
