@@ -19,14 +19,24 @@ spring.datasource.url=jdbc:postgresql://localhost:5432/kantin_db?stringtype=unsp
 spring.datasource.username=kantin
 spring.datasource.password=<GANTI_DB_PASSWORD>
 
-# --- SEED DATA DEV (opsional, HANYA lokal) ---
-# Dataset dummy deterministik untuk FE: katalog, kasir, riwayat transaksi,
-# koreksi saldo, stok, laporan, setoran TU, dan pengaturan kartu.
-# Dimuat sebagai Flyway REPEATABLE migration SETELAH semua migrasi skema.
-# Idempoten (ON CONFLICT DO NOTHING) — aman start berulang, tidak menimpa
-# data yang sudah diubah aplikasi.
-# Ingin DB kosong? Komentari baris ini (default hanya db/migration).
-spring.flyway.locations=classpath:db/migration,classpath:db/seed
+# --- SEED DATA DEV (HANYA lokal, TIDAK lagi otomatis) ---
+# Dataset dummy untuk FE: katalog, kasir, riwayat transaksi, koreksi saldo,
+# stok, laporan, setoran TU, dan pengaturan kartu.
+#
+# Folder `db/seed` SENGAJA tidak didaftarkan di sini. Seeder itu Flyway
+# REPEATABLE migration, jadi dulu dijalankan ulang setiap isinya berubah —
+# dan isinya meng-TRUNCATE semua tabel lalu menulis ulang transaksi dengan
+# tanggal `current_date - n`. Akibatnya data dev terhapus dan transaksi
+# dummy "baru" muncul lagi tiap hari (bahkan dengan jam yang belum terjadi).
+#
+# Butuh data dev? Jalankan sekali secara manual (lihat README-DEV.md):
+#   psql -h localhost -U kantin -d kantin_db \
+#        -f src/main/resources/db/seed/R__seed_dev.sql
+spring.flyway.locations=classpath:db/migration
+# DB dev yang pernah memuat seeder sudah mencatat R__seed_dev.sql di
+# flyway_schema_history. Tanpa baris ini Flyway menolak start dengan
+# "Detected applied migration not resolved locally".
+spring.flyway.ignore-migration-patterns=*:missing
 kantin.demo.enabled=true
 
 # --- Redis (docker compose up -d) ---

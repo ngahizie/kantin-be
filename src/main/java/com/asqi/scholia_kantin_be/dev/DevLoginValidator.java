@@ -51,8 +51,9 @@ public class DevLoginValidator {
             baris = jdbc.queryForList(SQL_CARI, username.trim());
         } catch (DataAccessException e) {
             // Tabel belum ada / belum di-seed. Jangan bocorkan ke klien.
-            log.warn("[DEV-LOGIN] tabel pengguna tidak terbaca ({}). Muat seed dev dengan "
-                            + "menambahkan classpath:db/seed ke spring.flyway.locations.",
+            log.warn("[DEV-LOGIN] tabel pengguna tidak terbaca ({}). Muat seed dev manual: "
+                            + "psql -h localhost -U kantin -d kantin_db "
+                            + "-f src/main/resources/db/seed/R__seed_dev.sql",
                     e.getClass().getSimpleName());
             return Optional.empty();
         }
