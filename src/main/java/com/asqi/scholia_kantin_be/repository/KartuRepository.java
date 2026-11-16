@@ -19,6 +19,14 @@ public interface KartuRepository extends JpaRepository<Kartu, String> {
 
     Optional<Kartu> findByUidAndSekolahId(String uid, Long sekolahId);
 
+    /**
+     * Cadangan case-insensitive untuk baris lama yang terlanjur tersimpan
+     * huruf kecil (issue #346). Jalur utama tetap {@link #findByUidAndSekolahId}
+     * karena memakai primary key; metode ini hanya dipakai bila lookup kanonik
+     * tidak menemukan apa pun.
+     */
+    Optional<Kartu> findFirstByUidIgnoreCaseAndSekolahId(String uid, Long sekolahId);
+
     Optional<Kartu> findFirstBySekolahIdAndSiswaIdAndAktifTrue(Long sekolahId, Long siswaId);
 
     List<Kartu> findBySekolahIdAndSiswaIdOrderByCreatedAtDesc(Long sekolahId, Long siswaId);

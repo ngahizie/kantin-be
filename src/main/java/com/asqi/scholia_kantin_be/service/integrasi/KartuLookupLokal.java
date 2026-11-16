@@ -1,6 +1,7 @@
 package com.asqi.scholia_kantin_be.service.integrasi;
 
 import com.asqi.scholia_kantin_be.enums.JenisPembatasan;
+import com.asqi.scholia_kantin_be.helper.UidKartu;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.model.Kartu;
 import com.asqi.scholia_kantin_be.model.Pembatasan;
@@ -49,10 +50,15 @@ public class KartuLookupLokal implements KartuLookupPort {
 
     @Override
     public InfoKartu cariBerdasarkanUid(Long sekolahId, String rfidUid) {
-        if (rfidUid == null || rfidUid.isBlank()) {
+        // UID dari pembaca kartu bisa huruf kecil/campur, sementara kartu.uid
+        // case-sensitive → normalisasi ke bentuk kanonik dulu (issue #346).
+        String uid = UidKartu.normalisasi(rfidUid);
+        if (uid == null || uid.isEmpty()) {
             return InfoKartu.tidakDikenal();
         }
-        Kartu kartu = kartuRepo.findByUidAndSekolahId(rfidUid.trim(), sekolahId).orElse(null);
+        Kartu kartu = kartuRepo.findByUidAndSekolahId(uid, sekolahId)
+                .or(() -> kartuRepo.findFirstByUidIgnoreCaseAndSekolahId(uid, sekolahId))
+                .orElse(null);
         if (kartu == null || !kartu.isAktif()) {
             return InfoKartu.tidakDikenal();
         }

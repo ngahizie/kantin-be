@@ -13,6 +13,7 @@ import com.asqi.scholia_kantin_be.enums.MetodeRequestKartu;
 import com.asqi.scholia_kantin_be.enums.StatusPendingTap;
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
 import com.asqi.scholia_kantin_be.helper.NomorStruk;
+import com.asqi.scholia_kantin_be.helper.UidKartu;
 import com.asqi.scholia_kantin_be.helper.IdGenerator;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.model.SesiKasir;
@@ -99,6 +100,10 @@ public class TapService {
      * @return hasil tap untuk ditampilkan di layar kasir
      */
     public TapResponse tap(Long sekolahId, IdentitasKantin identitas, TapRequest request) {
+        // UID kartu dipakai untuk lookup sekaligus disimpan di transaksi/pending.
+        // Pembaca kartu bisa mengirim huruf kecil/campur, sementara kartu.uid
+        // case-sensitive → kanonikkan sekali di pintu masuk (issue #346).
+        request.setRfidUid(UidKartu.normalisasi(request.getRfidUid()));
         long mulai = System.nanoTime();
         try {
             TapResponse hasil = jalankanTap(sekolahId, identitas, request);

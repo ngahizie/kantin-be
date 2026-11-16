@@ -4,6 +4,7 @@ import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
 import com.asqi.scholia_kantin_be.dto.CekKartuResponse;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
+import com.asqi.scholia_kantin_be.helper.UidKartu;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoKartu;
 import com.asqi.scholia_kantin_be.service.integrasi.KartuLookupPort;
 import com.asqi.scholia_kantin_be.service.kartu.KontrolKartuService;
@@ -44,8 +45,10 @@ public class CekKartuService {
      */
     @Transactional(readOnly = true)
     public CekKartuResponse cek(Long sekolahId, String rfidUid) {
-        String uid = rfidUid == null ? "" : rfidUid.trim();
-        if (uid.isEmpty()) {
+        // Bentuk kanonik (uppercase tanpa spasi) supaya kartu.uid yang
+        // case-sensitive tetap ditemukan — issue #346.
+        String uid = UidKartu.normalisasi(rfidUid);
+        if (uid == null || uid.isEmpty()) {
             throw new InvalidOperationException("UID kartu wajib diisi");
         }
 
