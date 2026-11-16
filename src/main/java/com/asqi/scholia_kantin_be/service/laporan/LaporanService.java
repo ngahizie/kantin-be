@@ -345,7 +345,7 @@ public class LaporanService {
             hasil.add(new BarisStok(s.getMenuId(), menu.getNama(), menu.getKategoriId(),
                     s.getStok(), stokMinimum, s.getHpp(),
                     hppService.nilaiPersediaan(s.getStok(), s.getHpp()), menipis,
-                    menu.getNama(), s.getStok()));
+                    menu.getNama(), s.getStok(), menu.getKodeBarcode()));
         }
         return hasil;
     }
