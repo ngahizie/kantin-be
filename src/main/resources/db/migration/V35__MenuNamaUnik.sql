@@ -22,11 +22,32 @@
 --   * Menghapus menu bersifat soft delete; nama menu yang sudah dihapus
 --     boleh dipakai lagi untuk produk baru.
 --
--- Bila migrasi ini gagal dengan "could not create unique index ... Key
--- (sekolah_id, upper(nama::text))=(...) is duplicated", artinya masih ada
--- menu bernama sama yang aktif. Rapikan dulu (gabungkan stok atau isi
--- deleted_at pada baris duplikat), baru jalankan ulang migrasi. Jangan
--- menghapus baris yang masih dirujuk riwayat_stok/transaksi_item.
+-- Kenapa perbandingan aman walau ada karakter non-ASCII: derived query
+-- `...NamaIgnoreCase...` dirender Spring Data sebagai SQL
+-- `upper(nama) = upper(?)` — bukan `String.equalsIgnoreCase` di Java. Jadi
+-- pemeriksaan aplikasi dan index ini memakai fungsi serta collation database
+-- yang sama; beda case folding antar-bahasa tidak masuk jalur ini.
+--
+-- PRA-CEK SEBELUM DEPLOY (hasilnya WAJIB kosong):
+--   Flyway berjalan saat aplikasi start, sehingga duplikat yang tersisa
+--   membuat aplikasi gagal start, bukan sekadar migrasi tertunda. Jalankan
+--   di DB tujuan lebih dulu:
+--
+--     SELECT sekolah_id, upper(nama) AS nama, count(*) AS jumlah
+--       FROM menu
+--      WHERE deleted_at IS NULL
+--      GROUP BY 1, 2
+--     HAVING count(*) > 1;
+--
+-- Bila hasilnya tidak kosong, rapikan dulu (gabungkan stok atau isi
+-- deleted_at pada baris duplikat), baru deploy. Jangan menghapus baris yang
+-- masih dirujuk riwayat_stok/transaksi_item. Pesan kegagalan PostgreSQL
+-- menyebutkan key duplikatnya, mis. "Key (sekolah_id, upper(nama::text))=(1,
+-- JUS JERUK) is duplicated".
+--
+-- Catatan penguncian: CREATE UNIQUE INDEX non-CONCURRENTLY menahan tulis ke
+-- tabel menu sampai selesai. Tabel katalog kecil sehingga waktunya singkat;
+-- bila data sudah besar, jadwalkan deploy di luar jam operasional.
 -- ============================================================
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_menu_sekolah_nama
