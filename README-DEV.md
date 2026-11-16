@@ -233,3 +233,14 @@ Aturan yang berlaku sekarang:
 
 Kalau CI gagal di kelas yang tidak ada hubungannya dengan perubahanmu, curigai dulu
 ketergantungan urutan seperti di atas sebelum menuduh kode.
+
+## 10. Aturan Arsitektur (ArchUnit)
+
+`ArsitekturTenantArchTest` menegakkan aturan isolasi tenant (OWASP A01): setiap
+`@RestController` — kecuali `AuthController` dan `DevLoginController` yang berjalan
+sebelum token ada — **wajib** menyentuh `TenantContext`. `sekolahId` tidak boleh
+berasal dari klien.
+
+Menambah controller baru tanpa `TenantContext.sekolahIdWajib()` akan menggagalkan
+build dengan pesan `Architecture Violation`. Kalau perlu pengecualian baru, tambahkan
+alasannya di test tersebut — jangan mematikan aturannya.
