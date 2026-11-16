@@ -80,7 +80,7 @@ class SeedDevIT {
                 .as("saldo tenant FE").isEqualTo(5);
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM pengguna WHERE sekolah_id = 10", Integer.class))
-                .as("akun tenant FE").isEqualTo(6);
+                .as("akun tenant FE").isEqualTo(7); // 6 peran + kasir20 (#345)
 
         // Fixture tap lokal: kartu uji harus aktif dan menunjuk siswa yang ada.
         assertThat(jdbc.queryForObject(
