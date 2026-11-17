@@ -163,38 +163,46 @@ insert into kategori_menu (id, sekolah_id, nama, urutan, is_active) values
 --    Produk bermerek memakai packshot asli (URL hotlink, tanpa mengunduh berkas
 --    ke repo) supaya foto cocok dengan merek pada nama menu. Menu lain memakai
 --    foto bebas lisensi dari Wikimedia Commons.
---    Sumber packshot:
---      Air Mineral Aqua 600 ml        → Open Food Facts, barcode 8886008101053
---      Keripik Qtela Singkong 60 g    → Open Food Facts, barcode 0089686611519
---      Susu Ultra Cokelat 250 ml      → Open Food Facts, barcode 8998009010231
+--    Packshot dibungkus images.weserv.nl (proxy gambar publik) menjadi kanvas
+--    4:3 latar putih (`w=600&h=450&fit=contain&bg=white&cbg=white`). Alasannya:
+--    kartu menu di kasir memakai kotak `aspect-4/3` + `object-cover`, sehingga
+--    foto packshot yang tinggi (±1:2) terlihat terpotong/terlalu zoom. Dengan
+--    kanvas 4:3, gambar mengisi kartu tanpa ada bagian produk yang terpotong.
+--    `bg=white` diperlukan untuk sumber PNG/WEBP transparan agar tidak menjadi
+--    hitam saat dikonversi ke JPEG.
+--    Sumber asli tiap packshot (semua packshot resmi di latar putih):
+--      Air Mineral Aqua 600 ml        → sehataqua.co.id (situs resmi AQUA)
+--      Keripik Qtela Singkong 60 g    → indofood.com (halaman produk Qtela)
+--      Susu Ultra Cokelat 250 ml      → image.astronauts.cloud (Ultra Milk Low
+--                                       Fat Chocolate 250 ml)
 --      Buku Tulis Sidu 38 Lembar      → foto produk penjual (osc.co.id)
 --      Pulpen Standard AE7 Hitam      → foto produk penjual (gramedia.com)
 --    Catatan: packshot merek adalah aset berhak cipta pemilik merek; dipakai
 --    hanya untuk data contoh/demo. Untuk produksi, unggah foto sendiri lewat
---    menu Katalog (masuk storage MinIO/LocalStorage).
+--    menu Katalog (masuk storage MinIO/LocalStorage) dengan rasio mendekati 4:3.
 insert into menu (id, sekolah_id, kategori_id, nama, kode_barcode, satuan, foto_url, harga_jual, stok_minimum, is_active) values
   (1, 1, 1, 'Nasi Goreng', 'MNU-0001', 'PORSI', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/3/34/Nasi_goreng_pattaya_20231028_120535.jpg/500px-Nasi_goreng_pattaya_20231028_120535.jpg', 12000, 5, true),
   (2, 1, 1, 'Mie Ayam', 'MNU-0002', 'PORSI', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/8/82/Mi_ayam_jamur.JPG/500px-Mi_ayam_jamur.JPG', 10000, 5, true),
   (3, 1, 2, 'Es Teh Manis', 'MNU-0003', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d4/Iced_lychee_tea_and_Es_teh_manis_-_Bali_2025-09-25.jpg/500px-Iced_lychee_tea_and_Es_teh_manis_-_Bali_2025-09-25.jpg', 3000, 10, true),
-  (4, 1, 2, 'Air Mineral Aqua 600 ml', 'MNU-0004', 'BOTOL', 'https://images.openfoodfacts.org/images/products/888/600/810/1053/front_en.25.400.jpg', 4000, 10, true),
+  (4, 1, 2, 'Air Mineral Aqua 600 ml', 'MNU-0004', 'BOTOL', 'https://images.weserv.nl/?url=www.sehataqua.co.id/sps/product-2.webp&w=600&h=450&fit=contain&bg=white&cbg=white&output=jpg&q=88', 4000, 10, true),
   (5, 1, 1, 'Ayam Geprek', 'MNU-0005', 'PORSI', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5c/Ayam_Geprek_Uyat.jpg/500px-Ayam_Geprek_Uyat.jpg', 13000, 5, true),
-  (6, 1, 3, 'Keripik Qtela Singkong 60 g', 'MNU-0006', 'PCS', 'https://images.openfoodfacts.org/images/products/008/968/661/1519/front_en.3.400.jpg', 5000, 10, true),
+  (6, 1, 3, 'Keripik Qtela Singkong 60 g', 'MNU-0006', 'PCS', 'https://images.weserv.nl/?url=www.indofood.com/images/microsite/product/280qtela-singkong-original.jpg&w=600&h=450&fit=contain&bg=white&cbg=white&output=jpg&q=88', 5000, 10, true),
   (7, 1, 3, 'Roti Bakar', 'MNU-0007', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1a/Roti_bakar_kekinian.jpg/500px-Roti_bakar_kekinian.jpg', 8000, 5, true),
-  (8, 1, 2, 'Susu Ultra Cokelat 250 ml', 'MNU-0008', 'PCS', 'https://images.openfoodfacts.org/images/products/899/800/901/0231/front_en.21.400.jpg', 6000, 10, true),
-  (9, 1, 4, 'Pulpen Standard AE7 Hitam', 'MNU-0009', 'PCS', 'https://cdn.gramedia.com/uploads/items/DSC_0240.JPG', 3000, 20, true),
-  (10, 1, 4, 'Buku Tulis Sidu 38 Lembar', 'MNU-0010', 'PCS', 'https://osc.co.id/storage/products/8TIel1FYlO9R9vWAFmKf7gYnwboq1MYOBW6JAnhH.jpg', 7000, 10, true),
+  (8, 1, 2, 'Susu Ultra Cokelat 250 ml', 'MNU-0008', 'PCS', 'https://images.weserv.nl/?url=image.astronauts.cloud/product-images/2026/7/UltraMilkLowFatHiCal_d9bd1e23-cb27-482a-a7bd-36cf639e2eaf_900x900.jpg&w=600&h=450&fit=contain&bg=white&cbg=white&output=jpg&q=88', 6000, 10, true),
+  (9, 1, 4, 'Pulpen Standard AE7 Hitam', 'MNU-0009', 'PCS', 'https://images.weserv.nl/?url=cdn.gramedia.com/uploads/items/DSC_0240.JPG&w=600&h=450&fit=contain&bg=white&cbg=white&output=jpg&q=88', 3000, 20, true),
+  (10, 1, 4, 'Buku Tulis Sidu 38 Lembar', 'MNU-0010', 'PCS', 'https://images.weserv.nl/?url=osc.co.id/storage/products/8TIel1FYlO9R9vWAFmKf7gYnwboq1MYOBW6JAnhH.jpg&w=600&h=450&fit=contain&bg=white&cbg=white&output=jpg&q=88', 7000, 10, true),
   (11, 1, 1, 'Bakso', 'MNU-0011', 'PORSI', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6e/Bakso_Indonesian_Meatball_Soup_from_Solo.jpg/500px-Bakso_Indonesian_Meatball_Soup_from_Solo.jpg', 11000, 5, true),
   (12, 1, 2, 'Jus Jeruk', 'MNU-0012', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/6/67/Orange_juice_1_edit1.jpg/500px-Orange_juice_1_edit1.jpg', 7000, 5, true),
   (1000, 10, 11, 'Nasi Goreng', 'MNU-1000', 'PORSI', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/3/34/Nasi_goreng_pattaya_20231028_120535.jpg/500px-Nasi_goreng_pattaya_20231028_120535.jpg', 12000, 5, true),
   (1001, 10, 11, 'Mie Ayam', 'MNU-1001', 'PORSI', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/8/82/Mi_ayam_jamur.JPG/500px-Mi_ayam_jamur.JPG', 10000, 5, true),
   (1002, 10, 12, 'Es Teh Manis', 'MNU-1002', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d4/Iced_lychee_tea_and_Es_teh_manis_-_Bali_2025-09-25.jpg/500px-Iced_lychee_tea_and_Es_teh_manis_-_Bali_2025-09-25.jpg', 3000, 10, true),
-  (1003, 10, 12, 'Air Mineral Aqua 600 ml', 'MNU-1003', 'BOTOL', 'https://images.openfoodfacts.org/images/products/888/600/810/1053/front_en.25.400.jpg', 4000, 10, true),
+  (1003, 10, 12, 'Air Mineral Aqua 600 ml', 'MNU-1003', 'BOTOL', 'https://images.weserv.nl/?url=www.sehataqua.co.id/sps/product-2.webp&w=600&h=450&fit=contain&bg=white&cbg=white&output=jpg&q=88', 4000, 10, true),
   (1004, 10, 11, 'Ayam Geprek', 'MNU-1004', 'PORSI', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5c/Ayam_Geprek_Uyat.jpg/500px-Ayam_Geprek_Uyat.jpg', 13000, 5, true),
-  (1005, 10, 13, 'Keripik Qtela Singkong 60 g', 'MNU-1005', 'PCS', 'https://images.openfoodfacts.org/images/products/008/968/661/1519/front_en.3.400.jpg', 5000, 10, true),
+  (1005, 10, 13, 'Keripik Qtela Singkong 60 g', 'MNU-1005', 'PCS', 'https://images.weserv.nl/?url=www.indofood.com/images/microsite/product/280qtela-singkong-original.jpg&w=600&h=450&fit=contain&bg=white&cbg=white&output=jpg&q=88', 5000, 10, true),
   (1006, 10, 13, 'Roti Bakar', 'MNU-1006', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1a/Roti_bakar_kekinian.jpg/500px-Roti_bakar_kekinian.jpg', 8000, 5, true),
-  (1007, 10, 12, 'Susu Ultra Cokelat 250 ml', 'MNU-1007', 'PCS', 'https://images.openfoodfacts.org/images/products/899/800/901/0231/front_en.21.400.jpg', 6000, 10, true),
-  (1008, 10, 14, 'Pulpen Standard AE7 Hitam', 'MNU-1008', 'PCS', 'https://cdn.gramedia.com/uploads/items/DSC_0240.JPG', 3000, 20, true),
-  (1009, 10, 14, 'Buku Tulis Sidu 38 Lembar', 'MNU-1009', 'PCS', 'https://osc.co.id/storage/products/8TIel1FYlO9R9vWAFmKf7gYnwboq1MYOBW6JAnhH.jpg', 7000, 10, true),
+  (1007, 10, 12, 'Susu Ultra Cokelat 250 ml', 'MNU-1007', 'PCS', 'https://images.weserv.nl/?url=image.astronauts.cloud/product-images/2026/7/UltraMilkLowFatHiCal_d9bd1e23-cb27-482a-a7bd-36cf639e2eaf_900x900.jpg&w=600&h=450&fit=contain&bg=white&cbg=white&output=jpg&q=88', 6000, 10, true),
+  (1008, 10, 14, 'Pulpen Standard AE7 Hitam', 'MNU-1008', 'PCS', 'https://images.weserv.nl/?url=cdn.gramedia.com/uploads/items/DSC_0240.JPG&w=600&h=450&fit=contain&bg=white&cbg=white&output=jpg&q=88', 3000, 20, true),
+  (1009, 10, 14, 'Buku Tulis Sidu 38 Lembar', 'MNU-1009', 'PCS', 'https://images.weserv.nl/?url=osc.co.id/storage/products/8TIel1FYlO9R9vWAFmKf7gYnwboq1MYOBW6JAnhH.jpg&w=600&h=450&fit=contain&bg=white&cbg=white&output=jpg&q=88', 7000, 10, true),
   (1010, 10, 11, 'Bakso', 'MNU-1010', 'PORSI', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6e/Bakso_Indonesian_Meatball_Soup_from_Solo.jpg/500px-Bakso_Indonesian_Meatball_Soup_from_Solo.jpg', 11000, 5, true),
   (1011, 10, 12, 'Jus Jeruk', 'MNU-1011', 'PCS', 'https://thumb.wikimedia.org/wikipedia/commons/thumb/6/67/Orange_juice_1_edit1.jpg/500px-Orange_juice_1_edit1.jpg', 7000, 5, true);
 
