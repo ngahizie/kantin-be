@@ -21,12 +21,13 @@ POST /api/kasir/sesi/1/tutup    # tutup sesi
 GET  /api/laporan/…             # cek laporan
 ```
 
-Data yang di-seed (`db/seed/R__seed_dev.sql`): **3 sekolah** (sekolah 1 & 2 untuk
-uji isolasi tenant, sekolah **10** = tenant default form login FE), 21 menu,
-5 titik kasir, sesi kasir terbuka & tertutup, 12 transaksi, **14 Kartu Tamu**
-(`DE000001`..`DE000005` untuk sekolah 1, `DA000001`..`DA000003` untuk sekolah 10;
-10 bersaldo di sekolah 1), saldo kartu & siswa, stok & HPP, koreksi saldo,
-setoran TU, serta pengaturan kantin — cukup untuk semua layar FE.
+Data yang di-seed (`db/seed/R__seed_dev.sql`): **2 sekolah** (sekolah **1** dan
+sekolah **10** — tenant default form login FE), **24 menu**, **4 titik kasir**,
+**14 sesi kasir** (12 ditutup, 2 masih terbuka untuk demo kasir), **56 transaksi
+7 hari terakhir** (1 void untuk demo refund), **19 siswa + 19 kartu siswa**,
+**14 akun pengguna** (2 kasir per sekolah, lihat §4), saldo & mutasinya, stok &
+HPP, koreksi saldo, setoran TU, serta pengaturan kantin — cukup untuk semua layar
+FE tanpa mock.
 
 > **Integrasi eksternal disimulasikan (bukan API key).** Profil `demo` juga
 > mengaktifkan adapter **demo** untuk 6 integrasi yang masih `blocked` (butuh
@@ -93,8 +94,8 @@ ingin dipertahankan. Ingin DB kosong? Cukup jangan jalankan perintah di atas
 
 ## 4. Ambil token (shim login dev)
 
-Kredensial **diverifikasi** terhadap tabel `dev_pengguna` hasil seed — username
-atau password asal-asalan ditolak `401`. Password seluruh akun dev: `Kantin#2026`.
+Kredensial **diverifikasi** terhadap tabel `pengguna` hasil seed — username atau
+password asal-asalan ditolak `401`. Password seluruh akun dev: `Kantin#2026`.
 
 | Username | Role (klaim) | Sekolah | `currentRole` di FE |
 |---|---|---|---|
@@ -102,10 +103,16 @@ atau password asal-asalan ditolak `401`. Password seluruh akun dev: `Kantin#2026
 | `tu1` | TATA_USAHA | 1 | tu |
 | `bendahara1` | BENDAHARA | 1 | bendahara |
 | `pengelola1` | PENGELOLA | 1 | pengelola |
-| `kasir1` | PETUGAS | 1 | kasir |
-| `tu2` | TATA_USAHA | 2 | tu |
-| `kasir10` | PETUGAS | 10 | kasir |
+| `admin1` | ADMIN_SEKOLAH | 1 | admin |
+| `kasir1` | PETUGAS | 1 | kasir (titik kasir 1 / DEMO1) |
+| `kasir2` | PETUGAS | 1 | kasir (titik kasir 2 / DEMO2 — uji multi-loket, #345) |
+| `kepsek10` | KEPSEK | 10 | admin |
+| `tu10` | TATA_USAHA | 10 | tu |
 | `bendahara10` | BENDAHARA | 10 | bendahara |
+| `pengelola10` | PENGELOLA | 10 | pengelola |
+| `admin10` | ADMIN_SEKOLAH | 10 | admin |
+| `kasir10` | PETUGAS | 10 | kasir (titik kasir 11 / FE10-1) |
+| `kasir20` | PETUGAS | 10 | kasir (titik kasir 12 / FE10-2 — uji multi-loket, #345) |
 
 > **Hak akses per akun mengikuti PRD §9.5/§9.6** (lihat `architecture/RBAC-MATRIX.md`
 > sebagai sumber kebenaran). Setelah issue #250: `pengelola1` **tidak** lagi bisa
@@ -139,15 +146,17 @@ diabaikan. Bentuk respons:
 curl -s -X POST http://localhost:8082/api/kasir/tap \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{
-        "rfidUid": "DE000001",
+        "rfidUid": "04A1B2C3D4",
         "titikKasirId": 1,
         "idempotencyKey": "demo-tap-001",
         "items": [ {"menuId": 1, "qty": 1}, {"menuId": 3, "qty": 2} ]
       }' | python3 -m json.tool
 ```
 
-Harapan: `code=200`, saldo terpotong (100.000 − 12.000 − 6.000 = **82.000**),
-stok Nasi Goreng & Es Teh berkurang, `transaksiId` terisi.
+Harapan: `code=200`, saldo terpotong (37.000 − 12.000 − 6.000 = **19.000**),
+stok Nasi Goreng & Es Teh Manis berkurang, `transaksiId` terisi.
+UID `04A1B2C3D4` adalah kartu siswa 101 (`RFID-SISWA-101`) di sekolah 1 — pakai
+akun `kasir1` dan titik kasir 1.
 
 > **Idempotency (PRD §11.3):** kirim ulang dengan `idempotencyKey` **sama** →
 > hasil yang sama, **tidak** memotong saldo dua kali. Ganti key untuk tap baru.
@@ -223,10 +232,13 @@ psql -h localhost -U kantin -d kantin_db \
 ## 10. Untuk tim FE (kantin-fe)
 
 - Base URL: `http://localhost:8082`, login: `POST /api/v1/auth/login` (shim dev).
-- Akun demo (email → role): `kasir@skoolia.id` (kasir), `pengelola@skoolia.id`
-  (pengelola), `tu@skoolia.id` (TU), `bendahara@skoolia.id` (bendahara),
-  `admin@skoolia.id` (admin). Password **tidak diverifikasi** (alat uji).
-- Data seed: 3 menu, 5 Kartu Tamu siap tap (`DE000001`..`DE000005`).
+- Akun dev (username → role): lihat tabel di §4. Ringkasnya `kasir1` & `kasir2`
+  (sekolah 1), `kasir10` & `kasir20` (sekolah 10), plus `pengelola1`, `tu1`,
+  `bendahara1`, `admin1`, dan pasangan `…10`. Password **diverifikasi**:
+  `Kantin#2026` — bukan lagi "password apa saja diterima".
+- Data seed: 24 menu, 4 titik kasir, 19 kartu siswa siap tap (mis. UID
+  `04A1B2C3D4` untuk siswa 101 di sekolah 1, `DA100001` untuk siswa 1001 di
+  sekolah 10).
 
 > Terkait: [`docs/uji-beban-tap.md`](uji-beban-tap.md) (profil `loadtest`),
 > [`architecture/OPEN-QUESTIONS.md`](../architecture/OPEN-QUESTIONS.md) (Q7).
