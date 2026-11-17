@@ -28,7 +28,7 @@ import java.util.List;
  * {@code kantin.dev-login.enabled=true}.
  *
  * <p><b>Kredensial diverifikasi</b> oleh {@link DevLoginValidator} terhadap tabel
- * {@code dev_pengguna} hasil seed dev; username/password asal-asalan ditolak 401.
+ * {@code pengguna} hasil seed dev; username/password asal-asalan ditolak 401.
  * Role, {@code userId}, dan {@code sekolahId} diambil dari akun — bukan dari body
  * request — sehingga klien tidak bisa memilih identitas sendiri.
  */

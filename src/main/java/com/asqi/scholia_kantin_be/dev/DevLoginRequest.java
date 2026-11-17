@@ -4,7 +4,7 @@ package com.asqi.scholia_kantin_be.dev;
  * Permintaan login shim dev (bentuknya meniru payload FE
  * {@code user-auth-form.tsx}: email/username + password).
  *
- * <p>Kredensial <b>wajib cocok</b> dengan akun di tabel {@code dev_pengguna}
+ * <p>Kredensial <b>wajib cocok</b> dengan akun di tabel {@code pengguna}
  * (lihat {@link DevLoginValidator}) — akun asal-asalan ditolak 401.
  *
  * <p>{@code sekolah_id} sengaja tidak dibaca lagi: sekolah, role, dan
