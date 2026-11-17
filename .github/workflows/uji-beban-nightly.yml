@@ -137,14 +137,22 @@ jobs:
             -f load/seed/seed-loadtest.sql
 
       - name: Pasang k6
+        env:
+          # Versi dipatok agar hasil uji beban bisa dibandingkan antar-run.
+          # Naikkan manual bila perlu: https://github.com/grafana/k6/releases
+          K6_VERSION: v2.4.0
         run: |
-          sudo gpg -k
-          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
-            --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
-          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" \
-            | sudo tee /etc/apt/sources.list.d/k6.list
-          sudo apt-get update -qq
-          sudo apt-get install -y k6
+          # Pasang dari rilis resmi (tarball), BUKAN repo APT dl.k6.io.
+          # Repo APT k6 menolak paket di runner ("repository ... is not signed")
+          # karena kunci penandatangan tidak terbaca, sehingga k6 tidak pernah
+          # terpasang dan seluruh langkah uji beban ikut terlewat (nightly merah
+          # tanpa satu pun angka p95). Tarball tidak butuh kunci/keyserver.
+          set -euo pipefail
+          curl -fsSL \
+            "https://github.com/grafana/k6/releases/download/${K6_VERSION}/k6-${K6_VERSION}-linux-amd64.tar.gz" \
+            -o /tmp/k6.tar.gz
+          tar -xzf /tmp/k6.tar.gz -C /tmp
+          sudo install -m 0755 "/tmp/k6-${K6_VERSION}-linux-amd64/k6" /usr/local/bin/k6
           k6 version
 
       # Sanity: pastikan alat silang-cek Prometheus sehat sebelum dipakai.
