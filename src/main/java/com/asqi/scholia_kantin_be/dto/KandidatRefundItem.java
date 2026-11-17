@@ -46,4 +46,13 @@ public class KandidatRefundItem {
      * siap atau siswa tidak ditemukan).
      */
     private Boolean tidakAktif;
+
+    /** Nama wali utama dari data orang tua; {@code null} bila tidak tersedia. */
+    private String namaOrangTua;
+
+    /** Kontak telepon / WhatsApp wali utama; {@code null} bila tidak tersedia. */
+    private String teleponOrangTua;
+
+    /** URL foto profil siswa; {@code null} bila tidak tersedia. */
+    private String fotoUrl;
 }

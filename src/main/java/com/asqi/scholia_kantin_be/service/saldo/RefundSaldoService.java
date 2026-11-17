@@ -101,6 +101,9 @@ public class RefundSaldoService {
                             .nis(s == null ? null : s.getNis())
                             .nama(s == null ? null : s.getNama())
                             .kelas(s == null ? null : s.getKelas())
+                            .fotoUrl(s == null ? null : s.getFotoUrl())
+                            .namaOrangTua(s == null ? null : s.getNamaOrangTua())
+                            .teleponOrangTua(s == null ? null : s.getTeleponOrangTua())
                             .tidakAktif(tidakAktif)
                             .build();
                 })
