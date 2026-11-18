@@ -7,7 +7,7 @@ import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.repository.SaldoRepository;
 import com.asqi.scholia_kantin_be.service.kasir.LedgerSaldoService;
 import com.asqi.scholia_kantin_be.service.kasir.PerintahMutasiSaldo;
-import com.asqi.scholia_kantin_be.service.laporan.LaporanService;
+import com.asqi.scholia_kantin_be.service.laporan.LaporanSaldoService;
 import com.asqi.scholia_kantin_be.service.stok.LedgerStokService;
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;
 import com.asqi.scholia_kantin_be.support.FixtureInduk;
@@ -67,7 +67,7 @@ class InvarianCacheLedgerIT {
     private SaldoRepository saldoCacheRepo;
 
     @Autowired
-    private LaporanService laporan;
+    private LaporanSaldoService laporan;
 
     @Autowired
     private JdbcTemplate jdbc;

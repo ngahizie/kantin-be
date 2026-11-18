@@ -94,16 +94,16 @@ atau lingkungan staging dengan kredensial SKOOLIA.
 | U18 | Katalog menu | buat/ubah menu & kategori | tersimpan, soft delete, ubah harga teraudit | `KatalogServiceIT` | ⬜ |
 | U19 | Barang masuk & HPP | input pembelian | stok bertambah, HPP rata-rata tertimbang diperbarui, posting "Belanja Stok Kantin" | `PostingBukuKasStokIT`, `HppServiceTest` | ⬜ |
 | U20 | Opname & penyesuaian | input stok fisik + alasan | selisih tercatat sebagai mutasi, nilai kerugian muncul | `OpnameBatchIT` | ⬜ |
-| U21 | Peringatan stok menipis | stok ≤ minimum | tampil "Stok menipis"; stok 0 = "Habis" | `LaporanServiceIT` | ⬜ |
+| U21 | Peringatan stok menipis | stok ≤ minimum | tampil "Stok menipis"; stok 0 = "Habis" | `LaporanStokServiceIT` | ⬜ |
 
 ### 2.4 Laporan & Rekonsiliasi (bukti metrik PRD §12)
 
 | # | Skenario | Langkah inti | Ekspektasi | Bukti otomatis | Status |
 |---|---|---|---|---|---|
-| U22 | Rekonsiliasi harian | `GET /api/laporan/rekonsiliasi` | `seimbang=true`, `selisih=0` (invariant PRD §5) | `LaporanServiceIT` | ⬜ |
-| U23 | Laporan penjualan & laba | penjualan/item/kategori/titik/petugas | angka sesuai transaksi; laba = bersih − HPP | `LaporanServiceIT` | ⬜ |
-| U24 | Laporan stok & kartu stok | stok, nilai persediaan, kartu stok per item | saldo berjalan konsisten | `LaporanServiceIT` | ⬜ |
-| U25 | Ekspor Excel | `GET /api/laporan/ekspor?jenis=…` | berkas `.xlsx` valid untuk **semua** jenis | `LaporanServiceIT` | ⬜ |
+| U22 | Rekonsiliasi harian | `GET /api/laporan/rekonsiliasi` | `seimbang=true`, `selisih=0` (invariant PRD §5) | `LaporanSaldoServiceIT` | ⬜ |
+| U23 | Laporan penjualan & laba | penjualan/item/kategori/titik/petugas | angka sesuai transaksi; laba = bersih − HPP | `LaporanPenjualanServiceIT` | ⬜ |
+| U24 | Laporan stok & kartu stok | stok, nilai persediaan, kartu stok per item | saldo berjalan konsisten | `LaporanStokServiceIT` | ⬜ |
+| U25 | Ekspor Excel | `GET /api/laporan/ekspor?jenis=…` | berkas `.xlsx` valid untuk **semua** jenis | `Laporan*ServiceIT` | ⬜ |
 
 ### 2.5 Keamanan & Tenant (PRD §11)
 

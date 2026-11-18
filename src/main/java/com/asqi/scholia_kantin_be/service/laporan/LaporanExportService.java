@@ -29,11 +29,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Menyusun laporan menjadi berkas Excel (PRD §9.5) memakai {@link LaporanService}
- * (agregasi) &amp; {@link ExcelWriter} (tulis .xlsx).
+ * Menyusun laporan menjadi berkas Excel (PRD §9.5) memakai service agregasi per
+ * domain ({@link LaporanPenjualanService}, {@link LaporanStokService},
+ * {@link LaporanSaldoService}, {@link LaporanSiswaService},
+ * {@link LaporanSetoranService}, {@link LaporanPembatalanService}) &amp;
+ * {@link ExcelWriter} (tulis .xlsx).
  *
- * <p>Setiap {@link JenisLaporan} dipetakan ke header + baris. Semua tenant-scoped
- * lewat {@link LaporanService}.
+ * <p>Setiap {@link JenisLaporan} dipetakan ke header + baris; semua angka tetap
+ * tenant-scoped karena diambil dari service domain yang sama dengan endpoint
+ * JSON, sehingga isi ekspor selalu identik dengan tampilan di layar.
  */
 @Service
 public class LaporanExportService {
@@ -41,19 +45,36 @@ public class LaporanExportService {
     private static final DateTimeFormatter FMT =
             DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm");
 
-    private final LaporanService laporan;
+    private final LaporanPenjualanService penjualan;
+    private final LaporanSaldoService saldo;
+    private final LaporanStokService stok;
+    private final LaporanPembatalanService pembatalan;
+    private final LaporanSiswaService siswa;
+    private final LaporanSetoranService setoran;
     private final ExcelWriter excel;
     private final JamKantin jam;
     private final JdbcTemplate jdbc;
 
-    public LaporanExportService(LaporanService laporan, ExcelWriter excel, JamKantin jam) {
-        this(laporan, excel, jam, null);
+    /** Konstruktor tanpa JDBC — dipakai unit test yang tidak butuh kop sekolah. */
+    public LaporanExportService(LaporanPenjualanService penjualan, LaporanSaldoService saldo,
+                                LaporanStokService stok, LaporanPembatalanService pembatalan,
+                                LaporanSiswaService siswa, LaporanSetoranService setoran,
+                                ExcelWriter excel, JamKantin jam) {
+        this(penjualan, saldo, stok, pembatalan, siswa, setoran, excel, jam, null);
     }
 
     @Autowired
-    public LaporanExportService(LaporanService laporan, ExcelWriter excel, JamKantin jam,
+    public LaporanExportService(LaporanPenjualanService penjualan, LaporanSaldoService saldo,
+                                LaporanStokService stok, LaporanPembatalanService pembatalan,
+                                LaporanSiswaService siswa, LaporanSetoranService setoran,
+                                ExcelWriter excel, JamKantin jam,
                                 @Autowired(required = false) JdbcTemplate jdbc) {
-        this.laporan = laporan;
+        this.penjualan = penjualan;
+        this.saldo = saldo;
+        this.stok = stok;
+        this.pembatalan = pembatalan;
+        this.siswa = siswa;
+        this.setoran = setoran;
         this.excel = excel;
         this.jam = jam;
         this.jdbc = jdbc;
@@ -127,10 +148,10 @@ public class LaporanExportService {
             case PENJUALAN -> eksporPenjualan(sekolahId, tanggal, dari, sampai, label);
             case PENJUALAN_ITEM -> eksporBarisPenjualan(sekolahId, tanggal, dari, sampai, label,
                     "Penjualan per Item", "Item",
-                    laporan.penjualanPerItem(sekolahId, tanggal, dari, sampai));
+                    penjualan.penjualanPerItem(sekolahId, tanggal, dari, sampai));
             case PENJUALAN_KATEGORI -> eksporBarisPenjualan(sekolahId, tanggal, dari, sampai, label,
                     "Penjualan per Kategori", "Kategori",
-                    laporan.penjualanPerKategori(sekolahId, tanggal, dari, sampai));
+                    penjualan.penjualanPerKategori(sekolahId, tanggal, dari, sampai));
             case SALDO_MENGENDAP -> eksporSaldoMengendap(sekolahId, label);
             case REKONSILIASI -> eksporRekonsiliasi(sekolahId, tanggal, dari, sampai, label);
             case STOK -> eksporStok(sekolahId, label);
@@ -139,10 +160,10 @@ public class LaporanExportService {
             case PEMBATALAN -> eksporPembatalan(sekolahId, tanggal, dari, sampai, label);
             case PENJUALAN_TITIK -> eksporPenjualanDimensi(sekolahId, tanggal, dari, sampai, label,
                     "Penjualan per Titik Kasir", "Titik",
-                    laporan.penjualanPerTitik(sekolahId, tanggal, dari, sampai));
+                    penjualan.penjualanPerTitik(sekolahId, tanggal, dari, sampai));
             case PENJUALAN_PETUGAS -> eksporPenjualanDimensi(sekolahId, tanggal, dari, sampai, label,
                     "Penjualan per Petugas", "Petugas",
-                    laporan.penjualanPerPetugas(sekolahId, tanggal, dari, sampai));
+                    penjualan.penjualanPerPetugas(sekolahId, tanggal, dari, sampai));
             case PENJUALAN_KASIR -> eksporPenjualanKasir(sekolahId, tanggal, dari, sampai, label);
             case KARTU_STOK -> eksporKartuStok(sekolahId, menuId, label);
             case SETORAN_TU -> eksporSetoran(sekolahId, tanggal, label);
@@ -154,7 +175,7 @@ public class LaporanExportService {
 
     private HasilEkspor eksporPenjualan(Long sekolahId, LocalDate tgl, OffsetDateTime dari,
                                         OffsetDateTime sampai, String label) {
-        RingkasanPenjualan r = laporan.ringkasanPenjualan(sekolahId, tgl, dari, sampai);
+        RingkasanPenjualan r = penjualan.ringkasanPenjualan(sekolahId, tgl, dari, sampai);
         List<String> header = List.of("Metrik", "Nilai");
         List<List<Object>> baris = List.of(
                 List.of("Jumlah transaksi sukses", r.jumlahTransaksi()),
@@ -181,7 +202,7 @@ public class LaporanExportService {
     }
 
     private HasilEkspor eksporSaldoMengendap(Long sekolahId, String label) {
-        RingkasanSaldoMengendap r = laporan.saldoMengendap(sekolahId);
+        RingkasanSaldoMengendap r = saldo.saldoMengendap(sekolahId);
         List<String> header = List.of("Kategori", "Jumlah Subjek", "Saldo");
         List<List<Object>> baris = List.of(
                 List.of("Saldo Siswa", r.jumlahSiswa(), r.saldoSiswa()),
@@ -191,7 +212,7 @@ public class LaporanExportService {
 
     private HasilEkspor eksporRekonsiliasi(Long sekolahId, LocalDate tgl, OffsetDateTime dari,
                                            OffsetDateTime sampai, String label) {
-        RingkasanRekonsiliasi r = laporan.rekonsiliasi(sekolahId, tgl, dari, sampai);
+        RingkasanRekonsiliasi r = saldo.rekonsiliasi(sekolahId, tgl, dari, sampai);
         List<String> header = List.of("Pos", "Nilai");
         List<List<Object>> baris = List.of(
                 List.of("Top-up online", r.topupOnline()),
@@ -211,7 +232,7 @@ public class LaporanExportService {
     }
 
     private HasilEkspor eksporStok(Long sekolahId, String label) {
-        List<BarisStok> data = laporan.laporanStok(sekolahId, false);
+        List<BarisStok> data = stok.laporanStok(sekolahId, false);
         List<String> header = List.of("Menu ID", "Nama", "Stok", "Stok Min", "HPP",
                 "Nilai Persediaan", "Menipis");
         List<List<Object>> baris = new ArrayList<>();
@@ -224,7 +245,7 @@ public class LaporanExportService {
 
     private HasilEkspor eksporKerugianStok(Long sekolahId, LocalDate tgl, OffsetDateTime dari,
                                            OffsetDateTime sampai, String label) {
-        List<BarisKerugianStok> data = laporan.kerugianStok(sekolahId, tgl, dari, sampai);
+        List<BarisKerugianStok> data = stok.kerugianStok(sekolahId, tgl, dari, sampai);
         List<String> header = List.of("Waktu", "No. Berita Acara", "Nama Menu", "Kategori", "Jenis",
                 "Qty", "HPP Unit", "Total Nilai", "Alasan", "Petugas");
         List<List<Object>> baris = new ArrayList<>();
@@ -246,7 +267,7 @@ public class LaporanExportService {
 
     private HasilEkspor eksporBarangMasuk(Long sekolahId, LocalDate tgl, OffsetDateTime dari,
                                           OffsetDateTime sampai, String label) {
-        List<RiwayatStok> data = laporan.barangMasuk(sekolahId, tgl, dari, sampai);
+        List<RiwayatStok> data = stok.barangMasuk(sekolahId, tgl, dari, sampai);
         List<String> header = List.of("Waktu", "Menu ID", "Qty", "Harga Beli/Unit",
                 "Referensi", "Alasan");
         List<List<Object>> baris = new ArrayList<>();
@@ -265,7 +286,7 @@ public class LaporanExportService {
         List<List<Object>> baris = new ArrayList<>();
         String judul = "Kartu Stok";
         if (menuId != null) {
-            KartuStokItem kartu = laporan.kartuStokItem(sekolahId, menuId, 500);
+            KartuStokItem kartu = stok.kartuStokItem(sekolahId, menuId, 500);
             if (kartu != null) {
                 judul = "Kartu Stok - " + kartu.namaMenu();
                 for (KartuStokItem.BarisMutasi m : kartu.mutasi()) {
@@ -284,7 +305,7 @@ public class LaporanExportService {
 
     private HasilEkspor eksporPembatalan(Long sekolahId, LocalDate tgl, OffsetDateTime dari,
                                          OffsetDateTime sampai, String label) {
-        List<BarisPembatalanKasir> data = laporan.pembatalanKasir(sekolahId, tgl, dari, sampai);
+        List<BarisPembatalanKasir> data = pembatalan.pembatalanKasir(sekolahId, tgl, dari, sampai);
         List<String> header = List.of("Transaksi ID", "Subjek", "Subjek ID", "Total",
                 "Alasan Void", "Void Oleh", "Void At", "Petugas", "Titik Kasir", "Waktu");
         List<List<Object>> baris = new ArrayList<>();
@@ -320,7 +341,7 @@ public class LaporanExportService {
      */
     private HasilEkspor eksporPenjualanKasir(Long sekolahId, LocalDate tgl, OffsetDateTime dari,
                                              OffsetDateTime sampai, String label) {
-        List<BarisPenjualanKasir> data = laporan.penjualanPerKasir(sekolahId, tgl, dari, sampai);
+        List<BarisPenjualanKasir> data = penjualan.penjualanPerKasir(sekolahId, tgl, dari, sampai);
         List<String> header = List.of("ID Titik", "Titik Kasir", "ID Petugas", "Petugas",
                 "Jumlah Transaksi", "Penjualan Bruto", "Nilai Void", "Penjualan Bersih");
         List<List<Object>> baris = new ArrayList<>();
@@ -338,7 +359,7 @@ public class LaporanExportService {
      * kurang setor). Rekap sama dengan endpoint {@code GET /api/laporan/setoran-tu}.
      */
     private HasilEkspor eksporSetoran(Long sekolahId, LocalDate tgl, String label) {
-        List<RekapSetoranItem> data = laporan.laporanSetoran(sekolahId, tgl);
+        List<RekapSetoranItem> data = setoran.laporanSetoran(sekolahId, tgl);
         List<String> header = List.of("Tanggal", "Petugas ID", "Total Top-up Tunai",
                 "Jumlah Disetor", "Selisih", "Berita Acara");
         List<List<Object>> baris = new ArrayList<>();
@@ -369,7 +390,7 @@ public class LaporanExportService {
                     "Ekspor laporan PER_SISWA membutuhkan parameter siswaId (PRD §9.5)");
         }
         SubjekTipe tipe = SubjekTipe.SISWA;
-        LaporanPerSiswa r = laporan.laporanPerSiswa(sekolahId, siswaId, tgl, dari, sampai);
+        LaporanPerSiswa r = siswa.laporanPerSiswa(sekolahId, siswaId, tgl, dari, sampai);
 
         List<List<Object>> ringkasan = new ArrayList<>();
         ringkasan.add(List.of("Subjek", tipe.name() + " #" + siswaId));
