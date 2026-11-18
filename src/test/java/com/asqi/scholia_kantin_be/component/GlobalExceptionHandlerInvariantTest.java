@@ -1,6 +1,7 @@
 package com.asqi.scholia_kantin_be.component;
 
 import com.asqi.scholia_kantin_be.component.exception.InvariantViolationException;
+import com.asqi.scholia_kantin_be.config.ValidasiContractConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -16,7 +17,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class GlobalExceptionHandlerInvariantTest {
 
-    private final GlobalExceptionHandler handler = new GlobalExceptionHandler();
+    /** Konstruktor ber-argumen: #364 sudah merge lebih dulu (lihat catatan urutan merge). */
+    private final GlobalExceptionHandler handler =
+            new GlobalExceptionHandler(new ValidasiContractConfig(true));
 
     @Test
     @DisplayName("pelanggaran invarian dijawab 500, bukan 4xx")

@@ -2,6 +2,7 @@ package com.asqi.scholia_kantin_be.component;
 
 import com.asqi.scholia_kantin_be.component.exception.*;
 import com.asqi.scholia_kantin_be.component.logging.ErrorLogger;
+import com.asqi.scholia_kantin_be.config.ValidasiContractConfig;
 import com.asqi.scholia_kantin_be.payload.response.CommonResponse;
 import com.asqi.scholia_kantin_be.payload.response.SimpleResponse;
 import io.jsonwebtoken.ExpiredJwtException;
@@ -52,6 +53,17 @@ import java.util.Objects;
 @ControllerAdvice
 public class GlobalExceptionHandler {
 
+    /**
+     * Saklar status validasi (issue #361): nilai ini menggantikan static mutable
+     * yang dulu tinggal di {@code CommonResponse}. Di-inject lewat konstruktor
+     * supaya setiap instance (termasuk di test) memakai nilainya sendiri.
+     */
+    private final ValidasiContractConfig validasiContract;
+
+    public GlobalExceptionHandler(ValidasiContractConfig validasiContract) {
+        this.validasiContract = validasiContract;
+    }
+
     private SimpleResponse buildSimpleResponse(String... messages) {
         SimpleResponse simpleResponse = new SimpleResponse();
         simpleResponse.setStatus(0);
@@ -98,7 +110,7 @@ public class GlobalExceptionHandler {
                 pesan.put(nama, galat.getDefaultMessage());
             }
         }
-        return CommonResponse.validationError(pesan);
+        return CommonResponse.validationError(pesan, validasiContract.validasiHttp400());
     }
 
     /** Constraint jakarta.validation pada parameter → 400. */
@@ -108,7 +120,7 @@ public class GlobalExceptionHandler {
         for (ConstraintViolation<?> pelanggaran : ex.getConstraintViolations()) {
             pesan.put(pelanggaran.getPropertyPath().toString(), pelanggaran.getMessage());
         }
-        return CommonResponse.validationError(pesan);
+        return CommonResponse.validationError(pesan, validasiContract.validasiHttp400());
     }
 
     /** Body JSON rusak/tidak terbaca → 400 (dulu jatuh ke 500 generik). */
@@ -216,7 +228,7 @@ public class GlobalExceptionHandler {
             }
             validationMessages.put(fieldError.getField(), errorMessage);
         }
-        return CommonResponse.validationError(validationMessages);
+        return CommonResponse.validationError(validationMessages, validasiContract.validasiHttp400());
     }
 
     // ────────────────────────────────────────────────────────────────
