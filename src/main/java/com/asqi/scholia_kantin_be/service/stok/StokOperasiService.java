@@ -10,6 +10,7 @@ import com.asqi.scholia_kantin_be.dto.OpnameBatchResponse;
 import com.asqi.scholia_kantin_be.dto.RiwayatStokItem;
 import com.asqi.scholia_kantin_be.enums.ArahStok;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiStok;
+import com.asqi.scholia_kantin_be.repository.projection.DibalikPerAsal;
 import com.asqi.scholia_kantin_be.model.Menu;
 import com.asqi.scholia_kantin_be.model.RiwayatStok;
 import com.asqi.scholia_kantin_be.model.Stok;
@@ -403,8 +404,8 @@ public class StokOperasiService {
             return Map.of();
         }
         Map<Long, Long> hasil = new HashMap<>();
-        for (Object[] baris : mutasiRepo.totalDibalikPerAsal(sekolahId, asalIds)) {
-            hasil.put((Long) baris[0], ((Number) baris[1]).longValue());
+        for (DibalikPerAsal baris : mutasiRepo.totalDibalikPerAsal(sekolahId, asalIds)) {
+            hasil.put(baris.getMutasiAsalId(), baris.getQty());
         }
         return hasil;
     }

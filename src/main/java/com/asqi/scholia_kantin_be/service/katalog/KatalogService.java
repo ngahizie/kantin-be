@@ -10,6 +10,7 @@ import com.asqi.scholia_kantin_be.helper.IdGenerator;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.model.KategoriMenu;
 import com.asqi.scholia_kantin_be.model.Menu;
+import com.asqi.scholia_kantin_be.repository.projection.JumlahMenuKategori;
 import com.asqi.scholia_kantin_be.model.Stok;
 import com.asqi.scholia_kantin_be.repository.KategoriMenuRepository;
 import com.asqi.scholia_kantin_be.repository.MenuRepository;
@@ -60,9 +61,8 @@ public class KatalogService {
         List<KategoriMenu> kategori = kategoriRepo.daftar(sekolahId, hanyaAktif);
         // Satu query agregat untuk semua kategori (hindari N+1).
         Map<Long, Long> jumlahMenu = new HashMap<>();
-        for (Object[] baris : menuRepo.hitungMenuPerKategori(sekolahId)) {
-            Long kategoriId = ((Number) baris[0]).longValue();
-            jumlahMenu.put(kategoriId, ((Number) baris[1]).longValue());
+        for (JumlahMenuKategori baris : menuRepo.hitungMenuPerKategori(sekolahId)) {
+            jumlahMenu.put(baris.getKategoriId(), baris.getJumlah());
         }
         return kategori.stream()
                 .map(k -> KategoriResponse.dari(k, jumlahMenu.getOrDefault(k.getId(), 0L)))

@@ -1,6 +1,7 @@
 package com.asqi.scholia_kantin_be.repository;
 
 import com.asqi.scholia_kantin_be.model.Saldo;
+import com.asqi.scholia_kantin_be.repository.projection.SaldoMengendap;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -49,15 +50,15 @@ public interface SaldoRepository extends JpaRepository<Saldo, Saldo.SaldoId> {
     List<Saldo> findBySekolahId(Long sekolahId);
 
     /**
-     * Total saldo mengendap (PRD §9.5) — kewajiban sekolah.
-     * Mengembalikan satu baris {@code [Σ saldo, jumlah baris]}.
+     * Total saldo mengendap (PRD §9.5) — kewajiban sekolah. Projection
+     * {@link SaldoMengendap}: {@code saldo, jumlah}.
      */
     @Query("""
-            SELECT COALESCE(SUM(s.saldo), 0), COUNT(s)
+            SELECT COALESCE(SUM(s.saldo), 0) AS saldo, COUNT(s) AS jumlah
             FROM Saldo s
             WHERE s.sekolahId = :sekolahId
             """)
-    List<Object[]> totalMengendap(@Param("sekolahId") Long sekolahId);
+    List<SaldoMengendap> totalMengendap(@Param("sekolahId") Long sekolahId);
 
     /**
      * Pastikan baris saldo ada <b>tanpa race</b>: {@code INSERT ... ON CONFLICT

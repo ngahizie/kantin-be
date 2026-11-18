@@ -45,6 +45,15 @@ import com.asqi.scholia_kantin_be.repository.MutasiSaldoRepository;
 import com.asqi.scholia_kantin_be.repository.StokRepository;
 import com.asqi.scholia_kantin_be.repository.TransaksiItemRepository;
 import com.asqi.scholia_kantin_be.repository.TransaksiRepository;
+import com.asqi.scholia_kantin_be.repository.projection.ArusSaldo;
+import com.asqi.scholia_kantin_be.repository.projection.ItemTerlaris;
+import com.asqi.scholia_kantin_be.repository.projection.PenjualanDimensi;
+import com.asqi.scholia_kantin_be.repository.projection.PenjualanKasir;
+import com.asqi.scholia_kantin_be.repository.projection.PenjualanKategori;
+import com.asqi.scholia_kantin_be.repository.projection.RekapStatus;
+import com.asqi.scholia_kantin_be.repository.projection.SaldoMengendap;
+import com.asqi.scholia_kantin_be.repository.projection.TotalPerArah;
+import com.asqi.scholia_kantin_be.repository.projection.WaktuTerakhirSiswa;
 import com.asqi.scholia_kantin_be.service.stok.HppService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -134,10 +143,10 @@ public class LaporanService {
         OffsetDateTime akhir = r[1];
 
         long jumlahSukses = 0, bruto = 0, jumlahVoid = 0, nilaiVoid = 0;
-        for (Object[] baris : transaksiRepo.rekapPerStatusRentang(sekolahId, awal, akhir)) {
-            StatusTransaksi status = (StatusTransaksi) baris[0];
-            long jumlah = ((Number) baris[1]).longValue();
-            long total = ((Number) baris[2]).longValue();
+        for (RekapStatus baris : transaksiRepo.rekapPerStatusRentang(sekolahId, awal, akhir)) {
+            StatusTransaksi status = baris.getStatus();
+            long jumlah = baris.getJumlah();
+            long total = baris.getTotal();
             if (status == StatusTransaksi.SUKSES) {
                 jumlahSukses = jumlah;
                 bruto = total;
@@ -168,13 +177,13 @@ public class LaporanService {
                                                  OffsetDateTime dari, OffsetDateTime sampai) {
         OffsetDateTime[] r = rentang(tanggal, dari, sampai);
         List<BarisPenjualan> hasil = new ArrayList<>();
-        for (Object[] b : transaksiItemRepo.itemTerlaris(
+        for (ItemTerlaris b : transaksiItemRepo.itemTerlaris(
                 sekolahId, r[0], r[1], PageRequest.of(0, MAKS_ITEM_TERLARIS))) {
-            long qty = ((Number) b[2]).longValue();
-            long total = ((Number) b[3]).longValue();
-            long modal = b.length > 4 && b[4] != null ? ((Number) b[4]).longValue() : 0L;
+            long qty = nolJikaNull(b.getQty());
+            long total = nolJikaNull(b.getSubtotal());
+            long modal = nolJikaNull(b.getModal());
             hasil.add(new BarisPenjualan(
-                    (Long) b[0], (String) b[1], qty, total,
+                    b.getMenuId(), b.getNamaMenu(), qty, total,
                     qty == 0 ? null : total / qty, modal, persen(total - modal, total)));
         }
         return hasil;
@@ -190,11 +199,11 @@ public class LaporanService {
                 .forEach(k -> namaKategori.put(k.getId(), k.getNama()));
 
         List<BarisPenjualan> hasil = new ArrayList<>();
-        for (Object[] b : transaksiItemRepo.penjualanPerKategori(sekolahId, r[0], r[1])) {
-            Long kategoriId = (Long) b[0];
-            long qty = ((Number) b[1]).longValue();
-            long total = ((Number) b[2]).longValue();
-            long modal = b.length > 3 && b[3] != null ? ((Number) b[3]).longValue() : 0L;
+        for (PenjualanKategori b : transaksiItemRepo.penjualanPerKategori(sekolahId, r[0], r[1])) {
+            Long kategoriId = b.getKategoriId();
+            long qty = nolJikaNull(b.getQty());
+            long total = nolJikaNull(b.getSubtotal());
+            long modal = nolJikaNull(b.getModal());
             hasil.add(new BarisPenjualan(
                     kategoriId, namaKategori.get(kategoriId), qty, total,
                     null, modal, persen(total - modal, total)));
@@ -210,9 +219,9 @@ public class LaporanService {
     @Transactional(readOnly = true)
     public RingkasanSaldoMengendap saldoMengendap(Long sekolahId) {
         long saldo = 0, jumlah = 0;
-        for (Object[] b : saldoCacheRepo.totalMengendap(sekolahId)) {
-            saldo = ((Number) b[0]).longValue();
-            jumlah = ((Number) b[1]).longValue();
+        for (SaldoMengendap b : saldoCacheRepo.totalMengendap(sekolahId)) {
+            saldo = nolJikaNull(b.getSaldo());
+            jumlah = nolJikaNull(b.getJumlah());
         }
         return new RingkasanSaldoMengendap(saldo, saldo, jumlah);
     }
@@ -233,8 +242,8 @@ public class LaporanService {
         Map<Long, OffsetDateTime> waktuTerakhir = new HashMap<>();
         if (!siswaIds.isEmpty()) {
             saldoLedgerRepo.waktuTerakhirPerSubjek(sekolahId, siswaIds)
-                    .forEach(baris -> waktuTerakhir.put(
-                            ((Number) baris[0]).longValue(), (OffsetDateTime) baris[1]));
+                    .forEach(b -> waktuTerakhir.put(
+                            b.getSiswaId(), b.getWaktu()));
         }
         return siswaList.stream()
                 .map(siswa -> {
@@ -277,10 +286,10 @@ public class LaporanService {
         long topupOnline = 0, topupTunai = 0, penjualan = 0, voidPenjualan = 0;
         long koreksiMasuk = 0, koreksiKeluar = 0, refund = 0, transfer = 0;
 
-        for (Object[] b : saldoLedgerRepo.rekapArusRentang(sekolahId, awal, akhir)) {
-            ArahMutasi arah = (ArahMutasi) b[0];
-            JenisMutasiSaldo jenis = (JenisMutasiSaldo) b[1];
-            long nominal = ((Number) b[2]).longValue();
+        for (ArusSaldo b : saldoLedgerRepo.rekapArusRentang(sekolahId, awal, akhir)) {
+            ArahMutasi arah = b.getArah();
+            JenisMutasiSaldo jenis = b.getJenis();
+            long nominal = nolJikaNull(b.getNominal());
             switch (jenis) {
                 case TOPUP_ONLINE -> topupOnline += nominal;
                 case TOPUP_TUNAI -> topupTunai += nominal;
@@ -300,9 +309,9 @@ public class LaporanService {
         }
 
         long totalKredit = 0, totalDebit = 0;
-        for (Object[] b : saldoLedgerRepo.totalPerArah(sekolahId)) {
-            ArahMutasi arah = (ArahMutasi) b[0];
-            long nominal = ((Number) b[1]).longValue();
+        for (TotalPerArah b : saldoLedgerRepo.totalPerArah(sekolahId)) {
+            ArahMutasi arah = b.getArah();
+            long nominal = nolJikaNull(b.getNominal());
             if (arah == ArahMutasi.KREDIT) {
                 totalKredit = nominal;
             } else {
@@ -743,11 +752,11 @@ public class LaporanService {
                 .forEach(t -> namaTitik.put(t.getId(), t.getNama()));
 
         List<BarisPenjualanDimensi> hasil = new ArrayList<>();
-        for (Object[] b : transaksiRepo.penjualanPerTitikRentang(sekolahId, r[0], r[1])) {
-            Long id = (Long) b[0];
-            long jumlah = ((Number) b[1]).longValue();
-            long nilai = ((Number) b[2]).longValue();
-            long hpp = ((Number) b[3]).longValue();
+        for (PenjualanDimensi b : transaksiRepo.penjualanPerTitikRentang(sekolahId, r[0], r[1])) {
+            Long id = b.getDimensiId();
+            long jumlah = nolJikaNull(b.getJumlah());
+            long nilai = nolJikaNull(b.getNilai());
+            long hpp = nolJikaNull(b.getHpp());
             hasil.add(new BarisPenjualanDimensi(id, namaTitik.get(id), jumlah, nilai, hpp, nilai - hpp));
         }
         return hasil;
@@ -762,11 +771,11 @@ public class LaporanService {
                                                            OffsetDateTime dari, OffsetDateTime sampai) {
         OffsetDateTime[] r = rentang(tanggal, dari, sampai);
         List<BarisPenjualanDimensi> hasil = new ArrayList<>();
-        for (Object[] b : transaksiRepo.penjualanPerPetugasRentang(sekolahId, r[0], r[1])) {
-            Long id = (Long) b[0];
-            long jumlah = ((Number) b[1]).longValue();
-            long nilai = ((Number) b[2]).longValue();
-            long hpp = ((Number) b[3]).longValue();
+        for (PenjualanDimensi b : transaksiRepo.penjualanPerPetugasRentang(sekolahId, r[0], r[1])) {
+            Long id = b.getDimensiId();
+            long jumlah = nolJikaNull(b.getJumlah());
+            long nilai = nolJikaNull(b.getNilai());
+            long hpp = nolJikaNull(b.getHpp());
             hasil.add(new BarisPenjualanDimensi(id, null, jumlah, nilai, hpp, nilai - hpp));
         }
         return hasil;
@@ -794,12 +803,12 @@ public class LaporanService {
                 .forEach(t -> namaTitik.put(t.getId(), t.getNama()));
 
         List<BarisPenjualanKasir> hasil = new ArrayList<>();
-        for (Object[] b : transaksiRepo.penjualanPerKasirRentang(sekolahId, r[0], r[1])) {
-            Long titikId = (Long) b[0];
-            Long petugasId = (Long) b[1];
-            long jumlahSukses = ((Number) b[2]).longValue();
-            long nilaiSukses = ((Number) b[3]).longValue();
-            long nilaiVoid = ((Number) b[4]).longValue();
+        for (PenjualanKasir b : transaksiRepo.penjualanPerKasirRentang(sekolahId, r[0], r[1])) {
+            Long titikId = b.getTitikKasirId();
+            Long petugasId = b.getPetugasId();
+            long jumlahSukses = nolJikaNull(b.getJumlahSukses());
+            long nilaiSukses = nolJikaNull(b.getNilaiSukses());
+            long nilaiVoid = nolJikaNull(b.getNilaiVoid());
             hasil.add(new BarisPenjualanKasir(
                     titikId, namaTitik.get(titikId), petugasId,
                     String.valueOf(petugasId), jumlahSukses,

@@ -12,6 +12,7 @@ import com.asqi.scholia_kantin_be.model.TitikKasir;
 import com.asqi.scholia_kantin_be.repository.SesiKasirRepository;
 import com.asqi.scholia_kantin_be.repository.TitikKasirRepository;
 import com.asqi.scholia_kantin_be.repository.TransaksiRepository;
+import com.asqi.scholia_kantin_be.repository.projection.RekapStatus;
 import com.asqi.scholia_kantin_be.security.SekolahGuard;
 import com.asqi.scholia_kantin_be.service.integrasi.BukuKasPostingService;
 import com.asqi.scholia_kantin_be.service.integrasi.HasilJurnalBukuKas;
@@ -377,10 +378,10 @@ public class SesiKasirService {
         long jumlahSukses = 0L;
         long jumlahVoid = 0L;
 
-        for (Object[] baris : transaksiRepo.rekapSesi(sekolahId, sesi.getId())) {
-            StatusTransaksi status = (StatusTransaksi) baris[0];
-            long jumlah = ((Number) baris[1]).longValue();
-            long total = ((Number) baris[2]).longValue();
+        for (RekapStatus baris : transaksiRepo.rekapSesi(sekolahId, sesi.getId())) {
+            StatusTransaksi status = baris.getStatus();
+            long jumlah = baris.getJumlah();
+            long total = baris.getTotal();
             if (status == StatusTransaksi.SUKSES) {
                 brutoSukses = total;
                 jumlahSukses = jumlah;
