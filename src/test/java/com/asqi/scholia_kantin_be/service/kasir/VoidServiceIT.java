@@ -2,6 +2,7 @@ package com.asqi.scholia_kantin_be.service.kasir;
 
 import com.asqi.scholia_kantin_be.dto.TapRequest;
 import com.asqi.scholia_kantin_be.dto.TapResponse;
+import com.asqi.scholia_kantin_be.dto.TransaksiRefundResponse;
 import com.asqi.scholia_kantin_be.helper.NomorStruk;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.MetodeBayar;
@@ -167,6 +168,14 @@ class VoidServiceIT {
         assertThat(debitAsli).isEqualTo(1);
         assertThat(kreditVoid).isEqualTo(1);
         assertThat(ledgerSaldo.hitungUlangDariLedger(SEKOLAH, SISWA)).isEqualTo(50_000L);
+
+        // C.2e: transaksi saldo → struk pembatalan tanpa uang tunai/kembalian.
+        var dto = TransaksiRefundResponse.dari(trx);
+        assertThat(dto.metodeBayar()).isEqualTo(MetodeBayar.SALDO);
+        assertThat(dto.uangDiterima()).isNull();
+        assertThat(dto.kembalian()).isNull();
+        assertThat(dto.subjekTipe()).isEqualTo("SISWA");
+        assertThat(dto.siswaId()).isEqualTo(SISWA);
     }
 
     @Test
@@ -197,6 +206,16 @@ class VoidServiceIT {
         assertThat(ledgerSaldo.saldo(SEKOLAH, SISWA)).isEqualTo(50_000L);
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM mutasi_saldo WHERE jenis = 'VOID_PENJUALAN'", Integer.class)).isZero();
+
+        // C.2e: struk pembatalan tetap menyebut cara bayar asli + uang/kembalian,
+        // supaya cetak ulang tidak menampilkan "SISWA" untuk pembeli tunai.
+        var dto = TransaksiRefundResponse.dari(trx);
+        assertThat(dto.metodeBayar()).isEqualTo(MetodeBayar.TUNAI);
+        assertThat(dto.uangDiterima()).isEqualTo(20_000L);
+        assertThat(dto.kembalian()).isEqualTo(4_000L);
+        assertThat(dto.subjekTipe()).isNull();
+        assertThat(dto.siswaId()).isNull();
+        assertThat(dto.nomorStruk()).isEqualTo(kode(tap));
     }
 
     @Test

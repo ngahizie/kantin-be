@@ -4,6 +4,7 @@ import com.asqi.scholia_kantin_be.dto.TapRequest;
 import com.asqi.scholia_kantin_be.dto.TapResponse;
 import com.asqi.scholia_kantin_be.helper.NomorStruk;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
+import com.asqi.scholia_kantin_be.enums.MetodeBayar;
 import com.asqi.scholia_kantin_be.enums.StatusSesiKasir;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.security.IdentitasKantin;
@@ -106,6 +107,20 @@ class SesiKasirServiceIT {
         return tapService.tap(SEKOLAH, petugas, r);
     }
 
+    /** Tap tunai tanpa kartu (C.2a) — untuk uji rekap kas fisik (C.2d). */
+    private TapResponse tapTunai(String key, int qty, long uangDiterima) {
+        TapRequest r = new TapRequest();
+        r.setTitikKasirId(TITIK);
+        r.setIdempotencyKey(key);
+        r.setMetodeBayar(MetodeBayar.TUNAI);
+        r.setUangDiterima(uangDiterima);
+        var item = new TapRequest.ItemTap();
+        item.setMenuId(MENU_NASI);
+        item.setQty(qty);
+        r.setItems(List.of(item));
+        return tapService.tap(SEKOLAH, petugas, r);
+    }
+
     @Test
     @DisplayName("tap pertama otomatis membuka sesi; rekap menghitung bruto/void/bersih")
     void rekapSesi() {
@@ -123,6 +138,39 @@ class SesiKasirServiceIT {
         assertThat(rekap.getTotalBersih()).isEqualTo(16_000L);
         assertThat(rekap.getTotalVoid()).isEqualTo(8_000L);
         assertThat(rekap.getTotalBruto()).isEqualTo(24_000L);
+        // Semua transaksi di sesi ini dibayar saldo → tidak ada kas fisik.
+        assertThat(rekap.getJumlahTunai()).isZero();
+        assertThat(rekap.getTotalTunai()).isZero();
+        assertThat(rekap.getJumlahSaldo()).isEqualTo(1);
+        assertThat(rekap.getTotalSaldo()).isEqualTo(16_000L);
+    }
+
+    @Test
+    @DisplayName("C.2d: rekap memisahkan penjualan TUNAI (kas fisik) dari SALDO")
+    void rekapMemisahkanTunaiDanSaldo() {
+        TapResponse saldo = tap("c2d-saldo", 1);                 // 8.000 saldo
+        tapTunai("c2d-tunai", 2, 20_000);                        // 16.000 tunai
+        TapResponse tunaiVoid = tapTunai("c2d-tunai-void", 1, 10_000); // 8.000 tunai
+        voidService.refundTransaksi(SEKOLAH, tunaiVoid.getTransaksiId(), 555L,
+                "salah input menu",
+                NomorStruk.dari(tunaiVoid.getTransaksiId(), tunaiVoid.getWaktu()));
+
+        Long sesiId = jdbc.queryForObject(
+                "SELECT sesi_kasir_id FROM transaksi WHERE id = ?", Long.class, saldo.getTransaksiId());
+
+        SesiKasirService.RekapSesi rekap = sesiKasir.rekap(SEKOLAH, sesiId);
+
+        assertThat(rekap.getJumlahTransaksi()).isEqualTo(2);   // tunai SUKSES + saldo SUKSES
+        assertThat(rekap.getTotalBersih()).isEqualTo(24_000L); // 16.000 tunai + 8.000 saldo
+        assertThat(rekap.getTotalVoid()).isEqualTo(8_000L);    // tunai yang dibatalkan
+
+        // Angka yang dipakai mencocokkan uang fisik di laci: hanya transaksi TUNAI
+        // SUKSES. Transaksi void tidak menambah kas karena uangnya sudah kembali.
+        assertThat(rekap.getJumlahTunai()).isEqualTo(1);
+        assertThat(rekap.getTotalTunai()).isEqualTo(16_000L);
+        assertThat(rekap.getJumlahSaldo()).isEqualTo(1);
+        assertThat(rekap.getTotalSaldo()).isEqualTo(8_000L);
+        assertThat(rekap.getTotalTunai() + rekap.getTotalSaldo()).isEqualTo(rekap.getTotalBersih());
     }
 
     @Test

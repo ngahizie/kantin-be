@@ -1,5 +1,6 @@
 package com.asqi.scholia_kantin_be.dto;
 
+import com.asqi.scholia_kantin_be.enums.MetodeBayar;
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.helper.NomorStruk;
@@ -39,6 +40,10 @@ import java.time.OffsetDateTime;
  * @param voidAlasan  alasan refund/koreksi
  * @param voidAt      waktu refund/koreksi
  * @param voidOleh    id akun pelaku
+ * @param metodeBayar cara bayar transaksi asli (SALDO/TUNAI) — struk pembatalan
+ *                    perlu menyebut sumber dananya
+ * @param uangDiterima uang tunai yang dulu diterima (null bila SALDO)
+ * @param kembalian   kembalian yang dulu diberikan (null bila SALDO)
  */
 public record TransaksiRefundResponse(
         Long id,
@@ -51,7 +56,10 @@ public record TransaksiRefundResponse(
         StatusTransaksi status,
         String voidAlasan,
         OffsetDateTime voidAt,
-        Long voidOleh) {
+        Long voidOleh,
+        MetodeBayar metodeBayar,
+        Long uangDiterima,
+        Long kembalian) {
 
     /**
      * Proyeksi entity → DTO.
@@ -64,17 +72,23 @@ public record TransaksiRefundResponse(
         if (t == null) {
             return null;
         }
+        MetodeBayar metode = t.getMetodeBayar() == null ? MetodeBayar.SALDO : t.getMetodeBayar();
+        Long uangDiterima = metode == MetodeBayar.TUNAI ? t.getUangDiterima() : null;
         return new TransaksiRefundResponse(
                 t.getId(),
                 NomorStruk.dari(t.getId(), t.getWaktu()),
                 t.getWaktu(),
-                SubjekTipe.SISWA.name(),
+                // Tunai tanpa kartu tidak punya siswa → jangan dipaksa "SISWA".
+                t.getSiswaId() == null ? null : SubjekTipe.SISWA.name(),
                 t.getSiswaId(),
                 t.getKartuUid(),
                 t.getTotal(),
                 t.getStatus(),
                 t.getAlasanVoid(),
                 t.getVoidAt(),
-                t.getVoidOleh());
+                t.getVoidOleh(),
+                metode,
+                uangDiterima,
+                uangDiterima == null || t.getTotal() == null ? null : uangDiterima - t.getTotal());
     }
 }
