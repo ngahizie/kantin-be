@@ -1,5 +1,6 @@
 package com.asqi.scholia_kantin_be.service.stok;
 
+import com.asqi.scholia_kantin_be.component.exception.InvariantViolationException;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -41,10 +42,10 @@ public class HppService {
     public long hitungRataRataTertimbang(long stokSekarang, long hppSekarang,
                                          int qtyMasuk, long hargaBeli) {
         if (qtyMasuk <= 0) {
-            throw new IllegalArgumentException("qtyMasuk harus > 0");
+            throw new InvariantViolationException("qtyMasuk harus > 0");
         }
         if (stokSekarang < 0 || hppSekarang < 0 || hargaBeli < 0) {
-            throw new IllegalArgumentException("stok/HPP/harga beli tidak boleh negatif");
+            throw new InvariantViolationException("stok/HPP/harga beli tidak boleh negatif");
         }
 
         // Stok kosong (atau minus secara teori) → HPP = harga beli barang masuk.
@@ -82,13 +83,13 @@ public class HppService {
     public long hitungRataRataSetelahPembalik(long stokSekarang, long hppSekarang,
                                               int qtyBalik, long hargaBeliAsal) {
         if (qtyBalik <= 0) {
-            throw new IllegalArgumentException("qtyBalik harus > 0");
+            throw new InvariantViolationException("qtyBalik harus > 0");
         }
         if (stokSekarang < 0 || hppSekarang < 0 || hargaBeliAsal < 0) {
-            throw new IllegalArgumentException("stok/HPP/harga beli tidak boleh negatif");
+            throw new InvariantViolationException("stok/HPP/harga beli tidak boleh negatif");
         }
         if (qtyBalik > stokSekarang) {
-            throw new IllegalArgumentException("qtyBalik melebihi stok sekarang");
+            throw new InvariantViolationException("qtyBalik melebihi stok sekarang");
         }
 
         long stokBaru = stokSekarang - qtyBalik;

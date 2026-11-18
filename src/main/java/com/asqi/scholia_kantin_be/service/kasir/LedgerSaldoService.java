@@ -1,6 +1,7 @@
 package com.asqi.scholia_kantin_be.service.kasir;
 
 import com.asqi.scholia_kantin_be.component.exception.ConflictException;
+import com.asqi.scholia_kantin_be.component.exception.InvariantViolationException;
 import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
 import com.asqi.scholia_kantin_be.enums.ArahMutasi;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
@@ -233,18 +234,18 @@ public class LedgerSaldoService {
 
     private void validasi(PerintahMutasiSaldo p, boolean seluruhSaldo) {
         if (p.getSekolahId() == null) {
-            throw new IllegalArgumentException("sekolahId wajib diisi");
+            throw new InvariantViolationException("sekolahId wajib diisi");
         }
         if (p.getSiswaId() == null) {
-            throw new IllegalArgumentException("subjek wajib diisi");
+            throw new InvariantViolationException("subjek wajib diisi");
         }
         if (p.getJenis() == null) {
-            throw new IllegalArgumentException("jenis mutasi wajib diisi");
+            throw new InvariantViolationException("jenis mutasi wajib diisi");
         }
         // Nominal > 0 wajib, KECUALI mode "seluruh saldo" (nominal diambil dari
         // saldo berjalan, bukan masukan — PRD §9.3 refund/pindah).
         if (!seluruhSaldo && p.getNominal() <= 0) {
-            throw new IllegalArgumentException("nominal harus > 0");
+            throw new InvariantViolationException("nominal harus > 0");
         }
     }
 

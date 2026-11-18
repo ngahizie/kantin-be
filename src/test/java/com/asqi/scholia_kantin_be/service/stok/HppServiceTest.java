@@ -1,5 +1,6 @@
 package com.asqi.scholia_kantin_be.service.stok;
 
+import com.asqi.scholia_kantin_be.component.exception.InvariantViolationException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -42,9 +43,9 @@ class HppServiceTest {
     @DisplayName("qty masuk ≤ 0 ditolak")
     void qtyMasukTidakValid() {
         assertThatThrownBy(() -> hpp.hitungRataRataTertimbang(5, 1000, 0, 2000))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(InvariantViolationException.class);
         assertThatThrownBy(() -> hpp.hitungRataRataTertimbang(5, 1000, -1, 2000))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(InvariantViolationException.class);
     }
 
     @Test
@@ -89,8 +90,8 @@ class HppServiceTest {
     @DisplayName("pembalik qty tidak valid ditolak")
     void pembalikQtyTidakValid() {
         assertThatThrownBy(() -> hpp.hitungRataRataSetelahPembalik(5, 1000, 0, 2000))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(InvariantViolationException.class);
         assertThatThrownBy(() -> hpp.hitungRataRataSetelahPembalik(5, 1000, 6, 2000))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(InvariantViolationException.class);
     }
 }
