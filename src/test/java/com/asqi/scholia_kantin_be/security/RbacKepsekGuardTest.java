@@ -248,7 +248,7 @@ class RbacKepsekGuardTest {
                         org.mockito.Mockito.any()))
                 .thenReturn(new LaporanExportService.HasilEkspor("test.xlsx", new byte[]{1, 2, 3}));
 
-        LaporanController controller = new LaporanController(null, exportService);
+        LaporanController controller = new LaporanController(null, null, null, null, null, null, exportService);
         TenantContext.set(IdentitasKantin.builder()
                 .userId("9").sekolahId(1L).peran(AktorKantin.KEPSEK).build());
 
@@ -261,7 +261,7 @@ class RbacKepsekGuardTest {
     @Test
     @DisplayName("ekspor laporan: kepsek dilarang mengekspor yang tidak berhak (§9.5)")
     void eksporKepsekDibatasiPerJenis() {
-        LaporanController controller = new LaporanController(null, null);
+        LaporanController controller = new LaporanController(null, null, null, null, null, null, null);
         TenantContext.set(IdentitasKantin.builder()
                 .userId("9").sekolahId(1L).peran(AktorKantin.KEPSEK).build());
 

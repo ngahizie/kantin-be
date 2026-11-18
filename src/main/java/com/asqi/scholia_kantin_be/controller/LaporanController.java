@@ -26,7 +26,12 @@ import com.asqi.scholia_kantin_be.security.IdentitasKantin;
 import com.asqi.scholia_kantin_be.security.PerluPeran;
 import com.asqi.scholia_kantin_be.security.TenantContext;
 import com.asqi.scholia_kantin_be.service.laporan.LaporanExportService;
-import com.asqi.scholia_kantin_be.service.laporan.LaporanService;
+import com.asqi.scholia_kantin_be.service.laporan.LaporanPembatalanService;
+import com.asqi.scholia_kantin_be.service.laporan.LaporanPenjualanService;
+import com.asqi.scholia_kantin_be.service.laporan.LaporanSaldoService;
+import com.asqi.scholia_kantin_be.service.laporan.LaporanSetoranService;
+import com.asqi.scholia_kantin_be.service.laporan.LaporanSiswaService;
+import com.asqi.scholia_kantin_be.service.laporan.LaporanStokService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -80,7 +85,12 @@ public class LaporanController {
             JenisLaporan.REKONSILIASI,
             JenisLaporan.KERUGIAN_STOK);
 
-    private final LaporanService laporan;
+    private final LaporanPenjualanService penjualan;
+    private final LaporanSaldoService saldo;
+    private final LaporanStokService stok;
+    private final LaporanPembatalanService pembatalan;
+    private final LaporanSiswaService siswa;
+    private final LaporanSetoranService setoran;
     private final LaporanExportService exportService;
 
     /** Ringkasan penjualan &amp; laba kotor (PRD §9.5). */
@@ -92,7 +102,7 @@ public class LaporanController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime dari,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime sampai) {
         return CommonResponse.data(
-                laporan.ringkasanPenjualan(TenantContext.sekolahIdWajib(), tanggal, dari, sampai));
+                penjualan.ringkasanPenjualan(TenantContext.sekolahIdWajib(), tanggal, dari, sampai));
     }
 
     /** Penjualan per item (PRD §9.5). */
@@ -104,7 +114,7 @@ public class LaporanController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime dari,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime sampai) {
         return CommonResponse.data(
-                laporan.penjualanPerItem(TenantContext.sekolahIdWajib(), tanggal, dari, sampai));
+                penjualan.penjualanPerItem(TenantContext.sekolahIdWajib(), tanggal, dari, sampai));
     }
 
     /** Penjualan per kategori (PRD §9.5). */
@@ -116,14 +126,14 @@ public class LaporanController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime dari,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime sampai) {
         return CommonResponse.data(
-                laporan.penjualanPerKategori(TenantContext.sekolahIdWajib(), tanggal, dari, sampai));
+                penjualan.penjualanPerKategori(TenantContext.sekolahIdWajib(), tanggal, dari, sampai));
     }
 
     /** Saldo mengendap — dana titipan (PRD §9.5). */
     @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.KEPSEK})
     @GetMapping("saldo-mengendap")
     public ResponseEntity<Response<RingkasanSaldoMengendap>> saldoMengendap() {
-        return CommonResponse.data(laporan.saldoMengendap(TenantContext.sekolahIdWajib()));
+        return CommonResponse.data(saldo.saldoMengendap(TenantContext.sekolahIdWajib()));
     }
 
     /** Saldo mengendap per siswa (issue #224), dibatasi untuk menghindari pemuatan seluruh siswa. */
@@ -133,7 +143,7 @@ public class LaporanController {
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "20") int batas) {
         int batasAman = Math.min(Math.max(batas, 1), 50);
-        return CommonResponse.data(laporan.saldoMengendapSiswa(
+        return CommonResponse.data(saldo.saldoMengendapSiswa(
                 TenantContext.sekolahIdWajib(), search, batasAman));
     }
 
@@ -145,7 +155,7 @@ public class LaporanController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime dari,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime sampai) {
         return CommonResponse.data(
-                laporan.rekonsiliasi(TenantContext.sekolahIdWajib(), tanggal, dari, sampai));
+                saldo.rekonsiliasi(TenantContext.sekolahIdWajib(), tanggal, dari, sampai));
     }
 
     /**
@@ -157,7 +167,7 @@ public class LaporanController {
     public ResponseEntity<Response<List<BarisStok>>> stok(
             @RequestParam(defaultValue = "false") boolean hanyaMenipis) {
         return CommonResponse.data(
-                laporan.laporanStok(TenantContext.sekolahIdWajib(), hanyaMenipis));
+                stok.laporanStok(TenantContext.sekolahIdWajib(), hanyaMenipis));
     }
 
     /** Kerugian stok (opname keluar &amp; barang rusak) (PRD §9.5). */
@@ -168,7 +178,7 @@ public class LaporanController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime dari,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime sampai) {
         return CommonResponse.data(
-                laporan.kerugianStok(TenantContext.sekolahIdWajib(), tanggal, dari, sampai));
+                stok.kerugianStok(TenantContext.sekolahIdWajib(), tanggal, dari, sampai));
     }
 
     /** Ringkasan agregat kerugian stok, konsisten dengan daftar pada periode sama (#226). */
@@ -178,7 +188,7 @@ public class LaporanController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tanggal,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime dari,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime sampai) {
-        return CommonResponse.data(laporan.ringkasanKerugianStok(
+        return CommonResponse.data(stok.ringkasanKerugianStok(
                 TenantContext.sekolahIdWajib(), tanggal, dari, sampai));
     }
 
@@ -193,7 +203,7 @@ public class LaporanController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime dari,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime sampai) {
         return CommonResponse.data(
-                laporan.pembatalanKasir(TenantContext.sekolahIdWajib(), tanggal, dari, sampai));
+                pembatalan.pembatalanKasir(TenantContext.sekolahIdWajib(), tanggal, dari, sampai));
     }
 
     /**
@@ -208,7 +218,7 @@ public class LaporanController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime dari,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime sampai) {
         return CommonResponse.data(
-                laporan.penjualanPerTitik(TenantContext.sekolahIdWajib(), tanggal, dari, sampai));
+                penjualan.penjualanPerTitik(TenantContext.sekolahIdWajib(), tanggal, dari, sampai));
     }
 
     /**
@@ -223,7 +233,7 @@ public class LaporanController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime dari,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime sampai) {
         return CommonResponse.data(
-                laporan.penjualanPerPetugas(TenantContext.sekolahIdWajib(), tanggal, dari, sampai));
+                penjualan.penjualanPerPetugas(TenantContext.sekolahIdWajib(), tanggal, dari, sampai));
     }
 
     /**
@@ -240,7 +250,7 @@ public class LaporanController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime dari,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime sampai) {
         return CommonResponse.data(
-                laporan.penjualanPerKasir(TenantContext.sekolahIdWajib(), tanggal, dari, sampai));
+                penjualan.penjualanPerKasir(TenantContext.sekolahIdWajib(), tanggal, dari, sampai));
     }
 
     /**
@@ -258,7 +268,7 @@ public class LaporanController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime dari,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime sampai) {
         return CommonResponse.data(
-                laporan.laporanPerSiswa(TenantContext.sekolahIdWajib(), siswaId,
+                siswa.laporanPerSiswa(TenantContext.sekolahIdWajib(), siswaId,
                         tanggal, dari, sampai));
     }
 
@@ -279,7 +289,7 @@ public class LaporanController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime dari,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime sampai) {
         return CommonResponse.data(
-                laporan.riwayatSiswa(TenantContext.sekolahIdWajib(), siswaId, dari, sampai));
+                siswa.riwayatSiswa(TenantContext.sekolahIdWajib(), siswaId, dari, sampai));
     }
 
     /**
@@ -294,7 +304,7 @@ public class LaporanController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime sampai,
             @RequestParam(defaultValue = "100") int batas) {
         return CommonResponse.data(
-                laporan.riwayatKeseluruhan(TenantContext.sekolahIdWajib(), tanggal, dari, sampai, batas));
+                siswa.riwayatKeseluruhan(TenantContext.sekolahIdWajib(), tanggal, dari, sampai, batas));
     }
 
 
@@ -310,7 +320,7 @@ public class LaporanController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime dari,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime sampai) {
         return CommonResponse.data(
-                laporan.laporanSetoran(TenantContext.sekolahIdWajib(), tanggal, dari, sampai));
+                setoran.laporanSetoran(TenantContext.sekolahIdWajib(), tanggal, dari, sampai));
     }
 
     /**
@@ -323,7 +333,7 @@ public class LaporanController {
     public ResponseEntity<Response<KartuStokItem>> kartuStok(
             @org.springframework.web.bind.annotation.PathVariable Long menuId,
             @RequestParam(required = false) Integer batas) {
-        KartuStokItem kartu = laporan.kartuStokItem(TenantContext.sekolahIdWajib(), menuId,
+        KartuStokItem kartu = stok.kartuStokItem(TenantContext.sekolahIdWajib(), menuId,
                 batas == null ? 0 : batas);
         if (kartu == null) {
             throw new com.asqi.scholia_kantin_be.component.exception.NotFoundEntity(

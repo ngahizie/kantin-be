@@ -5,7 +5,12 @@ import com.asqi.scholia_kantin_be.dto.RingkasanKerugianStok;
 import com.asqi.scholia_kantin_be.security.IdentitasKantin;
 import com.asqi.scholia_kantin_be.security.TenantContext;
 import com.asqi.scholia_kantin_be.service.laporan.LaporanExportService;
-import com.asqi.scholia_kantin_be.service.laporan.LaporanService;
+import com.asqi.scholia_kantin_be.service.laporan.LaporanPembatalanService;
+import com.asqi.scholia_kantin_be.service.laporan.LaporanPenjualanService;
+import com.asqi.scholia_kantin_be.service.laporan.LaporanSaldoService;
+import com.asqi.scholia_kantin_be.service.laporan.LaporanSetoranService;
+import com.asqi.scholia_kantin_be.service.laporan.LaporanSiswaService;
+import com.asqi.scholia_kantin_be.service.laporan.LaporanStokService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -27,15 +32,22 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @DisplayName("LaporanController — Kerugian Stok & Ringkasan")
 class LaporanControllerTest {
 
-    private LaporanService laporanService;
+    private LaporanStokService laporanStokService;
     private LaporanExportService exportService;
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
-        laporanService = mock(LaporanService.class);
+        laporanStokService = mock(LaporanStokService.class);
         exportService = mock(LaporanExportService.class);
-        mockMvc = MockMvcBuilders.standaloneSetup(new LaporanController(laporanService, exportService))
+        mockMvc = MockMvcBuilders.standaloneSetup(new LaporanController(
+                        mock(LaporanPenjualanService.class),
+                        mock(LaporanSaldoService.class),
+                        laporanStokService,
+                        mock(LaporanPembatalanService.class),
+                        mock(LaporanSiswaService.class),
+                        mock(LaporanSetoranService.class),
+                        exportService))
                 .build();
         TenantContext.set(IdentitasKantin.builder().userId("42").sekolahId(7L).build());
     }
@@ -62,7 +74,7 @@ class LaporanControllerTest {
                 "OPN-20261026-001",
                 "Siti Aminah");
 
-        when(laporanService.kerugianStok(eq(7L), any(), any(), any()))
+        when(laporanStokService.kerugianStok(eq(7L), any(), any(), any()))
                 .thenReturn(List.of(baris));
 
         mockMvc.perform(get("/api/laporan/kerugian-stok"))
@@ -84,7 +96,7 @@ class LaporanControllerTest {
         RingkasanKerugianStok ringkasan = new RingkasanKerugianStok(
                 30_000L, 3L, 1L, 30_000L, 3L, 0L, 0L);
 
-        when(laporanService.ringkasanKerugianStok(eq(7L), any(), any(), any()))
+        when(laporanStokService.ringkasanKerugianStok(eq(7L), any(), any(), any()))
                 .thenReturn(ringkasan);
 
         mockMvc.perform(get("/api/laporan/kerugian-stok/ringkasan"))
