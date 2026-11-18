@@ -156,6 +156,20 @@ public class GlobalExceptionHandler {
         return CommonResponse.badRequest(e.getMessage());
     }
 
+    /**
+     * Pelanggaran invarian internal (mis. qty ≤ 0 di {@code HppService},
+     * perintah mutasi tanpa {@code sekolahId}) → 500.
+     *
+     * <p>Status &amp; body sengaja SAMA dengan fallback {@link Exception} di
+     * bawah, supaya penggantian exception generik ke exception domain (#360)
+     * tidak mengubah kontrak HTTP. Pesan teknis hanya masuk log.
+     */
+    @ExceptionHandler(InvariantViolationException.class)
+    public ResponseEntity<?> invariantViolationHandler(InvariantViolationException e) {
+        ErrorLogger.printFilteredStackTrace(e);
+        return CommonResponse.serverError("Terjadi kesalahan pada server");
+    }
+
     @ExceptionHandler({ConflictException.class, IdempotencyConflictException.class})
     public ResponseEntity<?> conflictExceptionHandler(RuntimeException e) {
         ErrorLogger.printFilteredStackTrace(e);
