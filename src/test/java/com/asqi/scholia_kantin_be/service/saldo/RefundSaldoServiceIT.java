@@ -2,12 +2,20 @@ package com.asqi.scholia_kantin_be.service.saldo;
 
 import com.asqi.scholia_kantin_be.component.exception.ConflictException;
 import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
+import com.asqi.scholia_kantin_be.component.logging.AuditLogger;
 import com.asqi.scholia_kantin_be.dto.HasilRefundResponse;
 import com.asqi.scholia_kantin_be.dto.KandidatRefundItem;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
+import com.asqi.scholia_kantin_be.repository.KartuRepository;
+import com.asqi.scholia_kantin_be.repository.OrangTuaRepository;
+import com.asqi.scholia_kantin_be.repository.SaldoRepository;
+import com.asqi.scholia_kantin_be.repository.SiswaRepository;
+import com.asqi.scholia_kantin_be.service.CariSiswaService;
+import com.asqi.scholia_kantin_be.service.integrasi.CariSiswaLokal;
 import com.asqi.scholia_kantin_be.service.integrasi.CariSiswaPort;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoSiswa;
+import com.asqi.scholia_kantin_be.service.integrasi.NotifikasiService;
 import com.asqi.scholia_kantin_be.service.integrasi.StatusSiswaPort;
 import com.asqi.scholia_kantin_be.service.kasir.LedgerSaldoService;
 import com.asqi.scholia_kantin_be.service.kasir.PerintahMutasiSaldo;
@@ -68,6 +76,24 @@ class RefundSaldoServiceIT {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private SaldoRepository saldoRepo;
+
+    @Autowired
+    private SiswaRepository siswaRepo;
+
+    @Autowired
+    private OrangTuaRepository orangTuaRepo;
+
+    @Autowired
+    private KartuRepository kartuRepo;
+
+    @Autowired
+    private AuditLogger auditLogger;
+
+    @Autowired
+    private NotifikasiService notifikasiService;
 
     /** Fake status siswa: siswa yang "nonaktif" bisa diatur per uji. */
     static class FakeStatusSiswa implements StatusSiswaPort {
@@ -146,12 +172,13 @@ class RefundSaldoServiceIT {
 
     @BeforeEach
     void bersihkan() {
-        jdbc.execute("TRUNCATE TABLE mutasi_saldo, saldo CASCADE");
+        jdbc.execute("TRUNCATE TABLE mutasi_saldo, saldo, orang_tua CASCADE");
 
         // Induk wajib skema v2 (FK): sekolah → siswa/pengguna.
         FixtureInduk.sekolah(jdbc, SEKOLAH, SEKOLAH_LAIN);
         FixtureInduk.pengguna(jdbc, SEKOLAH, AKTOR);
         FixtureInduk.siswa(jdbc, SEKOLAH, SISWA_KELUAR, SISWA_SAUDARA, SISWA_LAIN);
+        jdbc.update("UPDATE siswa SET foto_url = NULL WHERE sekolah_id = ?", SEKOLAH);
 
         status.nonaktif.clear();
         status.diblokir.clear();
@@ -303,12 +330,14 @@ class RefundSaldoServiceIT {
     }
 
     @Test
-    @DisplayName("#298: kandidat memuat NIS/nama/kelas; identitas hilang → null (tidak dikarang)")
+    @DisplayName("#298: kandidat memuat NIS/nama/kelas/wali/foto; identitas hilang → null (tidak dikarang)")
     void daftarKandidatIdentitas() {
         isiSaldo(SISWA_KELUAR, 10_000);
         isiSaldo(SISWA_SAUDARA, 5_000);
         identitasSiswa.data.put(SISWA_KELUAR, InfoSiswa.builder()
                 .siswaId(SISWA_KELUAR).nis("2023001").nama("Maya Sari").kelas("9C")
+                .fotoUrl("https://cdn.skoolia.id/siswa/maya.jpg")
+                .namaOrangTua("Bapak Maya").teleponOrangTua("081234567890")
                 .tidakAktif(true).saldo(10_000).build());
         // SISWA_SAUDARA sengaja tidak punya identitas di admin-be.
 
@@ -319,6 +348,9 @@ class RefundSaldoServiceIT {
         assertThat(keluar.getNis()).isEqualTo("2023001");
         assertThat(keluar.getNama()).isEqualTo("Maya Sari");
         assertThat(keluar.getKelas()).isEqualTo("9C");
+        assertThat(keluar.getFotoUrl()).isEqualTo("https://cdn.skoolia.id/siswa/maya.jpg");
+        assertThat(keluar.getNamaOrangTua()).isEqualTo("Bapak Maya");
+        assertThat(keluar.getTeleponOrangTua()).isEqualTo("081234567890");
         assertThat(keluar.getTidakAktif()).isTrue();
 
         KandidatRefundItem saudara = hasil.stream()
@@ -326,7 +358,60 @@ class RefundSaldoServiceIT {
         assertThat(saudara.getNis()).isNull();
         assertThat(saudara.getNama()).isNull();
         assertThat(saudara.getKelas()).isNull();
+        assertThat(saudara.getFotoUrl()).isNull();
+        assertThat(saudara.getNamaOrangTua()).isNull();
+        assertThat(saudara.getTeleponOrangTua()).isNull();
         assertThat(saudara.getTidakAktif()).isFalse();   // dari port status, bukan tebakan
+    }
+
+    @Test
+    @DisplayName("PRD §9.3: kandidat memuat namaOrangTua, teleponOrangTua dari orang_tua & fotoUrl dari siswa; tanpa wali aktif → null")
+    void daftarKandidatWaliDanFotoDariTabelLokal() {
+        isiSaldo(SISWA_KELUAR, 25_000);
+        isiSaldo(SISWA_SAUDARA, 15_000);
+        isiSaldo(SISWA_LAIN, 10_000);
+
+        // SISWA_KELUAR: punya foto_url + 2 wali aktif (IBU & AYAH → AYAH harus menang secara deterministik)
+        jdbc.update("UPDATE siswa SET foto_url = ? WHERE sekolah_id = ? AND id = ?",
+                "https://cdn.skoolia.id/foto/siswa-100.jpg", SEKOLAH, SISWA_KELUAR);
+        jdbc.update("""
+                INSERT INTO orang_tua (sekolah_id, siswa_id, nama, telepon, hubungan, aktif)
+                VALUES (?, ?, 'Ibu Keluar', '081300000100', 'IBU', true),
+                       (?, ?, 'Bapak Keluar', '081200000100', 'AYAH', true)
+                """, SEKOLAH, SISWA_KELUAR, SEKOLAH, SISWA_KELUAR);
+
+        // SISWA_SAUDARA: hanya punya wali nonaktif (aktif=false) & tanpa foto_url → harus null
+        jdbc.update("""
+                INSERT INTO orang_tua (sekolah_id, siswa_id, nama, telepon, hubungan, aktif)
+                VALUES (?, ?, 'Wali Nonaktif', '081111111111', 'AYAH', false)
+                """, SEKOLAH, SISWA_SAUDARA);
+
+        // SISWA_LAIN: tanpa baris orang_tua & tanpa foto_url → harus null
+
+        CariSiswaLokal cariSiswaLokal = new CariSiswaLokal(siswaRepo, orangTuaRepo, kartuRepo, ledger);
+        RefundSaldoService serviceLokal = new RefundSaldoService(
+                ledger, saldoRepo, status, auditLogger, notifikasiService,
+                new CariSiswaService(cariSiswaLokal));
+
+        List<KandidatRefundItem> hasil = serviceLokal.daftarKandidat(SEKOLAH, false);
+
+        KandidatRefundItem keluar = hasil.stream()
+                .filter(k -> k.getSiswaId().equals(SISWA_KELUAR)).findFirst().orElseThrow();
+        assertThat(keluar.getNamaOrangTua()).isEqualTo("Bapak Keluar");
+        assertThat(keluar.getTeleponOrangTua()).isEqualTo("081200000100");
+        assertThat(keluar.getFotoUrl()).isEqualTo("https://cdn.skoolia.id/foto/siswa-100.jpg");
+
+        KandidatRefundItem saudara = hasil.stream()
+                .filter(k -> k.getSiswaId().equals(SISWA_SAUDARA)).findFirst().orElseThrow();
+        assertThat(saudara.getNamaOrangTua()).isNull();
+        assertThat(saudara.getTeleponOrangTua()).isNull();
+        assertThat(saudara.getFotoUrl()).isNull();
+
+        KandidatRefundItem lain = hasil.stream()
+                .filter(k -> k.getSiswaId().equals(SISWA_LAIN)).findFirst().orElseThrow();
+        assertThat(lain.getNamaOrangTua()).isNull();
+        assertThat(lain.getTeleponOrangTua()).isNull();
+        assertThat(lain.getFotoUrl()).isNull();
     }
 
     @Test
