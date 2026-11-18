@@ -24,6 +24,10 @@ import java.util.List;
 @Setter
 public class Response<D> {
 
+    /** Format timestamp respons — dibuat sekali, bukan tiap instans (issue #362). */
+    private static final DateTimeFormatter FORMAT_TIMESTAMP =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
     /** 0 = OK bawaan; akan diisi oleh {@link #setResponseCode(ResponseCode)}. */
     private Integer code = 0;
 
@@ -31,7 +35,7 @@ public class Response<D> {
     private String message;
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    private String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+    private String timestamp = LocalDateTime.now().format(FORMAT_TIMESTAMP);
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Object validation;

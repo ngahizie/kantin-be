@@ -1,5 +1,6 @@
 package com.asqi.scholia_kantin_be.service.laporan;
 
+import com.asqi.scholia_kantin_be.dto.BarisBarangMasuk;
 import com.asqi.scholia_kantin_be.dto.BarisKerugianStok;
 import com.asqi.scholia_kantin_be.dto.BarisPembatalanKasir;
 import com.asqi.scholia_kantin_be.dto.BarisPenjualanDimensi;
@@ -16,7 +17,6 @@ import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.enums.JenisLaporan;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
-import com.asqi.scholia_kantin_be.model.RiwayatStok;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -44,6 +44,10 @@ public class LaporanExportService {
 
     private static final DateTimeFormatter FMT =
             DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm");
+
+    /** Format tanggal saja untuk label periode — dibuat sekali (issue #362). */
+    private static final DateTimeFormatter FMT_TANGGAL =
+            DateTimeFormatter.ofPattern("dd-MM-yyyy");
 
     private final LaporanPenjualanService penjualan;
     private final LaporanSaldoService saldo;
@@ -267,15 +271,15 @@ public class LaporanExportService {
 
     private HasilEkspor eksporBarangMasuk(Long sekolahId, LocalDate tgl, OffsetDateTime dari,
                                           OffsetDateTime sampai, String label) {
-        List<RiwayatStok> data = stok.barangMasuk(sekolahId, tgl, dari, sampai);
+        List<BarisBarangMasuk> data = stok.barangMasuk(sekolahId, tgl, dari, sampai);
         List<String> header = List.of("Waktu", "Menu ID", "Qty", "Harga Beli/Unit",
                 "Referensi", "Alasan");
         List<List<Object>> baris = new ArrayList<>();
-        for (RiwayatStok m : data) {
+        for (BarisBarangMasuk m : data) {
             baris.add(List.of(
-                    m.getWaktu() == null ? "" : FMT.format(m.getWaktu()),
-                    nvl(m.getMenuId()), m.getQty(), nvl(m.getHargaBeliSatuan()),
-                    nvl(m.getReferensiId()), nvl(m.getAlasan())));
+                    m.waktu() == null ? "" : FMT.format(m.waktu()),
+                    nvl(m.menuId()), m.qty(), nvl(m.hargaBeliSatuan()),
+                    nvl(m.referensiId()), nvl(m.alasan())));
         }
         return berkas(sekolahId, "Barang Masuk", label, header, baris);
     }
@@ -456,7 +460,7 @@ public class LaporanExportService {
             return FMT.format(dari) + " s/d " + FMT.format(sampai);
         }
         LocalDate tgl = (tanggal != null) ? tanggal : jam.hariIni();
-        return tgl.format(DateTimeFormatter.ofPattern("dd-MM-yyyy"));
+        return tgl.format(FMT_TANGGAL);
     }
 
     private static Object nvl(Object v) {

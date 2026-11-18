@@ -103,10 +103,12 @@ public class TapService {
         // UID kartu dipakai untuk lookup sekaligus disimpan di transaksi/pending.
         // Pembaca kartu bisa mengirim huruf kecil/campur, sementara kartu.uid
         // case-sensitive → kanonikkan sekali di pintu masuk (issue #346).
-        request.setRfidUid(UidKartu.normalisasi(request.getRfidUid()));
+        // DTO request milik pemanggil tidak diubah (issue #362): nilai kanonik
+        // dibawa sebagai variabel lokal ke seluruh alur tap di bawah.
+        String rfidUid = UidKartu.normalisasi(request.getRfidUid());
         long mulai = System.nanoTime();
         try {
-            TapResponse hasil = jalankanTap(sekolahId, identitas, request);
+            TapResponse hasil = jalankanTap(sekolahId, identitas, request, rfidUid);
             metrikTap.catat(Duration.ofNanos(System.nanoTime() - mulai),
                     hasil.isMenungguKonfirmasi() ? MetrikTap.OUTCOME_MENUNGGU : MetrikTap.OUTCOME_SUKSES);
             return hasil;
@@ -119,7 +121,8 @@ public class TapService {
     }
 
     /** Isi alur tap (dipisah agar pengukuran durasi membungkus seluruh jalur). */
-    private TapResponse jalankanTap(Long sekolahId, IdentitasKantin identitas, TapRequest request) {
+    private TapResponse jalankanTap(Long sekolahId, IdentitasKantin identitas, TapRequest request,
+                                    String rfidUid) {
         String key = request.getIdempotencyKey();
 
         try {
@@ -142,7 +145,7 @@ public class TapService {
                 }
 
                 // 3) Eksekusi tap.
-                return eksekusi(sekolahId, identitas, request);
+                return eksekusi(sekolahId, identitas, request, rfidUid);
             });
         } catch (DataIntegrityViolationException e) {
             // Balapan idempotency: transaksi/pending kalah sudah di-rollback; pakai pemenang.
@@ -158,23 +161,24 @@ public class TapService {
     }
 
     /** Inti eksekusi — berjalan di dalam satu transaksi DB. */
-    private TapResponse eksekusi(Long sekolahId, IdentitasKantin identitas, TapRequest request) {
+    private TapResponse eksekusi(Long sekolahId, IdentitasKantin identitas, TapRequest request,
+                                 String rfidUid) {
         Long petugasId = identitas.aktorIdWajib();
-        Siap siap = siapkan(sekolahId, request);
+        Siap siap = siapkan(sekolahId, request, rfidUid);
 
         // Konfirmasi manual (PRD §6.1/§9.1): bila aktif, JANGAN potong apa pun —
         // simpan permintaan & minta petugas mengonfirmasi.
         if (pengaturan.ambil(sekolahId).isKonfirmasiManual()) {
-            return buatPending(sekolahId, petugasId, request, siap);
+            return buatPending(sekolahId, petugasId, request, siap, rfidUid);
         }
 
-        return commit(sekolahId, petugasId, request, siap);
+        return commit(sekolahId, petugasId, request, siap, rfidUid);
     }
 
     /** Hasil lookup kartu + validasi 6 tahap (read-only, belum mengubah state). */
-    private Siap siapkan(Long sekolahId, TapRequest request) {
+    private Siap siapkan(Long sekolahId, TapRequest request, String rfidUid) {
         // 2) Lookup kartu (port). Status blokir diperiksa server tiap tap.
-        InfoKartu kartu = kartuLookup.cariBerdasarkanUid(sekolahId, request.getRfidUid());
+        InfoKartu kartu = kartuLookup.cariBerdasarkanUid(sekolahId, rfidUid);
 
         // 2b) Tempelkan kontrol kantin-be (blokir kartu/limit/blokir item) — data
         // milik kantin-be, dibaca tiap tap TANPA cache (PRD §11.11) sehingga
@@ -205,7 +209,8 @@ public class TapService {
     }
 
     /** Simpan tap sebagai pending (konfirmasi manual) tanpa memotong saldo/stok. */
-    private TapResponse buatPending(Long sekolahId, Long petugasId, TapRequest request, Siap siap) {
+    private TapResponse buatPending(Long sekolahId, Long petugasId, TapRequest request, Siap siap,
+                                    String rfidUid) {
         OffsetDateTime now = jam.sekarang();
         Long pendingId = idGenerator.berikutnyaLong();
 
@@ -213,7 +218,7 @@ public class TapService {
                 .id(pendingId)
                 .sekolahId(sekolahId)
                 .idempotencyKey(request.getIdempotencyKey())
-                .rfidUid(request.getRfidUid())
+                .rfidUid(rfidUid)
                 .titikKasirId(request.getTitikKasirId())
                 .siswaId(siap.kartu().getSiswaId())
                 .petugasId(petugasId)
@@ -254,8 +259,11 @@ public class TapService {
             }
 
             TapRequest request = dariPending(pending);
-            Siap siap = siapkan(sekolahId, request);
-            TapResponse resp = commit(sekolahId, petugasId, request, siap);
+            // UID dari baris pending sudah kanonik; normalisasi ulang idempoten
+            // agar alur konfirmasi memakai jalur yang sama tanpa memutasi DTO.
+            String rfidUid = UidKartu.normalisasi(request.getRfidUid());
+            Siap siap = siapkan(sekolahId, request, rfidUid);
+            TapResponse resp = commit(sekolahId, petugasId, request, siap, rfidUid);
 
             pending.setStatus(StatusPendingTap.DIKONFIRMASI);
             pending.setTransaksiId(resp.getTransaksiId());
@@ -298,7 +306,8 @@ public class TapService {
     }
 
     /** Commit transaksi: sesi → stok → transaksi + item → debit saldo → notifikasi. */
-    private TapResponse commit(Long sekolahId, Long petugasId, TapRequest request, Siap siap) {
+    private TapResponse commit(Long sekolahId, Long petugasId, TapRequest request, Siap siap,
+                               String rfidUid) {
         InfoKartu kartu = siap.kartu();
         TapValidator.Hasil hasil = siap.hasil();
 
@@ -315,7 +324,7 @@ public class TapService {
                 .sesiKasirId(sesi.getId())
                 .titikKasirId(request.getTitikKasirId())
                 .siswaId(kartu.getSiswaId())
-                .kartuUid(request.getRfidUid())
+                .kartuUid(rfidUid)
                 .petugasId(petugasId)
                 .total(hasil.getTotal())
                 .totalHpp(0L)
