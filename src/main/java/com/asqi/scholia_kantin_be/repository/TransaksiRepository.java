@@ -5,6 +5,7 @@ import com.asqi.scholia_kantin_be.model.Transaksi;
 import com.asqi.scholia_kantin_be.repository.projection.PenjualanDimensi;
 import com.asqi.scholia_kantin_be.repository.projection.PenjualanKasir;
 import com.asqi.scholia_kantin_be.repository.projection.RekapStatus;
+import com.asqi.scholia_kantin_be.repository.projection.RekapStatusMetode;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import jakarta.persistence.LockModeType;
@@ -56,22 +57,25 @@ public interface TransaksiRepository extends JpaRepository<Transaksi, Long>,
             Long sekolahId, Long siswaId, Pageable pageable);
 
     /**
-     * Rekap sesi: jumlah transaksi &amp; total per status.
+     * Rekap sesi per <b>status × metode bayar</b> (C.2d) — memisahkan penjualan
+     * TUNAI (uang fisik di laci) dari SALDO (potongan saldo siswa).
      *
-     * <p>Projection {@link RekapStatus} menggantikan {@code Object[]} — nama
-     * properti = alias kolom, jadi urutan kolom tidak bisa ketukar diam-diam.
-     * Dipakai {@code SesiKasirService} menghitung total bruto/void/bersih
-     * (PRD §6.4).
+     * <p>Dipakai {@code SesiKasirService} untuk mengisi {@code totalTunai} /
+     * {@code totalSaldo} pada rekap sesi; dengan begitu kasir dapat mencocokkan
+     * uang fisik terhadap <b>Σ penjualan tunai</b>, bukan terhadap seluruh
+     * penjualan (yang sebagian tidak berbentuk uang tunai).
+     *
+     * <p>Projection {@link RekapStatusMetode}: nama properti = alias kolom.
      */
     @Query("""
-            SELECT t.status AS status, COUNT(t) AS jumlah,
-                   COALESCE(SUM(t.total), 0) AS total
+            SELECT t.status AS status, t.metodeBayar AS metodeBayar,
+                   COUNT(t) AS jumlah, COALESCE(SUM(t.total), 0) AS total
             FROM Transaksi t
             WHERE t.sekolahId = :sekolahId AND t.sesiKasirId = :sesiKasirId
-            GROUP BY t.status
+            GROUP BY t.status, t.metodeBayar
             """)
-    List<RekapStatus> rekapSesi(@Param("sekolahId") Long sekolahId,
-                                @Param("sesiKasirId") Long sesiKasirId);
+    List<RekapStatusMetode> rekapSesiPerMetode(@Param("sekolahId") Long sekolahId,
+                                               @Param("sesiKasirId") Long sesiKasirId);
 
     /** Total penjualan bersih (SUKSES) pada rentang waktu — untuk laporan. */
     @Query("""

@@ -3,6 +3,7 @@ package com.asqi.scholia_kantin_be.service.kasir;
 import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
 import com.asqi.scholia_kantin_be.dto.SesiKasirAktifData;
+import com.asqi.scholia_kantin_be.enums.MetodeBayar;
 import com.asqi.scholia_kantin_be.enums.StatusSesiKasir;
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
 import com.asqi.scholia_kantin_be.helper.IdGenerator;
@@ -12,7 +13,7 @@ import com.asqi.scholia_kantin_be.model.TitikKasir;
 import com.asqi.scholia_kantin_be.repository.SesiKasirRepository;
 import com.asqi.scholia_kantin_be.repository.TitikKasirRepository;
 import com.asqi.scholia_kantin_be.repository.TransaksiRepository;
-import com.asqi.scholia_kantin_be.repository.projection.RekapStatus;
+import com.asqi.scholia_kantin_be.repository.projection.RekapStatusMetode;
 import com.asqi.scholia_kantin_be.security.SekolahGuard;
 import com.asqi.scholia_kantin_be.service.integrasi.BukuKasPostingService;
 import com.asqi.scholia_kantin_be.service.integrasi.HasilJurnalBukuKas;
@@ -377,17 +378,47 @@ public class SesiKasirService {
         long brutoVoid = 0L;
         long jumlahSukses = 0L;
         long jumlahVoid = 0L;
+        long tunaiSukses = 0L;
+        long jumlahTunai = 0L;
+        long saldoSukses = 0L;
+        long jumlahSaldo = 0L;
+        long tunaiVoid = 0L;
+        long jumlahTunaiVoid = 0L;
+        long saldoVoid = 0L;
+        long jumlahSaldoVoid = 0L;
 
-        for (RekapStatus baris : transaksiRepo.rekapSesi(sekolahId, sesi.getId())) {
+        // Satu query, dipecah per status × metode bayar (C.2d): kasir perlu tahu
+        // berapa uang TUNAI yang seharusnya ada di laci, terpisah dari penjualan
+        // yang dibayar saldo (tidak menghasilkan uang fisik).
+        for (RekapStatusMetode baris : transaksiRepo.rekapSesiPerMetode(sekolahId, sesi.getId())) {
             StatusTransaksi status = baris.getStatus();
-            long jumlah = baris.getJumlah();
-            long total = baris.getTotal();
+            long jumlah = baris.getJumlah() == null ? 0L : baris.getJumlah();
+            long total = baris.getTotal() == null ? 0L : baris.getTotal();
+            boolean tunai = baris.getMetodeBayar() == MetodeBayar.TUNAI;
+
             if (status == StatusTransaksi.SUKSES) {
-                brutoSukses = total;
-                jumlahSukses = jumlah;
+                brutoSukses += total;
+                jumlahSukses += jumlah;
+                if (tunai) {
+                    tunaiSukses += total;
+                    jumlahTunai += jumlah;
+                } else {
+                    saldoSukses += total;
+                    jumlahSaldo += jumlah;
+                }
             } else if (status == StatusTransaksi.VOID) {
-                brutoVoid = total;
-                jumlahVoid = jumlah;
+                brutoVoid += total;
+                jumlahVoid += jumlah;
+                // VOID ikut dipecah per metode: tanpa ini klien hanya tahu "ada
+                // void Rp X" dan tidak bisa membedakan void yang mengeluarkan
+                // uang tunai dari void yang hanya mengembalikan saldo.
+                if (tunai) {
+                    tunaiVoid += total;
+                    jumlahTunaiVoid += jumlah;
+                } else {
+                    saldoVoid += total;
+                    jumlahSaldoVoid += jumlah;
+                }
             }
         }
 
@@ -398,6 +429,16 @@ public class SesiKasirService {
                 .totalBersih(brutoSukses)
                 .totalVoid(brutoVoid)
                 .totalBruto(brutoSukses + brutoVoid)
+                // Pecahan per metode (C.2d) — hanya transaksi SUKSES: yang VOID
+                // uangnya sudah kembali, jadi tidak boleh dihitung sebagai kas.
+                .jumlahTunai(jumlahTunai)
+                .jumlahSaldo(jumlahSaldo)
+                .totalTunai(tunaiSukses)
+                .totalSaldo(saldoSukses)
+                .jumlahVoidTunai(jumlahTunaiVoid)
+                .jumlahVoidSaldo(jumlahSaldoVoid)
+                .totalVoidTunai(tunaiVoid)
+                .totalVoidSaldo(saldoVoid)
                 .build();
     }
 
@@ -406,6 +447,17 @@ public class SesiKasirService {
      *
      * <p>{@code totalBersih} = Σ transaksi SUKSES — inilah yang diposting ke
      * Buku Kas pos "Pendapatan Kantin" saat tutup kasir (PRD §5.1).
+     *
+     * <p>{@code totalTunai} = Σ transaksi SUKSES ber-metode TUNAI (C.2d) —
+     * <b>inilah</b> angka pembanding uang fisik di laci saat tutup kasir;
+     * {@code totalBersih} tidak bisa dipakai karena sebagian penjualan dibayar
+     * saldo (tanpa uang tunai). Selisih = uang fisik − {@code totalTunai}.
+     *
+     * <p>Transaksi VOID dipecah juga ({@code totalVoidTunai} /
+     * {@code totalVoidSaldo}) supaya klien bisa menampilkan rincian, tetapi
+     * <b>tidak perlu dikurangkan</b> dari {@code totalTunai}: angka itu sudah
+     * hanya menghitung transaksi SUKSES, dan uang transaksi tunai yang di-void
+     * sudah kembali ke pembeli saat refund.
      */
     @Getter
     @Builder
@@ -416,5 +468,34 @@ public class SesiKasirService {
         private final long totalBruto;
         private final long totalVoid;
         private final long totalBersih;
+
+        /** Banyaknya transaksi SUKSES tunai (C.2d). */
+        private final long jumlahTunai;
+
+        /** Banyaknya transaksi SUKSES yang dibayar saldo (C.2d). */
+        private final long jumlahSaldo;
+
+        /** Σ nominal transaksi SUKSES tunai — pembanding uang fisik (C.2d). */
+        private final long totalTunai;
+
+        /** Σ nominal transaksi SUKSES yang dibayar saldo (C.2d). */
+        private final long totalSaldo;
+
+        /** Banyaknya transaksi VOID tunai (C.2d). */
+        private final long jumlahVoidTunai;
+
+        /** Banyaknya transaksi VOID yang dibayar saldo (C.2d). */
+        private final long jumlahVoidSaldo;
+
+        /**
+         * Σ nominal transaksi VOID tunai (C.2d) — uang tunai yang <b>keluar</b>
+         * lagi ke pembeli. Sudah <b>tidak</b> termasuk {@link #totalTunai}
+         * (yang hanya menghitung SUKSES), jadi jangan dikurangkan lagi saat
+         * menghitung kas seharusnya; field ini untuk rincian tampilan/laporan.
+         */
+        private final long totalVoidTunai;
+
+        /** Σ nominal transaksi VOID yang dibayar saldo (C.2d) — tanpa uang fisik. */
+        private final long totalVoidSaldo;
     }
 }
