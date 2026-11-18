@@ -3,6 +3,7 @@ package com.asqi.scholia_kantin_be.service.kasir;
 import com.asqi.scholia_kantin_be.dto.TapRequest;
 import com.asqi.scholia_kantin_be.dto.TapResponse;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
+import com.asqi.scholia_kantin_be.enums.MetodeBayar;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.security.IdentitasKantin;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoKartu;
@@ -370,6 +371,101 @@ class TapServiceIT {
         assertThat(resp.isMenungguKonfirmasi()).isFalse();
         assertThat(resp.getTransaksiId()).isNotNull();
         assertThat(ledgerSaldo.saldo(SEKOLAH, SISWA)).isEqualTo(42_000L);
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // BAYAR TUNAI (C.2a — Kartu Tamu / pembeli tanpa kartu)
+    // ────────────────────────────────────────────────────────────────
+
+    /** Tap tunai: tanpa kartu, uang diterima kasir dicatat. */
+    private TapRequest requestTunai(String key, long uangDiterima, int qtyNasi) {
+        TapRequest r = request(key, qtyNasi, 0);
+        r.setRfidUid(null);
+        r.setMetodeBayar(MetodeBayar.TUNAI);
+        r.setUangDiterima(uangDiterima);
+        r.setNamaPembeli("Tamu");
+        return r;
+    }
+
+    @Test
+    @DisplayName("C.2a: tunai tanpa kartu — tercatat, saldo TIDAK dipotong, kembalian dihitung")
+    void tapTunaiTanpaKartu() {
+        TapResponse resp = tapService.tap(SEKOLAH, petugas, requestTunai("tunai-1", 20_000, 2));
+
+        assertThat(resp.getTotal()).isEqualTo(16_000L);
+        assertThat(resp.getMetodeBayar()).isEqualTo(MetodeBayar.TUNAI);
+        assertThat(resp.getUangDiterima()).isEqualTo(20_000L);
+        assertThat(resp.getKembalian()).isEqualTo(4_000L);
+        assertThat(resp.getSaldoSisa()).isNull();
+        assertThat(resp.getNama()).isNull();
+
+        // Saldo siswa tidak tersentuh (tidak ada mutasi DEBIT baru)...
+        assertThat(ledgerSaldo.saldo(SEKOLAH, SISWA)).isEqualTo(50_000L);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM mutasi_saldo WHERE jenis = 'PENJUALAN'", Integer.class)).isZero();
+        // ...tetapi stok tetap berkurang karena barangnya memang keluar.
+        assertThat(ledgerStok.stok(SEKOLAH, MENU_NASI)).isEqualTo(18);
+
+        var baris = jdbc.queryForMap(
+                "SELECT metode_bayar, siswa_id, uang_diterima FROM transaksi WHERE id = ?",
+                resp.getTransaksiId());
+        assertThat(baris.get("metode_bayar")).isEqualTo("TUNAI");
+        assertThat(baris.get("siswa_id")).isNull();
+        assertThat(((Number) baris.get("uang_diterima")).longValue()).isEqualTo(20_000L);
+    }
+
+    @Test
+    @DisplayName("C.2a: tunai dengan kartu terbaca — saldo tetap utuh, siswa tetap tercatat")
+    void tapTunaiDenganKartuTidakPotongSaldo() {
+        TapRequest r = request("tunai-kartu", 1, 0);
+        r.setMetodeBayar(MetodeBayar.TUNAI);
+        r.setUangDiterima(8_000L);
+
+        TapResponse resp = tapService.tap(SEKOLAH, petugas, r);
+
+        assertThat(resp.getKembalian()).isZero();
+        assertThat(resp.getSaldoSisa()).isNull();
+        assertThat(resp.getNama()).isEqualTo("Budi");
+        assertThat(ledgerSaldo.saldo(SEKOLAH, SISWA)).isEqualTo(50_000L);
+        assertThat(jdbc.queryForObject("SELECT siswa_id FROM transaksi WHERE id = ?",
+                Long.class, resp.getTransaksiId())).isEqualTo(SISWA);
+    }
+
+    @Test
+    @DisplayName("C.2a: uang tunai kurang dari total — ditolak tanpa mengubah apa pun")
+    void tapTunaiUangKurangDitolak() {
+        assertThatThrownBy(() -> tapService.tap(SEKOLAH, petugas, requestTunai("tunai-kurang", 5_000, 1)))
+                .isInstanceOf(com.asqi.scholia_kantin_be.component.exception.ConflictException.class)
+                .hasMessageContaining("Uang tunai kurang");
+
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM transaksi", Integer.class)).isZero();
+        assertThat(ledgerStok.stok(SEKOLAH, MENU_NASI)).isEqualTo(20);
+        assertThat(ledgerSaldo.saldo(SEKOLAH, SISWA)).isEqualTo(50_000L);
+    }
+
+    @Test
+    @DisplayName("C.2a: tunai idempoten — key sama tidak membuat transaksi kedua")
+    void tapTunaiIdempoten() {
+        TapResponse a = tapService.tap(SEKOLAH, petugas, requestTunai("tunai-dup", 20_000, 1));
+        TapResponse b = tapService.tap(SEKOLAH, petugas, requestTunai("tunai-dup", 20_000, 1));
+
+        assertThat(b.getTransaksiId()).isEqualTo(a.getTransaksiId());
+        assertThat(b.getKembalian()).isEqualTo(12_000L);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM transaksi", Integer.class)).isEqualTo(1);
+        assertThat(ledgerStok.stok(SEKOLAH, MENU_NASI)).isEqualTo(19);
+    }
+
+    @Test
+    @DisplayName("C.2a: konfirmasi manual aktif — tunai tetap langsung tercatat, bukan pending")
+    void tunaiTidakLewatPending() {
+        aktifkanKonfirmasiManual();
+
+        TapResponse resp = tapService.tap(SEKOLAH, petugas, requestTunai("tunai-konf", 10_000, 1));
+
+        assertThat(resp.isMenungguKonfirmasi()).isFalse();
+        assertThat(resp.getTransaksiId()).isNotNull();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM transaksi_tertunda", Integer.class)).isZero();
+        assertThat(ledgerStok.stok(SEKOLAH, MENU_NASI)).isEqualTo(19);
     }
 
     /** Fake port: kartu siswa "Budi" & katalog dua menu. */

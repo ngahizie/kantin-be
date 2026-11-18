@@ -8,7 +8,10 @@ import java.util.regex.Pattern;
 /**
  * Implementasi {@link UidKartuValid}.
  *
- * <p>Menerima {@code null} (pakai {@code @NotBlank} terpisah).
+ * <p>Menerima {@code null} <b>dan string kosong</b>: keberadaan UID bukan lagi
+ * urusan validator format (sejak C.2a pembayaran tunai sah tanpa kartu).
+ * Kewajiban UID untuk pembayaran saldo ditegakkan {@code TapRequest} lewat
+ * {@code @AssertTrue}. Kalau diisi, bentuknya wajib heksadesimal 4–64 digit.
  */
 public class UidKartuValidator implements ConstraintValidator<UidKartuValid, String> {
 
@@ -22,7 +25,7 @@ public class UidKartuValidator implements ConstraintValidator<UidKartuValid, Str
         }
         String v = value.trim();
         if (v.isEmpty()) {
-            return false;
+            return true;
         }
         return POLA.matcher(v).matches();
     }

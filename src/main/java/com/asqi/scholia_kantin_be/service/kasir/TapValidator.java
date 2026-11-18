@@ -25,6 +25,13 @@ import java.util.List;
  * Kegagalan pertama menghentikan proses dan mengembalikan pesan yang tampil di
  * layar kasir (sesuai tabel PRD §6.1).
  *
+ * <p><b>Pembayaran tunai (C.2a).</b> Bila {@code request.tunai()}, tahap 1
+ * (kartu dikenal) dan tahap 6 (saldo ≥ total) <b>dilewati</b>: uang tunai
+ * tidak dipotong dari saldo dan tidak mensyaratkan kartu. Tahap 2–5 tetap
+ * berjalan <i>bila kartu ada</i> — blokir orang tua dan batas harian adalah
+ * kontrol atas kartu, bukan atas sumber dana. Batas uang tunai (uang diterima
+ * ≥ total) diperiksa {@code TapService} saat commit.
+ *
  * <p>Validator <b>tidak</b> mengubah state apa pun — hanya membaca.
  */
 @Service
@@ -75,8 +82,8 @@ public class TapValidator {
                           long saldoSaatIni, long belanjaHariIni,
                           java.util.function.Function<Long, InfoMenu> cariMenu) {
 
-        // ── Tahap 1: kartu dikenal ──────────────────────────────────
-        if (!kartu.isDikenal()) {
+        // ── Tahap 1: kartu dikenal (transaksi tunai boleh tanpa kartu) ──
+        if (!request.tunai() && !kartu.isDikenal()) {
             return gagal(1, "Kartu tidak dikenal", null, 0);
         }
 
@@ -141,8 +148,8 @@ public class TapValidator {
             }
         }
 
-        // ── Tahap 6: saldo ≥ total ──────────────────────────────────
-        if (saldoSaatIni < total) {
+        // ── Tahap 6: saldo ≥ total (hanya pembayaran saldo) ─────────
+        if (!request.tunai() && saldoSaatIni < total) {
             return gagal(6, "Saldo kurang Rp " + (total - saldoSaatIni), baris, total);
         }
 

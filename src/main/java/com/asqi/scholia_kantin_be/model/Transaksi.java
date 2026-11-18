@@ -1,5 +1,6 @@
 package com.asqi.scholia_kantin_be.model;
 
+import com.asqi.scholia_kantin_be.enums.MetodeBayar;
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -74,8 +75,23 @@ public class Transaksi implements Persistable<Long> {
     @Column(name = "titik_kasir_id", nullable = false)
     private Long titikKasirId;
 
-    @Column(name = "siswa_id", nullable = false)
+    /** null = tunai tanpa kartu (C.2a) — lihat {@link #metodeBayar}. */
+    @Column(name = "siswa_id")
     private Long siswaId;
+
+    /**
+     * Cara pembayaran (SALDO/TUNAI). Default SALDO supaya transaksi lama dan
+     * pemanggil yang tidak mengirim field tetap berperilaku potong saldo.
+     * Menjaga CHECK {@code ck_transaksi_saldo_wajib_siswa} di DB.
+     */
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "metode_bayar", nullable = false, length = 20)
+    private MetodeBayar metodeBayar = MetodeBayar.SALDO;
+
+    /** Uang tunai diterima kasir — hanya untuk {@link MetodeBayar#TUNAI}. */
+    @Column(name = "uang_diterima")
+    private Long uangDiterima;
 
     /** Kartu fisik yang dipakai (UID) — untuk audit sengketa. */
     @Column(name = "kartu_uid", length = 64)

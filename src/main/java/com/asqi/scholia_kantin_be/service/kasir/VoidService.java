@@ -4,6 +4,7 @@ import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
 import com.asqi.scholia_kantin_be.component.logging.AuditLogger;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
+import com.asqi.scholia_kantin_be.enums.MetodeBayar;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.enums.JenisNotifikasi;
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
@@ -180,20 +181,27 @@ public class VoidService {
 
         // 2) Kembalikan saldo penuh (kredit pembalik, key unik agar tak dobel).
         //    Void kasir → VOID_PENJUALAN; koreksi bendahara → KOREKSI (PRD §9.2).
-        String prefix = koreksi ? "KOREKSI-TRX-" : "REFUND-";
-        JenisMutasiSaldo jenis = koreksi ? JenisMutasiSaldo.KOREKSI : JenisMutasiSaldo.VOID_PENJUALAN;
-        ledgerSaldo.kredit(PerintahMutasiSaldo.builder()
-                .sekolahId(sekolahId)
-                .siswaId(trx.getSiswaId())
-                .jenis(jenis)
-                .nominal(trx.getTotal())
-                .idempotencyKey(prefix + trx.getId())
-                .transaksiId(trx.getId())
-                .referensiTipe("TRANSAKSI")
-                .referensiId(String.valueOf(trx.getId()))
-                .keterangan((koreksi ? "Koreksi: " : "Refund: ") + alasan)
-                .aktorId(aktorId)
-                .build());
+        //
+        // Dilewati untuk transaksi TUNAI (C.2a): tidak ada saldo yang dipotong
+        // saat transaksi, jadi tidak ada yang dikreditkan — uang tunai
+        // dikembalikan fisik oleh kasir, bukan lewat ledger.
+        boolean tunai = trx.getMetodeBayar() == MetodeBayar.TUNAI;
+        if (!tunai) {
+            String prefix = koreksi ? "KOREKSI-TRX-" : "REFUND-";
+            JenisMutasiSaldo jenis = koreksi ? JenisMutasiSaldo.KOREKSI : JenisMutasiSaldo.VOID_PENJUALAN;
+            ledgerSaldo.kredit(PerintahMutasiSaldo.builder()
+                    .sekolahId(sekolahId)
+                    .siswaId(trx.getSiswaId())
+                    .jenis(jenis)
+                    .nominal(trx.getTotal())
+                    .idempotencyKey(prefix + trx.getId())
+                    .transaksiId(trx.getId())
+                    .referensiTipe("TRANSAKSI")
+                    .referensiId(String.valueOf(trx.getId()))
+                    .keterangan((koreksi ? "Koreksi: " : "Refund: ") + alasan)
+                    .aktorId(aktorId)
+                    .build());
+        }
 
         // 3) Tandai transaksi VOID (transaksi BUKAN ledger — update status diizinkan).
         trx.setStatus(StatusTransaksi.VOID);
@@ -214,22 +222,25 @@ public class VoidService {
 
         // Notifikasi ke ortu (PRD §8.4) — best-effort/fail-open: kegagalan
         // pengiriman TIDAK membatalkan pembalik yang sudah tercatat di ledger.
-        Long saldoSetelah = (trx.getSiswaId() == null)
+        // Hanya untuk transaksi SALDO (punya siswa & saldo yang berubah).
+        Long saldoSetelah = (tunai || trx.getSiswaId() == null)
                 ? null
                 : ledgerSaldo.saldo(sekolahId, trx.getSiswaId());
-        notifikasi.kirim(PerintahNotifikasi.builder()
-                .sekolahId(sekolahId)
-                .jenis(JenisNotifikasi.VOID)
-                .subjekTipe(SubjekTipe.SISWA)
-                .siswaId(trx.getSiswaId())
-                .nominal(trx.getTotal())
-                .saldoSetelah(saldoSetelah)
-                .referensiId(String.valueOf(trx.getId()))
-                .ringkasan((koreksi ? "Transaksi dikoreksi bendahara: " : "Transaksi dibatalkan (void): ")
-                        + alasan)
-                .aktorId(aktorId)
-                .waktu(now)
-                .build());
+        if (!tunai && trx.getSiswaId() != null) {
+            notifikasi.kirim(PerintahNotifikasi.builder()
+                    .sekolahId(sekolahId)
+                    .jenis(JenisNotifikasi.VOID)
+                    .subjekTipe(SubjekTipe.SISWA)
+                    .siswaId(trx.getSiswaId())
+                    .nominal(trx.getTotal())
+                    .saldoSetelah(saldoSetelah)
+                    .referensiId(String.valueOf(trx.getId()))
+                    .ringkasan((koreksi ? "Transaksi dikoreksi bendahara: " : "Transaksi dibatalkan (void): ")
+                            + alasan)
+                    .aktorId(aktorId)
+                    .waktu(now)
+                    .build());
+        }
 
         return trx;
     }

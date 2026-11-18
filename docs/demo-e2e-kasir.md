@@ -165,6 +165,34 @@ akun `kasir1` dan titik kasir 1.
 > **Idempotency (PRD §11.3):** kirim ulang dengan `idempotencyKey` **sama** →
 > hasil yang sama, **tidak** memotong saldo dua kali. Ganti key untuk tap baru.
 
+### 5b. Bayar tunai (tanpa kartu / Kartu Tamu)
+
+KEPUTUSAN 13 Nov: Kartu Tamu **tidak** memakai saldo — dibayar tunai di kasir.
+Kirim `metodeBayar: "TUNAI"` **tanpa** `rfidUid` dan sertakan `uangDiterima`:
+
+```bash
+curl -s -X POST http://localhost:8082/api/kasir/tap \
+  -H "Authorization: Bearer ***" -H 'Content-Type: application/json' \
+  -d '{
+        "metodeBayar": "TUNAI",
+        "uangDiterima": 20000,
+        "namaPembeli": "Tamu",
+        "titikKasirId": 1,
+        "idempotencyKey": "demo-tunai-001",
+        "items": [ {"menuId": 1, "qty": 1} ]
+      }' | python3 -m json.tool
+```
+
+Harapan: `code=200`, `metodeBayar=TUNAI`, `kembalian = uangDiterima − total`,
+`saldoSisa = null`, dan **saldo siswa tidak berubah** (tidak ada baris
+`mutasi_saldo` baru). Baris `transaksi` tersimpan dengan `metode_bayar='TUNAI'`,
+`siswa_id = NULL`, `uang_diterima = 20000`. Bila `rfidUid` tetap dikirim dan
+kartunya terbaca, identitas siswa dicatat tetapi saldo **tetap** tidak dipotong.
+
+> `uangDiterima` kurang dari total → `409` "Uang tunai kurang Rp …" dan tidak ada
+> transaksi/stok yang berubah. Pembayaran tunai **tidak** masuk daftar tunggu
+> konfirmasi manual (uang sudah diterima kasir saat itu).
+
 ## 6. Tutup sesi
 
 ```bash
