@@ -186,8 +186,10 @@ curl -s -X POST http://localhost:8082/api/kasir/tap \
 Harapan: `code=200`, `metodeBayar=TUNAI`, `kembalian = uangDiterima − total`,
 `saldoSisa = null`, dan **saldo siswa tidak berubah** (tidak ada baris
 `mutasi_saldo` baru). Baris `transaksi` tersimpan dengan `metode_bayar='TUNAI'`,
-`siswa_id = NULL`, `uang_diterima = 20000`. Bila `rfidUid` tetap dikirim dan
-kartunya terbaca, identitas siswa dicatat tetapi saldo **tetap** tidak dipotong.
+`siswa_id = NULL`, `uang_diterima = 20000`, dan `nama_pembeli` = nama yang
+diketik kasir (dipakai struk + cetak ulang dari riwayat). Bila `rfidUid` tetap
+dikirim dan kartunya terbaca, identitas siswa dicatat tetapi saldo **tetap**
+tidak dipotong.
 
 > `uangDiterima` kurang dari total → `409` "Uang tunai kurang Rp …" dan tidak ada
 > transaksi/stok yang berubah. Pembayaran tunai **tidak** masuk daftar tunggu

@@ -93,6 +93,14 @@ public class Transaksi implements Persistable<Long> {
     @Column(name = "uang_diterima")
     private Long uangDiterima;
 
+    /**
+     * Nama pembeli yang diketik kasir untuk transaksi TUNAI tanpa kartu (C.2a).
+     * {@code null} bila pembayaran saldo atau kartu siswa terbaca (identitas
+     * sudah tercatat di {@link #siswaId}).
+     */
+    @Column(name = "nama_pembeli", length = 100)
+    private String namaPembeli;
+
     /** Kartu fisik yang dipakai (UID) — untuk audit sengketa. */
     @Column(name = "kartu_uid", length = 64)
     private String kartuUid;

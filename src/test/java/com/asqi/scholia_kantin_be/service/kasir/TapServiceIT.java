@@ -407,11 +407,14 @@ class TapServiceIT {
         assertThat(ledgerStok.stok(SEKOLAH, MENU_NASI)).isEqualTo(18);
 
         var baris = jdbc.queryForMap(
-                "SELECT metode_bayar, siswa_id, uang_diterima FROM transaksi WHERE id = ?",
+                "SELECT metode_bayar, siswa_id, uang_diterima, nama_pembeli FROM transaksi WHERE id = ?",
                 resp.getTransaksiId());
         assertThat(baris.get("metode_bayar")).isEqualTo("TUNAI");
         assertThat(baris.get("siswa_id")).isNull();
         assertThat(((Number) baris.get("uang_diterima")).longValue()).isEqualTo(20_000L);
+        // Nama yang diketik kasir tersimpan (V38) & dikembalikan untuk struk.
+        assertThat(baris.get("nama_pembeli")).isEqualTo("Tamu");
+        assertThat(resp.getNamaPembeli()).isEqualTo("Tamu");
     }
 
     @Test
@@ -444,6 +447,20 @@ class TapServiceIT {
     }
 
     @Test
+    @DisplayName("C.2a: uang diterima belum diisi — pesannya 'wajib diisi', bukan 'kurang'")
+    void tapTunaiUangBelumDiisiDitolak() {
+        TapRequest r = requestTunai("tunai-kosong", 0, 1);
+        r.setUangDiterima(null);
+
+        assertThatThrownBy(() -> tapService.tap(SEKOLAH, petugas, r))
+                .isInstanceOf(com.asqi.scholia_kantin_be.component.exception.ConflictException.class)
+                .hasMessageContaining("Uang diterima wajib diisi");
+
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM transaksi", Integer.class)).isZero();
+        assertThat(ledgerStok.stok(SEKOLAH, MENU_NASI)).isEqualTo(20);
+    }
+
+    @Test
     @DisplayName("C.2a: tunai idempoten — key sama tidak membuat transaksi kedua")
     void tapTunaiIdempoten() {
         TapResponse a = tapService.tap(SEKOLAH, petugas, requestTunai("tunai-dup", 20_000, 1));
@@ -451,6 +468,7 @@ class TapServiceIT {
 
         assertThat(b.getTransaksiId()).isEqualTo(a.getTransaksiId());
         assertThat(b.getKembalian()).isEqualTo(12_000L);
+        assertThat(b.getNamaPembeli()).isEqualTo("Tamu"); // replay tetap membawa nama tersimpan
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM transaksi", Integer.class)).isEqualTo(1);
         assertThat(ledgerStok.stok(SEKOLAH, MENU_NASI)).isEqualTo(19);
     }

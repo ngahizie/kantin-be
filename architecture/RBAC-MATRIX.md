@@ -32,10 +32,18 @@ Audit silang PRD §9.5/§9.6 vs anotasi `@PerluPeran` menemukan **over-grant** d
 **Pengecualian yang tetap perlu perataan** — `POST /api/kontrol-kartu/blokir` melayani dua
 subjek dengan pemilik hak berbeda, jadi `@PerluPeran` tunggal tidak cukup:
 
-- `KARTU_TAMU` → hanya `tu` (§9.4: "TU memblokir" kartu tamu)
+- `KARTU_TAMU` → hanya `tu` (§9.4: "TU memblokir" kartu tamu) — **usang sejak C.2b**, subjek ini sudah tidak ada
 - `SISWA` → hanya `admin` (§9.6 "Kontrol Siswa")
 
 Batas per-subjek ditegakkan di dalam `KontrolKartuController#ubahBlokir`.
+
+> ⚠️ **Catatan C.2b (18 Nov 2026).** Subjek `KARTU_TAMU` sudah **dihapus** dari enum
+> `SubjekTipe`: tabel `kartu_tamu` dihapus di `V28__SkemaV2.sql`, setiap `kartu` wajib
+> menunjuk `siswa_id`, dan tamu kini membayar **tunai** tanpa saldo (KEPUTUSAN 13 Nov,
+> lihat `docs/demo-e2e-kasir.md` §5b). Baris yang masih menyebut Kartu Tamu di dokumen
+> ini dipertahankan sebagai riwayat PRD §9.4 — **implementasinya tidak ada lagi**, jadi
+> jangan dipakai sebagai acuan otorisasi. `/api/kontrol-kartu/blokir` hanya melayani
+> subjek `SISWA` (peran `admin`).
 
 ## Matriks
 

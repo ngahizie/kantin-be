@@ -17,6 +17,13 @@ import java.util.List;
  * <p><b>Idempotency (PRD §11.3):</b> {@code idempotencyKey} dibuat oleh
  * <b>klien kasir</b>, unik per tap. Tap ganda dengan key sama → dikembalikan
  * hasil yang sama (tidak memotong saldo dua kali).
+ *
+ * <p><b>Key yang sama = percobaan yang sama.</b> Replay mengembalikan transaksi
+ * yang <i>sudah tercatat</i>, termasuk bila {@code metodeBayar}/
+ * {@code uangDiterima} di request ulang berbeda — server tidak membandingkan
+ * isi request, jadi perubahan metode bayar butuh key baru. Ini disengaja: satu
+ * key mewakili satu percobaan bayar, dan membandingkan isi akan membuat retry
+ * setelah kegagalan jaringan ikut gagal.
  */
 @Data
 public class TapRequest {
@@ -41,7 +48,11 @@ public class TapRequest {
      */
     private Long uangDiterima;
 
-    /** Nama pembeli untuk struk tunai tanpa kartu (opsional). */
+    /**
+     * Nama pembeli untuk struk tunai tanpa kartu (opsional, maks 100 karakter).
+     * Disimpan di {@code transaksi.nama_pembeli} (V38) dan dipakai struk/cetak
+     * ulang; tidak pernah jadi identitas saldo.
+     */
     @Size(max = 100, message = "Nama pembeli maksimal 100 karakter")
     private String namaPembeli;
 
