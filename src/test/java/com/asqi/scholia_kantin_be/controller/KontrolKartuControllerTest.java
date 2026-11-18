@@ -3,7 +3,6 @@ package com.asqi.scholia_kantin_be.controller;
 import com.asqi.scholia_kantin_be.dto.BlokirKartuRequest;
 import com.asqi.scholia_kantin_be.dto.KontrolSubjekResponse;
 import com.asqi.scholia_kantin_be.dto.LimitHarianRequest;
-import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.security.IdentitasKantin;
 import com.asqi.scholia_kantin_be.security.TenantContext;
 import com.asqi.scholia_kantin_be.service.kartu.KontrolKartuService;
@@ -78,7 +77,6 @@ class KontrolKartuControllerTest {
     @Test
     void blokirMeneruskanTenantDanAktor() throws Exception {
         BlokirKartuRequest req = new BlokirKartuRequest();
-        req.setSubjekTipe(SubjekTipe.SISWA);
         req.setSiswaId(7L);
         req.setAlasan("hilang");
 
@@ -97,7 +95,6 @@ class KontrolKartuControllerTest {
     @Test
     void setLimitMeneruskanNominal() throws Exception {
         LimitHarianRequest req = new LimitHarianRequest();
-        req.setSubjekTipe(SubjekTipe.SISWA);
         req.setSiswaId(7L);
         req.setNominal(25_000L);
 

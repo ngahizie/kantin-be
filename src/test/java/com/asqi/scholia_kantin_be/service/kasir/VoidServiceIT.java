@@ -4,6 +4,7 @@ import com.asqi.scholia_kantin_be.dto.TapRequest;
 import com.asqi.scholia_kantin_be.dto.TapResponse;
 import com.asqi.scholia_kantin_be.helper.NomorStruk;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
+import com.asqi.scholia_kantin_be.enums.MetodeBayar;
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.model.Transaksi;
@@ -166,6 +167,36 @@ class VoidServiceIT {
         assertThat(debitAsli).isEqualTo(1);
         assertThat(kreditVoid).isEqualTo(1);
         assertThat(ledgerSaldo.hitungUlangDariLedger(SEKOLAH, SISWA)).isEqualTo(50_000L);
+    }
+
+    @Test
+    @DisplayName("C.2a: void transaksi TUNAI — stok kembali, saldo TIDAK dikreditkan")
+    void voidTunaiTidakMengkreditSaldo() {
+        TapRequest r = new TapRequest();
+        r.setRfidUid(null);
+        r.setTitikKasirId(TITIK);
+        r.setIdempotencyKey("tap-tunai-void");
+        r.setMetodeBayar(MetodeBayar.TUNAI);
+        r.setUangDiterima(20_000L);
+        var item = new TapRequest.ItemTap();
+        item.setMenuId(MENU_NASI);
+        item.setQty(2);
+        r.setItems(List.of(item));
+
+        TapResponse tap = tapService.tap(SEKOLAH, petugas, r);
+        assertThat(ledgerSaldo.saldo(SEKOLAH, SISWA)).isEqualTo(50_000L);
+
+        var trx = voidService.refundTransaksi(SEKOLAH, tap.getTransaksiId(), 555L,
+                "Salah input menu", kode(tap));
+
+        assertThat(trx.getStatus()).isEqualTo(StatusTransaksi.VOID);
+        // Stok kembali karena barang batal keluar...
+        assertThat(ledgerStok.stok(SEKOLAH, MENU_NASI)).isEqualTo(20);
+        // ...tetapi saldo tetap: tunai tidak pernah memotong saldo, jadi tidak
+        // ada yang boleh dikreditkan (uang dikembalikan fisik oleh kasir).
+        assertThat(ledgerSaldo.saldo(SEKOLAH, SISWA)).isEqualTo(50_000L);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM mutasi_saldo WHERE jenis = 'VOID_PENJUALAN'", Integer.class)).isZero();
     }
 
     @Test

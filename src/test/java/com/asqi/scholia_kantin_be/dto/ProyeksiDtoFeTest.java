@@ -1,5 +1,6 @@
 package com.asqi.scholia_kantin_be.dto;
 
+import com.asqi.scholia_kantin_be.enums.MetodeBayar;
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
 import com.asqi.scholia_kantin_be.model.Transaksi;
 import com.asqi.scholia_kantin_be.model.TransaksiItem;
@@ -66,5 +67,46 @@ class ProyeksiDtoFeTest {
         assertThat(d.pembeliKelas()).isNull();
         assertThat(d.items()).isEmpty();
         assertThat(d.total()).isEqualTo(7_000L);
+    }
+
+    @Test
+    @DisplayName("C.2a tunai tanpa kartu — pembeli memakai nama yang diketik kasir")
+    void transaksiSesiItemTunaiDenganNamaPembeli() {
+        Transaksi t = Transaksi.builder()
+                .id(1003L).siswaId(null)
+                .metodeBayar(MetodeBayar.TUNAI).uangDiterima(20_000L).namaPembeli("Bu Sari")
+                .waktu(OffsetDateTime.parse("2026-11-18T10:15:00+07:00"))
+                .total(8_000L).status(StatusTransaksi.SUKSES)
+                .build();
+
+        TransaksiSesiItem d = TransaksiSesiItem.dari(t, "Kasir", null, List.of());
+
+        assertThat(d.pembeliNama()).isEqualTo("Bu Sari");
+        assertThat(d.pembeliTipe()).isNull();
+        assertThat(d.metodeBayar()).isEqualTo(MetodeBayar.TUNAI);
+        assertThat(d.uangDiterima()).isEqualTo(20_000L);
+        assertThat(d.kembalian()).isEqualTo(12_000L);
+
+        // Daftar transaksi backoffice memakai kolom yang sama (subjekNama).
+        TransaksiKasirItem k = TransaksiKasirItem.dari(t);
+        assertThat(k.getSubjekNama()).isEqualTo("Bu Sari");
+        assertThat(k.getSubjekTipe()).isNull();
+        assertThat(k.getMetodeBayar()).isEqualTo(MetodeBayar.TUNAI);
+    }
+
+    @Test
+    @DisplayName("C.2a tunai tanpa kartu & tanpa nama — fallback 'Tamu (tunai)'")
+    void transaksiSesiItemTunaiTanpaNamaPembeli() {
+        Transaksi t = Transaksi.builder()
+                .id(1004L).siswaId(null).metodeBayar(MetodeBayar.TUNAI).uangDiterima(8_000L)
+                .waktu(OffsetDateTime.parse("2026-11-18T10:20:00+07:00"))
+                .total(8_000L).status(StatusTransaksi.SUKSES)
+                .build();
+
+        TransaksiSesiItem d = TransaksiSesiItem.dari(t, "Kasir", null, List.of());
+
+        assertThat(d.pembeliNama()).isEqualTo("Tamu (tunai)");
+        assertThat(d.kembalian()).isZero();
+        assertThat(TransaksiKasirItem.dari(t).getSubjekNama()).isNull();
     }
 }

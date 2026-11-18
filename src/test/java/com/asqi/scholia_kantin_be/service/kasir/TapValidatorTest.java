@@ -1,6 +1,7 @@
 package com.asqi.scholia_kantin_be.service.kasir;
 
 import com.asqi.scholia_kantin_be.dto.TapRequest;
+import com.asqi.scholia_kantin_be.enums.MetodeBayar;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoKartu;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoMenu;
@@ -168,13 +169,45 @@ class TapValidatorTest {
     }
 
     @Test
-    @DisplayName("kartu tamu — tanpa limit harian & tanpa blokir item")
-    void kartuTamuTanpaLimit() {
+    @DisplayName("subjek tanpa tipe (defensif) — tanpa limit harian & tanpa blokir item")
+    void subjekTanpaTipeTanpaLimit() {
         InfoKartu kartu = InfoKartu.builder()
-                .dikenal(true).diblokir(false).subjekTipe(SubjekTipe.KARTU_TAMU).siswaId(99L)
+                .dikenal(true).diblokir(false).subjekTipe(null).siswaId(99L)
                 .nama("KT-012").limitHarian(null).build();
         // belanja besar tetap lolos karena tak ada limit
         var hasil = validator.validasi(SEKOLAH, request(3, 3), kartu, 999_999_999, 500_000, lookup());
         assertThat(hasil.valid()).isTrue();
+    }
+
+    @Test
+    @DisplayName("tunai tanpa kartu — lolos walau kartu tidak dikenal & saldo 0 (C.2a)")
+    void tunaiTanpaKartuLolos() {
+        TapRequest req = request(1, 1);
+        req.setMetodeBayar(MetodeBayar.TUNAI);
+        req.setUangDiterima(50_000L);
+
+        var hasil = validator.validasi(SEKOLAH, req, InfoKartu.tidakDikenal(), 0L, 0L, lookup());
+
+        assertThat(hasil.valid()).isTrue();
+        assertThat(hasil.getTotal()).isEqualTo(13_000L); // 1 nasi + 1 es jeruk
+    }
+
+    @Test
+    @DisplayName("tunai tetap menghormati blokir kartu & limit harian (C.2a)")
+    void tunaiTetapHormatiBlokirDanLimit() {
+        TapRequest req = request(1, 2);
+        req.setMetodeBayar(MetodeBayar.TUNAI);
+        req.setUangDiterima(100_000L);
+
+        InfoKartu diblokir = InfoKartu.builder()
+                .dikenal(true).diblokir(true).subjekTipe(SubjekTipe.SISWA).siswaId(7L).build();
+        assertThat(validator.validasi(SEKOLAH, req, diblokir, 0L, 0L, lookup()).valid()).isFalse();
+
+        InfoKartu limitKecil = InfoKartu.builder()
+                .dikenal(true).diblokir(false).subjekTipe(SubjekTipe.SISWA).siswaId(7L)
+                .limitHarian(10_000L).build();
+        var hasil = validator.validasi(SEKOLAH, req, limitKecil, 0L, 0L, lookup());
+        assertThat(hasil.valid()).isFalse();
+        assertThat(hasil.getValidasi().getTahapGagal()).isEqualTo(5);
     }
 }

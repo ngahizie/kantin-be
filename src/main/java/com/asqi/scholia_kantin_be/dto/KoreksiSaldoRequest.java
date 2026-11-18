@@ -1,7 +1,6 @@
 package com.asqi.scholia_kantin_be.dto;
 
 import com.asqi.scholia_kantin_be.enums.ArahMutasi;
-import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -11,12 +10,12 @@ import lombok.Data;
 /**
  * Permintaan koreksi saldo oleh bendahara (PRD §9.2) — dengan alasan &amp;
  * nomor berita acara <b>wajib</b> (jejak audit).
+ *
+ * <p>Sejak C.2b subjek koreksi selalu siswa (Kartu Tamu tidak punya saldo),
+ * jadi field {@code subjekTipe} dihapus.
  */
 @Data
 public class KoreksiSaldoRequest {
-
-    @NotNull
-    private SubjekTipe subjekTipe;
 
     @NotNull
     private Long siswaId;

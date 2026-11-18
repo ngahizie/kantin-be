@@ -156,7 +156,7 @@ class NotifikasiIntegrasiIT {
     @Test
     @DisplayName("top-up tunai → notifikasi TOPUP_TUNAI")
     void topUpTunaiMemicuNotifikasi() {
-        topUpService.topUpTunai(SEKOLAH, SubjekTipe.SISWA, SISWA, 25_000, "Ibu Budi",
+        topUpService.topUpTunai(SEKOLAH, SISWA, 25_000, "Ibu Budi",
                 "TU-1", 9L);
 
         PerintahNotifikasi p = fakeNotifikasi.satu(JenisNotifikasi.TOPUP_TUNAI);
@@ -167,7 +167,7 @@ class NotifikasiIntegrasiIT {
     @Test
     @DisplayName("top-up online → notifikasi TOPUP_ONLINE")
     void topUpOnlineMemicuNotifikasi() {
-        topUpService.topUpOnline(SEKOLAH, SubjekTipe.SISWA, SISWA, 30_000, "PG-REF-1",
+        topUpService.topUpOnline(SEKOLAH, SISWA, 30_000, "PG-REF-1",
                 "Ibu Budi", "QRIS", null);
 
         PerintahNotifikasi p = fakeNotifikasi.satu(JenisNotifikasi.TOPUP_ONLINE);

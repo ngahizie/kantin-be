@@ -84,7 +84,7 @@ class BatasSaldoTopUpIT {
     void tolakDiBawahMinimum() {
         aturBatas(10_000L, 1_000_000L, null);
 
-        assertThatThrownBy(() -> saldoTopUp.topUpTunai(SEKOLAH, SubjekTipe.SISWA, SISWA,
+        assertThatThrownBy(() -> saldoTopUp.topUpTunai(SEKOLAH, SISWA,
                 5_000L, "Ibu", "TU-1", 99L))
                 .isInstanceOf(InvalidOperationException.class)
                 .hasMessageContaining("minimum");
@@ -95,7 +95,7 @@ class BatasSaldoTopUpIT {
     void tolakDiAtasMaksimum() {
         aturBatas(10_000L, 100_000L, null);
 
-        assertThatThrownBy(() -> saldoTopUp.topUpTunai(SEKOLAH, SubjekTipe.SISWA, SISWA,
+        assertThatThrownBy(() -> saldoTopUp.topUpTunai(SEKOLAH, SISWA,
                 150_000L, "Ibu", "TU-2", 99L))
                 .isInstanceOf(InvalidOperationException.class)
                 .hasMessageContaining("maksimum");
@@ -105,9 +105,9 @@ class BatasSaldoTopUpIT {
     @DisplayName("#112: top-up melebihi batas saldo siswa ditolak; saldo tidak bertambah")
     void tolakMelebihiBatasSaldoSiswa() {
         aturBatas(1_000L, 1_000_000L, 100_000L);
-        saldoTopUp.topUpTunai(SEKOLAH, SubjekTipe.SISWA, SISWA, 90_000L, "Ibu", "TU-3", 99L);
+        saldoTopUp.topUpTunai(SEKOLAH, SISWA, 90_000L, "Ibu", "TU-3", 99L);
 
-        assertThatThrownBy(() -> saldoTopUp.topUpTunai(SEKOLAH, SubjekTipe.SISWA, SISWA,
+        assertThatThrownBy(() -> saldoTopUp.topUpTunai(SEKOLAH, SISWA,
                 20_000L, "Ibu", "TU-4", 99L))
                 .isInstanceOf(ConflictException.class)
                 .hasMessageContaining("batas maksimum");
@@ -125,7 +125,7 @@ class BatasSaldoTopUpIT {
     void tepatDiBatasDiterima() {
         aturBatas(1_000L, 1_000_000L, 100_000L);
 
-        saldoTopUp.topUpTunai(SEKOLAH, SubjekTipe.SISWA, SISWA, 100_000L, "Ibu", "TU-7", 99L);
+        saldoTopUp.topUpTunai(SEKOLAH, SISWA, 100_000L, "Ibu", "TU-7", 99L);
 
         assertThat(ledgerSaldo.saldo(SEKOLAH, SISWA)).isEqualTo(100_000L);
     }
@@ -134,7 +134,7 @@ class BatasSaldoTopUpIT {
     @DisplayName("#112: tanpa pengaturan → tanpa batas (perilaku lama dipertahankan)")
     void tanpaPengaturanTanpaBatas() {
         // Tidak ada baris pengaturan_kantin → semua null.
-        saldoTopUp.topUpTunai(SEKOLAH_LAIN, SubjekTipe.SISWA, SISWA_LAIN, 5_000_000L, "Ibu", "TU-8", 99L);
+        saldoTopUp.topUpTunai(SEKOLAH_LAIN, SISWA_LAIN, 5_000_000L, "Ibu", "TU-8", 99L);
 
         assertThat(ledgerSaldo.saldo(SEKOLAH_LAIN, SISWA_LAIN)).isEqualTo(5_000_000L);
     }
@@ -144,7 +144,7 @@ class BatasSaldoTopUpIT {
     void batasBerlakuTopUpOnline() {
         aturBatas(null, null, 100_000L);
 
-        assertThatThrownBy(() -> saldoTopUp.topUpOnline(SEKOLAH, SubjekTipe.SISWA, SISWA,
+        assertThatThrownBy(() -> saldoTopUp.topUpOnline(SEKOLAH, SISWA,
                 120_000L, "PG-REF-1", "Ortu", "QRIS", null))
                 .isInstanceOf(ConflictException.class)
                 .hasMessageContaining("batas maksimum");

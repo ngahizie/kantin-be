@@ -84,7 +84,7 @@ class JurnalBukuKasKoreksiSaldoIT {
     }
 
     private HasilMutasiSaldo koreksi(ArahMutasi arah, long nominal, String referensiId) {
-        return saldoTopUp.koreksi(SEKOLAH, SubjekTipe.SISWA, SISWA, arah, nominal,
+        return saldoTopUp.koreksi(SEKOLAH, SISWA, arah, nominal,
                 "Top-up salah input", referensiId, 99L);
     }
 

@@ -1,5 +1,6 @@
 package com.asqi.scholia_kantin_be.dto;
 
+import com.asqi.scholia_kantin_be.enums.MetodeBayar;
 import com.asqi.scholia_kantin_be.enums.MetodeRequestKartu;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import lombok.Builder;
@@ -24,10 +25,10 @@ public class TapResponse {
 
     private SubjekTipe subjekTipe;
 
-    /** Nama pemilik kartu (siswa / pemegang Kartu Tamu). */
+    /** Nama pemilik kartu (null untuk transaksi tunai tanpa kartu). */
     private String nama;
 
-    /** Kelas (khusus siswa; null untuk Kartu Tamu). */
+    /** Kelas (khusus siswa; null untuk tunai tanpa kartu). */
     private String kelas;
 
     /** URL foto untuk verifikasi visual (null bila tidak ada). */
@@ -63,4 +64,23 @@ public class TapResponse {
 
     /** Waktu transaksi (untuk struk). */
     private OffsetDateTime waktu;
+
+    /**
+     * Cara bayar transaksi (C.2a). {@code null} pada respons lama dibaca klien
+     * sebagai {@code SALDO}. Selalu terisi untuk transaksi yang baru dibuat.
+     */
+    private MetodeBayar metodeBayar;
+
+    /** Uang tunai diterima — hanya diisi bila {@link #metodeBayar} = TUNAI. */
+    private Long uangDiterima;
+
+    /** Kembalian (uangDiterima − total) — hanya bila {@link #metodeBayar} = TUNAI. */
+    private Long kembalian;
+
+    /**
+     * Nama pembeli yang diketik kasir untuk transaksi TUNAI tanpa kartu (C.2a).
+     * {@code null} bila pembayaran saldo, kartu siswa terbaca, atau kasir tidak
+     * mengisi nama.
+     */
+    private String namaPembeli;
 }

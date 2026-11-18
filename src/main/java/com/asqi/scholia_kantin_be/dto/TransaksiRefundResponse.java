@@ -31,8 +31,8 @@ import java.time.OffsetDateTime;
  * @param nomorStruk  kode struk ({@code TRX-yyyyMMdd-<id>}) — sama dengan yang
  *                    dipakai verifikasi refund, jadi bisa langsung dicetak/ditunjukkan
  * @param waktu       waktu transaksi
- * @param subjekTipe  {@code SISWA} atau {@code KARTU_TAMU}
- * @param siswaId    id siswa / kartu tamu
+ * @param subjekTipe  {@code SISWA} (satu-satunya subjek saldo sejak C.2b)
+ * @param siswaId    id siswa
  * @param kartuUid    UID kartu yang dipakai saat transaksi
  * @param total       nominal yang dikembalikan ke saldo
  * @param status      status setelah operasi ({@code VOID})

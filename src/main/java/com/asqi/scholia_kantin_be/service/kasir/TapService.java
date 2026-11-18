@@ -6,6 +6,7 @@ import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
 import com.asqi.scholia_kantin_be.component.metrics.MetrikTap;
 import com.asqi.scholia_kantin_be.dto.TapRequest;
 import com.asqi.scholia_kantin_be.dto.TapResponse;
+import com.asqi.scholia_kantin_be.enums.MetodeBayar;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.enums.JenisNotifikasi;
@@ -168,7 +169,13 @@ public class TapService {
 
         // Konfirmasi manual (PRD §6.1/§9.1): bila aktif, JANGAN potong apa pun —
         // simpan permintaan & minta petugas mengonfirmasi.
-        if (pengaturan.ambil(sekolahId).isKonfirmasiManual()) {
+        //
+        // Pengecualian (C.2a): pembayaran TUNAI tidak lewat pending. Tabel
+        // `transaksi_tertunda` mensyaratkan kartu/siswa (NOT NULL) karena isinya
+        // adalah "tap kartu yang menunggu persetujuan memotong saldo"; uang tunai
+        // sudah diterima kasir saat itu juga, jadi tidak ada yang perlu ditahan.
+        // Konsekuensinya tunai langsung tercatat — dicatat eksplisit di PR C.2a.
+        if (!request.tunai() && pengaturan.ambil(sekolahId).isKonfirmasiManual()) {
             return buatPending(sekolahId, petugasId, request, siap, rfidUid);
         }
 
@@ -317,6 +324,29 @@ public class TapService {
         OffsetDateTime now = jam.sekarang();
         Long transaksiId = idGenerator.berikutnyaLong();
 
+        // Uang tunai wajib menutup total (C.2a). Diperiksa di commit — bukan di
+        // validator — karena nominal final baru pasti setelah harga/stok dibaca,
+        // dan commit juga dipanggil dari jalur konfirmasi pending.
+        //
+        // Pesan dibedakan: "belum diisi" bukan "kurang", supaya kasir tidak
+        // mencari kekurangan uang yang sebenarnya belum diinput.
+        boolean tunai = request.tunai();
+        long uangDiterima = 0L;
+        if (tunai) {
+            if (request.getUangDiterima() == null) {
+                throw new ConflictException("Uang diterima wajib diisi untuk pembayaran tunai");
+            }
+            uangDiterima = request.getUangDiterima();
+            if (uangDiterima < hasil.getTotal()) {
+                throw new ConflictException(
+                        "Uang tunai kurang Rp " + (hasil.getTotal() - uangDiterima));
+            }
+        }
+
+        // Nama pembeli hanya bermakna untuk tunai tanpa kartu (C.2a); untuk
+        // pembayaran saldo identitas sudah ada di siswaId.
+        String namaPembeli = tunai ? rapikanNama(request.getNamaPembeli()) : null;
+
         Transaksi trx = Transaksi.builder()
                 .id(transaksiId)
                 .idempotencyKey(request.getIdempotencyKey())
@@ -324,6 +354,9 @@ public class TapService {
                 .sesiKasirId(sesi.getId())
                 .titikKasirId(request.getTitikKasirId())
                 .siswaId(kartu.getSiswaId())
+                .metodeBayar(request.metodeBayarEfektif())
+                .uangDiterima(tunai ? uangDiterima : null)
+                .namaPembeli(namaPembeli)
                 .kartuUid(rfidUid)
                 .petugasId(petugasId)
                 .total(hasil.getTotal())
@@ -362,38 +395,52 @@ public class TapService {
         // Simpan transaksi + item (cascade) SEBELUM debit, agar FK aman & baris ada.
         transaksiRepo.save(trx);
 
-        // Debit saldo (FOR UPDATE) — atomik dengan langkah di atas.
-        var hasilDebit = ledgerSaldo.debit(PerintahMutasiSaldo.builder()
-                .sekolahId(sekolahId)
-                .siswaId(kartu.getSiswaId())
-                .jenis(JenisMutasiSaldo.PENJUALAN)
-                .nominal(hasil.getTotal())
-                .idempotencyKey(request.getIdempotencyKey())
-                .transaksiId(transaksiId)
-                .referensiTipe("TRANSAKSI")
-                .referensiId(String.valueOf(transaksiId))
-                .aktorId(petugasId)
-                .build());
+        // Debit saldo (FOR UPDATE) — atomik dengan langkah di atas. <b>Dilewati
+        // untuk pembayaran tunai</b> (C.2a): uang sudah diterima kasir, saldo
+        // siswa tidak boleh berubah walau kartunya terbaca.
+        Long saldoSisa = null;
+        if (!tunai) {
+            var hasilDebit = ledgerSaldo.debit(PerintahMutasiSaldo.builder()
+                    .sekolahId(sekolahId)
+                    .siswaId(kartu.getSiswaId())
+                    .jenis(JenisMutasiSaldo.PENJUALAN)
+                    .nominal(hasil.getTotal())
+                    .idempotencyKey(request.getIdempotencyKey())
+                    .transaksiId(transaksiId)
+                    .referensiTipe("TRANSAKSI")
+                    .referensiId(String.valueOf(transaksiId))
+                    .aktorId(petugasId)
+                    .build());
+            saldoSisa = hasilDebit.getSaldoSetelah();
 
-        log.info("Tap sukses trx={} sekolah={} subjek={}/{} total={} saldoSisa={}",
-                transaksiId, sekolahId, kartu.getSubjekTipe(), kartu.getSiswaId(),
-                hasil.getTotal(), hasilDebit.getSaldoSetelah());
+            log.info("Tap sukses trx={} sekolah={} subjek={}/{} total={} saldoSisa={}",
+                    transaksiId, sekolahId, kartu.getSubjekTipe(), kartu.getSiswaId(),
+                    hasil.getTotal(), saldoSisa);
+        } else {
+            long kembalian = uangDiterima - hasil.getTotal();
+            log.info("Tap TUNAI trx={} sekolah={} total={} uangDiterima={} kembalian={}",
+                    transaksiId, sekolahId, hasil.getTotal(), uangDiterima, kembalian);
+        }
 
         // Notifikasi ke ortu (PRD §8.4) — best-effort/fail-open: kegagalan
         // pengiriman TIDAK membatalkan tap yang sudah tercatat di ledger.
-        notifikasi.kirim(PerintahNotifikasi.builder()
-                .sekolahId(sekolahId)
-                .jenis(JenisNotifikasi.BELANJA)
-                .subjekTipe(SubjekTipe.SISWA)
-                .siswaId(kartu.getSiswaId())
-                .nominal(hasil.getTotal())
-                .saldoSetelah(hasilDebit.getSaldoSetelah())
-                .referensiId(String.valueOf(transaksiId))
-                .ringkasan((kartu.getNama() == null ? "Siswa" : kartu.getNama())
-                        + " belanja Rp" + hasil.getTotal() + " di kantin")
-                .aktorId(petugasId)
-                .waktu(now)
-                .build());
+        // Hanya untuk transaksi SALDO: notifikasi memuat "saldo setelah" dan
+        // tidak ada saldo yang berubah pada pembayaran tunai.
+        if (!tunai && kartu.getSiswaId() != null) {
+            notifikasi.kirim(PerintahNotifikasi.builder()
+                    .sekolahId(sekolahId)
+                    .jenis(JenisNotifikasi.BELANJA)
+                    .subjekTipe(SubjekTipe.SISWA)
+                    .siswaId(kartu.getSiswaId())
+                    .nominal(hasil.getTotal())
+                    .saldoSetelah(saldoSisa)
+                    .referensiId(String.valueOf(transaksiId))
+                    .ringkasan((kartu.getNama() == null ? "Siswa" : kartu.getNama())
+                            + " belanja Rp" + hasil.getTotal() + " di kantin")
+                    .aktorId(petugasId)
+                    .waktu(now)
+                    .build());
+        }
 
         return TapResponse.builder()
                 .transaksiId(transaksiId)
@@ -401,10 +448,15 @@ public class TapService {
                 .kelas(kartu.getKelas())
                 .fotoUrl(kartu.getFotoUrl())
                 .total(hasil.getTotal())
-                .saldoSisa(hasilDebit.getSaldoSetelah())
+                .saldoSisa(saldoSisa)
                 .namaItem(namaItem)
                 .metode(MetodeRequestKartu.UID)
                 .menungguKonfirmasi(false)
+                // C.2a: cara bayar + uang/kembalian untuk struk tunai.
+                .metodeBayar(request.metodeBayarEfektif())
+                .uangDiterima(tunai ? uangDiterima : null)
+                .kembalian(tunai ? uangDiterima - hasil.getTotal() : null)
+                .namaPembeli(namaPembeli)
                 // Data struk: titik kasir + nomor + waktu (dipakai layar kasir).
                 .titikKasir(namaTitikKasir(sekolahId, request.getTitikKasirId()))
                 .nomorStruk(NomorStruk.dari(transaksiId, now))
@@ -415,6 +467,15 @@ public class TapService {
     /** Waktu untuk struk: detik saja, tanpa pecahan nanodetik. */
     private static OffsetDateTime waktuStruk(OffsetDateTime waktu) {
         return waktu == null ? null : waktu.truncatedTo(ChronoUnit.SECONDS);
+    }
+
+    /** Trim nama pembeli; kosong/blank dianggap tidak diisi (null). */
+    private static String rapikanNama(String nama) {
+        if (nama == null) {
+            return null;
+        }
+        String rapi = nama.trim();
+        return rapi.isEmpty() ? null : rapi;
     }
 
     /** Nama titik kasir (null bila id kosong/tidak ada di sekolah ini). */
@@ -463,8 +524,11 @@ public class TapService {
                     "Transaksi tidak ditemukan");
         }
 
+        // Saldo hanya bermakna untuk pembayaran SALDO; tunai tidak menyentuh ledger
+        // sehingga saldoSisa dibiarkan 0 (bukan saldo siswa setelah transaksi).
+        boolean tunai = trx.getMetodeBayar() == MetodeBayar.TUNAI;
         long saldoSisa = 0L;
-        if (trx.getSiswaId() != null) {
+        if (!tunai && trx.getSiswaId() != null) {
             saldoSisa = ledgerSaldo.saldo(sekolahId, trx.getSiswaId());
         }
         InfoKartu kartu = trx.getKartuUid() == null ? null
@@ -485,6 +549,13 @@ public class TapService {
                 .namaItem(namaItem)
                 .metode(MetodeRequestKartu.UID)
                 .menungguKonfirmasi(false)
+                // C.2a: cara bayar + uang/kembalian (kembalian dihitung ulang dari
+                // uang_diterima yang tersimpan, bukan dari state kasir saat ini).
+                .metodeBayar(trx.getMetodeBayar() == null ? MetodeBayar.SALDO : trx.getMetodeBayar())
+                .uangDiterima(tunai ? trx.getUangDiterima() : null)
+                .kembalian(tunai && trx.getUangDiterima() != null
+                        ? trx.getUangDiterima() - trx.getTotal() : null)
+                .namaPembeli(tunai ? trx.getNamaPembeli() : null)
                 // Data struk: titik kasir + nomor + waktu (dipakai layar kasir).
                 .titikKasir(namaTitikKasir(sekolahId, trx.getTitikKasirId()))
                 .nomorStruk(NomorStruk.dari(trx.getId(), trx.getWaktu()))

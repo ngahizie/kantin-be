@@ -1,5 +1,6 @@
 package com.asqi.scholia_kantin_be.dto;
 
+import com.asqi.scholia_kantin_be.enums.MetodeBayar;
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.model.Transaksi;
@@ -19,11 +20,12 @@ import java.util.List;
  * tidak punya cara menemukan {@code transaksiId} — FE memanggil endpoint daftar
  * yang belum ada dan menerima <b>404</b>. DTO ini mengisi kekosongan itu.
  *
- * <p>Kolom internal disembunyikan (HPP, idempotency key). Nama titik kasir dan
- * nama pemegang kartu tamu diisi service secara <i>batch</i> (hindari N+1);
- * untuk subjek {@code SISWA} nama <b>tidak</b> tersedia di kantin-be (data siswa
- * milik admin-be, ADR-0002) sehingga bernilai {@code null} — FE menampilkan
- * nomor induk/identitasnya sendiri.
+ * <p>Kolom internal disembunyikan (HPP, idempotency key). Nama titik kasir
+ * diisi service secara <i>batch</i> (hindari N+1); untuk subjek {@code SISWA}
+ * nama <b>tidak</b> tersedia di kantin-be (data siswa milik admin-be,
+ * ADR-0002) sehingga bernilai {@code null} — FE menampilkan nomor
+ * induk/identitasnya sendiri. Transaksi tunai tanpa kartu (C.2a) tidak punya
+ * {@code siswaId} sehingga {@code subjekTipe} juga {@code null}.
  */
 @Data
 @Builder
@@ -49,8 +51,8 @@ public class TransaksiKasirItem {
     private Long siswaId;
 
     /**
-     * Label subjek: untuk {@code KARTU_TAMU} diisi label pemegang (fallback nomor
-     * kartu); untuk {@code SISWA} {@code null} (lihat catatan kelas).
+     * Label subjek: nama pembeli yang diketik kasir untuk transaksi tunai tanpa
+     * kartu (C.2a); {@code null} untuk subjek {@code SISWA} (lihat catatan kelas).
      */
     private String subjekNama;
 
@@ -58,6 +60,9 @@ public class TransaksiKasirItem {
     private String kartuUid;
 
     private Long total;
+
+    /** Cara bayar transaksi (C.2a) — {@code null} pada data lama = SALDO. */
+    private MetodeBayar metodeBayar;
 
     private StatusTransaksi status;
 
@@ -111,10 +116,12 @@ public class TransaksiKasirItem {
                 .sesiKasirId(t.getSesiKasirId())
                 .titikKasirId(t.getTitikKasirId())
                 .petugasId(t.getPetugasId())
-                .subjekTipe(SubjekTipe.SISWA)
+                .subjekTipe(t.getSiswaId() == null ? null : SubjekTipe.SISWA)
                 .siswaId(t.getSiswaId())
+                .subjekNama(t.getSiswaId() == null ? t.getNamaPembeli() : null)
                 .kartuUid(t.getKartuUid())
                 .total(t.getTotal())
+                .metodeBayar(t.getMetodeBayar() == null ? MetodeBayar.SALDO : t.getMetodeBayar())
                 .status(t.getStatus())
                 .alasanVoid(t.getAlasanVoid())
                 .voidAt(t.getVoidAt())
