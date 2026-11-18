@@ -62,6 +62,10 @@ public class LaporanSiswaService {
     /** Rentang default riwayat siswa bila FE tidak mengirim dari/sampai. */
     private static final int HARI_RIWAYAT_DEFAULT = 30;
 
+    /** Format label periode laporan — dibuat sekali, bukan tiap pemanggilan (issue #362). */
+    private static final DateTimeFormatter LABEL_PERIODE =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+
     private final MutasiSaldoRepository saldoLedgerRepo;
     private final SaldoRepository saldoCacheRepo;
     private final TransaksiRepository transaksiRepo;
@@ -142,7 +146,7 @@ public class LaporanSiswaService {
                             i.getQty(), i.getHargaJual(), i.getSubtotal()))
                     .toList();
 
-            String petugas = resolveNamaPetugas(l, t, namaPetugas);
+            String petugas = namaPetugasUntuk(l, t, namaPetugas);
 
             return new LaporanRiwayatSiswa.Baris(
                     String.valueOf(l.getId()),
@@ -271,7 +275,7 @@ public class LaporanSiswaService {
             String siswaNis = info != null ? info.getNis() : null;
             String siswaKelas = info != null ? info.getKelas() : null;
 
-            String petugas = resolveNamaPetugas(l, t, namaPetugas);
+            String petugas = namaPetugasUntuk(l, t, namaPetugas);
 
             return new LaporanRiwayatKeseluruhanItem(
                     String.valueOf(l.getId()),
@@ -335,8 +339,7 @@ public class LaporanSiswaService {
 
     /** Label periode untuk header laporan, format {@code yyyy-MM-dd HH:mm}. */
     private String label(OffsetDateTime[] r) {
-        DateTimeFormatter f = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-        return f.format(r[0]) + " s/d " + f.format(r[1]);
+        return LABEL_PERIODE.format(r[0]) + " s/d " + LABEL_PERIODE.format(r[1]);
     }
 
     /**
@@ -372,7 +375,7 @@ public class LaporanSiswaService {
      *
      * @return nama petugas, atau {@code "-"} bila tidak diketahui
      */
-    private String resolveNamaPetugas(MutasiSaldo l, Transaksi t, Map<Long, String> namaPetugas) {
+    private String namaPetugasUntuk(MutasiSaldo l, Transaksi t, Map<Long, String> namaPetugas) {
         if (t != null && t.getPetugasId() != null && namaPetugas.containsKey(t.getPetugasId())) {
             return namaPetugas.get(t.getPetugasId());
         }

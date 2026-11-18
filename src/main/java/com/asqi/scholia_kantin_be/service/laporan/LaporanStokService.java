@@ -1,5 +1,6 @@
 package com.asqi.scholia_kantin_be.service.laporan;
 
+import com.asqi.scholia_kantin_be.dto.BarisBarangMasuk;
 import com.asqi.scholia_kantin_be.dto.BarisKerugianStok;
 import com.asqi.scholia_kantin_be.dto.BarisStok;
 import com.asqi.scholia_kantin_be.dto.KartuStokItem;
@@ -177,10 +178,12 @@ public class LaporanStokService {
      * @return mutasi stok jenis barang masuk pada rentang
      */
     @Transactional(readOnly = true)
-    public List<RiwayatStok> barangMasuk(Long sekolahId, LocalDate tanggal,
-                                         OffsetDateTime dari, OffsetDateTime sampai) {
+    public List<BarisBarangMasuk> barangMasuk(Long sekolahId, LocalDate tanggal,
+                                              OffsetDateTime dari, OffsetDateTime sampai) {
         OffsetDateTime[] r = LaporanHelper.rentang(jam, tanggal, dari, sampai);
-        return mutasiStokRepo.barangMasukRentang(sekolahId, r[0], r[1]);
+        return mutasiStokRepo.barangMasukRentang(sekolahId, r[0], r[1]).stream()
+                .map(BarisBarangMasuk::dari)
+                .toList();
     }
 
     /**
@@ -190,9 +193,11 @@ public class LaporanStokService {
      * @return mutasi stok terbaru lebih dulu
      */
     @Transactional(readOnly = true)
-    public List<RiwayatStok> kartuStok(Long sekolahId, Long menuId, int batas) {
+    public List<BarisBarangMasuk> kartuStok(Long sekolahId, Long menuId, int batas) {
         int limit = (batas <= 0 || batas > MAKS_KARTU_STOK) ? BATAS_KARTU_STOK_DEFAULT : batas;
-        return mutasiStokRepo.kartuStok(sekolahId, menuId, PageRequest.of(0, limit));
+        return mutasiStokRepo.kartuStok(sekolahId, menuId, PageRequest.of(0, limit)).stream()
+                .map(BarisBarangMasuk::dari)
+                .toList();
     }
 
     /**
