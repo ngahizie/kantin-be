@@ -23,6 +23,12 @@ class CommonResponseStaticStateTest {
     void tidakAdaStaticMutable() {
         List<String> pelanggaran = new ArrayList<>();
         for (Field f : CommonResponse.class.getDeclaredFields()) {
+            // Lewati field sintetis: agent/instrumentasi (mis. JaCoCo, offline
+            // instrumentation) boleh menambahkan field buatan compiler yang
+            // bukan bagian dari desain kelas ini.
+            if (f.isSynthetic()) {
+                continue;
+            }
             int m = f.getModifiers();
             if (Modifier.isStatic(m) && !Modifier.isFinal(m)) {
                 pelanggaran.add(f.getName());
