@@ -382,6 +382,10 @@ public class SesiKasirService {
         long jumlahTunai = 0L;
         long saldoSukses = 0L;
         long jumlahSaldo = 0L;
+        long tunaiVoid = 0L;
+        long jumlahTunaiVoid = 0L;
+        long saldoVoid = 0L;
+        long jumlahSaldoVoid = 0L;
 
         // Satu query, dipecah per status × metode bayar (C.2d): kasir perlu tahu
         // berapa uang TUNAI yang seharusnya ada di laci, terpisah dari penjualan
@@ -405,6 +409,16 @@ public class SesiKasirService {
             } else if (status == StatusTransaksi.VOID) {
                 brutoVoid += total;
                 jumlahVoid += jumlah;
+                // VOID ikut dipecah per metode: tanpa ini klien hanya tahu "ada
+                // void Rp X" dan tidak bisa membedakan void yang mengeluarkan
+                // uang tunai dari void yang hanya mengembalikan saldo.
+                if (tunai) {
+                    tunaiVoid += total;
+                    jumlahTunaiVoid += jumlah;
+                } else {
+                    saldoVoid += total;
+                    jumlahSaldoVoid += jumlah;
+                }
             }
         }
 
@@ -421,6 +435,10 @@ public class SesiKasirService {
                 .jumlahSaldo(jumlahSaldo)
                 .totalTunai(tunaiSukses)
                 .totalSaldo(saldoSukses)
+                .jumlahVoidTunai(jumlahTunaiVoid)
+                .jumlahVoidSaldo(jumlahSaldoVoid)
+                .totalVoidTunai(tunaiVoid)
+                .totalVoidSaldo(saldoVoid)
                 .build();
     }
 
@@ -434,6 +452,12 @@ public class SesiKasirService {
      * <b>inilah</b> angka pembanding uang fisik di laci saat tutup kasir;
      * {@code totalBersih} tidak bisa dipakai karena sebagian penjualan dibayar
      * saldo (tanpa uang tunai). Selisih = uang fisik − {@code totalTunai}.
+     *
+     * <p>Transaksi VOID dipecah juga ({@code totalVoidTunai} /
+     * {@code totalVoidSaldo}) supaya klien bisa menampilkan rincian, tetapi
+     * <b>tidak perlu dikurangkan</b> dari {@code totalTunai}: angka itu sudah
+     * hanya menghitung transaksi SUKSES, dan uang transaksi tunai yang di-void
+     * sudah kembali ke pembeli saat refund.
      */
     @Getter
     @Builder
@@ -456,5 +480,22 @@ public class SesiKasirService {
 
         /** Σ nominal transaksi SUKSES yang dibayar saldo (C.2d). */
         private final long totalSaldo;
+
+        /** Banyaknya transaksi VOID tunai (C.2d). */
+        private final long jumlahVoidTunai;
+
+        /** Banyaknya transaksi VOID yang dibayar saldo (C.2d). */
+        private final long jumlahVoidSaldo;
+
+        /**
+         * Σ nominal transaksi VOID tunai (C.2d) — uang tunai yang <b>keluar</b>
+         * lagi ke pembeli. Sudah <b>tidak</b> termasuk {@link #totalTunai}
+         * (yang hanya menghitung SUKSES), jadi jangan dikurangkan lagi saat
+         * menghitung kas seharusnya; field ini untuk rincian tampilan/laporan.
+         */
+        private final long totalVoidTunai;
+
+        /** Σ nominal transaksi VOID yang dibayar saldo (C.2d) — tanpa uang fisik. */
+        private final long totalVoidSaldo;
     }
 }

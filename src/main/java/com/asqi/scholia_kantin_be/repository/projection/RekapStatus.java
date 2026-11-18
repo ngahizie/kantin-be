@@ -3,11 +3,12 @@ package com.asqi.scholia_kantin_be.repository.projection;
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
 
 /**
- * Rekap jumlah &amp; total transaksi per status (PRD §6.4, §9.5).
+ * Rekap jumlah &amp; total transaksi per status (PRD §9.5).
  *
  * <p>Projection menggantikan {@code List<Object[]>} agar urutan kolom query
- * tidak bisa ketukar diam-diam. Dipakai rekap sesi kasir dan ringkasan
- * penjualan.
+ * tidak bisa ketukar diam-diam. Dipakai ringkasan penjualan
+ * ({@code rekapPerStatusRentang}); rekap sesi kasir memakai
+ * {@link RekapStatusMetode} karena perlu pecahan per metode bayar (C.2d).
  */
 public interface RekapStatus {
 

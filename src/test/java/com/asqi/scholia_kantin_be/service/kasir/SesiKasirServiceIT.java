@@ -171,6 +171,37 @@ class SesiKasirServiceIT {
         assertThat(rekap.getJumlahSaldo()).isEqualTo(1);
         assertThat(rekap.getTotalSaldo()).isEqualTo(8_000L);
         assertThat(rekap.getTotalTunai() + rekap.getTotalSaldo()).isEqualTo(rekap.getTotalBersih());
+
+        // VOID juga dipecah per metode: yang di-void di sesi ini adalah transaksi tunai.
+        assertThat(rekap.getJumlahVoidTunai()).isEqualTo(1);
+        assertThat(rekap.getTotalVoidTunai()).isEqualTo(8_000L);
+        assertThat(rekap.getJumlahVoidSaldo()).isZero();
+        assertThat(rekap.getTotalVoidSaldo()).isZero();
+    }
+
+    @Test
+    @DisplayName("C.2d: void ber-metode SALDO tidak mengubah kas tunai seharusnya")
+    void voidSaldoTidakMengubahKasTunai() {
+        TapResponse tunai = tapTunai("c2d-saldo-void-tunai", 1, 10_000); // 8.000 tunai
+        TapResponse saldo = tap("c2d-saldo-void-saldo", 1);              // 8.000 saldo
+        voidService.refundTransaksi(SEKOLAH, saldo.getTransaksiId(), 555L,
+                "salah pilih menu",
+                NomorStruk.dari(saldo.getTransaksiId(), saldo.getWaktu()));
+
+        Long sesiId = jdbc.queryForObject(
+                "SELECT sesi_kasir_id FROM transaksi WHERE id = ?", Long.class, tunai.getTransaksiId());
+
+        SesiKasirService.RekapSesi rekap = sesiKasir.rekap(SEKOLAH, sesiId);
+
+        // Uang fisik di laci tidak berubah karena yang di-void dibayar saldo.
+        assertThat(rekap.getTotalTunai()).isEqualTo(8_000L);
+        assertThat(rekap.getTotalVoidSaldo()).isEqualTo(8_000L);
+        assertThat(rekap.getTotalVoidTunai()).isZero();
+        assertThat(rekap.getJumlahVoidSaldo()).isEqualTo(1);
+        assertThat(rekap.getJumlahVoidTunai()).isZero();
+        // Transaksi void tidak dihitung sebagai penjualan sukses.
+        assertThat(rekap.getTotalSaldo()).isZero();
+        assertThat(rekap.getTotalBersih()).isEqualTo(8_000L);
     }
 
     @Test

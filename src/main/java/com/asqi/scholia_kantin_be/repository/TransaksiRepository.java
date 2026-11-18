@@ -57,24 +57,6 @@ public interface TransaksiRepository extends JpaRepository<Transaksi, Long>,
             Long sekolahId, Long siswaId, Pageable pageable);
 
     /**
-     * Rekap sesi: jumlah transaksi &amp; total per status.
-     *
-     * <p>Projection {@link RekapStatus} menggantikan {@code Object[]} — nama
-     * properti = alias kolom, jadi urutan kolom tidak bisa ketukar diam-diam.
-     * Dipakai {@code SesiKasirService} menghitung total bruto/void/bersih
-     * (PRD §6.4).
-     */
-    @Query("""
-            SELECT t.status AS status, COUNT(t) AS jumlah,
-                   COALESCE(SUM(t.total), 0) AS total
-            FROM Transaksi t
-            WHERE t.sekolahId = :sekolahId AND t.sesiKasirId = :sesiKasirId
-            GROUP BY t.status
-            """)
-    List<RekapStatus> rekapSesi(@Param("sekolahId") Long sekolahId,
-                                @Param("sesiKasirId") Long sesiKasirId);
-
-    /**
      * Rekap sesi per <b>status × metode bayar</b> (C.2d) — memisahkan penjualan
      * TUNAI (uang fisik di laci) dari SALDO (potongan saldo siswa).
      *
