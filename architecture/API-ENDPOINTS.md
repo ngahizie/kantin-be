@@ -31,7 +31,7 @@
 
 | Method | Path | Peran | Keterangan |
 |---|---|---|---|
-| `POST` | `/api/kasir/tap` | kasir | Proses tap: validasi 6 tahap, potong saldo, kurangi stok, catat transaksi (atomik, idempoten). Body `TapRequest` (`rfidUid`, `items[]`, idempotency key) |
+| `POST` | `/api/kasir/tap` | kasir | Proses tap: validasi 6 tahap, kurangi stok, catat transaksi (atomik, idempoten). Body `TapRequest`: `rfidUid` (**opsional** untuk TUNAI, wajib untuk SALDO), `items[]`, `idempotencyKey`, `titikKasirId`, plus `metodeBayar` (`SALDO`\|`TUNAI`, default `SALDO`), `uangDiterima` (wajib TUNAI), `namaPembeli` (opsional, tunai tanpa kartu). Saldo **hanya** dipotong untuk SALDO; TUNAI mencatat `metode_bayar`+`uang_diterima`+`nama_pembeli` tanpa menyentuh ledger saldo. Respons `TapResponse` memuat `metodeBayar`, `uangDiterima`, `kembalian`, `namaPembeli` (C.2a) |
 | `POST` | `/api/kasir/tap/{pendingId}/konfirmasi` | kasir | Konfirmasi tap "menunggu konfirmasi" (PRD §6.1) — di sini saldo/stok dipotong. Idempoten |
 | `POST` | `/api/kasir/tap/{pendingId}/batal` | kasir | Batalkan tap yang menunggu konfirmasi. Idempoten |
 | `GET` | `/api/kasir/tap/menunggu` | kasir | Daftar tap yang masih menunggu konfirmasi (tenant-scoped) |

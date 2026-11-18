@@ -55,9 +55,11 @@ public record TransaksiSesiItem(
      */
     public static TransaksiSesiItem dari(Transaksi t, String namaTitik,
                                          String namaPemegang, List<TransaksiItem> item) {
-        // Tanpa siswa (tunai tanpa kartu, C.2a) jangan tampil "Siswa #null".
+        // Tanpa siswa (tunai tanpa kartu, C.2a) pakai nama yang diketik kasir;
+        // jangan tampil "Siswa #null".
         String pembeliNama = namaPemegang != null ? namaPemegang
-                : (t.getSiswaId() != null ? "Siswa #" + t.getSiswaId() : "Tamu (tunai)");
+                : (t.getSiswaId() != null ? "Siswa #" + t.getSiswaId()
+                : (t.getNamaPembeli() != null ? t.getNamaPembeli() : "Tamu (tunai)"));
         MetodeBayar metode = t.getMetodeBayar() == null ? MetodeBayar.SALDO : t.getMetodeBayar();
         Long uangDiterima = metode == MetodeBayar.TUNAI ? t.getUangDiterima() : null;
 

@@ -327,15 +327,25 @@ public class TapService {
         // Uang tunai wajib menutup total (C.2a). Diperiksa di commit — bukan di
         // validator — karena nominal final baru pasti setelah harga/stok dibaca,
         // dan commit juga dipanggil dari jalur konfirmasi pending.
+        //
+        // Pesan dibedakan: "belum diisi" bukan "kurang", supaya kasir tidak
+        // mencari kekurangan uang yang sebenarnya belum diinput.
         boolean tunai = request.tunai();
         long uangDiterima = 0L;
         if (tunai) {
-            uangDiterima = request.getUangDiterima() == null ? 0L : request.getUangDiterima();
+            if (request.getUangDiterima() == null) {
+                throw new ConflictException("Uang diterima wajib diisi untuk pembayaran tunai");
+            }
+            uangDiterima = request.getUangDiterima();
             if (uangDiterima < hasil.getTotal()) {
                 throw new ConflictException(
                         "Uang tunai kurang Rp " + (hasil.getTotal() - uangDiterima));
             }
         }
+
+        // Nama pembeli hanya bermakna untuk tunai tanpa kartu (C.2a); untuk
+        // pembayaran saldo identitas sudah ada di siswaId.
+        String namaPembeli = tunai ? rapikanNama(request.getNamaPembeli()) : null;
 
         Transaksi trx = Transaksi.builder()
                 .id(transaksiId)
@@ -346,6 +356,7 @@ public class TapService {
                 .siswaId(kartu.getSiswaId())
                 .metodeBayar(request.metodeBayarEfektif())
                 .uangDiterima(tunai ? uangDiterima : null)
+                .namaPembeli(namaPembeli)
                 .kartuUid(rfidUid)
                 .petugasId(petugasId)
                 .total(hasil.getTotal())
@@ -445,6 +456,7 @@ public class TapService {
                 .metodeBayar(request.metodeBayarEfektif())
                 .uangDiterima(tunai ? uangDiterima : null)
                 .kembalian(tunai ? uangDiterima - hasil.getTotal() : null)
+                .namaPembeli(namaPembeli)
                 // Data struk: titik kasir + nomor + waktu (dipakai layar kasir).
                 .titikKasir(namaTitikKasir(sekolahId, request.getTitikKasirId()))
                 .nomorStruk(NomorStruk.dari(transaksiId, now))
@@ -455,6 +467,15 @@ public class TapService {
     /** Waktu untuk struk: detik saja, tanpa pecahan nanodetik. */
     private static OffsetDateTime waktuStruk(OffsetDateTime waktu) {
         return waktu == null ? null : waktu.truncatedTo(ChronoUnit.SECONDS);
+    }
+
+    /** Trim nama pembeli; kosong/blank dianggap tidak diisi (null). */
+    private static String rapikanNama(String nama) {
+        if (nama == null) {
+            return null;
+        }
+        String rapi = nama.trim();
+        return rapi.isEmpty() ? null : rapi;
     }
 
     /** Nama titik kasir (null bila id kosong/tidak ada di sekolah ini). */
@@ -534,6 +555,7 @@ public class TapService {
                 .uangDiterima(tunai ? trx.getUangDiterima() : null)
                 .kembalian(tunai && trx.getUangDiterima() != null
                         ? trx.getUangDiterima() - trx.getTotal() : null)
+                .namaPembeli(tunai ? trx.getNamaPembeli() : null)
                 // Data struk: titik kasir + nomor + waktu (dipakai layar kasir).
                 .titikKasir(namaTitikKasir(sekolahId, trx.getTitikKasirId()))
                 .nomorStruk(NomorStruk.dari(trx.getId(), trx.getWaktu()))

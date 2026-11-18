@@ -1,5 +1,13 @@
 # 📋 API Endpoints — Kartu Tamu
 
+> ⚠️ **USANG sejak C.2b (18 Nov 2026) — arsip, bukan acuan.**
+> Fitur Kartu Tamu sebagai subjek saldo sudah dihapus: tabel `kartu_tamu` dihapus di
+> `V28__SkemaV2.sql`, setiap `kartu` wajib menunjuk `siswa_id`, dan enum
+> `SubjekTipe.KARTU_TAMU` dicabut dari kode. Tamu kini membayar **tunai** di kasir
+> (`POST /api/kasir/tap` dengan `metodeBayar=TUNAI` + `uangDiterima`, lihat
+> [`demo-e2e-kasir.md`](demo-e2e-kasir.md) §5b). Endpoint di bawah **tidak lagi
+> tersedia**; dokumen ini disimpan hanya sebagai riwayat PRD §9.4.
+
 Base URL: `http://localhost:8080/api/kartu-tamu`
 
 ## Authentication

@@ -51,8 +51,8 @@ public class TransaksiKasirItem {
     private Long siswaId;
 
     /**
-     * Label subjek: untuk {@code KARTU_TAMU} diisi label pemegang (fallback nomor
-     * kartu); untuk {@code SISWA} {@code null} (lihat catatan kelas).
+     * Label subjek: nama pembeli yang diketik kasir untuk transaksi tunai tanpa
+     * kartu (C.2a); {@code null} untuk subjek {@code SISWA} (lihat catatan kelas).
      */
     private String subjekNama;
 
@@ -118,6 +118,7 @@ public class TransaksiKasirItem {
                 .petugasId(t.getPetugasId())
                 .subjekTipe(t.getSiswaId() == null ? null : SubjekTipe.SISWA)
                 .siswaId(t.getSiswaId())
+                .subjekNama(t.getSiswaId() == null ? t.getNamaPembeli() : null)
                 .kartuUid(t.getKartuUid())
                 .total(t.getTotal())
                 .metodeBayar(t.getMetodeBayar() == null ? MetodeBayar.SALDO : t.getMetodeBayar())

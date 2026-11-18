@@ -76,4 +76,11 @@ public class TapResponse {
 
     /** Kembalian (uangDiterima − total) — hanya bila {@link #metodeBayar} = TUNAI. */
     private Long kembalian;
+
+    /**
+     * Nama pembeli yang diketik kasir untuk transaksi TUNAI tanpa kartu (C.2a).
+     * {@code null} bila pembayaran saldo, kartu siswa terbaca, atau kasir tidak
+     * mengisi nama.
+     */
+    private String namaPembeli;
 }
