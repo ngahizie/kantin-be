@@ -1,6 +1,5 @@
 package com.asqi.scholia_kantin_be.dto;
 
-import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -13,12 +12,12 @@ import lombok.Data;
  * <p>{@code referensiId} = nomor bukti/kuitansi <b>unik</b> dari TU; dipakai
  * sebagai idempotency key — menyimpan bukti yang sama dua kali tidak menambah
  * saldo dua kali (Aturan Emas §3.3).
+ *
+ * <p>Sejak C.2b top-up hanya untuk siswa (Kartu Tamu dibayar tunai, tanpa
+ * saldo), jadi field {@code subjekTipe} dihapus.
  */
 @Data
 public class TopUpRequest {
-
-    @NotNull(message = "Tipe subjek wajib diisi (SISWA/KARTU_TAMU)")
-    private SubjekTipe subjekTipe;
 
     @NotNull(message = "ID subjek wajib diisi")
     private Long siswaId;

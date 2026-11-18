@@ -83,13 +83,12 @@ class SaldoControllerTest {
     @Test
     void topupMeneruskanTenantDanAktor() throws Exception {
         TopUpRequest req = new TopUpRequest();
-        req.setSubjekTipe(SubjekTipe.SISWA);
         req.setSiswaId(100L);
         req.setNominal(50_000);
         req.setPenyetor("Ibu Ani");
         req.setReferensiId("TU-2026-0001");
 
-        when(topUpService.topUpTunai(eq(7L), eq(SubjekTipe.SISWA), eq(100L),
+        when(topUpService.topUpTunai(eq(7L), eq(100L),
                 eq(50_000L), eq("Ibu Ani"), eq("TU-2026-0001"), eq(42L)))
                 .thenReturn(HasilMutasiSaldo.baru(null, 50_000L));
 
@@ -98,14 +97,13 @@ class SaldoControllerTest {
                         .content(mapper.writeValueAsString(req)))
                 .andExpect(status().isOk());
 
-        verify(topUpService).topUpTunai(eq(7L), eq(SubjekTipe.SISWA), eq(100L),
+        verify(topUpService).topUpTunai(eq(7L), eq(100L),
                 eq(50_000L), eq("Ibu Ani"), eq("TU-2026-0001"), eq(42L));
     }
 
     @Test
     void topupTanpaReferensiDitolakValidasi() throws Exception {
         TopUpRequest req = new TopUpRequest();
-        req.setSubjekTipe(SubjekTipe.SISWA);
         req.setSiswaId(100L);
         req.setNominal(50_000);
         // referensiId kosong

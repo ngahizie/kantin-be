@@ -298,7 +298,7 @@ public class LaporanSiswaService {
 
     /**
      * Laporan <b>Per siswa</b> (PRD §9.5, issue #117): riwayat lengkap satu
-     * subjek (SISWA/KARTU_TAMU) pada periode — ringkasan + daftar transaksi +
+     * subjek ({@code SISWA}) pada periode — ringkasan + daftar transaksi +
      * mutasi saldo. Untuk menjawab komplain orang tua. Tenant-scoped.
      *
      * @return ringkasan sukses/void/topup/HPP + daftar transaksi + daftar mutasi

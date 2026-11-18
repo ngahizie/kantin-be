@@ -59,9 +59,11 @@ class NotifikasiServiceTest {
     }
 
     @Test
-    @DisplayName("non-siswa — dilewati tanpa memanggil port (tanpa ortu)")
+    @DisplayName("subjek bukan siswa — dilewati tanpa memanggil port (tanpa ortu)")
     void nonSiswaDilewati() {
-        HasilKirimNotifikasi hasil = service.kirim(perintah(SubjekTipe.KARTU_TAMU));
+        // Sejak C.2b SubjekTipe hanya SISWA; cabang defensif tetap diuji lewat
+        // subjekTipe null (perintah tanpa subjek) — perilakunya harus sama: lewati.
+        HasilKirimNotifikasi hasil = service.kirim(perintah(null));
 
         assertThat(hasil.dilewati()).isTrue();
         verify(port, never()).kirim(any());

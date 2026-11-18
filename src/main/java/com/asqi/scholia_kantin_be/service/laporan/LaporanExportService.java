@@ -384,7 +384,7 @@ public class LaporanExportService {
      * di {@link JenisLaporan}/{@link LaporanExportService}.
      *
      * <p>{@code siswaId} <b>wajib</b> untuk jenis ini → 400 bila kosong.
-     * {@code subjekTipe} default {@code SISWA}.
+     * Subjek laporan selalu {@code SISWA} sejak C.2b.
      */
     private HasilEkspor eksporPerSiswa(Long sekolahId, Long siswaId,
                                         LocalDate tgl, OffsetDateTime dari, OffsetDateTime sampai,

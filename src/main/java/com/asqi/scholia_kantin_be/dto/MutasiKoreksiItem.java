@@ -25,9 +25,10 @@ import java.time.OffsetDateTime;
  * diturunkan dari arah mutasi ({@code KREDIT} menambah, {@code DEBIT}
  * mengurangi — lihat {@code LedgerSaldoService}).
  *
- * <p>Nama subjek hanya tersedia untuk {@code KARTU_TAMU} (label pemegang /
- * nomor kartu); subjek {@code SISWA} {@code null} karena master siswa milik
- * admin-be (ADR-0002). Nama bendahara juga tidak tersedia (tanpa master
+ * <p>Nama subjek {@code null}: master siswa milik admin-be (ADR-0002) sehingga
+ * kantin-be tidak menyimpan label pemegang. Sejak C.2b subjek saldo hanya
+ * {@code SISWA} — Kartu Tamu dibayar tunai tanpa saldo.
+ * Nama bendahara juga tidak tersedia (tanpa master
  * pengguna) — hanya {@code aktorId}.
  */
 @Data
@@ -43,7 +44,7 @@ public class MutasiKoreksiItem {
 
     private Long siswaId;
 
-    /** Label subjek: {@code KARTU_TAMU} = label pemegang (fallback nomor kartu); {@code SISWA} = null. */
+    /** Label subjek — selalu {@code null} untuk {@code SISWA} (lihat catatan kelas). */
     private String subjekNama;
 
     /** {@code KREDIT} = saldo bertambah, {@code DEBIT} = saldo berkurang. */

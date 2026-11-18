@@ -14,7 +14,7 @@ import java.util.List;
  * pada periode — ringkasan, daftar transaksi, dan mutasi saldo — untuk menjawab
  * komplain orang tua. Akses Bendahara/Admin.
  *
- * @param subjekTipe  tipe subjek (SISWA / KARTU_TAMU)
+ * @param subjekTipe  tipe subjek — selalu {@code SISWA} sejak C.2b
  * @param siswaId    id subjek
  * @param saldo       saldo berjalan saat ini
  * @param periode     label periode (mis. "2025-01-01 s/d 2025-01-31")

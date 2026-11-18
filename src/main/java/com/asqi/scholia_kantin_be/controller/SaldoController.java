@@ -68,7 +68,7 @@ public class SaldoController {
             @AuthenticationPrincipal IdentitasKantin identitas) {
 
         HasilMutasiSaldo hasil = topUpService.topUpTunai(
-                TenantContext.sekolahIdWajib(), request.getSubjekTipe(), request.getSiswaId(),
+                TenantContext.sekolahIdWajib(), request.getSiswaId(),
                 request.getNominal(), request.getPenyetor(), request.getReferensiId(),
                 identitas.aktorIdWajib());
         return CommonResponse.data(hasil, "Top-up berhasil");
@@ -85,7 +85,7 @@ public class SaldoController {
             @AuthenticationPrincipal IdentitasKantin identitas) {
 
         HasilMutasiSaldo hasil = topUpService.koreksi(
-                TenantContext.sekolahIdWajib(), request.getSubjekTipe(), request.getSiswaId(),
+                TenantContext.sekolahIdWajib(), request.getSiswaId(),
                 request.getArah(), request.getNominal(), request.getAlasan(),
                 request.getReferensiId(), identitas.aktorIdWajib());
         return CommonResponse.data(hasil, "Koreksi saldo berhasil");
