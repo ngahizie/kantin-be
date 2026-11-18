@@ -2,6 +2,9 @@ package com.asqi.scholia_kantin_be.repository;
 
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
 import com.asqi.scholia_kantin_be.model.Transaksi;
+import com.asqi.scholia_kantin_be.repository.projection.PenjualanDimensi;
+import com.asqi.scholia_kantin_be.repository.projection.PenjualanKasir;
+import com.asqi.scholia_kantin_be.repository.projection.RekapStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import jakarta.persistence.LockModeType;
@@ -55,17 +58,20 @@ public interface TransaksiRepository extends JpaRepository<Transaksi, Long>,
     /**
      * Rekap sesi: jumlah transaksi &amp; total per status.
      *
-     * <p>Mengembalikan baris {@code [status, jumlah, total]}. Dipakai
-     * {@code SesiKasirService} menghitung total bruto/void/bersih (PRD §6.4).
+     * <p>Projection {@link RekapStatus} menggantikan {@code Object[]} — nama
+     * properti = alias kolom, jadi urutan kolom tidak bisa ketukar diam-diam.
+     * Dipakai {@code SesiKasirService} menghitung total bruto/void/bersih
+     * (PRD §6.4).
      */
     @Query("""
-            SELECT t.status, COUNT(t), COALESCE(SUM(t.total), 0)
+            SELECT t.status AS status, COUNT(t) AS jumlah,
+                   COALESCE(SUM(t.total), 0) AS total
             FROM Transaksi t
             WHERE t.sekolahId = :sekolahId AND t.sesiKasirId = :sesiKasirId
             GROUP BY t.status
             """)
-    java.util.List<Object[]> rekapSesi(@Param("sekolahId") Long sekolahId,
-                                       @Param("sesiKasirId") Long sesiKasirId);
+    List<RekapStatus> rekapSesi(@Param("sekolahId") Long sekolahId,
+                                @Param("sesiKasirId") Long sesiKasirId);
 
     /** Total penjualan bersih (SUKSES) pada rentang waktu — untuk laporan. */
     @Query("""
@@ -95,18 +101,20 @@ public interface TransaksiRepository extends JpaRepository<Transaksi, Long>,
 
     /**
      * Rekap per status pada rentang waktu — laporan penjualan/laba kotor
-     * (PRD §9.5). Mengembalikan baris {@code [status, jumlah, Σ total]}.
+     * (PRD §9.5). Projection {@link RekapStatus}: {@code status, jumlah,
+     * total}. Alias kolom wajib — lihat {@link RekapStatus}.
      */
     @Query("""
-            SELECT t.status, COUNT(t), COALESCE(SUM(t.total), 0)
+            SELECT t.status AS status, COUNT(t) AS jumlah,
+                   COALESCE(SUM(t.total), 0) AS total
             FROM Transaksi t
             WHERE t.sekolahId = :sekolahId
               AND t.waktu >= :dari AND t.waktu < :sampai
             GROUP BY t.status
             """)
-    List<Object[]> rekapPerStatusRentang(@Param("sekolahId") Long sekolahId,
-                                         @Param("dari") OffsetDateTime dari,
-                                         @Param("sampai") OffsetDateTime sampai);
+    List<RekapStatus> rekapPerStatusRentang(@Param("sekolahId") Long sekolahId,
+                                            @Param("dari") OffsetDateTime dari,
+                                            @Param("sampai") OffsetDateTime sampai);
 
     /**
      * Transaksi yang di-<b>VOID</b> pada rentang waktu — laporan Pembatalan
@@ -126,11 +134,13 @@ public interface TransaksiRepository extends JpaRepository<Transaksi, Long>,
 
     /**
      * Penjualan per <b>titik kasir</b> pada rentang (PRD §9.5, issue #116).
-     * Mengembalikan baris {@code [titikKasirId, jumlahTransaksi, Σ total, Σ hpp]},
-     * hanya transaksi SUKSES. Diurut nilai menurun.
+     * Projection {@link PenjualanDimensi}: {@code dimensiId, jumlah, nilai,
+     * hpp}; hanya transaksi SUKSES. Diurut nilai menurun.
      */
     @Query("""
-            SELECT t.titikKasirId, COUNT(t), COALESCE(SUM(t.total), 0), COALESCE(SUM(t.totalHpp), 0)
+            SELECT t.titikKasirId AS dimensiId, COUNT(t) AS jumlah,
+                   COALESCE(SUM(t.total), 0) AS nilai,
+                   COALESCE(SUM(t.totalHpp), 0) AS hpp
             FROM Transaksi t
             WHERE t.sekolahId = :sekolahId
               AND t.status = com.asqi.scholia_kantin_be.enums.StatusTransaksi.SUKSES
@@ -138,17 +148,19 @@ public interface TransaksiRepository extends JpaRepository<Transaksi, Long>,
             GROUP BY t.titikKasirId
             ORDER BY SUM(t.total) DESC
             """)
-    List<Object[]> penjualanPerTitikRentang(@Param("sekolahId") Long sekolahId,
-                                            @Param("dari") OffsetDateTime dari,
-                                            @Param("sampai") OffsetDateTime sampai);
+    List<PenjualanDimensi> penjualanPerTitikRentang(@Param("sekolahId") Long sekolahId,
+                                                     @Param("dari") OffsetDateTime dari,
+                                                     @Param("sampai") OffsetDateTime sampai);
 
     /**
      * Penjualan per <b>petugas</b> pada rentang (PRD §9.5, issue #116).
-     * Mengembalikan baris {@code [petugasId, jumlahTransaksi, Σ total, Σ hpp]},
-     * hanya transaksi SUKSES. Diurut nilai menurun.
+     * Projection {@link PenjualanDimensi}: {@code dimensiId, jumlah, nilai,
+     * hpp}; hanya transaksi SUKSES. Diurut nilai menurun.
      */
     @Query("""
-            SELECT t.petugasId, COUNT(t), COALESCE(SUM(t.total), 0), COALESCE(SUM(t.totalHpp), 0)
+            SELECT t.petugasId AS dimensiId, COUNT(t) AS jumlah,
+                   COALESCE(SUM(t.total), 0) AS nilai,
+                   COALESCE(SUM(t.totalHpp), 0) AS hpp
             FROM Transaksi t
             WHERE t.sekolahId = :sekolahId
               AND t.status = com.asqi.scholia_kantin_be.enums.StatusTransaksi.SUKSES
@@ -156,22 +168,22 @@ public interface TransaksiRepository extends JpaRepository<Transaksi, Long>,
             GROUP BY t.petugasId
             ORDER BY SUM(t.total) DESC
             """)
-    List<Object[]> penjualanPerPetugasRentang(@Param("sekolahId") Long sekolahId,
-                                              @Param("dari") OffsetDateTime dari,
-                                              @Param("sampai") OffsetDateTime sampai);
+    List<PenjualanDimensi> penjualanPerPetugasRentang(@Param("sekolahId") Long sekolahId,
+                                                       @Param("dari") OffsetDateTime dari,
+                                                       @Param("sampai") OffsetDateTime sampai);
 
     /**
      * Penjualan <b>per kasir</b> — grouping per titik kasir + petugas pada
-     * rentang (PRD §9.5, issue #227). SUKSES dan VOID dihitung pada grup yang
-     * sama agar bruto/void/bersih konsisten dengan rekap sesi kasir:
-     * baris {@code [titikKasirId, petugasId, jumlahSukses, Σ total SUKSES,
-     * Σ total VOID]}. Tenant-scoped, diurut per titik lalu petugas.
+     * rentang (PRD §9.5, issue #227). Projection {@link PenjualanKasir}: {@code
+     * titikKasirId, petugasId, jumlahSukses, nilaiSukses, nilaiVoid}. SUKSES dan
+     * VOID dihitung pada grup yang sama agar bruto/void/bersih konsisten dengan
+     * rekap sesi kasir. Tenant-scoped, diurut per titik lalu petugas.
      */
     @Query("""
-            SELECT t.titikKasirId, t.petugasId,
-                   COUNT(CASE WHEN t.status = com.asqi.scholia_kantin_be.enums.StatusTransaksi.SUKSES THEN 1 END),
-                   COALESCE(SUM(CASE WHEN t.status = com.asqi.scholia_kantin_be.enums.StatusTransaksi.SUKSES THEN t.total END), 0),
-                   COALESCE(SUM(CASE WHEN t.status = com.asqi.scholia_kantin_be.enums.StatusTransaksi.VOID THEN t.total END), 0)
+            SELECT t.titikKasirId AS titikKasirId, t.petugasId AS petugasId,
+                   COUNT(CASE WHEN t.status = com.asqi.scholia_kantin_be.enums.StatusTransaksi.SUKSES THEN 1 END) AS jumlahSukses,
+                   COALESCE(SUM(CASE WHEN t.status = com.asqi.scholia_kantin_be.enums.StatusTransaksi.SUKSES THEN t.total END), 0) AS nilaiSukses,
+                   COALESCE(SUM(CASE WHEN t.status = com.asqi.scholia_kantin_be.enums.StatusTransaksi.VOID THEN t.total END), 0) AS nilaiVoid
             FROM Transaksi t
             WHERE t.sekolahId = :sekolahId
               AND t.status IN (
@@ -181,9 +193,9 @@ public interface TransaksiRepository extends JpaRepository<Transaksi, Long>,
             GROUP BY t.titikKasirId, t.petugasId
             ORDER BY t.titikKasirId, t.petugasId
             """)
-    List<Object[]> penjualanPerKasirRentang(@Param("sekolahId") Long sekolahId,
-                                            @Param("dari") OffsetDateTime dari,
-                                            @Param("sampai") OffsetDateTime sampai);
+    List<PenjualanKasir> penjualanPerKasirRentang(@Param("sekolahId") Long sekolahId,
+                                                   @Param("dari") OffsetDateTime dari,
+                                                   @Param("sampai") OffsetDateTime sampai);
 
     /**
      * Semua transaksi satu subjek pada rentang (laporan per siswa, PRD §9.5,

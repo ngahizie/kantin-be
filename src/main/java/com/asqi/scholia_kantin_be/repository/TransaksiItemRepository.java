@@ -1,6 +1,8 @@
 package com.asqi.scholia_kantin_be.repository;
 
 import com.asqi.scholia_kantin_be.model.TransaksiItem;
+import com.asqi.scholia_kantin_be.repository.projection.ItemTerlaris;
+import com.asqi.scholia_kantin_be.repository.projection.PenjualanKategori;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -25,14 +27,16 @@ public interface TransaksiItemRepository extends JpaRepository<TransaksiItem, Lo
     List<TransaksiItem> findByTransaksiIdIn(Collection<Long> transaksiIds);
 
     /**
-     * Item terlaris pada rentang waktu: {@code [menuId, namaMenu, totalQty,
-     * totalNilai]}, hanya dari transaksi SUKSES.
+     * Item terlaris pada rentang waktu (PRD §9.5), hanya dari transaksi SUKSES.
+     * Projection {@link ItemTerlaris}: {@code menuId, namaMenu, qty, subtotal,
+     * modal}.
      *
      * <p>JOIN ke {@code Transaksi} untuk memfilter status &amp; waktu.
      */
     @Query("""
-            SELECT i.menuId, i.namaMenu, SUM(i.qty), SUM(i.subtotal),
-                   SUM(i.hppSnapshot * i.qty)
+            SELECT i.menuId AS menuId, i.namaMenu AS namaMenu,
+                   SUM(i.qty) AS qty, SUM(i.subtotal) AS subtotal,
+                   SUM(i.hppSnapshot * i.qty) AS modal
             FROM TransaksiItem i JOIN i.transaksi t
             WHERE t.sekolahId = :sekolahId
               AND t.status = com.asqi.scholia_kantin_be.enums.StatusTransaksi.SUKSES
@@ -40,15 +44,16 @@ public interface TransaksiItemRepository extends JpaRepository<TransaksiItem, Lo
             GROUP BY i.menuId, i.namaMenu
             ORDER BY SUM(i.qty) DESC
             """)
-    List<Object[]> itemTerlaris(@Param("sekolahId") Long sekolahId,
-                                @Param("dari") OffsetDateTime dari,
-                                @Param("sampai") OffsetDateTime sampai,
-                                Pageable pageable);
+    List<ItemTerlaris> itemTerlaris(@Param("sekolahId") Long sekolahId,
+                                    @Param("dari") OffsetDateTime dari,
+                                    @Param("sampai") OffsetDateTime sampai,
+                                    Pageable pageable);
 
-    /** Penjualan per kategori pada rentang waktu: {@code [kategoriId, totalQty, totalNilai]}. */
+    /** Penjualan per kategori pada rentang waktu (PRD §9.5). */
     @Query("""
-            SELECT i.kategoriId, SUM(i.qty), SUM(i.subtotal),
-                   SUM(i.hppSnapshot * i.qty)
+            SELECT i.kategoriId AS kategoriId, SUM(i.qty) AS qty,
+                   SUM(i.subtotal) AS subtotal,
+                   SUM(i.hppSnapshot * i.qty) AS modal
             FROM TransaksiItem i JOIN i.transaksi t
             WHERE t.sekolahId = :sekolahId
               AND t.status = com.asqi.scholia_kantin_be.enums.StatusTransaksi.SUKSES
@@ -56,9 +61,9 @@ public interface TransaksiItemRepository extends JpaRepository<TransaksiItem, Lo
             GROUP BY i.kategoriId
             ORDER BY SUM(i.subtotal) DESC
             """)
-    List<Object[]> penjualanPerKategori(@Param("sekolahId") Long sekolahId,
-                                        @Param("dari") OffsetDateTime dari,
-                                        @Param("sampai") OffsetDateTime sampai);
+    List<PenjualanKategori> penjualanPerKategori(@Param("sekolahId") Long sekolahId,
+                                                 @Param("dari") OffsetDateTime dari,
+                                                 @Param("sampai") OffsetDateTime sampai);
 
     /** Σ HPP snapshot item pada rentang waktu (verifikasi laba kotor). */
     @Query("""

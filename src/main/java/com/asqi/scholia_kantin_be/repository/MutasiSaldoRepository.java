@@ -3,6 +3,9 @@ package com.asqi.scholia_kantin_be.repository;
 import com.asqi.scholia_kantin_be.enums.ArahMutasi;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.model.MutasiSaldo;
+import com.asqi.scholia_kantin_be.repository.projection.ArusSaldo;
+import com.asqi.scholia_kantin_be.repository.projection.TotalPerArah;
+import com.asqi.scholia_kantin_be.repository.projection.WaktuTerakhirSiswa;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -98,14 +101,14 @@ public interface MutasiSaldoRepository extends JpaRepository<MutasiSaldo, Long>,
      * batch. Tenant-scoped; subjek tanpa mutasi tidak muncul di hasil.
      */
     @Query("""
-            SELECT l.siswaId, MAX(l.waktu)
+            SELECT l.siswaId AS siswaId, MAX(l.waktu) AS waktu
             FROM MutasiSaldo l
             WHERE l.sekolahId = :sekolahId
               AND l.siswaId IN :siswaIds
             GROUP BY l.siswaId
             """)
-    List<Object[]> waktuTerakhirPerSubjek(@Param("sekolahId") Long sekolahId,
-                                          @Param("siswaIds") List<Long> siswaIds);
+    List<WaktuTerakhirSiswa> waktuTerakhirPerSubjek(@Param("sekolahId") Long sekolahId,
+                                                   @Param("siswaIds") List<Long> siswaIds);
 
     /**
      * Riwayat mutasi terbaru satu subjek (PRD §8.4) — urut id turun (id
@@ -123,31 +126,33 @@ public interface MutasiSaldoRepository extends JpaRepository<MutasiSaldo, Long>,
 
     /**
      * Arus saldo per (arah, jenis) pada rentang waktu — laporan rekonsiliasi
-     * harian (PRD §9.5). Mengembalikan baris {@code [arah, jenis, Σ nominal]}.
+     * harian (PRD §9.5). Projection {@link ArusSaldo}: {@code arah, jenis,
+     * nominal}.
      */
     @Query("""
-            SELECT l.arah, l.jenis, COALESCE(SUM(l.nominal), 0)
+            SELECT l.arah AS arah, l.jenis AS jenis,
+                   COALESCE(SUM(l.nominal), 0) AS nominal
             FROM MutasiSaldo l
             WHERE l.sekolahId = :sekolahId
               AND l.waktu >= :dari AND l.waktu < :sampai
             GROUP BY l.arah, l.jenis
             """)
-    List<Object[]> rekapArusRentang(@Param("sekolahId") Long sekolahId,
-                                    @Param("dari") OffsetDateTime dari,
-                                    @Param("sampai") OffsetDateTime sampai);
+    List<ArusSaldo> rekapArusRentang(@Param("sekolahId") Long sekolahId,
+                                     @Param("dari") OffsetDateTime dari,
+                                     @Param("sampai") OffsetDateTime sampai);
 
     /**
      * Σ nominal per arah untuk <b>seluruh waktu</b> (tanpa batas periode) —
-     * dasar pemeriksaan invariant rekonsiliasi (PRD §5). Mengembalikan baris
-     * {@code [arah, Σ nominal]}.
+     * dasar pemeriksaan invariant rekonsiliasi (PRD §5). Projection
+     * {@link TotalPerArah}: {@code arah, nominal}.
      */
     @Query("""
-            SELECT l.arah, COALESCE(SUM(l.nominal), 0)
+            SELECT l.arah AS arah, COALESCE(SUM(l.nominal), 0) AS nominal
             FROM MutasiSaldo l
             WHERE l.sekolahId = :sekolahId
             GROUP BY l.arah
             """)
-    List<Object[]> totalPerArah(@Param("sekolahId") Long sekolahId);
+    List<TotalPerArah> totalPerArah(@Param("sekolahId") Long sekolahId);
 
     /** Mutasi saldo pada rentang waktu (laporan per siswa / ekspor, PRD §9.5). */
     @Query("""

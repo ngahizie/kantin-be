@@ -1,6 +1,7 @@
 package com.asqi.scholia_kantin_be.repository;
 
 import com.asqi.scholia_kantin_be.model.Menu;
+import com.asqi.scholia_kantin_be.repository.projection.JumlahMenuKategori;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -70,11 +71,12 @@ public interface MenuRepository extends JpaRepository<Menu, Long>, JpaSpecificat
     /**
      * Jumlah menu per kategori dalam satu sekolah (hanya yang belum dihapus) —
      * satu query untuk melengkapi {@code jumlahItem} di daftar kategori.
+     * Projection {@link JumlahMenuKategori}: {@code kategoriId, jumlah}.
      */
-    @Query("SELECT m.kategoriId, COUNT(m) FROM Menu m "
+    @Query("SELECT m.kategoriId AS kategoriId, COUNT(m) AS jumlah FROM Menu m "
             + "WHERE m.sekolahId = :sekolahId AND m.deletedAt IS NULL "
             + "GROUP BY m.kategoriId")
-    List<Object[]> hitungMenuPerKategori(@Param("sekolahId") Long sekolahId);
+    List<JumlahMenuKategori> hitungMenuPerKategori(@Param("sekolahId") Long sekolahId);
 
     /** Apakah kode barcode sudah dipakai menu lain yang belum dihapus dalam tenant ini. */
     boolean existsBySekolahIdAndKodeBarcodeAndDeletedAtIsNull(Long sekolahId, String kodeBarcode);

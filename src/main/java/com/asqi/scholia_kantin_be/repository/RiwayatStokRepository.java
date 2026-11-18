@@ -3,6 +3,7 @@ package com.asqi.scholia_kantin_be.repository;
 import com.asqi.scholia_kantin_be.enums.ArahStok;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiStok;
 import com.asqi.scholia_kantin_be.model.RiwayatStok;
+import com.asqi.scholia_kantin_be.repository.projection.DibalikPerAsal;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -145,35 +146,17 @@ public interface RiwayatStokRepository extends JpaRepository<RiwayatStok, Long>,
     /**
      * Total dibalik untuk sekumpulan asal dalam <b>satu</b> query — dipakai
      * mengisi {@code sisaDapatDibalik} pada daftar riwayat (hindari N+1).
+     * Projection {@link DibalikPerAsal}: {@code mutasiAsalId, qty}.
      */
     @Query("""
-            SELECT m.mutasiAsalId, COALESCE(SUM(m.qty), 0)
+            SELECT m.mutasiAsalId AS mutasiAsalId, COALESCE(SUM(m.qty), 0) AS qty
             FROM RiwayatStok m
             WHERE m.sekolahId = :sekolahId
               AND m.mutasiAsalId IN :asalIds
             GROUP BY m.mutasiAsalId
             """)
-    List<Object[]> totalDibalikPerAsal(@Param("sekolahId") Long sekolahId,
-                                       @Param("asalIds") Collection<Long> asalIds);
-
-    /**
-     * Rekap kerugian stok per jenis pada rentang waktu (PRD §9.5): Σ qty &amp;
-     * Σ (qty × hpp_snapshot). Mengembalikan baris {@code [jenis, jumlah, Σqty,
-     * Σnilai]}. Dipakai laporan kerugian (opname keluar &amp; barang rusak).
-     */
-    @Query("""
-            SELECT m.jenis, COUNT(m), COALESCE(SUM(m.qty), 0),
-                   COALESCE(SUM(m.qty * COALESCE(m.hppSnapshot, 0)), 0)
-            FROM RiwayatStok m
-            WHERE m.sekolahId = :sekolahId
-              AND m.jenis IN :jenis
-              AND m.waktu >= :dari AND m.waktu < :sampai
-            GROUP BY m.jenis
-            """)
-    List<Object[]> rekapKerugianRentang(@Param("sekolahId") Long sekolahId,
-                                        @Param("jenis") Collection<JenisMutasiStok> jenis,
-                                        @Param("dari") OffsetDateTime dari,
-                                        @Param("sampai") OffsetDateTime sampai);
+    List<DibalikPerAsal> totalDibalikPerAsal(@Param("sekolahId") Long sekolahId,
+                                            @Param("asalIds") Collection<Long> asalIds);
 
     /**
      * Barang masuk per periode (PRD §9.5) — baris mutasi {@code BARANG_MASUK},
