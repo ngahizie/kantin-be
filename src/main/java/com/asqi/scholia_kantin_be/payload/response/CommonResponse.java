@@ -120,33 +120,32 @@ public class CommonResponse {
      * (harus baca body untuk tahu sukses/gagal) dan membuat request cacat
      * "lolos" tanpa diuji RBAC. Diubah ke 400 pada issue #251.
      *
-     * <p>Saklar mundur: {@code kantin.validation.http-400=false} mengembalikan
-     * seluruh respons validasi ke HTTP 200 (lihat {@code ValidasiContractConfig}).
+     * <p><b>Saklar mundur bukan state statis</b> (issue #361): status HTTP
+     * ditentukan pemanggil lewat parameter {@code validasiHttp400}, yang dibaca
+     * dari {@code kantin.validation.http-400} oleh {@code ValidasiContractConfig}
+     * lalu diteruskan {@code GlobalExceptionHandler}. Tidak ada nilai global yang
+     * bisa bocor antar-test atau antar-request.
      */
-    private static boolean validasiHttp400 = true;
-
-    public static void setValidasiHttp400(boolean aktif) {
-        validasiHttp400 = aktif;
-    }
-
-    private static <T> ResponseEntity<Response<T>> bungkusValidasi(Response<T> response) {
+    private static <T> ResponseEntity<Response<T>> bungkusValidasi(Response<T> response,
+                                                                  boolean validasiHttp400) {
         return validasiHttp400
                 ? ResponseEntity.badRequest().body(response)
                 : ResponseEntity.ok(response);
     }
 
-    public static <T> ResponseEntity<Response<T>> validationError(Errors errors) {
+    public static <T> ResponseEntity<Response<T>> validationError(Errors errors, boolean validasiHttp400) {
         Response<T> response = new Response<>();
         response.setResponseCode(ResponseCode.VALIDATION);
         response.setValidation(Constants.validateErrorMessage(errors));
-        return bungkusValidasi(response);
+        return bungkusValidasi(response, validasiHttp400);
     }
 
-    public static <T> ResponseEntity<Response<T>> validationError(Map<String, String> validationErrorMessages) {
+    public static <T> ResponseEntity<Response<T>> validationError(Map<String, String> validationErrorMessages,
+                                                                 boolean validasiHttp400) {
         Response<T> response = new Response<>();
         response.setResponseCode(ResponseCode.VALIDATION);
         response.setValidation(validationErrorMessages);
-        return bungkusValidasi(response);
+        return bungkusValidasi(response, validasiHttp400);
     }
 
     // ────────────────────────────────────────────────────────────────
