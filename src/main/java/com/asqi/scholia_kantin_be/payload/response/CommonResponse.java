@@ -62,6 +62,19 @@ public class CommonResponse {
         return ResponseEntity.ok(r);
     }
 
+    /**
+     * Respons daftar berhalaman <b>tanpa mengubah bentuk {@code data}</b> (tetap
+     * array), dengan metadata {@code total}/{@code showing}/{@code totalPages}/
+     * {@code currentPage} (issue #375) — dipakai endpoint yang klien lamanya
+     * sudah membaca {@code data} sebagai list.
+     */
+    public static <D> ResponseEntity<Response<List<D>>> dataHalaman(Page<?> page, List<D> dtoList) {
+        Response<List<D>> r = new Response<>();
+        r.setResponseCode(ResponseCode.SUCCESS);
+        r.setData(page, dtoList);
+        return ResponseEntity.ok(r);
+    }
+
     public static <P> ResponseEntity<Response<Page<P>>> paginated(Page<P> page) {
         Response<Page<P>> r = new Response<>();
         r.setResponseCode(ResponseCode.SUCCESS);

@@ -34,6 +34,7 @@ import com.asqi.scholia_kantin_be.service.laporan.LaporanSiswaService;
 import com.asqi.scholia_kantin_be.service.laporan.LaporanStokService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -165,9 +166,12 @@ public class LaporanController {
     @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
     @GetMapping("stok")
     public ResponseEntity<Response<List<BarisStok>>> stok(
-            @RequestParam(defaultValue = "false") boolean hanyaMenipis) {
-        return CommonResponse.data(
-                stok.laporanStok(TenantContext.sekolahIdWajib(), hanyaMenipis));
+            @RequestParam(defaultValue = "false") boolean hanyaMenipis,
+            @RequestParam(defaultValue = "0") int halaman,
+            @RequestParam(defaultValue = "200") int ukuran) {
+        Page<BarisStok> hasil = stok.laporanStok(
+                TenantContext.sekolahIdWajib(), hanyaMenipis, halaman, ukuran);
+        return CommonResponse.dataHalaman(hasil, hasil.getContent());
     }
 
     /** Kerugian stok (opname keluar &amp; barang rusak) (PRD §9.5). */

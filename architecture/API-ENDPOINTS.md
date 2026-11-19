@@ -164,7 +164,7 @@
 | `GET` | `/api/laporan/saldo-mengendap` | TU, admin, kepsek | Dana titipan: Σ saldo siswa + Kartu Tamu (kewajiban sekolah) |
 | `GET` | `/api/laporan/saldo-mengendap/siswa` | TU, admin | **Rincian saldo per siswa** (#224): identitas dari integrasi siswa + saldo/kontrol tenant-lokal. Query: `search?`, `batas?` (default 20, max 50) |
 | `GET` | `/api/laporan/rekonsiliasi` | TU, admin, kepsek | Arus kas per jenis + cek invariant `seimbang`/`selisih` (PRD §5) |
-| `GET` | `/api/laporan/stok` | TU, pengelola | Stok + nilai persediaan; `menipis` dari `menu.stok_minimum`. Query: `hanyaMenipis`. **Tanpa kepsek** (§9.5) |
+| `GET` | `/api/laporan/stok` | TU, pengelola | Stok + nilai persediaan; `menipis` dari `menu.stok_minimum`. Query: `hanyaMenipis`, `halaman` (0-based, default 0), `ukuran` (default 200, **maks 200**; di luar rentang → 400). Respons berhalaman: `data` tetap array + metadata `total`/`showing`/`totalPages`/`currentPage` (#375). **Tanpa kepsek** (§9.5) |
 | `GET` | `/api/laporan/kerugian-stok` | TU, pengelola, kepsek | Opname keluar & barang rusak: qty + nilai kerugian |
 | `GET` | `/api/laporan/kerugian-stok/ringkasan` | TU, pengelola, kepsek | **Agregat kerugian stok** (#226): total kerugian/qty/kejadian dan pemisahan opname vs barang rusak; periode sama dengan daftar |
 | `GET` | `/api/laporan/pembatalan` | TU, admin | **Pembatalan kasir** (#114): daftar transaksi di-refund per subjek pada periode |

@@ -17,6 +17,8 @@ import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.enums.JenisLaporan;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
+import com.asqi.scholia_kantin_be.helper.UkuranHalaman;
+import org.springframework.data.domain.Page;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -236,7 +238,16 @@ public class LaporanExportService {
     }
 
     private HasilEkspor eksporStok(Long sekolahId, String label) {
-        List<BarisStok> data = stok.laporanStok(sekolahId, false);
+        // Issue #375: laporan stok kini berhalaman (≤ 200 baris per query). Ekspor
+        // menjelajah seluruh halaman alih-alih satu query tanpa batas atas.
+        List<BarisStok> data = new ArrayList<>();
+        int nomorHalaman = 0;
+        Page<BarisStok> halaman;
+        do {
+            halaman = stok.laporanStok(sekolahId, false, nomorHalaman, UkuranHalaman.UKURAN_MAKS);
+            data.addAll(halaman.getContent());
+            nomorHalaman++;
+        } while (halaman.hasNext());
         List<String> header = List.of("Menu ID", "Nama", "Stok", "Stok Min", "HPP",
                 "Nilai Persediaan", "Menipis");
         List<List<Object>> baris = new ArrayList<>();
