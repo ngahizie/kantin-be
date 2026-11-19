@@ -139,6 +139,11 @@ Integration**. Semua sudah ditindaklanjuti kecuali yang ditandai menunggu.
 - **Akar:** `viewFile`/`deleteFile` langsung meneruskan `objectName` ke MinIO tanpa validasi; hanya `uploadFile` yang memvalidasi **ekstensi**.
 - **Perbaikan:** ✅ ditambahkan `validasiObjectName(...)` (tolak absolut/`..`/`\`/NUL, allowlist karakter `[A-Za-z0-9._-]`) yang dipanggil di `uploadFile`, `viewFile`, dan `deleteFile`.
 - **Catatan:** endpoint HTTP file belum dibuat; bila nanti dibuat, **wajib** juga memaksa prefix tenant (`sekolah-<id>/`) sebelum memanggil helper ini.
+- **Hardening unggah (#374, M-01..M-03):**
+  - Batas ukuran per folder di `StorageService`: foto `menu` **5 MB**, folder lain **10 MB** (selaras `spring.servlet.multipart.max-file-size=10MB`, `max-request-size=12MB`). Sebelumnya batas global 50 MB.
+  - Allowlist ekstensi khusus `menu`: `.jpg`, `.jpeg`, `.png`, `.webp` — `.svg`/arsip/multimedia ditolak walau `S3Storage` mengizinkannya untuk folder lain.
+  - `Content-Type` objek ditentukan **server-side** dari ekstensi (`S3Storage.contentTypeUntuk`), bukan header klien; ekstensi tak dikenal → `application/octet-stream`. `.svg` juga dipetakan ke `application/octet-stream` agar berkas berisi `<script>` tidak dirender bila bucket publik.
+  - `MenuRequest.fotoUrl` divalidasi `@Pattern` (tolak `javascript:`/`data:`/`file:`/`vbscript:`), lalu `KatalogService` memastikan path relatif, query `?path=`, dan URL absolut ke host `minio.url-final` semuanya berada di prefix tenant pemanggil; segmen `..`/backslash ditolak.
 
 ## B20 — Artefak generator ID tak-aman di `Constants` berisiko diwarisi
 

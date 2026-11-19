@@ -59,5 +59,7 @@ class S3StorageValidationTest {
         assertThat(S3Storage.contentTypeUntuk(".jpg")).isEqualTo("image/jpeg");
         assertThat(S3Storage.contentTypeUntuk(".webp")).isEqualTo("image/webp");
         assertThat(S3Storage.contentTypeUntuk(".exe")).isEqualTo("application/octet-stream");
+        // SVG tidak boleh dirender browser dari bucket publik (bisa memuat <script>).
+        assertThat(S3Storage.contentTypeUntuk(".svg")).isEqualTo("application/octet-stream");
     }
 }

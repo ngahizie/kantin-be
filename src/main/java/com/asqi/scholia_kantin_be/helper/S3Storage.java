@@ -56,7 +56,10 @@ public class S3Storage {
         Map.entry(".png", "image/png"),
         Map.entry(".gif", "image/gif"),
         Map.entry(".webp", "image/webp"),
-        Map.entry(".svg", "image/svg+xml"),
+        // SVG sengaja TIDAK dipetakan ke image/svg+xml: berkas SVG bisa memuat
+        // <script> dan dieksekusi bila dibuka langsung dari bucket publik.
+        // octet-stream membuat browser mengunduhnya, bukan merendernya.
+        Map.entry(".svg", "application/octet-stream"),
         Map.entry(".pdf", "application/pdf"),
         Map.entry(".doc", "application/msword"),
         Map.entry(".docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),

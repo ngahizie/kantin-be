@@ -73,4 +73,42 @@ class KatalogServiceFotoUrlTest {
                 .isInstanceOf(InvalidOperationException.class)
                 .hasMessageContaining("storage sekolah ini");
     }
+
+    @Test
+    @DisplayName("segmen '..' pada path relatif ditolak")
+    void traversalPathRelatifDitolak() {
+        assertThatThrownBy(() -> KatalogService.validasiFotoUrlMilikTenant(
+                SEKOLAH, "sekolah-7/menu/.."))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("storage sekolah ini");
+    }
+
+    @Test
+    @DisplayName("parameter bernama lain (?xpath=...) tidak dianggap path")
+    void parameterMiripPathTidakDiterima() {
+        assertThatThrownBy(() -> KatalogService.validasiFotoUrlMilikTenant(
+                SEKOLAH, "/api/storage/file?xpath=sekolah-7%2Fmenu%2Fa.png"))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("storage sekolah ini");
+    }
+
+    @Test
+    @DisplayName("URL absolut ke host storage sendiri wajib milik tenant")
+    void urlAbsolutHostStorageDiperiksa() {
+        String basis = "https://cdn.sekolah.id/kantin";
+
+        assertThatCode(() -> KatalogService.validasiFotoUrlMilikTenant(
+                SEKOLAH, "https://cdn.sekolah.id/kantin/sekolah-7/menu/a.png", basis))
+                .doesNotThrowAnyException();
+
+        assertThatThrownBy(() -> KatalogService.validasiFotoUrlMilikTenant(
+                SEKOLAH, "https://cdn.sekolah.id/kantin/sekolah-9/menu/a.png", basis))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("storage sekolah ini");
+
+        // Host lain tetap diizinkan (data demo/eksternal).
+        assertThatCode(() -> KatalogService.validasiFotoUrlMilikTenant(
+                SEKOLAH, "https://images.unsplash.com/foto.jpg", basis))
+                .doesNotThrowAnyException();
+    }
 }
