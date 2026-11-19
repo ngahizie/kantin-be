@@ -1,6 +1,7 @@
 package com.asqi.scholia_kantin_be.service.kasir;
 
 import com.asqi.scholia_kantin_be.dto.TapRequest;
+import com.asqi.scholia_kantin_be.dto.TutupSesiRequest;
 import com.asqi.scholia_kantin_be.dto.TapResponse;
 import com.asqi.scholia_kantin_be.dto.TransaksiRefundResponse;
 import com.asqi.scholia_kantin_be.helper.NomorStruk;
@@ -45,6 +46,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @Import({TestcontainersConfig.class, TapServiceIT.FakePortConfig.class})
 @EnabledIfDockerAvailable
 class VoidServiceIT {
+
+
+    /** Permintaan tutup sesi dengan hitungan laci (C.3). */
+    private static TutupSesiRequest tutupKas(long uangFisik, String catatan) {
+        TutupSesiRequest r = new TutupSesiRequest();
+        r.setUangFisik(uangFisik);
+        r.setCatatan(catatan);
+        return r;
+    }
 
     private static final long SEKOLAH = 1L;
     private static final long SISWA = 7L;
@@ -298,7 +308,7 @@ class VoidServiceIT {
         TapResponse tap = tap("tap-4", 1);
         Long sesiId = jdbc.queryForObject(
                 "SELECT sesi_kasir_id FROM transaksi WHERE id = ?", Long.class, tap.getTransaksiId());
-        sesiKasir.tutupSesi(SEKOLAH, sesiId, 555L, false);
+        sesiKasir.tutupSesi(SEKOLAH, sesiId, 555L, false, tutupKas(0L, "uji tutup"));
 
         assertThatThrownBy(() -> voidService.refundTransaksi(SEKOLAH, tap.getTransaksiId(), 555L, "salah", kode(tap)))
                 .hasMessageContaining("sudah ditutup");
@@ -322,7 +332,7 @@ class VoidServiceIT {
         TapResponse tap = tap("tap-kor1", 2); // 2 × 8000 = 16.000
         Long sesiId = jdbc.queryForObject(
                 "SELECT sesi_kasir_id FROM transaksi WHERE id = ?", Long.class, tap.getTransaksiId());
-        sesiKasir.tutupSesi(SEKOLAH, sesiId, 555L, false);
+        sesiKasir.tutupSesi(SEKOLAH, sesiId, 555L, false, tutupKas(0L, "uji tutup"));
 
         // Void petugas ditolak pada sesi tertutup.
         assertThatThrownBy(() -> voidService.refundTransaksi(SEKOLAH, tap.getTransaksiId(), 555L, "salah", kode(tap)))
@@ -359,7 +369,7 @@ class VoidServiceIT {
         TapResponse tap = tap("tap-kor2", 1);
         Long sesiId = jdbc.queryForObject(
                 "SELECT sesi_kasir_id FROM transaksi WHERE id = ?", Long.class, tap.getTransaksiId());
-        sesiKasir.tutupSesi(SEKOLAH, sesiId, 555L, false);
+        sesiKasir.tutupSesi(SEKOLAH, sesiId, 555L, false, tutupKas(0L, "uji tutup"));
 
         assertThatThrownBy(() -> voidService.koreksiTransaksiSesiTertutup(
                 SEKOLAH, tap.getTransaksiId(), 777L, "  "))
@@ -382,7 +392,7 @@ class VoidServiceIT {
         TapResponse tap = tap("tap-kor4", 1);
         Long sesiId = jdbc.queryForObject(
                 "SELECT sesi_kasir_id FROM transaksi WHERE id = ?", Long.class, tap.getTransaksiId());
-        sesiKasir.tutupSesi(SEKOLAH, sesiId, 555L, false);
+        sesiKasir.tutupSesi(SEKOLAH, sesiId, 555L, false, tutupKas(0L, "uji tutup"));
 
         voidService.koreksiTransaksiSesiTertutup(SEKOLAH, tap.getTransaksiId(), 777L, "salah input");
         assertThatThrownBy(() -> voidService.koreksiTransaksiSesiTertutup(
@@ -396,7 +406,7 @@ class VoidServiceIT {
         TapResponse tap = tap("tap-kor5", 1);
         Long sesiId = jdbc.queryForObject(
                 "SELECT sesi_kasir_id FROM transaksi WHERE id = ?", Long.class, tap.getTransaksiId());
-        sesiKasir.tutupSesi(SEKOLAH, sesiId, 555L, false);
+        sesiKasir.tutupSesi(SEKOLAH, sesiId, 555L, false, tutupKas(0L, "uji tutup"));
 
         assertThatThrownBy(() -> voidService.koreksiTransaksiSesiTertutup(
                 999L, tap.getTransaksiId(), 777L, "salah"))

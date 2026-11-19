@@ -5,9 +5,11 @@ import com.asqi.scholia_kantin_be.dto.HalamanResponse;
 import com.asqi.scholia_kantin_be.dto.TapRequest;
 import com.asqi.scholia_kantin_be.dto.TapResponse;
 import com.asqi.scholia_kantin_be.dto.TransaksiKasirItem;
+import com.asqi.scholia_kantin_be.dto.TutupSesiRequest;
 import com.asqi.scholia_kantin_be.dto.VoidRequest;
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
+import com.asqi.scholia_kantin_be.model.SesiKasir;
 import com.asqi.scholia_kantin_be.model.Transaksi;
 import com.asqi.scholia_kantin_be.model.TransaksiItem;
 import com.asqi.scholia_kantin_be.security.IdentitasKantin;
@@ -23,6 +25,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -37,6 +40,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -409,6 +413,61 @@ class KasirControllerTest {
     @DisplayName("sesi aktif (#222): tanpa titikKasirId ditolak (params wajib)")
     void sesiAktifTanpaParamDitolak() throws Exception {
         mockMvc.perform(get("/api/kasir/sesi/aktif"))
+                .andExpect(status().isBadRequest());
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // POST sesi/{id}/tutup — hitungan kas fisik (C.3)
+    // ────────────────────────────────────────────────────────────────
+
+    /**
+     * Body tutup sesi diteruskan apa adanya ke service: {@code uangFisik} dan
+     * {@code catatan} dari kasir, tanpa tenant dari body (PRD §11.4).
+     */
+    @Test
+    @DisplayName("tutup sesi (C.3): uang fisik & catatan diteruskan ke service")
+    void tutupSesiMeneruskanKasFisik() throws Exception {
+        SesiKasir hasil = SesiKasir.builder()
+                .id(42L)
+                .sekolahId(7L)
+                .uangFisik(15_000L)
+                .selisih(-1_000L)
+                .catatan("kurang 1.000")
+                .build();
+        when(sesiKasirService.tutupSesi(eq(7L), eq(42L), eq(42L), eq(false),
+                any(TutupSesiRequest.class))).thenReturn(hasil);
+
+        mockMvc.perform(post("/api/kasir/sesi/42/tutup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"uangFisik\":15000,\"catatan\":\"kurang 1.000\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.uangFisik").value(15_000))
+                .andExpect(jsonPath("$.data.selisih").value(-1_000))
+                .andExpect(jsonPath("$.data.catatan").value("kurang 1.000"));
+
+        ArgumentCaptor<TutupSesiRequest> kiriman = ArgumentCaptor.forClass(TutupSesiRequest.class);
+        verify(sesiKasirService).tutupSesi(eq(7L), eq(42L), eq(42L), eq(false), kiriman.capture());
+        assertThat(kiriman.getValue().getUangFisik()).isEqualTo(15_000L);
+        assertThat(kiriman.getValue().getCatatan()).isEqualTo("kurang 1.000");
+    }
+
+    /** {@code uangFisik} wajib: body kosong ditolak Bean Validation (400). */
+    @Test
+    @DisplayName("tutup sesi (C.3): tanpa uangFisik ditolak 400")
+    void tutupSesiTanpaUangFisikDitolak() throws Exception {
+        mockMvc.perform(post("/api/kasir/sesi/42/tutup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"catatan\":\"tanpa kas\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    /** Uang fisik negatif tidak masuk akal untuk hitungan laci → 400. */
+    @Test
+    @DisplayName("tutup sesi (C.3): uangFisik negatif ditolak 400")
+    void tutupSesiUangFisikNegatifDitolak() throws Exception {
+        mockMvc.perform(post("/api/kasir/sesi/42/tutup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"uangFisik\":-1}"))
                 .andExpect(status().isBadRequest());
     }
 }

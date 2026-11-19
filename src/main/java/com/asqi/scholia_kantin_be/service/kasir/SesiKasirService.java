@@ -3,6 +3,7 @@ package com.asqi.scholia_kantin_be.service.kasir;
 import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
 import com.asqi.scholia_kantin_be.dto.SesiKasirAktifData;
+import com.asqi.scholia_kantin_be.dto.TutupSesiRequest;
 import com.asqi.scholia_kantin_be.enums.MetodeBayar;
 import com.asqi.scholia_kantin_be.enums.StatusSesiKasir;
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
@@ -163,6 +164,23 @@ public class SesiKasirService {
      */
     @Transactional
     public SesiKasir tutupSesi(Long sekolahId, Long sesiId, Long oleh, boolean auto) {
+        return tutupSesi(sekolahId, sesiId, oleh, auto, null);
+    }
+
+    /**
+     * Tutup sesi dengan hitungan kas fisik di laci (C.3).
+     *
+     * <p>Penutupan manual <b>wajib</b> menyertakan {@code uangFisik}. Server
+     * menyimpan {@code selisih = uangFisik − totalTunai} (C.2d) dan menolak
+     * penutupan bila selisih ≠ 0 tanpa {@code catatan}. Penutupan otomatis
+     * ({@code auto=true}) boleh tanpa permintaan — kolom kas dibiarkan
+     * {@code null} karena tidak ada kasir yang menghitung laci.
+     *
+     * @param permintaan hitungan kas fisik; {@code null} hanya sah untuk auto-tutup
+     */
+    @Transactional
+    public SesiKasir tutupSesi(Long sekolahId, Long sesiId, Long oleh, boolean auto,
+                               TutupSesiRequest permintaan) {
         SesiKasir sesi = sesiRepo.kunciUntukUpdate(sekolahId, sesiId)
                 .orElseThrow(() -> new NotFoundEntity("Sesi kasir tidak ditemukan"));
         sekolahGuard.pastikanMilikSekolah(sesi.getSekolahId(), "Sesi kasir");
@@ -176,6 +194,24 @@ public class SesiKasirService {
         RekapSesi rekap = hitungRekap(sekolahId, sesi);
         OffsetDateTime now = jam.sekarang();
 
+        // C.3: hitungan laci disimpan apa adanya, selisih dihitung server dari
+        // totalTunai (C.2d) — bukan dari angka kiriman klien.
+        Long uangFisik = permintaan == null ? null : permintaan.getUangFisik();
+        String catatan = rapikanCatatan(permintaan == null ? null : permintaan.getCatatan());
+        if (!auto && uangFisik == null) {
+            throw new InvalidOperationException("Uang fisik wajib diisi saat tutup kasir");
+        }
+        Long selisih = null;
+        if (uangFisik != null) {
+            if (uangFisik < 0) {
+                throw new InvalidOperationException("Uang fisik tidak boleh negatif");
+            }
+            selisih = uangFisik - rekap.getTotalTunai();
+            if (selisih != 0 && catatan == null) {
+                throw new InvalidOperationException("Catatan wajib diisi bila ada selisih kas");
+            }
+        }
+
         sesi.setTotalBruto(rekap.getTotalBruto());
         sesi.setTotalVoid(rekap.getTotalVoid());
         sesi.setTotalBersih(rekap.getTotalBersih());
@@ -183,10 +219,14 @@ public class SesiKasirService {
         sesi.setDitutupAt(now);
         sesi.setDitutupOleh(oleh);
         sesi.setAutoTutup(auto);
+        sesi.setUangFisik(uangFisik);
+        sesi.setSelisih(selisih);
+        sesi.setCatatan(catatan);
         sesi.setUpdatedAt(now);
 
-        log.info("Tutup sesi kasir id={} bersih={} void={} auto={}",
-                sesiId, rekap.getTotalBersih(), rekap.getTotalVoid(), auto);
+        log.info("Tutup sesi kasir id={} bersih={} void={} tunai={} fisik={} selisih={} auto={}",
+                sesiId, rekap.getTotalBersih(), rekap.getTotalVoid(), rekap.getTotalTunai(),
+                uangFisik, selisih, auto);
         SesiKasir tersimpan = sesiRepo.save(sesi);
 
         // Posting Buku Kas (idempoten). Kegagalan TIDAK membatalkan penutupan —
@@ -371,6 +411,15 @@ public class SesiKasirService {
         SesiKasirService.RekapSesi rekap = hitungRekap(sekolahId, sesi);
         return SesiKasirAktifData.dari(sesi, titik.getNama(), rekap.getJumlahTransaksi(),
                 rekap.getTotalBruto(), rekap.getTotalVoid(), rekap.getTotalBersih());
+    }
+
+    /** Rapikan catatan kasir: trim, dan teks kosong dianggap tidak diisi. */
+    private static String rapikanCatatan(String catatan) {
+        if (catatan == null) {
+            return null;
+        }
+        String rapi = catatan.trim();
+        return rapi.isEmpty() ? null : rapi;
     }
 
     private RekapSesi hitungRekap(Long sekolahId, SesiKasir sesi) {

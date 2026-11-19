@@ -8,6 +8,7 @@ import com.asqi.scholia_kantin_be.dto.TapResponse;
 import com.asqi.scholia_kantin_be.dto.TransaksiKasirItem;
 import com.asqi.scholia_kantin_be.dto.TransaksiRefundResponse;
 import com.asqi.scholia_kantin_be.dto.TransaksiSesiItem;
+import com.asqi.scholia_kantin_be.dto.TutupSesiRequest;
 import com.asqi.scholia_kantin_be.dto.CekKartuResponse;
 import com.asqi.scholia_kantin_be.dto.VoidRequest;
 import com.asqi.scholia_kantin_be.enums.AktorKantin;
@@ -334,17 +335,23 @@ public class KasirController {
     }
 
     /**
-     * Tutup sesi kasir: hitung rekap, tandai DITUTUP, kunci transaksi
-     * (PRD §6.4). Setelah ditutup, koreksi hanya boleh oleh bendahara.
+     * Tutup sesi kasir: simpan hitungan kas fisik, hitung rekap, tandai DITUTUP,
+     * kunci transaksi (PRD §6.4, C.3). Setelah ditutup, koreksi hanya boleh oleh
+     * bendahara.
+     *
+     * <p>Body wajib: {@code uangFisik} (uang di laci). Server menghitung
+     * {@code selisih = uangFisik − totalTunai} dan mewajibkan {@code catatan}
+     * bila selisih ≠ 0.
      */
     @PerluPeran({AktorKantin.PETUGAS_KANTIN})
     @PostMapping("sesi/{sesiId}/tutup")
     public ResponseEntity<Response<SesiKasir>> tutupSesi(
             @PathVariable Long sesiId,
-            @AuthenticationPrincipal IdentitasKantin identitas) {
+            @AuthenticationPrincipal IdentitasKantin identitas,
+            @Valid @RequestBody(required = false) TutupSesiRequest permintaan) {
 
         SesiKasir sesi = sesiKasirService.tutupSesi(
-                TenantContext.sekolahIdWajib(), sesiId, identitas.aktorIdWajib(), false);
+                TenantContext.sekolahIdWajib(), sesiId, identitas.aktorIdWajib(), false, permintaan);
         return CommonResponse.data(sesi, "Sesi kasir ditutup");
     }
 

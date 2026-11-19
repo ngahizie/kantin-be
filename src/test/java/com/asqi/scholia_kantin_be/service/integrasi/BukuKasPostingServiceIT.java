@@ -2,6 +2,7 @@ package com.asqi.scholia_kantin_be.service.integrasi;
 
 import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
 import com.asqi.scholia_kantin_be.dto.TapRequest;
+import com.asqi.scholia_kantin_be.dto.TutupSesiRequest;
 import com.asqi.scholia_kantin_be.dto.TapResponse;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.MetodeBukuKas;
@@ -56,6 +57,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         BukuKasPostingServiceIT.FakeLookupConfig.class})
 @EnabledIfDockerAvailable
 class BukuKasPostingServiceIT {
+
+
+    /** Permintaan tutup sesi dengan hitungan laci (C.3). */
+    private static TutupSesiRequest tutupKas(long uangFisik, String catatan) {
+        TutupSesiRequest r = new TutupSesiRequest();
+        r.setUangFisik(uangFisik);
+        r.setCatatan(catatan);
+        return r;
+    }
 
     private static final long SEKOLAH = 1L;
     private static final long SISWA = 7L;
@@ -137,7 +147,7 @@ class BukuKasPostingServiceIT {
     void postingSaatTutupSesi() {
         Long sesiId = tapDanAmbilSesi("s1", 1); // 8.000
 
-        sesiKasir.tutupSesi(SEKOLAH, sesiId, 555L, false);
+        sesiKasir.tutupSesi(SEKOLAH, sesiId, 555L, false, tutupKas(0L, "uji tutup"));
 
         assertThat(fake.dipanggil).hasSize(1);
         PerintahBukuKas p = fake.dipanggil.get(0);
@@ -166,7 +176,7 @@ class BukuKasPostingServiceIT {
     @DisplayName("idempoten — posting ulang sesi yang sudah terposting tidak memanggil port lagi")
     void postingUlangTidakGanda() {
         Long sesiId = tapDanAmbilSesi("s1", 1);
-        sesiKasir.tutupSesi(SEKOLAH, sesiId, 555L, false);
+        sesiKasir.tutupSesi(SEKOLAH, sesiId, 555L, false, tutupKas(0L, "uji tutup"));
         assertThat(fake.dipanggil).hasSize(1);
 
         HasilJurnalBukuKas hasil = posting.postingUlang(SEKOLAH, sesiId, 555L);
@@ -184,7 +194,7 @@ class BukuKasPostingServiceIT {
         Long sesiId = tapDanAmbilSesi("s1", 1);
         fake.melempar = true;
 
-        SesiKasir sesi = sesiKasir.tutupSesi(SEKOLAH, sesiId, 555L, false);
+        SesiKasir sesi = sesiKasir.tutupSesi(SEKOLAH, sesiId, 555L, false, tutupKas(0L, "uji tutup"));
 
         // Sesi tetap DITUTUP, hanya flag posting yang belum terisi.
         assertThat(sesi.getStatus()).isEqualTo(StatusSesiKasir.DITUTUP);
@@ -206,7 +216,7 @@ class BukuKasPostingServiceIT {
     void bersihNolDilewati() {
         SesiKasir sesi = sesiKasir.bukaSesi(SEKOLAH, TITIK, null); // tanpa transaksi, tanpa aktor
 
-        sesiKasir.tutupSesi(SEKOLAH, sesi.getId(), 555L, false);
+        sesiKasir.tutupSesi(SEKOLAH, sesi.getId(), 555L, false, tutupKas(0L, "uji tutup"));
         HasilJurnalBukuKas hasil = posting.postingUlang(SEKOLAH, sesi.getId(), 555L);
 
         assertThat(fake.dipanggil).isEmpty();
@@ -217,7 +227,7 @@ class BukuKasPostingServiceIT {
     @DisplayName("posting ulang sesi sekolah lain → 404 (bukan 403)")
     void postingUlangTenantLainNotFound() {
         Long sesiId = tapDanAmbilSesi("s1", 1);
-        sesiKasir.tutupSesi(SEKOLAH, sesiId, 555L, false);
+        sesiKasir.tutupSesi(SEKOLAH, sesiId, 555L, false, tutupKas(0L, "uji tutup"));
         fake.dipanggil.clear();
 
         assertThatThrownBy(() -> posting.postingUlang(2L, sesiId, 555L))

@@ -197,10 +197,20 @@ tidak dipotong.
 
 ## 6. Tutup sesi
 
+Kasir wajib menuliskan uang fisik di laci (C.3). Server menghitung
+`selisih = uangFisik − totalTunai` dan menolak `400` bila selisih ≠ 0 tanpa `catatan`.
+
 ```bash
 curl -s -X POST http://localhost:8082/api/kasir/sesi/1/tutup \
-  -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"uangFisik":16000,"catatan":"kas pas"}' | python3 -m json.tool
 ```
+
+Harapan: `code=200`, `data.uangFisik=16000`, `data.selisih=0`, `data.status=DITUTUP`.
+Bila uang fisik 15.000 sementara penjualan tunai 16.000 → `data.selisih=-1000` dan
+`catatan` wajib berisi alasan; tanpa catatan → `400` "Catatan wajib diisi bila ada selisih kas".
+Body tanpa `uangFisik` → `400` "Uang fisik wajib diisi saat tutup kasir".
 
 ## 7. Cek laporan
 
