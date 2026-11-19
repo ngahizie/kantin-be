@@ -25,7 +25,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>Memakai konteks Spring penuh + web server acak (Testcontainers untuk DB),
  * karena springdoc baru membangun dokumen saat seluruh controller terdaftar.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(
+        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        // Default produksi fail-closed (SEC-05); test ini sengaja membuka
+        // dokumentasi agar endpoint-nya bisa diverifikasi.
+        properties = "kantin.openapi.public=true")
 @Import(TestcontainersConfig.class)
 @EnabledIfDockerAvailable
 class OpenApiDocIT {

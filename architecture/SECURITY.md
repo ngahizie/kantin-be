@@ -22,7 +22,7 @@
 ## 2. Alur Verifikasi Token
 
 ```
-Request (Authorization: Bearer <jwt>  atau  Cookie: skoolia-cookies)
+Request (Authorization: Bearer <jwt>  atau  Cookie: skoolia-cookies — hanya GET /api/storage/**)
    │
    ▼
 JwtAuthTokenFilter  ──►  KantinJwtDecoder
@@ -89,7 +89,7 @@ Controller (tipis) ──► Service (aturan bisnis) ──► DB
 | Endpoint | Auth | Peran |
 |---|---|---|
 | `GET /actuator/health` | publik | — |
-| `GET /actuator/prometheus` | publik (default; set `KANTIN_METRICS_PUBLIC=false` untuk menutup) | — |
+| `GET /actuator/prometheus` | token (default fail-closed; set `KANTIN_METRICS_PUBLIC=true` untuk membuka scrape tanpa JWT) | — |
 | `POST /api/webhook/{sumber}` | **HMAC-SHA256 + anti-replay** (bukan token) | — |
 | `GET /api/internal/**` | **HMAC-SHA256 + anti-replay** (rahasia terpisah) | — (mesin-ke-mesin) |
 | `GET /api/auth/me` | token | apa pun yang valid |
@@ -146,6 +146,13 @@ POST /api/webhook/{sumber}
 | Error server | 500 | 500 |
 
 Lihat `BUGS-DITEMUKAN.md` B6–B8 tentang perbaikan status 403 dari `admin-be`.
+
+**Logging 403 (SEC-06):** penolakan dari method security (`@PerluPeran`) dicatat
+`WARN` di `GlobalExceptionHandler` beserta `userId`, `sekolahId`, dan path URI
+(tanpa query string). Penolakan di level filter-chain (mis. request tanpa token
+ke endpoint terproteksi) ditangani `JwtAuthenticationEntryPoint` sebagai 401 dan
+**belum** masuk log yang sama — batasan yang diketahui, kandidat follow-up untuk
+deteksi anomali A09.
 
 ---
 

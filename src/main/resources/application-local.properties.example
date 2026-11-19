@@ -39,6 +39,11 @@ spring.flyway.locations=classpath:db/migration
 spring.flyway.ignore-migration-patterns=*:missing
 kantin.demo.enabled=true
 
+# --- Endpoint publik (default fail-closed di application.properties) ---
+# Aktifkan eksplisit hanya di lokal agar Swagger & metrik mudah diakses.
+kantin.metrics.public=true
+kantin.openapi.public=true
+
 # --- Redis (docker compose up -d) ---
 spring.data.redis.host=localhost
 spring.data.redis.port=6379

@@ -325,7 +325,7 @@ sehingga daftar di atas tidak lagi satu-satunya sumber yang bisa basi:
 | `GET /v3/api-docs` | Spesifikasi OpenAPI 3 (JSON) |
 | `GET /swagger-ui.html` | Swagger UI interaktif (tombol *Authorize* untuk Bearer JWT) |
 
-- Publik bila `KANTIN_OPENAPI_PUBLIC=true` (default); set `false` untuk menutupnya
-  di balik JWT (lihat `WebSecurityConfig` & `OpenApiConfig`).
+- Tertutup secara default (fail-closed); set `KANTIN_OPENAPI_PUBLIC=true` untuk
+  membukanya tanpa JWT (lihat `WebSecurityConfig` & `OpenApiConfig`).
 - Uji: `OpenApiDocIT` memverifikasi `/v3/api-docs` & Swagger UI dapat diakses.
 - Dokumen ini tetap dijaga `ApiEndpointsDocTest` (paritas endpoint kode ↔ tabel).

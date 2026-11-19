@@ -5,9 +5,13 @@ import com.asqi.scholia_kantin_be.component.logging.ErrorLogger;
 import com.asqi.scholia_kantin_be.config.ValidasiContractConfig;
 import com.asqi.scholia_kantin_be.payload.response.CommonResponse;
 import com.asqi.scholia_kantin_be.payload.response.SimpleResponse;
+import com.asqi.scholia_kantin_be.security.IdentitasKantin;
+import com.asqi.scholia_kantin_be.security.TenantContext;
 import io.jsonwebtoken.ExpiredJwtException;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSourceResolvable;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -51,6 +55,7 @@ import java.util.Objects;
  * </ul>
  */
 @ControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler {
 
     /**
@@ -203,9 +208,28 @@ public class GlobalExceptionHandler {
                 .body(buildSimpleResponse("Kredensial tidak valid"));
     }
 
-    /** RBAC gagal → 403 (bukan 500 seperti admin-be). */
+    /**
+     * RBAC gagal → 403 (bukan 500 seperti admin-be).
+     *
+     * <p>Setiap penolakan method security dicatat level {@code WARN} (SEC-06)
+     * agar anomali akses bisa dideteksi. Penolakan di level filter-chain
+     * (mis. request tanpa token) ditangani entry point sebagai 401 dan tidak
+     * lewat handler ini. Hanya path URI yang dicatat — query string tidak,
+     * supaya parameter sensitif tidak masuk log. Identitas diambil dari
+     * {@link TenantContext} yang masih terisi sampai filter selesai.
+     *
+     * @param ex      exception akses ditolak dari method security
+     * @param request request yang ditolak
+     * @return respons 403 standar
+     */
     @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<?> handleAccessDenied(AccessDeniedException ex) {
+    public ResponseEntity<?> handleAccessDenied(AccessDeniedException ex,
+                                                HttpServletRequest request) {
+        IdentitasKantin identitas = TenantContext.get();
+        log.warn("Akses ditolak (403): userId={}, sekolahId={}, uri={}",
+                identitas == null ? null : identitas.getUserId(),
+                identitas == null ? null : identitas.getSekolahId(),
+                request.getRequestURI());
         return CommonResponse.forbidden("Anda tidak berhak mengakses aksi ini");
     }
 

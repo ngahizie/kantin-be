@@ -17,6 +17,8 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
@@ -37,12 +39,19 @@ import java.util.Objects;
  * <p>Menerima token dari:
  * <ol>
  *   <li>Header {@code Authorization: Bearer &lt;token&gt;} — jalur utama (klien API).</li>
- *   <li>Cookie (nama dari {@code jwt.cookieName}) — kompatibilitas FE SKOOLIA.</li>
+ *   <li>Cookie (nama dari {@code jwt.cookieName}) — <b>hanya</b> untuk
+ *       {@code GET /api/storage/**} (kompatibilitas FE SKOOLIA).</li>
  *   <li>Cookie {@value #COOKIE_FE} — cookie yang ditulis kantin-fe
  *       ({@code src/stores/auth-store.ts}). Diperlukan agar {@code <img>} bisa
  *       memuat {@code /api/storage/file} karena tag gambar tidak mengirim header
  *       {@code Authorization}.</li>
  * </ol>
+ *
+ * <p><b>Batasan cookie (SEC-02):</b> cookie tidak pernah dipakai untuk request
+ * mutasi atau endpoint non-storage. CSRF dinonaktifkan di
+ * {@code WebSecurityConfig}, jadi menerima cookie secara global akan membuka
+ * jalur autentikasi lintas-situs. Rute selain {@code GET /api/storage/**}
+ * wajib memakai header {@code Authorization}.
  *
  * <p>kantin-be tidak tahu issuer dari token mentah, jadi filter mencoba
  * <b>admin</b> dulu lalu <b>mobile</b>. Aman karena public key berbeda —
@@ -61,6 +70,12 @@ import java.util.Objects;
 public class JwtAuthTokenFilter extends OncePerRequestFilter {
 
     private static final String BEARER = "Bearer ";
+
+    /**
+     * Satu-satunya prefix URI yang boleh memakai token dari cookie.
+     * Memakai garis miring di akhir agar {@code /api/storagefoo} tidak lolos.
+     */
+    static final String PREFIX_COOKIE_STORAGE = "/api/storage/";
 
     /** Cookie token milik kantin-fe; nilainya JSON string (berkutip). */
     static final String COOKIE_FE = "kantin_access_token";
@@ -152,15 +167,48 @@ public class JwtAuthTokenFilter extends OncePerRequestFilter {
         }
     }
 
-    private String ambilToken(HttpServletRequest request) {
-        String header = request.getHeader("Authorization");
-        if (header != null && header.startsWith(BEARER)) {
-            String token = header.substring(BEARER.length()).trim();
-            if (!token.isEmpty()) {
-                return token;
+    /**
+     * Ambil token dari header Bearer atau — hanya untuk {@code GET /api/storage/**} — cookie.
+     *
+     * <p>Bila header {@code Authorization} ada tetapi bukan Bearer yang valid,
+     * metode ini <b>tidak</b> jatuh ke cookie. Fallback diam-diam semacam itu
+     * membuat request mutasi tetap bisa diautentikasi lewat cookie (CSRF),
+     * meskipun klien sebenarnya mengirim kredensial yang salah.
+     *
+     * @param request request HTTP masuk
+     * @return token siap verifikasi, atau {@code null} bila tidak ada sumber yang sah
+     */
+    String ambilToken(HttpServletRequest request) {
+        String header = request.getHeader(HttpHeaders.AUTHORIZATION);
+        if (header != null) {
+            if (header.regionMatches(true, 0, BEARER, 0, BEARER.length())) {
+                String token = header.substring(BEARER.length()).trim();
+                if (!token.isEmpty()) {
+                    return token;
+                }
             }
+            return null;
+        }
+
+        if (!bolehTokenDariCookie(request)) {
+            return null;
         }
         return tokenDariCookie(request.getCookies(), configValues.getCookieName());
+    }
+
+    /**
+     * Cookie hanya boleh dipakai untuk memuat berkas media lewat {@code <img>}.
+     *
+     * @param request request HTTP masuk
+     * @return {@code true} bila method {@code GET} dan URI berada di bawah
+     *         {@value #PREFIX_COOKIE_STORAGE}
+     */
+    private boolean bolehTokenDariCookie(HttpServletRequest request) {
+        if (!HttpMethod.GET.matches(request.getMethod())) {
+            return false;
+        }
+        String uri = request.getRequestURI();
+        return uri != null && uri.startsWith(PREFIX_COOKIE_STORAGE);
     }
 
     /**

@@ -126,8 +126,8 @@ Kontrak & pertanyaan yang memblokir: [`architecture/INTEGRATIONS.md`](architectu
 - Metrik Prometheus: `GET /actuator/prometheus` (Micrometer); SLO tap p95 ≤ 1 dtk diukur lewat
   timer `kantin_tap_duration_seconds` — [`docs/OBSERVABILITY.md`](docs/OBSERVABILITY.md).
 - Uji beban (k6) untuk SLO tap: [`docs/uji-beban-tap.md`](docs/uji-beban-tap.md) (skrip di `load/`).
-- Swagger UI: `GET /swagger-ui.html` · OpenAPI: `GET /v3/api-docs` (springdoc). Publik bila
-  `KANTIN_OPENAPI_PUBLIC=true`; set `false` untuk menutup di balik JWT.
+- Swagger UI: `GET /swagger-ui.html` · OpenAPI: `GET /v3/api-docs` (springdoc). Tertutup
+  secara default; set `KANTIN_OPENAPI_PUBLIC=true` untuk membukanya tanpa JWT.
 
 ---
 
