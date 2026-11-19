@@ -10,7 +10,7 @@ Dokumen ini menjelaskan metrik yang diekspos `kantin-be` dan cara memantau
 | Endpoint scrape | `GET /actuator/prometheus` |
 | Registry | Micrometer + `micrometer-registry-prometheus` |
 | Format | Prometheus text exposition |
-| Autentikasi | **publik** secara default (`kantin.metrics.public=true`); set `KANTIN_METRICS_PUBLIC=false` untuk menutup di balik JWT |
+| Autentikasi | **tertutup** secara default (`kantin.metrics.public=false`); set `KANTIN_METRICS_PUBLIC=true` untuk membuka scrape tanpa JWT |
 | Health | `GET /actuator/health` (+ `/liveness`, `/readiness` bila probes aktif) |
 
 ## 2. Metrik tap (SLO utama)
@@ -81,7 +81,7 @@ tanpa instrumentasi tambahan.
 | `management.endpoint.health.probes.enabled` | `true` | `/liveness`, `/readiness` |
 | `management.metrics.tags.application` | nama aplikasi | tag global tiap deret |
 | `management.distributions.percentiles-histogram.http.server.requests` | `true` | histogram latensi HTTP |
-| `kantin.metrics.public` (`KANTIN_METRICS_PUBLIC`) | `true` | `/actuator/prometheus` tanpa token |
+| `kantin.metrics.public` (`KANTIN_METRICS_PUBLIC`) | `false` | `/actuator/prometheus` butuh token; set `true` untuk scrape tanpa JWT |
 
 ## 5. Scrape config Prometheus
 
@@ -93,5 +93,6 @@ scrape_configs:
       - targets: ['kantin-be:8082']
 ```
 
-Bila `KANTIN_METRICS_PUBLIC=false`, tambahkan `authorization` bearer token pada
-scrape config karena endpoint kembali butuh JWT.
+Karena default-nya `KANTIN_METRICS_PUBLIC=false`, tambahkan `authorization`
+bearer token pada scrape config. Set `KANTIN_METRICS_PUBLIC=true` hanya bila
+endpoint memang boleh di-scrape tanpa autentikasi.

@@ -88,19 +88,20 @@ public class WebSecurityConfig {
 
     /**
      * Bila {@code true}, {@code /actuator/prometheus} dapat di-scrape tanpa
-     * token (issue #146). Default {@code true} agar Prometheus/Grafana mudah
-     * dipasang; set {@code false} bila metrik harus tetap di balik JWT.
+     * token (issue #146). Default {@code false} (fail-closed, SEC-05) agar
+     * metrik tidak terbuka di produksi tanpa keputusan eksplisit; aktifkan
+     * hanya di profil lokal/lingkungan yang memang perlu di-scrape.
      */
-    @Value("${kantin.metrics.public:true}")
+    @Value("${kantin.metrics.public:false}")
     private boolean metricsPublic;
 
     /**
      * Bila {@code true}, dokumentasi OpenAPI (springdoc) dapat diakses tanpa
      * token: {@code /v3/api-docs/**}, {@code /swagger-ui/**} (#149). Default
-     * {@code true} agar dokumen API mudah ditelusuri; set {@code false} untuk
-     * menutupnya di balik JWT (mis. di produksi).
+     * {@code false} (fail-closed, SEC-05); aktifkan eksplisit di profil lokal
+     * atau lingkungan yang memang mempublikasikan dokumentasi.
      */
-    @Value("${kantin.openapi.public:true}")
+    @Value("${kantin.openapi.public:false}")
     private boolean openApiPublic;
 
     @Bean
@@ -114,14 +115,14 @@ public class WebSecurityConfig {
                         ? new String[]{"/actuator/health/**", "/actuator/info",
                                 "/api/internal/**", "/error", "/api/v1/auth/login"}
                         : PUBLIC_ENDPOINTS));
-        // Metrik Prometheus (issue #146) — publik bila diaktifkan agar bisa
-        // di-scrape; bila tidak, endpoint tetap butuh token (tertutup default
-        // hanya bila KANTIN_METRICS_PUBLIC=false).
+        // Metrik Prometheus (issue #146) — tertutup secara default (SEC-05).
+        // Set KANTIN_METRICS_PUBLIC=true hanya bila endpoint memang perlu
+        // di-scrape tanpa token.
         if (metricsPublic) {
             publik.add("/actuator/prometheus");
         }
-        // Dokumentasi OpenAPI (springdoc, #149) — publik bila diaktifkan agar
-        // mudah ditelusuri; set KANTIN_OPENAPI_PUBLIC=false untuk menutupnya.
+        // Dokumentasi OpenAPI (springdoc, #149) — tertutup secara default
+        // (SEC-05). Set KANTIN_OPENAPI_PUBLIC=true untuk mempublikasikannya.
         if (openApiPublic) {
             publik.add("/v3/api-docs/**");
             publik.add("/swagger-ui/**");

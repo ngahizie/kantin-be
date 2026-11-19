@@ -31,8 +31,8 @@ Keterangan penanda:
 - [ ] `KANTIN_DEV_LOGIN_PRIVATE_KEY` **kosong**
 - [ ] `KANTIN_DEMO_ENABLED=false` (jalur demo E2E)
 - [ ] `KANTIN_LOADTEST_ENABLED=false`
-- [ ] `KANTIN_OPENAPI_PUBLIC=false` (atau dibatasi di balik JWT/gateway)
-- [ ] `KANTIN_METRICS_PUBLIC=false` (atau allowlist scraper Prometheus)
+- [ ] `KANTIN_OPENAPI_PUBLIC` **tidak** `true` (default fail-closed; atau dibatasi di balik JWT/gateway)
+- [ ] `KANTIN_METRICS_PUBLIC` **tidak** `true` (default fail-closed; atau allowlist scraper Prometheus)
 - [ ] Semua `KANTIN_INTEGRASI_*_ENABLED=false` kecuali endpoint nyatanya **sudah siap** (lihat #164)
 
 ## B. Rahasia & kunci 🔴
