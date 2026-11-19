@@ -183,7 +183,7 @@ class RbacKepsekGuardTest {
     @Test
     @DisplayName("laporan STOK (§9.5: hanya Pengelola & Bendahara) tertutup untuk kepsek")
     void laporanStokTertutupUntukKepsek() {
-        assertThat(peranPada(LaporanController.class, "stok", boolean.class))
+        assertThat(peranPada(LaporanController.class, "stok", boolean.class, int.class, int.class))
                 .doesNotContain(AktorKantin.KEPSEK);
     }
 
@@ -215,7 +215,7 @@ class RbacKepsekGuardTest {
 
         assertThat(peranPada(LaporanController.class, "saldoMengendapSiswa", String.class, int.class))
                 .doesNotContain(AktorKantin.KEPSEK);
-        assertThat(peranPada(LaporanController.class, "stok", boolean.class))
+        assertThat(peranPada(LaporanController.class, "stok", boolean.class, int.class, int.class))
                 .doesNotContain(AktorKantin.KEPSEK);
         assertThat(peranPada(LaporanController.class, "pembatalan", PERIODE))
                 .doesNotContain(AktorKantin.KEPSEK);
