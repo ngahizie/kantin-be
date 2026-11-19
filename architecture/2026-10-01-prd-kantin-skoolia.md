@@ -201,6 +201,7 @@ Sekolah dapat mengaktifkan kembali **langkah konfirmasi manual** (petugas meneka
 
 - Setiap transaksi memiliki **ID unik yang dibuat oleh klien kasir** (idempotency key). Tap ganda atau retry jaringan dengan ID yang sama **tidak boleh** memotong saldo atau stok dua kali; respons kedua mengembalikan hasil transaksi pertama.
 - Saldo dan stok **tidak boleh minus** dalam kondisi apa pun, termasuk saat dua titik kasir memproses kartu atau item yang sama secara bersamaan.
+  - *Pengecualian (ADR-0013, 19 Nov 2026):* bila stok sistem habis padahal barangnya masih ada di **gudang/cadangan**, kasir boleh menjual dengan konfirmasi eksplisit (`izinkanStokMinus`). Penjualan itu dicatat sebagai mutasi `PENJUALAN_MINUS` (boleh `stok_setelah < 0`) dan wajib ditutup opname masuk. Jenis mutasi lain (barang masuk, opname, void, pembalik) tetap wajib `stok_setelah >= 0`.
 - Setiap transaksi menyimpan: siswa atau Kartu Tamu, kartu yang dipakai, titik kasir, akun petugas, sesi kasir, daftar item (nama, harga jual, kategori, qty, **HPP per unit saat itu** — *snapshot*), total, dan waktu.
 - **Tidak ada item manual / nominal bebas.** Semua penjualan wajib dari katalog agar stok dan HPP terlacak.
 

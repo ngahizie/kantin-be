@@ -229,24 +229,56 @@ public class LedgerStokService {
      */
     @Transactional(propagation = Propagation.MANDATORY)
     public HasilMutasiStok keluarPenjualan(Long sekolahId, Long menuId, int qty, Long transaksiId) {
+        return keluarPenjualan(sekolahId, menuId, qty, transaksiId, false, null);
+    }
+
+    /**
+     * Kurangi stok karena penjualan, dengan opsi <b>jual melebihi catatan</b>
+     * (ADR-0013, butir C.1 ceklis review).
+     *
+     * <p>Bila {@code izinkanMinus} {@code false} → perilaku lama: stok kurang
+     * melempar {@link ConflictException} dan stok tak pernah negatif.
+     *
+     * <p>Bila {@code true} → penjualan tetap dicatat walau stok sistem habis
+     * (barang masih ada di gudang/cadangan). Mutasi diberi jenis
+     * {@link JenisMutasiStok#PENJUALAN_MINUS} saat {@code stok_setelah < 0} supaya
+     * laporan bisa memisahkannya, dan ditulis ke audit log. Minus hanya dapat
+     * ditutup lewat opname masuk.
+     */
+    public HasilMutasiStok keluarPenjualan(Long sekolahId, Long menuId, int qty, Long transaksiId,
+                                           boolean izinkanMinus, String alasan) {
         if (qty <= 0) {
             throw new InvalidOperationException("Qty penjualan harus > 0");
         }
 
         Stok cache = kunciStok(sekolahId, menuId);
         int stokSebelum = cache.getStok();
-        if (stokSebelum < qty) {
+        if (stokSebelum < qty && !izinkanMinus) {
             throw new ConflictException("Stok tidak cukup (sisa " + stokSebelum + ")");
         }
         long hppSnapshot = cache.getHpp();
         int stokBaru = stokSebelum - qty;
+        boolean melebihiCatatan = stokBaru < 0;
+        JenisMutasiStok jenis = melebihiCatatan
+                ? JenisMutasiStok.PENJUALAN_MINUS
+                : JenisMutasiStok.PENJUALAN;
 
-        RiwayatStok mutasi = catat(ArahStok.KELUAR, JenisMutasiStok.PENJUALAN, sekolahId, menuId,
-                qty, stokBaru, hppSnapshot, transaksiId, null, null, null, null, null, null);
+        RiwayatStok mutasi = catat(ArahStok.KELUAR, jenis, sekolahId, menuId,
+                qty, stokBaru, hppSnapshot, transaksiId, null, null, alasan, null, null, null);
 
         cache.setStok(stokBaru);
         cache.setUpdatedAt(jam.sekarang());
         cacheRepo.save(cache);
+
+        if (melebihiCatatan) {
+            // Jejak wajib (ADR-0013): siapa, kapan, sisa stok, dan alasan kasir.
+            auditLogger.catat(null, sekolahId, "PENJUALAN_STOK_MINUS", "Stok",
+                    "MENU:" + menuId, alasan,
+                    "stok=" + stokSebelum,
+                    "stok=" + stokBaru + ";qty=" + qty + ";transaksi=" + transaksiId);
+            log.warn("Penjualan melebihi catatan menu={} qty={} stok {} → {} (transaksi={})",
+                    menuId, qty, stokSebelum, stokBaru, transaksiId);
+        }
 
         return HasilMutasiStok.baru(mutasi, stokBaru, hppSnapshot);
     }

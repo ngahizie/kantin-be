@@ -138,6 +138,30 @@ class TapValidatorTest {
     }
 
     @Test
+    @DisplayName("ADR-0013: stok 0 + izinkanStokMinus → tap lolos")
+    void stokHabisDiizinkanKasir() {
+        when(ledgerStok.stok(anyLong(), anyLong())).thenReturn(0);
+        InfoKartu kartu = kartuSiswa(1_000_000, Set.of(), Set.of());
+        TapRequest r = request(1, 0);
+        r.setIzinkanStokMinus(true);
+        var hasil = validator.validasi(SEKOLAH, r, kartu, 999_999, 0, lookup());
+        assertThat(hasil.valid()).isTrue();
+        assertThat(hasil.getTotal()).isEqualTo(8_000L);
+    }
+
+    @Test
+    @DisplayName("ADR-0013: stok kurang + izinkanStokMinus → lolos, total penuh")
+    void stokKurangDiizinkanKasir() {
+        when(ledgerStok.stok(anyLong(), anyLong())).thenReturn(1);
+        InfoKartu kartu = kartuSiswa(1_000_000, Set.of(), Set.of());
+        TapRequest r = request(2, 0);
+        r.setIzinkanStokMinus(true);
+        var hasil = validator.validasi(SEKOLAH, r, kartu, 999_999, 0, lookup());
+        assertThat(hasil.valid()).isTrue();
+        assertThat(hasil.getTotal()).isEqualTo(16_000L);
+    }
+
+    @Test
     @DisplayName("tahap 5 — melebihi limit harian (sisa ditampilkan)")
     void melebihiLimitHarian() {
         // total = 8000 + 5000 = 13000; limit 10000; sudah belanja 5000 → sisa 5000

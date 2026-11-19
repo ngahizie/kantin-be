@@ -44,11 +44,12 @@ public class HppService {
         if (qtyMasuk <= 0) {
             throw new InvariantViolationException("qtyMasuk harus > 0");
         }
-        if (stokSekarang < 0 || hppSekarang < 0 || hargaBeli < 0) {
-            throw new InvariantViolationException("stok/HPP/harga beli tidak boleh negatif");
+        if (hppSekarang < 0 || hargaBeli < 0) {
+            throw new InvariantViolationException("HPP/harga beli tidak boleh negatif");
         }
 
-        // Stok kosong (atau minus secara teori) → HPP = harga beli barang masuk.
+        // Stok kosong ATAU minus (penjualan melebihi catatan, ADR-0013) → HPP = harga beli
+        // barang masuk. Rata-rata tertimbang tidak bermakna bila stok tidak positif.
         if (stokSekarang <= 0) {
             return hargaBeli;
         }

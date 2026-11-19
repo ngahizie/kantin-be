@@ -232,6 +232,8 @@ public class TapService {
                 .total(siap.hasil().getTotal())
                 .itemsJson(tulisItems(request.getItems()))
                 .status(StatusPendingTap.MENUNGGU)
+                .izinkanStokMinus(Boolean.TRUE.equals(request.getIzinkanStokMinus()))
+                .alasanStokMinus(request.getAlasanStokMinus())
                 .dibuatAt(now)
                 .createdAt(now)
                 .updatedAt(now)
@@ -372,7 +374,9 @@ public class TapService {
         List<String> namaItem = new ArrayList<>();
         for (TapValidator.Baris baris : hasil.getBaris()) {
             HasilMutasiStok mutasiStok = ledgerStok.keluarPenjualan(
-                    sekolahId, baris.getMenuId(), baris.getQty(), transaksiId);
+                    sekolahId, baris.getMenuId(), baris.getQty(), transaksiId,
+                    Boolean.TRUE.equals(request.getIzinkanStokMinus()),
+                    request.getAlasanStokMinus());
             long hppSnapshot = mutasiStok.getHppSetelah();
             totalHpp += hppSnapshot * baris.getQty();
 
@@ -578,6 +582,8 @@ public class TapService {
         request.setRfidUid(pending.getRfidUid());
         request.setTitikKasirId(pending.getTitikKasirId());
         request.setIdempotencyKey(pending.getIdempotencyKey());
+        request.setIzinkanStokMinus(pending.isIzinkanStokMinus());
+        request.setAlasanStokMinus(pending.getAlasanStokMinus());
         try {
             request.setItems(objectMapper.readValue(pending.getItemsJson(),
                     new TypeReference<List<TapRequest.ItemTap>>() { }));
