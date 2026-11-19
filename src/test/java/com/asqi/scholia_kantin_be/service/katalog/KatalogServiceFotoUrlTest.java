@@ -93,6 +93,34 @@ class KatalogServiceFotoUrlTest {
     }
 
     @Test
+    @DisplayName("path relatif huruf besar ke sekolah lain ditolak")
+    void pathRelatifHurufBesarDitolak() {
+        assertThatThrownBy(() -> KatalogService.validasiFotoUrlMilikTenant(
+                SEKOLAH, "SEKOLAH-9/menu/a.png"))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("storage sekolah ini");
+    }
+
+    @Test
+    @DisplayName("URL storage huruf besar ke sekolah lain ditolak")
+    void urlStorageHurufBesarDitolak() {
+        assertThatThrownBy(() -> KatalogService.validasiFotoUrlMilikTenant(
+                SEKOLAH, "/API/STORAGE/file?path=sekolah-9%2Fmenu%2Fa.png"))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("storage sekolah ini");
+    }
+
+    @Test
+    @DisplayName("URL absolut huruf besar ke host storage sendiri diperiksa tenant")
+    void urlAbsolutHurufBesarDitolak() {
+        assertThatThrownBy(() -> KatalogService.validasiFotoUrlMilikTenant(
+                SEKOLAH, "https://cdn.sekolah.id/kantin/SEKOLAH-9/menu/a.png",
+                "https://cdn.sekolah.id/kantin"))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("storage sekolah ini");
+    }
+
+    @Test
     @DisplayName("URL absolut ke host storage sendiri wajib milik tenant")
     void urlAbsolutHostStorageDiperiksa() {
         String basis = "https://cdn.sekolah.id/kantin";

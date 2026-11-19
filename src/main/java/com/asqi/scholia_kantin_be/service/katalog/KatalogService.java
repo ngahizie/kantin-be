@@ -27,6 +27,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -406,6 +407,10 @@ public class KatalogService {
      * ({@code minio.url-final}), URL itu menunjuk storage sendiri sehingga
      * prefix tenant-nya ikut diperiksa.
      *
+     * <p>Deteksi bentuk memakai bentuk huruf kecil: {@code @Pattern} bersifat
+     * case-insensitive ({@code (?i)}), jadi tanpa normalisasi ini
+     * {@code SEKOLAH-9/menu/x.jpg} lolos tanpa masuk cabang pemeriksaan mana pun.
+     *
      * @param sekolahId   tenant pemanggil
      * @param fotoUrl     nilai dari request; {@code null}/kosong dianggap tanpa foto
      * @param basisPublik basis URL publik storage; boleh kosong
@@ -416,19 +421,22 @@ public class KatalogService {
             return;
         }
         String url = fotoUrl.trim();
+        // @Pattern memakai (?i); samakan bentuk untuk deteksi agar varian
+        // huruf besar tidak melewati pemeriksaan tenant.
+        String urlRendah = url.toLowerCase(Locale.ROOT);
         String prefixTenant = "sekolah-" + sekolahId + "/";
 
-        if (url.startsWith("sekolah-")) {
-            pastikanPathMilikTenant(url, prefixTenant);
+        if (urlRendah.startsWith("sekolah-")) {
+            pastikanPathMilikTenant(urlRendah, prefixTenant);
             return;
         }
-        if (url.startsWith("/api/storage/")) {
+        if (urlRendah.startsWith("/api/storage/")) {
             pastikanPathMilikTenant(ambilPathDariUrlStorage(url), prefixTenant);
             return;
         }
         String path = pathRelatifTerhadapBasis(url, basisPublik);
         if (path != null) {
-            pastikanPathMilikTenant(path, prefixTenant);
+            pastikanPathMilikTenant(path.toLowerCase(Locale.ROOT), prefixTenant);
         }
     }
 
