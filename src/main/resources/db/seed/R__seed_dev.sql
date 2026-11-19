@@ -12,13 +12,16 @@
 -- Password semua akun: Kantin#2026
 --
 -- Isi:
---   sekolah 2 · pengguna 14 (7 peran x 2 sekolah, 2 kasir per sekolah) · siswa 19 (foto terisi)
---   orang_tua 38 (2 wali per siswa) · kartu 19 · kategori_menu 8
+--   sekolah 2 · pengguna 14 (7 peran x 2 sekolah, 2 kasir per sekolah) · siswa 21 (19 aktif + 2 nonaktif)
+--   orang_tua 42 (2 wali per siswa) · kartu 21 · kategori_menu 8
 --   menu 24 · stok 24 · titik_kasir 4 · pengaturan_kantin 2
---   akun_buku_kas 8 · saldo 19
---   sesi_kasir 14 · transaksi 56 · transaksi_item 97 · mutasi_saldo 73
---   riwayat_stok 123 · jurnal_buku_kas 68 · setoran 2
---   kejadian_offline 2 · catatan_audit 6 · pembatasan 3 · transaksi_tertunda 2
+--   akun_buku_kas 8 · saldo 21
+--   sesi_kasir 16 (14 ditutup, 2 terbuka) · transaksi 62 (61 sukses: 55 saldo + 6 tunai; 1 void)
+--   transaksi_item 107
+--   mutasi_saldo 80 (topup tunai/online, penjualan, void, refund, transfer, koreksi)
+--   riwayat_stok 138 (termasuk 5 kerugian: 3 barang rusak + 2 opname keluar)
+--   jurnal_buku_kas 74 · setoran 2
+--   kejadian_offline 2 · catatan_audit 10 · pembatasan 3 · transaksi_tertunda 2
 --
 -- Riwayat 7 hari terakhir memakai `current_date - n`, jadi dashboard, laporan
 -- harian, dan rekap sesi selalu ada isinya tanpa perlu transaksi manual.
@@ -773,7 +776,188 @@ insert into transaksi_tertunda (id, sekolah_id, idempotency_key, rfid_uid, titik
   (1, 1, 'SEED-PENDING-1', '04AA000202', 1, 4, 11000, '[{\"menuId\": 3, \"namaMenu\": \"Es Teh Manis\", \"hargaJual\": 3000, \"qty\": 2, \"subtotal\": 6000}, {\"menuId\": 6, \"namaMenu\": \"Keripik Qtela Singkong 60 g\", \"hargaJual\": 5000, \"qty\": 1, \"subtotal\": 5000}]', 'MENUNGGU',    null, (current_date - 0 + time '10:50')::timestamptz, (current_date - 0 + time '10:55')::timestamptz, 202),
   (2, 1, 'SEED-PENDING-2', '04AA000201', 1, 4, 7000,  '[{\"menuId\": 10, \"namaMenu\": \"Buku Tulis Sidu 38 Lembar\", \"hargaJual\": 7000, \"qty\": 1, \"subtotal\": 7000}]', 'DIBATALKAN',  null, (current_date - 1 + time '11:15')::timestamptz, (current_date - 1 + time '11:20')::timestamptz, 201);
 
--- 24. TIDAK PERLU SINKRON SEQUENCE
+-- =====================================================================
+-- 24. PELENGKAP DEMO — menutup layar yang tadinya kosong
+--     (C.2a bayar tunai, C.3 kas fisik & selisih, laporan kerugian stok,
+--      refund / pindah saldo / koreksi saldo, topup online)
+--
+--     Catatan penting: mutasi_saldo & riwayat_stok bersifat APPEND-ONLY
+--     (trigger tolak_perubahan_ledger), jadi saldo_setelah/stok_setelah
+--     TIDAK boleh dikoreksi lewat UPDATE. Karena itu:
+--       · saldo_setelah memakai Σ ledger saat itu (bukan literal);
+--       · stok_setelah memakai stok akhir dikurangi qty, dan setiap menu
+--         hanya dipakai SEKALI di blok ini, semuanya berwaktu sore hari
+--         (setelah seluruh baris seed lain) agar rantai stok_setelah utuh.
+-- =====================================================================
+
+-- 24a. Dua siswa NONAKTIF — syarat layar /saldo/refund:
+--      satu masih bersaldo (kandidat refund), satu sudah direfund penuh.
+insert into siswa (id, sekolah_id, nis, nisn, nama, kelas, foto_url, aktif) values
+  (1201, 1,  '24251201', '001210000', 'Dimas Prakoso',      '9C', 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400', false),
+  (1202, 10, '24251202', '001220000', 'Laras Ayuningtyas',  '9A', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400', false);
+
+insert into orang_tua (sekolah_id, siswa_id, nama, telepon, hubungan, punya_aplikasi, aktif) values
+  (1,  1201, 'Bapak Prakoso',     '081200001201', 'AYAH', true, true),
+  (1,  1201, 'Ibu Prakoso',       '081300001201', 'IBU',  true, true),
+  (10, 1202, 'Bapak Ayuningtyas', '081200001202', 'AYAH', true, true),
+  (10, 1202, 'Ibu Ayuningtyas',   '081300001202', 'IBU',  true, true);
+
+-- Kartu siswa nonaktif: sengaja aktif=false agar tidak bisa dipakai tap.
+insert into kartu (uid, sekolah_id, siswa_id, nomor_kartu, aktif) values
+  ('04AA001201', 1,  1201, 'RFID-SISWA-1201', false),
+  ('DA1001202',  10, 1202, 'RFID-SISWA-1202', false);
+
+-- Baris cache saldo awal 0; trigger hanya meng-UPDATE baris yang sudah ada.
+insert into saldo (sekolah_id, siswa_id, saldo) values
+  (1,  1201, 0),
+  (10, 1202, 0);
+
+-- 24b. Mutasi saldo pelengkap: topup, refund, pindah saldo, koreksi, topup online.
+--      Waktu sengaja sore hari supaya menjadi baris TERAKHIR tiap siswa —
+--      invariant "saldo_setelah berurutan" tetap terpenuhi.
+insert into mutasi_saldo (id, sekolah_id, siswa_id, arah, jenis, nominal, saldo_setelah, transaksi_id, idempotency_key, referensi_tipe, referensi_id, keterangan, aktor_id, waktu) values
+  (74, 1,  1201, 'KREDIT', 'TOPUP_TUNAI', 35000, 35000, null, 'SEED-TOPUP-1201', 'TOPUP', 'TOPUP-1201', 'Top up tunai terakhir sebelum siswa lulus', 2, (current_date + time '16:30')::timestamptz),
+  (75, 10, 1202, 'KREDIT', 'TOPUP_TUNAI', 28000, 28000, null, 'SEED-TOPUP-1202', 'TOPUP', 'TOPUP-1202', 'Top up tunai sebelum siswa pindah sekolah', 12, (current_date + time '16:30')::timestamptz);
+
+insert into mutasi_saldo (id, sekolah_id, siswa_id, arah, jenis, nominal, saldo_setelah, transaksi_id, idempotency_key, referensi_tipe, referensi_id, keterangan, aktor_id, waktu)
+select 76, 10, 1202, 'DEBIT', 'REFUND', 28000,
+       (select coalesce(sum(case when m.arah = 'KREDIT' then m.nominal else -m.nominal end), 0)
+          from mutasi_saldo m where m.sekolah_id = 10 and m.siswa_id = 1202) - 28000,
+       null, 'SEED-REFUND-1202', 'REFUND', 'REFUND-1202',
+       'Refund sisa saldo — siswa pindah sekolah (PRD §9.3)', 15, (current_date + time '16:35')::timestamptz;
+
+insert into mutasi_saldo (id, sekolah_id, siswa_id, arah, jenis, nominal, saldo_setelah, transaksi_id, idempotency_key, referensi_tipe, referensi_id, keterangan, aktor_id, waktu)
+select 77, 1, 101, 'DEBIT', 'TRANSFER', 10000,
+       (select coalesce(sum(case when m.arah = 'KREDIT' then m.nominal else -m.nominal end), 0)
+          from mutasi_saldo m where m.sekolah_id = 1 and m.siswa_id = 101) - 10000,
+       null, 'SEED-TRANSFER-101', 'TRANSFER', 'TRANSFER-101',
+       'Pindah saldo ke saudara kandung (PRD §9.3)', 5, (current_date + time '16:40')::timestamptz;
+
+insert into mutasi_saldo (id, sekolah_id, siswa_id, arah, jenis, nominal, saldo_setelah, transaksi_id, idempotency_key, referensi_tipe, referensi_id, keterangan, aktor_id, waktu)
+select 78, 1, 12, 'KREDIT', 'TRANSFER', 10000,
+       (select coalesce(sum(case when m.arah = 'KREDIT' then m.nominal else -m.nominal end), 0)
+          from mutasi_saldo m where m.sekolah_id = 1 and m.siswa_id = 12) + 10000,
+       null, 'SEED-TRANSFER-12', 'TRANSFER', 'TRANSFER-101',
+       'Menerima pindahan saldo dari saudara (PRD §9.3)', 5, (current_date + time '16:40')::timestamptz;
+
+insert into mutasi_saldo (id, sekolah_id, siswa_id, arah, jenis, nominal, saldo_setelah, transaksi_id, idempotency_key, referensi_tipe, referensi_id, keterangan, aktor_id, waktu)
+select 79, 1, 104, 'KREDIT', 'KOREKSI', 5000,
+       (select coalesce(sum(case when m.arah = 'KREDIT' then m.nominal else -m.nominal end), 0)
+          from mutasi_saldo m where m.sekolah_id = 1 and m.siswa_id = 104) + 5000,
+       null, 'SEED-KOREKSI-104', 'KOREKSI', 'KOREKSI-104',
+       'Koreksi saldo — selisih hitung setoran TU', 5, (current_date + time '16:45')::timestamptz;
+
+insert into mutasi_saldo (id, sekolah_id, siswa_id, arah, jenis, nominal, saldo_setelah, transaksi_id, idempotency_key, referensi_tipe, referensi_id, keterangan, aktor_id, waktu)
+select 80, 1, 105, 'KREDIT', 'TOPUP_ONLINE', 50000,
+       (select coalesce(sum(case when m.arah = 'KREDIT' then m.nominal else -m.nominal end), 0)
+          from mutasi_saldo m where m.sekolah_id = 1 and m.siswa_id = 105) + 50000,
+       null, 'SEED-TOPUP-ONLINE-105', 'TOPUP_ONLINE', 'TOPUP-ONLINE-105',
+       'Top up online via payment gateway (PRD §8.2)', 2, (current_date + time '16:50')::timestamptz;
+
+-- 24c. Dua sesi tambahan HARI INI di loket kedua (sudah ditutup) — tempat
+--      contoh kas fisik & selisih (C.3) tanpa mengganggu sesi kasir demo.
+insert into sesi_kasir (id, sekolah_id, titik_kasir_id, tanggal, status, total_bruto, total_void, total_bersih, dibuka_at, dibuka_oleh, ditutup_at, ditutup_oleh, auto_tutup, jurnal_buku_kas, referensi_buku_kas, uang_fisik, selisih, catatan) values
+  (5,  1,  2,  current_date, 'DITUTUP', 0, 0, 0, (current_date + time '07:40')::timestamptz, 7,  (current_date + time '16:45')::timestamptz, 7,  false, true, 'SESI-5',  null, null, null),
+  (13, 10, 12, current_date, 'DITUTUP', 0, 0, 0, (current_date + time '07:15')::timestamptz, 17, (current_date + time '16:50')::timestamptz, 17, false, true, 'SESI-13', null, null, null);
+
+-- 24d. TRANSAKSI TUNAI (C.2a) — pembeli tanpa kartu / Kartu Tamu.
+--      Semua sore hari supaya baris stok-nya berada di ujung rantai.
+insert into transaksi (id, idempotency_key, sekolah_id, sesi_kasir_id, titik_kasir_id, kartu_uid, petugas_id, total, total_hpp, status, alasan_void, void_at, void_oleh, waktu, siswa_id, metode_bayar, uang_diterima, nama_pembeli) values
+  (156, 'SEED-TRX-156', 1,  3,  1,  null, 4,  14000, 7000,  'SUKSES', null, null, null, (current_date + time '16:05')::timestamptz, null, 'TUNAI', 20000, 'Bu Rina (Guru)'),
+  (157, 'SEED-TRX-157', 1,  3,  1,  null, 4,  12000, 7000,  'SUKSES', null, null, null, (current_date + time '16:10')::timestamptz, null, 'TUNAI', 15000, 'Pak Andi (Guru)'),
+  (158, 'SEED-TRX-158', 1,  5,  2,  null, 7,  9000,  5000,  'SUKSES', null, null, null, (current_date + time '16:15')::timestamptz, null, 'TUNAI', 10000, 'Tamu Tanpa Kartu'),
+  (159, 'SEED-TRX-159', 10, 12, 11, null, 14, 17000, 11000, 'SUKSES', null, null, null, (current_date + time '16:20')::timestamptz, null, 'TUNAI', 20000, 'Ibu Sari (Guru)'),
+  (160, 'SEED-TRX-160', 1,  5,  2,  null, 7,  16000, 11000, 'SUKSES', null, null, null, (current_date + time '16:25')::timestamptz, null, 'TUNAI', 16000, 'Pak Budi (Karyawan)'),
+  (161, 'SEED-TRX-161', 10, 13, 12, null, 17, 20000, 12000, 'SUKSES', null, null, null, (current_date + time '16:30')::timestamptz, null, 'TUNAI', 20000, 'Bu Ani (Guru)');
+
+insert into transaksi_item (id, transaksi_id, menu_id, nama_menu, kategori_id, harga_jual, qty, hpp_snapshot, subtotal, created_at) values
+  (98,  156, 3,    'Es Teh Manis',                  2,  3000,  2, 1000, 6000,  (current_date + time '16:05')::timestamptz),
+  (99,  156, 7,    'Roti Bakar',                    3,  8000,  1, 5000, 8000,  (current_date + time '16:05')::timestamptz),
+  (100, 157, 1,    'Nasi Goreng',                   1,  12000, 1, 7000, 12000, (current_date + time '16:10')::timestamptz),
+  (101, 158, 4,    'Air Mineral Aqua 600 ml',       2,  4000,  1, 2000, 4000,  (current_date + time '16:15')::timestamptz),
+  (102, 158, 6,    'Keripik Qtela Singkong 60 g',   3,  5000,  1, 3000, 5000,  (current_date + time '16:15')::timestamptz),
+  (103, 159, 1010, 'Bakso',                         11, 11000, 1, 7000, 11000, (current_date + time '16:20')::timestamptz),
+  (104, 159, 1007, 'Susu Ultra Cokelat 250 ml',     12, 6000,  1, 4000, 6000,  (current_date + time '16:20')::timestamptz),
+  (105, 160, 5,    'Ayam Geprek',                   1,  13000, 1, 9000, 13000, (current_date + time '16:25')::timestamptz),
+  (106, 160, 9,    'Pulpen Standard AE7 Hitam',     4,  3000,  1, 2000, 3000,  (current_date + time '16:25')::timestamptz),
+  (107, 161, 1001, 'Mie Ayam',                      11, 10000, 2, 6000, 20000, (current_date + time '16:30')::timestamptz);
+
+-- Mutasi stok penjualan tunai. Setiap menu hanya dipakai sekali dan berwaktu
+-- paling akhir untuk menu itu, jadi stok_setelah = stok akhir − qty.
+insert into riwayat_stok (id, sekolah_id, menu_id, arah, jenis, qty, stok_setelah, hpp_snapshot, transaksi_id, referensi_tipe, referensi_id, alasan, aktor_id, waktu, harga_beli_satuan, aktor_nama) values
+  (124, 1,  3,    'KELUAR', 'PENJUALAN', 2, 17, 1000, 156, 'TRANSAKSI', 'TRX-156', 'Penjualan tunai di kasir', 4,  (current_date + time '16:05')::timestamptz, 1000, 'Kasir 1'),
+  (125, 1,  7,    'KELUAR', 'PENJUALAN', 1, 22, 5000, 156, 'TRANSAKSI', 'TRX-156', 'Penjualan tunai di kasir', 4,  (current_date + time '16:05')::timestamptz, 5000, 'Kasir 1'),
+  (126, 1,  1,    'KELUAR', 'PENJUALAN', 1, 16, 7000, 157, 'TRANSAKSI', 'TRX-157', 'Penjualan tunai di kasir', 4,  (current_date + time '16:10')::timestamptz, 7000, 'Kasir 1'),
+  (127, 1,  4,    'KELUAR', 'PENJUALAN', 1, 5,  2000, 158, 'TRANSAKSI', 'TRX-158', 'Penjualan tunai di kasir', 7,  (current_date + time '16:15')::timestamptz, 2000, 'Kasir 2'),
+  (128, 1,  6,    'KELUAR', 'PENJUALAN', 1, 34, 3000, 158, 'TRANSAKSI', 'TRX-158', 'Penjualan tunai di kasir', 7,  (current_date + time '16:15')::timestamptz, 3000, 'Kasir 2'),
+  (129, 10, 1010, 'KELUAR', 'PENJUALAN', 1, 36, 7000, 159, 'TRANSAKSI', 'TRX-159', 'Penjualan tunai di kasir', 14, (current_date + time '16:20')::timestamptz, 7000, 'Kasir 10'),
+  (130, 10, 1007, 'KELUAR', 'PENJUALAN', 1, 35, 4000, 159, 'TRANSAKSI', 'TRX-159', 'Penjualan tunai di kasir', 14, (current_date + time '16:20')::timestamptz, 4000, 'Kasir 10'),
+  (131, 1,  5,    'KELUAR', 'PENJUALAN', 1, 36, 9000, 160, 'TRANSAKSI', 'TRX-160', 'Penjualan tunai di kasir', 7,  (current_date + time '16:25')::timestamptz, 9000, 'Kasir 2'),
+  (132, 1,  9,    'KELUAR', 'PENJUALAN', 1, 43, 2000, 160, 'TRANSAKSI', 'TRX-160', 'Penjualan tunai di kasir', 7,  (current_date + time '16:25')::timestamptz, 2000, 'Kasir 2'),
+  (133, 10, 1001, 'KELUAR', 'PENJUALAN', 2, 33, 6000, 161, 'TRANSAKSI', 'TRX-161', 'Penjualan tunai di kasir', 17, (current_date + time '16:30')::timestamptz, 6000, 'Kasir 20');
+
+-- 24e. KERUGIAN STOK — laporan /laporan/kerugian-stok (PRD §9.5).
+--      BARANG_RUSAK = rusak/basi/bocor; OPNAME_KELUAR = selisih hitung opname.
+--      Semua sore hari (setelah seluruh penjualan) agar rantai stok utuh.
+insert into riwayat_stok (id, sekolah_id, menu_id, arah, jenis, qty, stok_setelah, hpp_snapshot, transaksi_id, referensi_tipe, referensi_id, alasan, aktor_id, waktu, harga_beli_satuan, aktor_nama) values
+  (134, 1,  12,   'KELUAR', 'BARANG_RUSAK',  2, 24, 5000, null, 'OPNAME', 'BA-RUSAK-1',  'Jus tumpah saat jam istirahat',  4,  (current_date + time '17:00')::timestamptz, 5000, 'Kasir 1'),
+  (135, 1,  8,    'KELUAR', 'OPNAME_KELUAR', 1, 35, 4000, null, 'OPNAME', 'BA-OPNAME-1', 'Selisih hitung opname mingguan', 3,  (current_date + time '17:05')::timestamptz, 4000, 'Deryl Fabiensyah'),
+  (136, 1,  2,    'KELUAR', 'BARANG_RUSAK',  1, 38, 6000, null, 'OPNAME', 'BA-RUSAK-2',  'Basi, tidak layak dijual',       4,  (current_date + time '17:10')::timestamptz, 6000, 'Kasir 1'),
+  (137, 10, 1011, 'KELUAR', 'BARANG_RUSAK',  3, 23, 5000, null, 'OPNAME', 'BA-RUSAK-3',  'Kemasan bocor saat pengiriman',  14, (current_date + time '17:15')::timestamptz, 5000, 'Kasir 10'),
+  (138, 10, 1006, 'KELUAR', 'OPNAME_KELUAR', 1, 22, 5000, null, 'OPNAME', 'BA-OPNAME-2', 'Selisih hitung opname mingguan', 13, (current_date + time '17:20')::timestamptz, 5000, 'Deryl Fabiensyah');
+
+-- 24f. Jurnal Buku Kas untuk transaksi tunai baru (pola sama dengan #18).
+insert into jurnal_buku_kas (id, sekolah_id, referensi_id, entitas, mutasi_id, ref_buku_kas, jumlah, status, waktu) values
+  (69, 1,  'TRX-156', 'TRANSAKSI', null, null, 14000, 'SUKSES', (current_date + time '16:05')::timestamptz),
+  (70, 1,  'TRX-157', 'TRANSAKSI', null, null, 12000, 'SUKSES', (current_date + time '16:10')::timestamptz),
+  (71, 1,  'TRX-158', 'TRANSAKSI', null, null, 9000,  'SUKSES', (current_date + time '16:15')::timestamptz),
+  (72, 10, 'TRX-159', 'TRANSAKSI', null, null, 17000, 'SUKSES', (current_date + time '16:20')::timestamptz),
+  (73, 1,  'TRX-160', 'TRANSAKSI', null, null, 16000, 'SUKSES', (current_date + time '16:25')::timestamptz),
+  (74, 10, 'TRX-161', 'TRANSAKSI', null, null, 20000, 'SUKSES', (current_date + time '16:30')::timestamptz);
+
+-- 24g. Catatan audit untuk aksi baru (refund, pindah saldo, koreksi, selisih kas).
+insert into catatan_audit (id, sekolah_id, aktor_id, aksi, entitas, entitas_id, nilai_lama, nilai_baru, alasan, waktu) values
+  (7,  10, 12, 'TOPUP_SALDO',    'saldo',       '1202', '0',      '28000',  'Top up sebelum siswa pindah sekolah',   (current_date + time '16:30')::timestamptz),
+  (8,  10, 15, 'REFUND_SALDO',   'saldo',       '1202', '28000',  '0',      'Refund sisa saldo — siswa pindah sekolah', (current_date + time '16:35')::timestamptz),
+  (9,  1,  5,  'TRANSFER_SALDO', 'saldo',       '101',  '116000', '106000', 'Pindah saldo ke saudara kandung',       (current_date + time '16:40')::timestamptz),
+  (10, 1,  5,  'KOREKSI_SALDO',  'saldo',       '104',  '100000', '105000', 'Selisih hitung setoran TU',             (current_date + time '16:45')::timestamptz);
+
+-- 24h. Normalisasi sesi: total mengikuti transaksi, kas fisik mengikuti
+--      totalTunai (C.2d), plus satu contoh selisih kas untuk demo C.3.
+update sesi_kasir s
+   set total_bruto  = x.bruto,
+       total_void   = x.void_total,
+       total_bersih = x.bruto - x.void_total
+  from (
+        select sesi_kasir_id,
+               coalesce(sum(total), 0) as bruto,
+               coalesce(sum(total) filter (where status = 'VOID'), 0) as void_total
+          from transaksi
+         group by sesi_kasir_id
+       ) x
+ where s.id = x.sesi_kasir_id;
+
+update sesi_kasir s
+   set uang_fisik = x.tunai,
+       selisih    = 0,
+       catatan    = 'Tutup normal, uang fisik sesuai sistem (kas = totalTunai)'
+  from (
+        select sesi_kasir_id,
+               coalesce(sum(total) filter (where status = 'SUKSES' and metode_bayar = 'TUNAI'), 0) as tunai
+          from transaksi
+         group by sesi_kasir_id
+       ) x
+ where s.id = x.sesi_kasir_id
+   and s.status = 'DITUTUP';
+
+-- Demo selisih kas (C.3): sesi 5 kas tunai seharusnya 25.000, fisik 24.000.
+update sesi_kasir
+   set uang_fisik = uang_fisik - 1000,
+       selisih    = -1000,
+       catatan    = 'Kas kurang Rp 1.000 — uang kembalian salah hitung (demo selisih)'
+ where id = 5;
+
+-- 25. TIDAK PERLU SINKRON SEQUENCE
 --     Semua PK di skema v2 diisi eksplisit (seed) atau oleh `helper/IdGenerator`
 --     di aplikasi (epoch-millis × 1000 + counter), jadi tidak ada sequence
 --     PostgreSQL yang harus di-`setval`.
@@ -782,13 +966,17 @@ commit;
 
 -- =====================================================================
 -- RINGKASAN ISI (dipakai juga oleh SeedDevIT)
---   sekolah 2 | pengguna 14 | siswa 19 | orang_tua 38 | kartu 19
+--   sekolah 2 | pengguna 14 | siswa 21 (19 aktif + 2 nonaktif) | orang_tua 42 | kartu 21
 --   kategori_menu 8 | menu 24 | stok 24 | titik_kasir 4
---   pengaturan_kantin 2 | akun_buku_kas 8 | saldo 19
---   sesi_kasir 14 (12 ditutup, 2 terbuka) | transaksi 56 (55 sukses, 1 void)
---   transaksi_item 97 | mutasi_saldo 73 | riwayat_stok 123 | jurnal_buku_kas 68
---   setoran 2 | kejadian_offline 2 | catatan_audit 6 | pembatasan 3
+--   pengaturan_kantin 2 | akun_buku_kas 8 | saldo 21
+--   sesi_kasir 16 (14 ditutup, 2 terbuka) | transaksi 62 (61 sukses, 1 void)
+--   transaksi_item 107 | mutasi_saldo 80 | riwayat_stok 138 | jurnal_buku_kas 74
+--   setoran 2 | kejadian_offline 2 | catatan_audit 10 | pembatasan 3
 --   transaksi_tertunda 2
+--
+--   Cakupan demo yang dijaga: bayar tunai (6 transaksi), kas fisik + selisih
+--   (sesi 5 kurang Rp 1.000), kerugian stok (3 barang rusak + 2 opname keluar),
+--   refund saldo, pindah saldo, koreksi bendahara, topup online, kandidat refund.
 --
 -- Alur data yang dijaga konsisten:
 --   saldo.saldo        = Σ (KREDIT − DEBIT) mutasi_saldo   (trigger)

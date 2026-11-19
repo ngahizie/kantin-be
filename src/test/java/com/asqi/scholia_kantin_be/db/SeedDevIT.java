@@ -57,15 +57,15 @@ class SeedDevIT {
                 24,   // menu: 12 per sekolah
                 8,    // kategori_menu: 4 per sekolah
                 24,   // stok: 1 baris per menu
-                19,   // siswa: 14 (sekolah 1) + 5 (sekolah 10)
-                38,   // orang_tua: 2 wali per siswa
-                19,   // kartu: 1 kartu per siswa
-                19,   // saldo: 1 baris per siswa
-                73,   // mutasi_saldo: topup + belanja 7 hari + void
+                21,   // siswa: 19 aktif + 2 nonaktif (kandidat refund & riwayat refund)
+                42,   // orang_tua: 2 wali per siswa
+                21,   // kartu: 1 kartu per siswa (2 nonaktif)
+                21,   // saldo: 1 baris per siswa
+                80,   // mutasi_saldo: topup/penjualan/void + refund, transfer, koreksi, topup online
                 2,    // pengaturan_kantin: 1 per sekolah
                 4,    // titik_kasir: 2 per sekolah
                 8,    // akun_buku_kas: 4 per sekolah
-                56)); // transaksi contoh 7 hari: 38 di sekolah 1, 18 di sekolah 10
+                62)); // transaksi: 55 saldo + 6 tunai (C.2a) + 1 void
 
         // Tenant default form login FE (sekolah_id=10) wajib punya data —
         // tanpa ini semua layar FE tampak kosong walau endpoint sudah 200 (issue #231).
@@ -74,10 +74,10 @@ class SeedDevIT {
                 .as("menu tenant FE (sekolah 10)").isEqualTo(12);
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM siswa WHERE sekolah_id = 10", Integer.class))
-                .as("siswa tenant FE").isEqualTo(5);
+                .as("siswa tenant FE").isEqualTo(6);
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM saldo WHERE sekolah_id = 10", Integer.class))
-                .as("saldo tenant FE").isEqualTo(5);
+                .as("saldo tenant FE").isEqualTo(6);
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM pengguna WHERE sekolah_id = 10", Integer.class))
                 .as("akun tenant FE").isEqualTo(7); // 6 peran + kasir20 (#345)
@@ -142,7 +142,8 @@ class SeedDevIT {
                 "SELECT count(*) FROM sesi_kasir WHERE dibuka_oleh IS NULL", Integer.class))
                 .as("sesi seed tanpa jejak pembuka").isZero();
         assertThat(jdbc.queryForObject(
-                "SELECT dibuka_oleh FROM sesi_kasir WHERE sekolah_id = 1 AND titik_kasir_id = 2",
+                "SELECT dibuka_oleh FROM sesi_kasir WHERE sekolah_id = 1 AND titik_kasir_id = 2 "
+                        + "ORDER BY tanggal DESC LIMIT 1",
                 Long.class)).as("pembuka sesi titik 2 sekolah 1").isEqualTo(7L);
 
         // Jalankan ulang isi seed: harus idempoten, tidak menggandakan baris.
@@ -200,6 +201,20 @@ class SeedDevIT {
                      + CASE WHEN a.arah = 'KREDIT' THEN a.nominal ELSE -a.nominal END
                 """, Integer.class)).as("saldo_setelah berurutan").isZero();
 
+        // stok_setelah juga harus lanjutan yang benar: riwayat_stok append-only,
+        // jadi nilai ini tidak bisa dikoreksi setelah insert (seed wajib benar).
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM riwayat_stok a
+                JOIN LATERAL (
+                    SELECT b.stok_setelah AS prev FROM riwayat_stok b
+                     WHERE b.sekolah_id = a.sekolah_id
+                       AND b.menu_id = a.menu_id
+                       AND (b.waktu, b.id) < (a.waktu, a.id)
+                     ORDER BY b.waktu DESC, b.id DESC LIMIT 1) s ON true
+                WHERE a.stok_setelah <> s.prev
+                     + CASE WHEN a.arah = 'MASUK' THEN a.qty ELSE -a.qty END
+                """, Integer.class)).as("stok_setelah berurutan").isZero();
+
         // stok tidak boleh negatif, dan baris stok harus punya menu yang sah.
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM stok WHERE stok < 0", Integer.class))
@@ -218,6 +233,58 @@ class SeedDevIT {
                     GROUP BY t.id, t.total
                 ) x WHERE x.total <> x.item
                 """, Integer.class)).as("transaksi vs item").isZero();
+
+        // ── Cakupan demo: tidak ada layar yang kosong ─────────────────
+        // Laporan kerugian stok butuh OPNAME_KELUAR/BARANG_RUSAK (PRD §9.5).
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM riwayat_stok
+                 WHERE jenis IN ('OPNAME_KELUAR', 'BARANG_RUSAK')
+                """, Integer.class)).as("baris kerugian stok").isEqualTo(5);
+
+        // Refund saldo, pindah saldo, koreksi bendahara, topup online.
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM mutasi_saldo WHERE jenis = 'REFUND'", Integer.class))
+                .as("riwayat refund saldo").isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM mutasi_saldo WHERE jenis = 'TRANSFER'", Integer.class))
+                .as("riwayat pindah saldo (keluar+masuk)").isEqualTo(2);
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM mutasi_saldo WHERE jenis = 'KOREKSI'", Integer.class))
+                .as("riwayat koreksi bendahara").isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM mutasi_saldo WHERE jenis = 'TOPUP_ONLINE'", Integer.class))
+                .as("riwayat topup online").isEqualTo(1);
+
+        // Kandidat refund: siswa nonaktif yang masih bersaldo.
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM siswa s
+                  JOIN saldo c ON c.siswa_id = s.id AND c.sekolah_id = s.sekolah_id
+                 WHERE s.aktif = false AND c.saldo > 0
+                """, Integer.class)).as("kandidat refund").isEqualTo(1);
+
+        // Bayar tunai (C.2a): tanpa siswa, lengkap uang diterima + nama pembeli.
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM transaksi
+                 WHERE metode_bayar = 'TUNAI' AND siswa_id IS NULL
+                   AND uang_diterima IS NOT NULL AND nama_pembeli IS NOT NULL
+                """, Integer.class)).as("transaksi tunai Kartu Tamu").isEqualTo(6);
+
+        // Kas fisik (C.3) wajib ada di sesi tertutup dan selisihnya harus sama
+        // dengan uang fisik − totalTunai (C.2d).
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM sesi_kasir WHERE status = 'DITUTUP' AND uang_fisik IS NULL",
+                Integer.class)).as("sesi tertutup tanpa kas fisik").isZero();
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM sesi_kasir s
+                 WHERE s.status = 'DITUTUP'
+                   AND s.selisih <> s.uang_fisik - COALESCE((
+                        SELECT sum(t.total) FROM transaksi t
+                         WHERE t.sesi_kasir_id = s.id AND t.status = 'SUKSES'
+                           AND t.metode_bayar = 'TUNAI'), 0)
+                """, Integer.class)).as("selisih tidak sama dengan uang fisik - totalTunai").isZero();
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM sesi_kasir WHERE selisih <> 0", Integer.class))
+                .as("contoh selisih kas untuk demo C.3").isEqualTo(1);
     }
 
     private Jumlah hitung(JdbcTemplate jdbc) {
