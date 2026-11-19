@@ -90,9 +90,56 @@ class StorageServiceTest {
         when(storage.uploadFile(any(), any()))
                 .thenThrow(new IllegalArgumentException("Tipe file tidak diizinkan: .exe"));
 
-        assertThatThrownBy(() -> service.unggah(7L, "menu", file("virus.exe")))
+        // Folder non-menu: allowlist global tetap ditegakkan S3Storage.
+        assertThatThrownBy(() -> service.unggah(7L, "lain", file("virus.exe")))
                 .isInstanceOf(InvalidOperationException.class)
                 .hasMessageContaining("Tipe file tidak diizinkan");
+    }
+
+    @Test
+    @DisplayName("foto menu > 5 MB ditolak sebelum menyentuh storage (M-01)")
+    void fotoMenuLebihDariLimaMbDitolak() {
+        byte[] besar = new byte[(int) (5 * 1024 * 1024) + 1];
+        MockMultipartFile file = new MockMultipartFile("file", "besar.png", "image/png", besar);
+
+        assertThatThrownBy(() -> service.unggah(7L, "menu", file))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("maksimal 5 MB");
+    }
+
+    @Test
+    @DisplayName("folder nota boleh melebihi 5 MB selama <= 10 MB")
+    void notaBolehSampaiSepuluhMb() throws Exception {
+        byte[] besar = new byte[6 * 1024 * 1024];
+        MockMultipartFile file = new MockMultipartFile("file", "nota.pdf", "application/pdf", besar);
+        when(storage.uploadFile(eq("sekolah-7/nota"), any()))
+                .thenReturn("sekolah-7/nota/nota.pdf");
+
+        UploadResponse hasil = service.unggah(7L, "nota", file);
+
+        assertThat(hasil.getPath()).isEqualTo("sekolah-7/nota/nota.pdf");
+    }
+
+    @Test
+    @DisplayName("ekstensi non-gambar ditolak untuk folder menu (M-02)")
+    void ekstensiNonGambarMenuDitolak() {
+        for (String nama : new String[]{"foto.svg", "arsip.zip", "video.mp4", "dokumen.doc"}) {
+            assertThatThrownBy(() -> service.unggah(7L, "menu", file(nama)))
+                    .as("ekstensi %s", nama)
+                    .isInstanceOf(InvalidOperationException.class)
+                    .hasMessageContaining("tidak diizinkan untuk foto menu");
+        }
+    }
+
+    @Test
+    @DisplayName("gambar raster yang diizinkan tetap diterima untuk menu")
+    void gambarRasterMenuDiterima() throws Exception {
+        for (String nama : new String[]{"foto.jpg", "foto.jpeg", "foto.png", "foto.webp"}) {
+            when(storage.uploadFile(eq("sekolah-7/menu"), any()))
+                    .thenReturn("sekolah-7/menu/" + nama);
+            UploadResponse hasil = service.unggah(7L, "menu", file(nama));
+            assertThat(hasil.getPath()).isEqualTo("sekolah-7/menu/" + nama);
+        }
     }
 
     @Test

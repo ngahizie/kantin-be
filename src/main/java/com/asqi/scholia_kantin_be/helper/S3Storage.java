@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -41,6 +42,31 @@ public class S3Storage {
         ".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg",
         ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
         ".mp4", ".mp3", ".zip"
+    );
+
+    /**
+     * Content-Type ditentukan server-side dari ekstensi yang sudah lolos
+     * allowlist. Jangan memakai {@code file.getContentType()} dari klien:
+     * berkas {@code .png} dengan header {@code text/html} bisa menjadi stored
+     * XSS bila bucket MinIO publik (M-02).
+     */
+    private static final Map<String, String> CONTENT_TYPE_BY_EXTENSION = Map.ofEntries(
+        Map.entry(".jpg", "image/jpeg"),
+        Map.entry(".jpeg", "image/jpeg"),
+        Map.entry(".png", "image/png"),
+        Map.entry(".gif", "image/gif"),
+        Map.entry(".webp", "image/webp"),
+        Map.entry(".svg", "image/svg+xml"),
+        Map.entry(".pdf", "application/pdf"),
+        Map.entry(".doc", "application/msword"),
+        Map.entry(".docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+        Map.entry(".xls", "application/vnd.ms-excel"),
+        Map.entry(".xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+        Map.entry(".ppt", "application/vnd.ms-powerpoint"),
+        Map.entry(".pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"),
+        Map.entry(".mp4", "video/mp4"),
+        Map.entry(".mp3", "audio/mpeg"),
+        Map.entry(".zip", "application/zip")
     );
 
     /**
@@ -177,6 +203,17 @@ public class S3Storage {
         return ext;
     }
 
+    /**
+     * Petakan ekstensi ke Content-Type tepercaya. Ekstensi tak dikenal menjadi
+     * {@code application/octet-stream} agar tidak dieksekusi browser.
+     *
+     * @param extension ekstensi lowercase berawalan titik
+     * @return Content-Type untuk disimpan di object storage
+     */
+    static String contentTypeUntuk(String extension) {
+        return CONTENT_TYPE_BY_EXTENSION.getOrDefault(extension, "application/octet-stream");
+    }
+
     /** Validasi nama objek agar tak bisa keluar dari namespace yang diizinkan (anti path-traversal/IDOR). */
     private void validasiObjectName(String objectName) {
         if (objectName == null || objectName.isBlank()) {
@@ -218,7 +255,7 @@ public class S3Storage {
                             .bucket(bucketName)
                             .object(objectName)
                             .stream(inputStream, file.getSize(), -1)
-                            .contentType(file.getContentType())
+                            .contentType(contentTypeUntuk(extension))
                             .build()
             );
             return objectName;

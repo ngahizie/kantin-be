@@ -20,6 +20,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -218,6 +220,7 @@ public class KatalogService {
         if (barcodeBersih != null) {
             pastikanKodeBarcodeUnik(sekolahId, barcodeBersih, null);
         }
+        validasiFotoUrlMilikTenant(sekolahId, fotoUrl);
 
         var sekarang = jam.sekarang();
         Menu menu = Menu.builder()
@@ -300,6 +303,7 @@ public class KatalogService {
             menu.setSatuan(satuan);
         }
         if (fotoUrl != null) {
+            validasiFotoUrlMilikTenant(sekolahId, fotoUrl);
             menu.setFotoUrl(fotoUrl);
         }
         if (stokMinimum != null) {
@@ -364,6 +368,59 @@ public class KatalogService {
         if (hargaJual == null || hargaJual < 0) {
             throw new InvalidOperationException("Harga jual wajib dan tidak boleh negatif");
         }
+    }
+
+    /**
+     * Pastikan path foto relatif benar-benar milik tenant pemanggil (M-03).
+     *
+     * <p>Anotasi {@code @Pattern} di {@link com.asqi.scholia_kantin_be.dto.MenuRequest}
+     * hanya memeriksa bentuk; metode ini menutup celah path
+     * {@code sekolah-<id-lain>/...} dan query {@code /api/storage/file?path=...}.
+     * URL absolut http(s) sengaja dibiarkan (dipakai data demo/eksternal);
+     * skema berbahayanya sudah ditolak anotasi.
+     *
+     * @param sekolahId tenant pemanggil
+     * @param fotoUrl   nilai dari request; {@code null}/kosong dianggap tanpa foto
+     * @throws InvalidOperationException bila path relatif menunjuk tenant lain
+     */
+    static void validasiFotoUrlMilikTenant(Long sekolahId, String fotoUrl) {
+        if (fotoUrl == null || fotoUrl.isBlank()) {
+            return;
+        }
+        String url = fotoUrl.trim();
+        String prefixTenant = "sekolah-" + sekolahId + "/";
+
+        if (url.startsWith("sekolah-") && !url.startsWith(prefixTenant)) {
+            throw new InvalidOperationException("Foto menu harus berada di storage sekolah ini");
+        }
+        if (url.startsWith("/api/storage/")) {
+            String path = ambilPathDariUrlStorage(url);
+            // Tolak segmen traversal/backslash sebelum pencocokan prefix, agar
+            // "sekolah-7/../sekolah-9/..." tidak lolos secara tekstual.
+            if (path == null || path.contains("..") || path.contains("\\")
+                    || !path.startsWith(prefixTenant)) {
+                throw new InvalidOperationException("Foto menu harus berada di storage sekolah ini");
+            }
+        }
+    }
+
+    /**
+     * Ambil parameter {@code path} dari URL {@code /api/storage/file?path=...}.
+     *
+     * @param url URL storage internal
+     * @return path ter-decode, atau {@code null} bila parameter tidak ada
+     */
+    private static String ambilPathDariUrlStorage(String url) {
+        int mulai = url.indexOf("path=");
+        if (mulai < 0) {
+            return null;
+        }
+        String query = url.substring(mulai + "path=".length());
+        int amp = query.indexOf('&');
+        if (amp >= 0) {
+            query = query.substring(0, amp);
+        }
+        return URLDecoder.decode(query, StandardCharsets.UTF_8);
     }
 
     private String normalisasiNama(String nama) {

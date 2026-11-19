@@ -3,6 +3,7 @@ package com.asqi.scholia_kantin_be.helper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
@@ -49,5 +50,14 @@ class S3StorageValidationTest {
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> storage.viewFile("sekolah-1/a;rm.pdf"))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("Content-Type ditentukan server-side dari ekstensi (M-02)")
+    void contentTypeServerSide() {
+        assertThat(S3Storage.contentTypeUntuk(".png")).isEqualTo("image/png");
+        assertThat(S3Storage.contentTypeUntuk(".jpg")).isEqualTo("image/jpeg");
+        assertThat(S3Storage.contentTypeUntuk(".webp")).isEqualTo("image/webp");
+        assertThat(S3Storage.contentTypeUntuk(".exe")).isEqualTo("application/octet-stream");
     }
 }

@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
+import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -36,6 +37,22 @@ public class StorageService {
 
     private static final String FOLDER_DEFAULT = "lain";
 
+    /** Folder foto menu punya batas lebih ketat daripada nota/berkas lain. */
+    private static final String FOLDER_MENU = "menu";
+
+    /** Batas ukuran foto menu (M-01) — FE sudah membatasi 2 MB, BE mengunci 5 MB. */
+    private static final long UKURAN_MAKS_MENU_BYTES = 5L * 1024 * 1024;
+
+    /** Batas ukuran folder lain; harus konsisten dengan multipart servlet (10 MB). */
+    private static final long UKURAN_MAKS_DEFAULT_BYTES = 10L * 1024 * 1024;
+
+    /**
+     * Foto menu hanya boleh berupa gambar raster. SVG dan arsip/multimedia
+     * ditolak karena berpotensi memuat script atau memperbesar permukaan serangan
+     * (M-02).
+     */
+    private static final Set<String> EKSTENSI_MENU = Set.of(".jpg", ".jpeg", ".png", ".webp");
+
     private final S3Storage storage;
 
     /** Basis URL publik (mis. {@code https://cdn.sekolah.id/kantin/}); boleh kosong. */
@@ -55,6 +72,8 @@ public class StorageService {
             throw new InvalidOperationException("Berkas wajib diunggah dan tidak boleh kosong");
         }
         String folderBersih = normalisasiFolder(folder);
+        validasiUkuran(folderBersih, file);
+        validasiEkstensi(folderBersih, file);
         // Prefix tenant dibentuk server-side (bukan dari input) — B19.
         String prefix = "sekolah-" + sekolahId + "/" + folderBersih;
 
@@ -108,12 +127,53 @@ public class StorageService {
         if (folder == null || folder.isBlank()) {
             return FOLDER_DEFAULT;
         }
-        String bersih = folder.trim().toLowerCase();
+        String bersih = folder.trim().toLowerCase(Locale.ROOT);
         if (!FOLDER_DIIZINKAN.contains(bersih)) {
             throw new InvalidOperationException(
                     "Folder tidak dikenal: " + folder + " (pilihan: " + FOLDER_DIIZINKAN + ")");
         }
         return bersih;
+    }
+
+    /**
+     * Tolak berkas yang melebihi batas folder sebelum menyentuh object storage
+     * (M-01). Batas servlet hanya jaring pengaman global; validasi per folder
+     * mencegah satu unggahan besar menghabiskan kuota/IO.
+     *
+     * @param folder folder logis yang sudah dinormalisasi
+     * @param file   berkas multipart
+     * @throws InvalidOperationException bila ukuran melebihi batas
+     */
+    private void validasiUkuran(String folder, MultipartFile file) {
+        long batas = FOLDER_MENU.equals(folder) ? UKURAN_MAKS_MENU_BYTES : UKURAN_MAKS_DEFAULT_BYTES;
+        if (file.getSize() > batas) {
+            throw new InvalidOperationException(
+                    "Ukuran berkas maksimal " + (batas / (1024 * 1024)) + " MB untuk folder " + folder);
+        }
+    }
+
+    /**
+     * Terapkan allowlist ekstensi khusus foto menu (M-02). Validasi diletakkan
+     * di sini agar berlaku untuk S3Storage maupun LocalStorage.
+     *
+     * @param folder folder logis yang sudah dinormalisasi
+     * @param file   berkas multipart
+     * @throws InvalidOperationException bila ekstensi tidak termasuk gambar raster
+     */
+    private void validasiEkstensi(String folder, MultipartFile file) {
+        if (!FOLDER_MENU.equals(folder)) {
+            return;
+        }
+        String nama = file.getOriginalFilename();
+        if (nama == null || !nama.contains(".")) {
+            throw new InvalidOperationException(
+                    "Berkas foto menu wajib memiliki ekstensi gambar");
+        }
+        String ekstensi = nama.substring(nama.lastIndexOf('.')).toLowerCase(Locale.ROOT);
+        if (!EKSTENSI_MENU.contains(ekstensi)) {
+            throw new InvalidOperationException("Ekstensi " + ekstensi
+                    + " tidak diizinkan untuk foto menu (gunakan .jpg, .jpeg, .png, .webp)");
+        }
     }
 
     /**

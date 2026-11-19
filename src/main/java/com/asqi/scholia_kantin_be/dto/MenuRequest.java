@@ -4,6 +4,7 @@ import com.asqi.scholia_kantin_be.enums.SatuanMenu;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -29,7 +30,18 @@ public class MenuRequest {
     /** Satuan (PCS/PORSI/BOTOL); default PCS bila kosong. */
     private SatuanMenu satuan;
 
+    /**
+     * URL/path foto menu (M-03). Skema berbahaya ({@code javascript:},
+     * {@code data:}, {@code file:}, {@code vbscript:}) ditolak. Yang diizinkan:
+     * URL absolut http(s), path endpoint storage internal, atau path objek
+     * {@code sekolah-<id>/<folder>/<berkas>}. Kecocokan tenant untuk path
+     * relatif diperiksa lagi di {@code KatalogService}.
+     */
     @Size(max = 500, message = "URL foto maksimal 500 karakter")
+    @Pattern(
+            regexp = "(?i)^$|^https?://[^\\s]+$|^/api/storage/[^\\s]*$"
+                    + "|^sekolah-\\d+/(?:menu|nota|kartu-tamu|lain)/[A-Za-z0-9._-]+$",
+            message = "Format URL foto tidak valid atau menggunakan protokol yang tidak diizinkan")
     private String fotoUrl;
 
     @Min(value = 0, message = "Stok minimum tidak boleh negatif")
