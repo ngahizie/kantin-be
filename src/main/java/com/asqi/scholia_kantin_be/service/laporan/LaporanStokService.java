@@ -7,16 +7,18 @@ import com.asqi.scholia_kantin_be.dto.KartuStokItem;
 import com.asqi.scholia_kantin_be.dto.RingkasanKerugianStok;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiStok;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
+import com.asqi.scholia_kantin_be.helper.UkuranHalaman;
 import com.asqi.scholia_kantin_be.model.KategoriMenu;
 import com.asqi.scholia_kantin_be.model.Menu;
 import com.asqi.scholia_kantin_be.model.RiwayatStok;
-import com.asqi.scholia_kantin_be.model.Stok;
 import com.asqi.scholia_kantin_be.repository.KategoriMenuRepository;
 import com.asqi.scholia_kantin_be.repository.MenuRepository;
 import com.asqi.scholia_kantin_be.repository.RiwayatStokRepository;
 import com.asqi.scholia_kantin_be.repository.StokRepository;
+import com.asqi.scholia_kantin_be.repository.projection.BarisStokLaporan;
 import com.asqi.scholia_kantin_be.service.stok.HppService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,7 +27,6 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -62,33 +63,30 @@ public class LaporanStokService {
      *
      * @param sekolahId    tenant pemanggil
      * @param hanyaMenipis bila {@code true}, hanya baris dengan stok ≤ minimum
-     * @return satu baris per menu yang punya cache stok di sekolah ini
+     * @return satu halaman baris stok (≤ {@code ukuran}) untuk menu yang punya
+     *         cache stok di sekolah ini, beserta total baris untuk metadata
      */
     @Transactional(readOnly = true)
-    public List<BarisStok> laporanStok(Long sekolahId, boolean hanyaMenipis) {
-        // Sumber kebenaran nama, kategori & stok minimum = katalog menu (PRD §7.1).
-        // (stok.stok_minimum tidak disinkron dari menu, jadi jangan dipakai.)
-        Map<Long, Menu> menuById = new HashMap<>();
-        menuRepo.findAll(MenuRepository.daftarSpec(sekolahId, null, false)).forEach(m -> menuById.put(m.getId(), m));
+    public Page<BarisStok> laporanStok(Long sekolahId, boolean hanyaMenipis, int halaman, int ukuran) {
+        // Issue #375: dulu seluruh menu + seluruh baris stok_cache tenant dimuat ke
+        // memori lalu difilter di Java (uncapped result set → risiko heap exhaustion).
+        // Sekarang paginasi dilakukan di database dan ukuran halaman divalidasi:
+        // di luar rentang → 400, bukan di-clamp diam-diam (PRD §6.2, issue #257).
+        int ukuranAman = UkuranHalaman.validasi(ukuran, UkuranHalaman.UKURAN_MAKS);
+        int halamanAman = Math.max(0, halaman);
+        return stokCacheRepo
+                .halamanLaporanStok(sekolahId, hanyaMenipis, PageRequest.of(halamanAman, ukuranAman))
+                .map(this::keBarisStok);
+    }
 
-        List<BarisStok> hasil = new ArrayList<>();
-        for (Stok s : stokCacheRepo.findBySekolahIdAndMenuIdIn(
-                sekolahId, menuById.keySet().isEmpty() ? Set.of(-1L) : menuById.keySet())) {
-            Menu menu = menuById.get(s.getMenuId());
-            if (menu == null) {
-                continue; // baris cache tanpa menu (yatim) — lewati
-            }
-            int stokMinimum = menu.getStokMinimum() == null ? 0 : menu.getStokMinimum();
-            boolean menipis = s.getStok() <= stokMinimum;
-            if (hanyaMenipis && !menipis) {
-                continue;
-            }
-            hasil.add(new BarisStok(s.getMenuId(), menu.getNama(), menu.getKategoriId(),
-                    s.getStok(), stokMinimum, s.getHpp(),
-                    hppService.nilaiPersediaan(s.getStok(), s.getHpp()), menipis,
-                    menu.getNama(), s.getStok(), menu.getKodeBarcode()));
-        }
-        return hasil;
+    /** Proyeksi query → DTO kontrak FE (alias {@code namaMenu}/{@code stokBerjalan}, issue #98). */
+    private BarisStok keBarisStok(BarisStokLaporan r) {
+        int stok = r.getStok() == null ? 0 : r.getStok();
+        int stokMinimum = r.getStokMinimum() == null ? 0 : r.getStokMinimum();
+        Long hpp = r.getHpp();
+        return new BarisStok(r.getMenuId(), r.getNama(), r.getKategoriId(), stok, stokMinimum, hpp,
+                hppService.nilaiPersediaan(stok, hpp), stok <= stokMinimum,
+                r.getNama(), stok, r.getKodeBarcode());
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.asqi.scholia_kantin_be.controller;
 
 import com.asqi.scholia_kantin_be.dto.BarisKerugianStok;
+import com.asqi.scholia_kantin_be.dto.BarisStok;
 import com.asqi.scholia_kantin_be.dto.RingkasanKerugianStok;
 import com.asqi.scholia_kantin_be.security.IdentitasKantin;
 import com.asqi.scholia_kantin_be.security.TenantContext;
@@ -15,6 +16,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -108,5 +111,26 @@ class LaporanControllerTest {
                 .andExpect(jsonPath("$.data.qtyOpname").value(3))
                 .andExpect(jsonPath("$.data.kerugianBarangRusak").value(0))
                 .andExpect(jsonPath("$.data.qtyBarangRusak").value(0));
+    }
+
+    @Test
+    @DisplayName("#375: laporan stok berhalaman — data tetap array + metadata halaman")
+    void laporanStokBerhalamanMengisiMetadata() throws Exception {
+        BarisStok baris = new BarisStok(10L, "Nasi Uduk", 1L, 10, 2, 4_000L, 40_000L,
+                false, "Nasi Uduk", 10, null);
+        var halaman = new PageImpl<>(List.of(baris), PageRequest.of(0, 2), 3);
+
+        when(laporanStokService.laporanStok(eq(7L), eq(false), eq(0), eq(2)))
+                .thenReturn(halaman);
+
+        mockMvc.perform(get("/api/laporan/stok").param("halaman", "0").param("ukuran", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].menuId").value(10))
+                .andExpect(jsonPath("$.data[0].namaMenu").value("Nasi Uduk"))
+                .andExpect(jsonPath("$.data[0].stokBerjalan").value(10))
+                .andExpect(jsonPath("$.total").value(3))
+                .andExpect(jsonPath("$.showing").value(1))
+                .andExpect(jsonPath("$.totalPages").value(2))
+                .andExpect(jsonPath("$.currentPage").value(0));
     }
 }

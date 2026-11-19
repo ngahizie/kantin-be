@@ -1,7 +1,10 @@
 package com.asqi.scholia_kantin_be.repository;
 
 import com.asqi.scholia_kantin_be.model.Stok;
+import com.asqi.scholia_kantin_be.repository.projection.BarisStokLaporan;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
@@ -54,6 +57,45 @@ public interface StokRepository extends JpaRepository<Stok, Long> {
             """)
     List<Stok> findBySekolahIdAndMenuIdIn(@Param("sekolahId") Long sekolahId,
                                                @Param("menuIds") Collection<Long> menuIds);
+
+    /**
+     * Satu halaman laporan stok (issue #375): stok berjalan × katalog menu,
+     * tenant-scoped, dipaginasi <b>di database</b>.
+     *
+     * <p>Semantik sengaja disamakan dengan implementasi lama (yang memuat semua
+     * baris lalu memfilter di Java): hanya menu yang punya baris {@code stok}
+     * (INNER JOIN), menu terhapus dilewati, menu nonaktif <b>tetap</b> tampil
+     * karena stoknya masih ada, dan ambang menipis memakai
+     * {@code menu.stok_minimum}.
+     *
+     * <p>Filter {@code hanyaMenipis} memakai parameter boolean bertipe (bukan
+     * {@code :x IS NULL OR ...}) supaya PostgreSQL tidak perlu menebak tipe
+     * parameter null.
+     */
+    @Query(value = """
+            SELECT s.menuId AS menuId, m.nama AS nama, m.kategoriId AS kategoriId,
+                   s.stok AS stok, COALESCE(m.stokMinimum, 0) AS stokMinimum,
+                   s.hpp AS hpp, m.kodeBarcode AS kodeBarcode
+            FROM Stok s
+            JOIN Menu m ON m.id = s.menuId
+            WHERE s.sekolahId = :sekolahId
+              AND m.sekolahId = :sekolahId
+              AND m.deletedAt IS NULL
+              AND (:hanyaMenipis = false OR s.stok <= COALESCE(m.stokMinimum, 0))
+            ORDER BY m.nama ASC, m.id ASC
+            """,
+            countQuery = """
+            SELECT COUNT(s)
+            FROM Stok s
+            JOIN Menu m ON m.id = s.menuId
+            WHERE s.sekolahId = :sekolahId
+              AND m.sekolahId = :sekolahId
+              AND m.deletedAt IS NULL
+              AND (:hanyaMenipis = false OR s.stok <= COALESCE(m.stokMinimum, 0))
+            """)
+    Page<BarisStokLaporan> halamanLaporanStok(@Param("sekolahId") Long sekolahId,
+                                              @Param("hanyaMenipis") boolean hanyaMenipis,
+                                              Pageable pageable);
 
     /** Item "stok menipis": stok ≤ stok_minimum untuk menu yang belum dihapus (PRD §7.5). */
     @Query("""
