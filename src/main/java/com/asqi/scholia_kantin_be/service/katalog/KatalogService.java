@@ -17,12 +17,17 @@ import com.asqi.scholia_kantin_be.repository.MenuRepository;
 import com.asqi.scholia_kantin_be.repository.StokRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.URI;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -51,6 +56,14 @@ public class KatalogService {
     private final IdGenerator idGenerator;
     private final JamKantin jam;
     private final AuditLogger auditLogger;
+
+    /**
+     * Basis URL publik object storage ({@code minio.url-final}); boleh kosong.
+     * Dipakai untuk memeriksa URL absolut yang sebenarnya menunjuk storage
+     * sendiri, agar path tenant lain tidak lolos lewat bentuk absolut.
+     */
+    @Value("${minio.url-final:}")
+    private String urlFinal;
 
     // ────────────────────────────────────────────────────────────────
     // KATEGORI
@@ -218,6 +231,7 @@ public class KatalogService {
         if (barcodeBersih != null) {
             pastikanKodeBarcodeUnik(sekolahId, barcodeBersih, null);
         }
+        validasiFotoUrlMilikTenant(sekolahId, fotoUrl, urlFinal);
 
         var sekarang = jam.sekarang();
         Menu menu = Menu.builder()
@@ -300,6 +314,7 @@ public class KatalogService {
             menu.setSatuan(satuan);
         }
         if (fotoUrl != null) {
+            validasiFotoUrlMilikTenant(sekolahId, fotoUrl, urlFinal);
             menu.setFotoUrl(fotoUrl);
         }
         if (stokMinimum != null) {
@@ -364,6 +379,161 @@ public class KatalogService {
         if (hargaJual == null || hargaJual < 0) {
             throw new InvalidOperationException("Harga jual wajib dan tidak boleh negatif");
         }
+    }
+
+    /**
+     * Pastikan path foto benar-benar milik tenant pemanggil (M-03), tanpa
+     * memeriksa URL absolut terhadap basis publik.
+     *
+     * <p>Varian ini dipakai tes dan pemanggil yang tidak punya konfigurasi
+     * {@code minio.url-final}. Jalur produksi memakai varian tiga argumen.
+     *
+     * @param sekolahId tenant pemanggil
+     * @param fotoUrl   nilai dari request; {@code null}/kosong dianggap tanpa foto
+     * @throws InvalidOperationException bila path relatif menunjuk tenant lain
+     */
+    static void validasiFotoUrlMilikTenant(Long sekolahId, String fotoUrl) {
+        validasiFotoUrlMilikTenant(sekolahId, fotoUrl, null);
+    }
+
+    /**
+     * Pastikan path foto benar-benar milik tenant pemanggil (M-03).
+     *
+     * <p>Anotasi {@code @Pattern} di {@link com.asqi.scholia_kantin_be.dto.MenuRequest}
+     * hanya memeriksa bentuk; metode ini menutup celah path
+     * {@code sekolah-<id-lain>/...} dan query {@code /api/storage/file?path=...}.
+     * URL absolut http(s) ke host lain sengaja dibiarkan (dipakai data
+     * demo/eksternal). Bila host-nya sama dengan {@code basisPublik}
+     * ({@code minio.url-final}), URL itu menunjuk storage sendiri sehingga
+     * prefix tenant-nya ikut diperiksa.
+     *
+     * <p>Deteksi bentuk memakai bentuk huruf kecil: {@code @Pattern} bersifat
+     * case-insensitive ({@code (?i)}), jadi tanpa normalisasi ini
+     * {@code SEKOLAH-9/menu/x.jpg} lolos tanpa masuk cabang pemeriksaan mana pun.
+     *
+     * @param sekolahId   tenant pemanggil
+     * @param fotoUrl     nilai dari request; {@code null}/kosong dianggap tanpa foto
+     * @param basisPublik basis URL publik storage; boleh kosong
+     * @throws InvalidOperationException bila path menunjuk tenant lain
+     */
+    static void validasiFotoUrlMilikTenant(Long sekolahId, String fotoUrl, String basisPublik) {
+        if (fotoUrl == null || fotoUrl.isBlank()) {
+            return;
+        }
+        String url = fotoUrl.trim();
+        // @Pattern memakai (?i); samakan bentuk untuk deteksi agar varian
+        // huruf besar tidak melewati pemeriksaan tenant.
+        String urlRendah = url.toLowerCase(Locale.ROOT);
+        String prefixTenant = "sekolah-" + sekolahId + "/";
+
+        if (urlRendah.startsWith("sekolah-")) {
+            pastikanPathMilikTenant(urlRendah, prefixTenant);
+            return;
+        }
+        if (urlRendah.startsWith("/api/storage/")) {
+            pastikanPathMilikTenant(ambilPathDariUrlStorage(url), prefixTenant);
+            return;
+        }
+        String path = pathRelatifTerhadapBasis(url, basisPublik);
+        if (path != null) {
+            pastikanPathMilikTenant(path.toLowerCase(Locale.ROOT), prefixTenant);
+        }
+    }
+
+    /**
+     * Pastikan path objek berada di namespace tenant dan tidak memuat segmen
+     * traversal.
+     *
+     * @param path         path objek (sudah di-decode)
+     * @param prefixTenant {@code sekolah-<id>/} milik pemanggil
+     * @throws InvalidOperationException bila {@code null}, memuat {@code ..}/
+     *                                   backslash, atau prefix tidak cocok
+     */
+    private static void pastikanPathMilikTenant(String path, String prefixTenant) {
+        if (path == null || path.contains("..") || path.contains("\\")
+                || !path.startsWith(prefixTenant)) {
+            throw new InvalidOperationException("Foto menu harus berada di storage sekolah ini");
+        }
+    }
+
+    /**
+     * Ambil path objek dari URL absolut yang host-nya sama dengan basis publik
+     * storage ({@code minio.url-final}).
+     *
+     * @param url         URL absolut dari request
+     * @param basisPublik basis URL publik storage; kosong berarti tidak ada
+     *                    URL absolut yang dianggap storage sendiri
+     * @return path relatif terhadap basis, atau {@code null} bila host berbeda
+     * @throws InvalidOperationException bila host sama tetapi path berada di
+     *                                   luar prefix basis
+     */
+    private static String pathRelatifTerhadapBasis(String url, String basisPublik) {
+        if (basisPublik == null || basisPublik.isBlank()) {
+            return null;
+        }
+        URI kandidat;
+        URI basis;
+        try {
+            kandidat = URI.create(url);
+            basis = URI.create(basisPublik.trim());
+        } catch (IllegalArgumentException e) {
+            return null; // bentuk tidak valid → biarkan anotasi yang menolak
+        }
+        if (kandidat.getHost() == null || basis.getHost() == null
+                || !kandidat.getHost().equalsIgnoreCase(basis.getHost())
+                || !samaSkema(kandidat, basis)
+                || portEfektif(kandidat) != portEfektif(basis)) {
+            return null;
+        }
+        String basisPath = basis.getPath() == null ? "" : basis.getPath();
+        String path = kandidat.getPath() == null ? "" : kandidat.getPath();
+        String awalan = basisPath.isEmpty() || basisPath.endsWith("/") ? basisPath : basisPath + "/";
+        if (!path.startsWith(awalan)) {
+            throw new InvalidOperationException("Foto menu harus berada di storage sekolah ini");
+        }
+        String relatif = path.substring(awalan.length());
+        return relatif.startsWith("/") ? relatif.substring(1) : relatif;
+    }
+
+    private static boolean samaSkema(URI a, URI b) {
+        return a.getScheme() != null && b.getScheme() != null
+                && a.getScheme().equalsIgnoreCase(b.getScheme());
+    }
+
+    /** Port efektif: skema tanpa port eksplisit memakai default 80/443. */
+    private static int portEfektif(URI uri) {
+        if (uri.getPort() >= 0) {
+            return uri.getPort();
+        }
+        return "https".equalsIgnoreCase(uri.getScheme()) ? 443 : 80;
+    }
+
+    /**
+     * Ambil parameter {@code path} dari URL {@code /api/storage/file?path=...}.
+     *
+     * <p>Query dipecah per {@code &} lalu dicari parameter yang namanya persis
+     * {@code path}; pencocokan substring lama membuat {@code ?xpath=...} ikut
+     * cocok (temuan review #377).
+     *
+     * @param url URL storage internal
+     * @return path ter-decode, atau {@code null} bila parameter tidak ada
+     */
+    private static String ambilPathDariUrlStorage(String url) {
+        int tandaTanya = url.indexOf('?');
+        if (tandaTanya < 0) {
+            return null;
+        }
+        String query = url.substring(tandaTanya + 1);
+        for (String bagian : query.split("&")) {
+            int samaDengan = bagian.indexOf('=');
+            if (samaDengan < 0) {
+                continue;
+            }
+            if ("path".equals(bagian.substring(0, samaDengan))) {
+                return URLDecoder.decode(bagian.substring(samaDengan + 1), StandardCharsets.UTF_8);
+            }
+        }
+        return null;
     }
 
     private String normalisasiNama(String nama) {
