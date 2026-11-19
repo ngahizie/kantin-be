@@ -1,6 +1,8 @@
 package com.asqi.scholia_kantin_be.service.kasir;
 
+import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.dto.TapRequest;
+import com.asqi.scholia_kantin_be.dto.TutupSesiRequest;
 import com.asqi.scholia_kantin_be.dto.TapResponse;
 import com.asqi.scholia_kantin_be.helper.NomorStruk;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
@@ -27,6 +29,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Uji integrasi sesi kasir &amp; tutup kasir (PRD §6.4).
@@ -35,6 +38,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Import({TestcontainersConfig.class, TapServiceIT.FakePortConfig.class})
 @EnabledIfDockerAvailable
 class SesiKasirServiceIT {
+
+
+    /** Permintaan tutup sesi dengan hitungan laci (C.3). */
+    private static TutupSesiRequest tutupKas(long uangFisik, String catatan) {
+        TutupSesiRequest r = new TutupSesiRequest();
+        r.setUangFisik(uangFisik);
+        r.setCatatan(catatan);
+        return r;
+    }
 
     private static final long SEKOLAH = 1L;
     private static final long SISWA = 7L;
@@ -211,12 +223,97 @@ class SesiKasirServiceIT {
         Long sesiId = jdbc.queryForObject(
                 "SELECT sesi_kasir_id FROM transaksi WHERE id = ?", Long.class, t1.getTransaksiId());
 
-        var sesi = sesiKasir.tutupSesi(SEKOLAH, sesiId, 555L, false);
+        var sesi = sesiKasir.tutupSesi(SEKOLAH, sesiId, 555L, false, tutupKas(0L, null));
 
         assertThat(sesi.getStatus()).isEqualTo(StatusSesiKasir.DITUTUP);
         assertThat(sesi.getTotalBersih()).isEqualTo(8_000L);
         assertThat(sesi.getDitutupOleh()).isEqualTo(555L);
         assertThat(sesi.getDitutupAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("C.3: tutup sesi menyimpan uang fisik, selisih (dihitung server), dan catatan")
+    void tutupSesiMenyimpanKasFisik() {
+        tapTunai("c3-tunai", 2, 20_000); // 2 × 8.000 = 16.000 tunai
+        Long sesiId = jdbc.queryForObject(
+                "SELECT id FROM sesi_kasir WHERE titik_kasir_id = ?", Long.class, TITIK);
+
+        var sesi = sesiKasir.tutupSesi(SEKOLAH, sesiId, 555L, false,
+                tutupKas(15_000L, "kurang 1.000"));
+
+        // Selisih = uang fisik − totalTunai (C.2d), bukan totalBersih.
+        assertThat(sesi.getUangFisik()).isEqualTo(15_000L);
+        assertThat(sesi.getSelisih()).isEqualTo(-1_000L);
+        assertThat(sesi.getCatatan()).isEqualTo("kurang 1.000");
+
+        // Tersimpan di DB, bukan hanya di objek yang dikembalikan.
+        assertThat(jdbc.queryForObject(
+                "SELECT uang_fisik FROM sesi_kasir WHERE id = ?", Long.class, sesiId))
+                .isEqualTo(15_000L);
+        assertThat(jdbc.queryForObject(
+                "SELECT selisih FROM sesi_kasir WHERE id = ?", Long.class, sesiId))
+                .isEqualTo(-1_000L);
+        assertThat(jdbc.queryForObject(
+                "SELECT catatan FROM sesi_kasir WHERE id = ?", String.class, sesiId))
+                .isEqualTo("kurang 1.000");
+    }
+
+    @Test
+    @DisplayName("C.3: kas pas → selisih 0 dan catatan boleh kosong")
+    void tutupSesiKasPas() {
+        tapTunai("c3-pas", 1, 8_000); // dibayar tepat 8.000
+        Long sesiId = jdbc.queryForObject(
+                "SELECT id FROM sesi_kasir WHERE titik_kasir_id = ?", Long.class, TITIK);
+
+        var sesi = sesiKasir.tutupSesi(SEKOLAH, sesiId, 555L, false, tutupKas(8_000L, null));
+
+        assertThat(sesi.getSelisih()).isZero();
+        assertThat(sesi.getCatatan()).isNull();
+    }
+
+    @Test
+    @DisplayName("C.3: tutup manual tanpa uang fisik ditolak, sesi tetap TERBUKA")
+    void tutupSesiTanpaUangFisikDitolak() {
+        tap("c3-tanpa-kas", 1);
+        Long sesiId = jdbc.queryForObject(
+                "SELECT id FROM sesi_kasir WHERE titik_kasir_id = ?", Long.class, TITIK);
+
+        assertThatThrownBy(() -> sesiKasir.tutupSesi(SEKOLAH, sesiId, 555L, false, null))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("Uang fisik wajib diisi");
+
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM sesi_kasir WHERE id = ?", String.class, sesiId))
+                .isEqualTo("TERBUKA");
+    }
+
+    @Test
+    @DisplayName("C.3: selisih kas tanpa catatan ditolak")
+    void tutupSesiSelisihTanpaCatatanDitolak() {
+        tapTunai("c3-tanpa-catatan", 1, 10_000); // totalTunai 8.000
+        Long sesiId = jdbc.queryForObject(
+                "SELECT id FROM sesi_kasir WHERE titik_kasir_id = ?", Long.class, TITIK);
+
+        assertThatThrownBy(() -> sesiKasir.tutupSesi(SEKOLAH, sesiId, 555L, false,
+                tutupKas(5_000L, "   ")))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("Catatan wajib diisi");
+
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM sesi_kasir WHERE id = ?", String.class, sesiId))
+                .isEqualTo("TERBUKA");
+    }
+
+    @Test
+    @DisplayName("C.3: auto-tutup tidak menyimpan kas fisik (null, bukan 0)")
+    void autoTutupTanpaKasFisik() {
+        tap("c3-auto", 1);
+
+        assertThat(sesiKasir.tutupOtomatis(SEKOLAH)).isEqualTo(1);
+
+        assertThat(jdbc.queryForObject("SELECT uang_fisik FROM sesi_kasir", Long.class)).isNull();
+        assertThat(jdbc.queryForObject("SELECT selisih FROM sesi_kasir", Long.class)).isNull();
+        assertThat(jdbc.queryForObject("SELECT catatan FROM sesi_kasir", String.class)).isNull();
     }
 
     @Test
@@ -346,7 +443,7 @@ class SesiKasirServiceIT {
         tap("s1", 1);
         Long sesiId = jdbc.queryForObject(
                 "SELECT id FROM sesi_kasir WHERE titik_kasir_id = ?", Long.class, TITIK);
-        sesiKasir.tutupSesi(SEKOLAH, sesiId, 555L, false);
+        sesiKasir.tutupSesi(SEKOLAH, sesiId, 555L, false, tutupKas(0L, null));
 
         assertThat(sesiKasir.ambilSesiAktif(SEKOLAH, TITIK)).isNull();
     }

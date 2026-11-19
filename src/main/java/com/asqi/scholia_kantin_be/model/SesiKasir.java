@@ -82,6 +82,28 @@ public class SesiKasir {
     @Column(name = "ditutup_oleh")
     private Long ditutupOleh;
 
+    /**
+     * Uang fisik yang dihitung kasir saat menutup sesi (C.3).
+     *
+     * <p>Nullable: sesi yang ditutup otomatis oleh sistem tidak punya hitungan
+     * laci. Wajib diisi pada penutupan manual lewat API.
+     */
+    @Column(name = "uang_fisik")
+    private Long uangFisik;
+
+    /**
+     * Selisih kas = {@code uangFisik − totalTunai} (C.3), dihitung server.
+     *
+     * <p>Positif = kelebihan kas, negatif = kekurangan kas, {@code null} bila
+     * uang fisik tidak diinput (auto-tutup).
+     */
+    @Column(name = "selisih")
+    private Long selisih;
+
+    /** Alasan kelebihan/kekurangan kas saat tutup kasir (C.3). */
+    @Column(name = "catatan", length = 500)
+    private String catatan;
+
     @Column(name = "auto_tutup", nullable = false)
     private boolean autoTutup;
 
