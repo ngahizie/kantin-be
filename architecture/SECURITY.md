@@ -22,7 +22,7 @@
 ## 2. Alur Verifikasi Token
 
 ```
-Request (Authorization: Bearer <jwt>  atau  Cookie: skoolia-cookies)
+Request (Authorization: Bearer <jwt>  atau  Cookie: skoolia-cookies — hanya GET /api/storage/**)
    │
    ▼
 JwtAuthTokenFilter  ──►  KantinJwtDecoder
@@ -146,6 +146,13 @@ POST /api/webhook/{sumber}
 | Error server | 500 | 500 |
 
 Lihat `BUGS-DITEMUKAN.md` B6–B8 tentang perbaikan status 403 dari `admin-be`.
+
+**Logging 403 (SEC-06):** penolakan dari method security (`@PerluPeran`) dicatat
+`WARN` di `GlobalExceptionHandler` beserta `userId`, `sekolahId`, dan path URI
+(tanpa query string). Penolakan di level filter-chain (mis. request tanpa token
+ke endpoint terproteksi) ditangani `JwtAuthenticationEntryPoint` sebagai 401 dan
+**belum** masuk log yang sama — batasan yang diketahui, kandidat follow-up untuk
+deteksi anomali A09.
 
 ---
 

@@ -211,8 +211,10 @@ public class GlobalExceptionHandler {
     /**
      * RBAC gagal → 403 (bukan 500 seperti admin-be).
      *
-     * <p>Setiap penolakan dicatat level {@code WARN} (SEC-06) agar anomali
-     * akses bisa dideteksi. Hanya path URI yang dicatat — query string tidak,
+     * <p>Setiap penolakan method security dicatat level {@code WARN} (SEC-06)
+     * agar anomali akses bisa dideteksi. Penolakan di level filter-chain
+     * (mis. request tanpa token) ditangani entry point sebagai 401 dan tidak
+     * lewat handler ini. Hanya path URI yang dicatat — query string tidak,
      * supaya parameter sensitif tidak masuk log. Identitas diambil dari
      * {@link TenantContext} yang masih terisi sampai filter selesai.
      *
