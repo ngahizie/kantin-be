@@ -323,6 +323,40 @@ class TapServiceIT {
     }
 
     @Test
+    @DisplayName("ADR-0013: pending membawa flag jual melebihi catatan → konfirmasi menghasilkan stok minus")
+    void pendingMembawaFlagStokMinus() {
+        aktifkanKonfirmasiManual();
+        // Sisakan 1 unit, lalu minta 2 unit dengan flag.
+        tx.executeWithoutResult(s -> ledgerStok.keluarPenjualan(SEKOLAH, MENU_NASI, 19, null));
+
+        TapRequest r = request("tap-minus-pending", 2, 0);
+        r.setIzinkanStokMinus(true);
+        r.setAlasanStokMinus("barang ada di gudang");
+
+        TapResponse pending = tapService.tap(SEKOLAH, petugas, r);
+        assertThat(pending.isMenungguKonfirmasi()).isTrue();
+        assertThat(jdbc.queryForObject(
+                "SELECT izinkan_stok_minus FROM transaksi_tertunda WHERE id = ?",
+                Boolean.class, pending.getPendingId())).isTrue();
+        assertThat(ledgerStok.stok(SEKOLAH, MENU_NASI)).isEqualTo(1); // belum dipotong
+
+        TapResponse resp = tapService.konfirmasi(SEKOLAH, pending.getPendingId(), petugas);
+
+        assertThat(resp.getTransaksiId()).isNotNull();
+        assertThat(ledgerStok.stok(SEKOLAH, MENU_NASI)).isEqualTo(-1);
+        assertThat(jdbc.queryForObject(
+                "SELECT jenis FROM riwayat_stok WHERE transaksi_id = ? ORDER BY waktu DESC LIMIT 1",
+                String.class, resp.getTransaksiId())).isEqualTo("PENJUALAN_MINUS");
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM catatan_audit WHERE aksi = 'PENJUALAN_STOK_MINUS'",
+                Integer.class)).isEqualTo(1);
+        // ADR-0013 poin 5: audit mencatat petugas, bukan "sistem".
+        assertThat(jdbc.queryForObject(
+                "SELECT aktor_id FROM catatan_audit WHERE aksi = 'PENJUALAN_STOK_MINUS'",
+                Long.class)).isEqualTo(petugas.aktorIdWajib());
+    }
+
+    @Test
     @DisplayName("#111: konfirmasi ganda idempoten — hanya sekali potong")
     void konfirmasiGandaIdempoten() {
         aktifkanKonfirmasiManual();

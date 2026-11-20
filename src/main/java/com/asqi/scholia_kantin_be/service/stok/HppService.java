@@ -33,7 +33,8 @@ public class HppService {
     /**
      * Hitung HPP rata-rata tertimbang baru setelah barang masuk.
      *
-     * @param stokSekarang stok sistem sebelum barang masuk (≥ 0)
+     * @param stokSekarang stok sistem sebelum barang masuk (boleh negatif bila ada
+     *                     penjualan melebihi catatan, ADR-0013; diperlakukan sebagai 0)
      * @param hppSekarang  HPP rata-rata berjalan sebelum masuk (≥ 0)
      * @param qtyMasuk     jumlah barang masuk (&gt; 0)
      * @param hargaBeli    harga beli per unit barang masuk (≥ 0)

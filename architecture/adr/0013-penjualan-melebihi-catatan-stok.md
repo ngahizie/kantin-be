@@ -14,7 +14,7 @@ aturan itu ditegakkan tiga lapis:
 
 1. `TapValidator` tahap 4 menolak tap bila `stok <= 0` atau `stok < qty`;
 2. `LedgerStokService.keluarPenjualan` melempar `ConflictException` bila stok tidak cukup;
-3. DB: `CHECK (stok_setelah >= 0)` pada `mutasi_stok` dan `CHECK (stok >= 0)` pada `stok_cache`.
+3. DB: `CHECK (stok_setelah >= 0)` pada `riwayat_stok` dan `CHECK (stok >= 0)` pada `stok` (nama tabel mengikuti baseline `V28__SkemaV2`).
 
 Masalah operasionalnya: **stok sistem bisa lebih kecil daripada stok fisik**. Barang cadangan
 di gudang belum sempat dicatat sebagai barang masuk, atau barang masuk hari itu belum
@@ -37,14 +37,19 @@ umum.**
 3. Penjagaan DB dilonggarkan **hanya untuk jenis itu**:
    `CHECK (stok_setelah >= 0 OR jenis = 'PENJUALAN_MINUS')`. Semua mutasi lain tetap wajib
    `>= 0`, jadi opname, barang masuk, void, dan pembalik tidak bisa menghasilkan minus.
-4. `stok_cache.stok` boleh negatif, karena cache adalah turunan ledger dan minus itu memang
-   tercatat. Cache tetap dapat dihitung ulang dari `mutasi_stok`.
+4. `stok.stok` boleh negatif, karena cache adalah turunan ledger dan minus itu memang
+   tercatat. Cache tetap dapat dihitung ulang dari `riwayat_stok` (`hitungUlangDariLedger`),
+   dan uji rekonsiliasi memastikan cache tidak menyimpang dari ledger.
 5. Setiap penjualan minus **wajib berjejak**: jenis mutasi, `transaksi_id`, aktor (dari konteks
    request), dan `alasan` bila diisi. Opname masuk (`OPNAME_MASUK`) adalah satu-satunya cara
    resmi menutup minus.
 6. HPP: bila `stok <= 0`, barang masuk berikutnya memakai **harga beli barang masuk itu**
    sebagai HPP baru (aturan PRD §7.4 yang sudah ada). Penjaga `HppService` yang menolak
    `stokSekarang < 0` dilonggarkan agar barang masuk setelah penjualan minus tidak gagal.
+7. **Flag berlaku per transaksi, bukan per item.** Bila kasir menyalakan `izinkanStokMinus`,
+   seluruh item pada transaksi itu boleh melewati catatan (hanya item yang memang kurang yang
+   menghasilkan `PENJUALAN_MINUS`). Ini disengaja: satu tap = satu keputusan kasir di depan
+   pembeli, dan memecah flag per item akan membuat dialog konfirmasi berlapis di meja kasir.
 
 ## Alternatif yang ditolak
 

@@ -376,7 +376,7 @@ public class TapService {
             HasilMutasiStok mutasiStok = ledgerStok.keluarPenjualan(
                     sekolahId, baris.getMenuId(), baris.getQty(), transaksiId,
                     Boolean.TRUE.equals(request.getIzinkanStokMinus()),
-                    request.getAlasanStokMinus());
+                    request.getAlasanStokMinus(), petugasId);
             long hppSnapshot = mutasiStok.getHppSetelah();
             totalHpp += hppSnapshot * baris.getQty();
 

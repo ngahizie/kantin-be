@@ -247,6 +247,16 @@ public class LedgerStokService {
      */
     public HasilMutasiStok keluarPenjualan(Long sekolahId, Long menuId, int qty, Long transaksiId,
                                            boolean izinkanMinus, String alasan) {
+        return keluarPenjualan(sekolahId, menuId, qty, transaksiId, izinkanMinus, alasan, null);
+    }
+
+    /**
+     * Varian dengan aktor eksplisit — dipakai jalur kasir supaya audit
+     * {@code PENJUALAN_STOK_MINUS} mencatat petugas yang menekan tombol, bukan
+     * "sistem" (ADR-0013 poin 5). Bila {@code aktorId} null, diambil dari konteks.
+     */
+    public HasilMutasiStok keluarPenjualan(Long sekolahId, Long menuId, int qty, Long transaksiId,
+                                           boolean izinkanMinus, String alasan, Long aktorId) {
         if (qty <= 0) {
             throw new InvalidOperationException("Qty penjualan harus > 0");
         }
@@ -271,8 +281,9 @@ public class LedgerStokService {
         cacheRepo.save(cache);
 
         if (melebihiCatatan) {
-            // Jejak wajib (ADR-0013): siapa, kapan, sisa stok, dan alasan kasir.
-            auditLogger.catat(null, sekolahId, "PENJUALAN_STOK_MINUS", "Stok",
+            // Jejak wajib (ADR-0013): aktor dari konteks request, sisa stok, dan alasan kasir.
+            auditLogger.catat(aktorId != null ? aktorId : aktorIdKonteks(), sekolahId,
+                    "PENJUALAN_STOK_MINUS", "Stok",
                     "MENU:" + menuId, alasan,
                     "stok=" + stokSebelum,
                     "stok=" + stokBaru + ";qty=" + qty + ";transaksi=" + transaksiId);

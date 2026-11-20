@@ -128,6 +128,26 @@ class LedgerStokServiceIT {
     }
 
     @Test
+    @DisplayName("ADR-0013: cache stok tetap sinkron dengan hitung ulang ledger setelah minus, masuk, & opname")
+    void rekonsiliasiCacheSetelahMinus() {
+        tx.executeWithoutResult(s -> ledger.masukBarang(SEKOLAH, MENU, 2, 5_000, "BARANG_MASUK", "BM-1", 1L));
+        tx.executeWithoutResult(s -> ledger.keluarPenjualan(SEKOLAH, MENU, 5, null, true, "gudang"));
+        tx.executeWithoutResult(s -> ledger.masukBarang(SEKOLAH, MENU, 4, 7_000, "BARANG_MASUK", "BM-2", 1L));
+
+        // Cache = turunan ledger, walau sempat negatif.
+        assertThat(ledger.stok(SEKOLAH, MENU))
+                .isEqualTo((int) ledger.hitungUlangDariLedger(SEKOLAH, MENU))
+                .isEqualTo(1);
+
+        // Opname menutup selisih; cache tetap harus sama dengan ledger.
+        tx.executeWithoutResult(s -> ledger.sesuaikanOpname(SEKOLAH, MENU, 6, "hitung fisik", "OP-1", 1L));
+
+        assertThat(ledger.stok(SEKOLAH, MENU))
+                .isEqualTo((int) ledger.hitungUlangDariLedger(SEKOLAH, MENU))
+                .isEqualTo(6);
+    }
+
+    @Test
     @DisplayName("penjualan bersamaan — stok tak pernah minus")
     void penjualanBersamaan() throws Exception {
         tx.executeWithoutResult(s -> ledger.masukBarang(SEKOLAH, MENU, 10, 5_000, "BARANG_MASUK", "BM-1", 1L));
