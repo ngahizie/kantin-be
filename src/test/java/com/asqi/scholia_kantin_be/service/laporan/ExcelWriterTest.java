@@ -16,6 +16,24 @@ class ExcelWriterTest {
     private final ExcelWriter writer = new ExcelWriter();
 
     @Test
+    @DisplayName("#388 SEC-01: teks berawalan formula diberi prefix petik tunggal (CWE-1236)")
+    void teksFormulaDisanitasi() {
+        // Karakter pemicu formula Excel/Calc.
+        assertThat(ExcelWriter.teksAman("=SUM(A1:A9)")).isEqualTo("'=SUM(A1:A9)");
+        assertThat(ExcelWriter.teksAman("+1+2")).isEqualTo("'+1+2");
+        assertThat(ExcelWriter.teksAman("-1+2")).isEqualTo("'-1+2");
+        assertThat(ExcelWriter.teksAman("@SUM(1)")).isEqualTo("'@SUM(1)");
+        assertThat(ExcelWriter.teksAman("\tTAB")).isEqualTo("'\tTAB");
+        assertThat(ExcelWriter.teksAman("\rCR")).isEqualTo("'\rCR");
+
+        // Teks biasa tidak diubah.
+        assertThat(ExcelWriter.teksAman("Nasi Uduk")).isEqualTo("Nasi Uduk");
+        assertThat(ExcelWriter.teksAman("1.500")).isEqualTo("1.500");
+        assertThat(ExcelWriter.teksAman("")).isEmpty();
+        assertThat(ExcelWriter.teksAman(null)).isNull();
+    }
+
+    @Test
     @DisplayName("tulis menghasilkan berkas .xlsx dengan template kop resmi Navy, padding kolom A, dan zebra striping")
     void tulisTemplateResmiValid() throws Exception {
         List<String> header = List.of("No", "Nama Menu", "Kategori", "Harga Satuan", "Qty", "Total");

@@ -26,6 +26,7 @@ import com.asqi.scholia_kantin_be.security.IdentitasKantin;
 import com.asqi.scholia_kantin_be.security.PerluPeran;
 import com.asqi.scholia_kantin_be.security.TenantContext;
 import com.asqi.scholia_kantin_be.service.laporan.LaporanExportService;
+import com.asqi.scholia_kantin_be.service.laporan.LaporanMasking;
 import com.asqi.scholia_kantin_be.service.laporan.LaporanPembatalanService;
 import com.asqi.scholia_kantin_be.service.laporan.LaporanPenjualanService;
 import com.asqi.scholia_kantin_be.service.laporan.LaporanSaldoService;
@@ -102,8 +103,10 @@ public class LaporanController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tanggal,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime dari,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime sampai) {
-        return CommonResponse.data(
-                penjualan.ringkasanPenjualan(TenantContext.sekolahIdWajib(), tanggal, dari, sampai));
+        RingkasanPenjualan ringkasan =
+                penjualan.ringkasanPenjualan(TenantContext.sekolahIdWajib(), tanggal, dari, sampai);
+        // SEC-02 (#388): Admin Sekolah tidak berhak melihat modal/laba/margin (PRD §9.5).
+        return CommonResponse.data(bolehLihatLaba() ? ringkasan : LaporanMasking.tanpaLaba(ringkasan));
     }
 
     /** Penjualan per item (PRD §9.5). */
@@ -114,8 +117,9 @@ public class LaporanController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tanggal,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime dari,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime sampai) {
-        return CommonResponse.data(
-                penjualan.penjualanPerItem(TenantContext.sekolahIdWajib(), tanggal, dari, sampai));
+        List<BarisPenjualan> baris =
+                penjualan.penjualanPerItem(TenantContext.sekolahIdWajib(), tanggal, dari, sampai);
+        return CommonResponse.data(bolehLihatLaba() ? baris : LaporanMasking.tanpaLaba(baris));
     }
 
     /** Penjualan per kategori (PRD §9.5). */
@@ -126,8 +130,9 @@ public class LaporanController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tanggal,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime dari,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime sampai) {
-        return CommonResponse.data(
-                penjualan.penjualanPerKategori(TenantContext.sekolahIdWajib(), tanggal, dari, sampai));
+        List<BarisPenjualan> baris =
+                penjualan.penjualanPerKategori(TenantContext.sekolahIdWajib(), tanggal, dari, sampai);
+        return CommonResponse.data(bolehLihatLaba() ? baris : LaporanMasking.tanpaLaba(baris));
     }
 
     /** Saldo mengendap — dana titipan (PRD §9.5). */
@@ -221,8 +226,9 @@ public class LaporanController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tanggal,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime dari,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime sampai) {
-        return CommonResponse.data(
-                penjualan.penjualanPerTitik(TenantContext.sekolahIdWajib(), tanggal, dari, sampai));
+        List<BarisPenjualanDimensi> baris =
+                penjualan.penjualanPerTitik(TenantContext.sekolahIdWajib(), tanggal, dari, sampai);
+        return CommonResponse.data(bolehLihatLaba() ? baris : LaporanMasking.tanpaLabaDimensi(baris));
     }
 
     /**
@@ -236,8 +242,9 @@ public class LaporanController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tanggal,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime dari,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime sampai) {
-        return CommonResponse.data(
-                penjualan.penjualanPerPetugas(TenantContext.sekolahIdWajib(), tanggal, dari, sampai));
+        List<BarisPenjualanDimensi> baris =
+                penjualan.penjualanPerPetugas(TenantContext.sekolahIdWajib(), tanggal, dari, sampai);
+        return CommonResponse.data(bolehLihatLaba() ? baris : LaporanMasking.tanpaLabaDimensi(baris));
     }
 
     /**
@@ -382,5 +389,16 @@ public class LaporanController {
                         "attachment; filename=\"" + hasil.namaBerkas() + "\"")
                 .contentType(xlsx)
                 .body(new ByteArrayResource(hasil.isi()));
+    }
+
+    /** Peran pemanggil saat ini; {@code null} bila konteks tidak tersedia (mis. tes unit). */
+    private static AktorKantin peranSekarang() {
+        IdentitasKantin identitas = TenantContext.get();
+        return identitas == null ? null : identitas.getPeran();
+    }
+
+    /** PRD §9.5: modal/laba/margin hanya untuk Bendahara, Pengelola, dan Kepsek. */
+    private static boolean bolehLihatLaba() {
+        return LaporanMasking.bolehLihatLaba(peranSekarang());
     }
 }

@@ -1,5 +1,6 @@
 package com.asqi.scholia_kantin_be.service.laporan;
 
+import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
 
 import java.time.LocalDate;
@@ -16,6 +17,15 @@ import java.time.OffsetDateTime;
  * semua domain, jadi ditulis sekali di sini daripada disalin enam kali.
  */
 final class LaporanHelper {
+
+    /**
+     * Batas maksimum rentang satu permintaan laporan (hari).
+     *
+     * <p>Mencegah query agregat/ekspor dengan rentang puluhan tahun yang memicu
+     * full-table scan dan alokasi memori besar di generator Excel (OWASP A06:2025,
+     * CWE-400 — SEC-03 issue #388).
+     */
+    static final int MAKS_HARI = 366;
 
     private LaporanHelper() {
     }
@@ -38,6 +48,16 @@ final class LaporanHelper {
         LocalDate tgl = (tanggal != null) ? tanggal : jam.hariIni();
         OffsetDateTime awal = (dari != null) ? dari : tgl.atStartOfDay(jam.zona()).toOffsetDateTime();
         OffsetDateTime akhir = (sampai != null) ? sampai : awal.plusDays(1);
+
+        // SEC-03 (#388): tolak rentang terbalik & rentang tak terbatas.
+        if (!akhir.isAfter(awal)) {
+            throw new InvalidOperationException(
+                    "Rentang tanggal tidak valid: 'dari' harus sebelum 'sampai'");
+        }
+        if (akhir.isAfter(awal.plusDays(MAKS_HARI))) {
+            throw new InvalidOperationException(
+                    "Rentang tanggal terlalu panjang: maksimal " + MAKS_HARI + " hari per permintaan");
+        }
         return new OffsetDateTime[]{awal, akhir};
     }
 
