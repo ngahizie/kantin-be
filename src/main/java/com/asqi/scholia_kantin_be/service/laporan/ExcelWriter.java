@@ -348,7 +348,13 @@ public class ExcelWriter {
         if (teks == null || teks.isEmpty()) {
             return teks;
         }
-        char awal = teks.charAt(0);
+        // Spasi di depan diabaikan: sebagian parser melakukan trim sebelum
+        // mengeksekusi, jadi " =1+1" tetap harus disanitasi.
+        int i = 0;
+        while (i < teks.length() && teks.charAt(i) == ' ') {
+            i++;
+        }
+        char awal = i < teks.length() ? teks.charAt(i) : ' ';
         boolean berbahaya = AWALAN_FORMULA.indexOf(awal) >= 0
                 || awal == '\t' || awal == '\r' || awal == '\n';
         return berbahaya ? "'" + teks : teks;

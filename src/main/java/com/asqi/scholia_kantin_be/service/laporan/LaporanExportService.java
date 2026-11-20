@@ -190,7 +190,7 @@ public class LaporanExportService {
             case SETORAN_TU -> eksporSetoran(sekolahId, tanggal, label);
             case PER_SISWA -> eksporPerSiswa(sekolahId, siswaId, tanggal, dari, sampai, label);
         };
-        catatAuditEkspor(sekolahId, jenis, dari, sampai, hasil.namaBerkas());
+        catatAuditEkspor(sekolahId, jenis, label, hasil.namaBerkas());
         return hasil;
     }
 
@@ -198,8 +198,8 @@ public class LaporanExportService {
      * Audit ekspor laporan finansial (SEC-06, issue #388): baris log terstruktur
      * plus catatan audit persisten bila {@link AuditLogger} tersedia.
      */
-    private void catatAuditEkspor(Long sekolahId, JenisLaporan jenis, OffsetDateTime dari,
-                                  OffsetDateTime sampai, String namaBerkas) {
+    private void catatAuditEkspor(Long sekolahId, JenisLaporan jenis, String periode,
+                                  String namaBerkas) {
         IdentitasKantin identitas = TenantContext.get();
         Long aktorId = null;
         if (identitas != null) {
@@ -209,11 +209,11 @@ public class LaporanExportService {
                 aktorId = null;
             }
         }
-        log.info("[AUDIT_EXPORT_LAPORAN] user={} sekolahId={} jenis={} rentang=[{}, {}] berkas={}",
-                aktorId, sekolahId, jenis, dari, sampai, namaBerkas);
+        log.info("[AUDIT_EXPORT_LAPORAN] user={} sekolahId={} jenis={} periode={} berkas={}",
+                aktorId, sekolahId, jenis, periode, namaBerkas);
         if (auditLogger != null && sekolahId != null) {
             auditLogger.catat(aktorId, sekolahId, "EXPORT_LAPORAN", "Laporan", jenis.name(), null,
-                    "rentang=[" + dari + ", " + sampai + "]", namaBerkas);
+                    "periode=" + periode, namaBerkas);
         }
     }
 

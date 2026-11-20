@@ -1,6 +1,7 @@
 package com.asqi.scholia_kantin_be.service.laporan;
 
 import com.asqi.scholia_kantin_be.dto.RekapSetoranItem;
+import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.service.saldo.SetoranService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -26,6 +27,7 @@ import java.util.List;
 public class LaporanSetoranService {
 
     private final SetoranService setoranTuService;
+    private final JamKantin jam;
 
     /**
      * Laporan setoran kas TU per tanggal.
@@ -52,6 +54,12 @@ public class LaporanSetoranService {
     @Transactional(readOnly = true)
     public List<RekapSetoranItem> laporanSetoran(Long sekolahId, LocalDate tanggal,
                                                  OffsetDateTime dari, OffsetDateTime sampai) {
-        return setoranTuService.rekap(sekolahId, tanggal, dari, sampai);
+        if (dari == null && sampai == null) {
+            return setoranTuService.rekap(sekolahId, tanggal);
+        }
+        // SEC-03 (#388): jalur setoran ikut tunduk pada batas periode yang sama
+        // dengan laporan lain (rentang terbalik & maksimal 366 hari → 400).
+        OffsetDateTime[] rentang = LaporanHelper.rentang(jam, tanggal, dari, sampai);
+        return setoranTuService.rekap(sekolahId, tanggal, rentang[0], rentang[1]);
     }
 }

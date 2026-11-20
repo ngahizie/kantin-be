@@ -23,6 +23,9 @@ class ExcelWriterTest {
         assertThat(ExcelWriter.teksAman("+1+2")).isEqualTo("'+1+2");
         assertThat(ExcelWriter.teksAman("-1+2")).isEqualTo("'-1+2");
         assertThat(ExcelWriter.teksAman("@SUM(1)")).isEqualTo("'@SUM(1)");
+        // Spasi di depan tetap disanitasi (parser lain bisa trim).
+        assertThat(ExcelWriter.teksAman(" =1+1")).isEqualTo("' =1+1");
+        assertThat(ExcelWriter.teksAman("  +2")).isEqualTo("'  +2");
         assertThat(ExcelWriter.teksAman("\tTAB")).isEqualTo("'\tTAB");
         assertThat(ExcelWriter.teksAman("\rCR")).isEqualTo("'\rCR");
 
