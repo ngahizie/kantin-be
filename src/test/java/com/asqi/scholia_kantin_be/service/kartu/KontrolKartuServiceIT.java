@@ -56,7 +56,9 @@ class KontrolKartuServiceIT {
     private static final long SISWA = 7L;
     private static final long MENU_NASI = 10L;
     private static final long MENU_ES = 20L;
+    private static final long MENU_SEKOLAH_LAIN = 30L;
     private static final long KATEGORI_ES = 200L;
+    private static final long KATEGORI_SEKOLAH_LAIN = 300L;
     private static final long TITIK = 1L;
     private static final long ADMIN = 900L;
     private static final long PETUGAS_AKTOR = 555L;
@@ -106,6 +108,13 @@ class KontrolKartuServiceIT {
                 + "stok_minimum, is_active, created_at, updated_at) "
                 + "VALUES (?, ?, ?, 'Es Jeruk', 5000, 'PCS', 0, true, now(), now()) "
                 + "ON CONFLICT DO NOTHING", MENU_ES, SEKOLAH, KATEGORI_ES);
+        jdbc.update("INSERT INTO kategori_menu (id, sekolah_id, nama, urutan, is_active, created_at, updated_at) "
+                + "VALUES (?, ?, 'Minuman Sekolah Lain', 0, true, now(), now()) ON CONFLICT DO NOTHING",
+                KATEGORI_SEKOLAH_LAIN, SEKOLAH_LAIN);
+        jdbc.update("INSERT INTO menu (id, sekolah_id, kategori_id, nama, harga_jual, satuan, "
+                + "stok_minimum, is_active, created_at, updated_at) "
+                + "VALUES (?, ?, NULL, 'Menu Sekolah Lain', 3000, 'PCS', 0, true, now(), now()) "
+                + "ON CONFLICT DO NOTHING", MENU_SEKOLAH_LAIN, SEKOLAH_LAIN);
         jdbc.update("INSERT INTO kartu (uid, sekolah_id, siswa_id, nomor_kartu) "
                 + "VALUES (?, ?, ?, 'KRT-001') ON CONFLICT (uid) DO NOTHING", UID, SEKOLAH, SISWA);
 
@@ -272,6 +281,63 @@ class KontrolKartuServiceIT {
         assertThatThrownBy(() ->
                 kontrol.ubahBlokirItem(SEKOLAH, SISWA, null, null, true, ADMIN))
                 .isInstanceOf(InvalidOperationException.class);
+    }
+
+    @Test
+    @DisplayName("SEC-KOR: blokir menu sekolah lain ditolak 404, tidak ada baris tersimpan")
+    void blokirMenuTenantLainDitolak() {
+        assertThatThrownBy(() ->
+                kontrol.ubahBlokirItem(SEKOLAH, SISWA, MENU_SEKOLAH_LAIN, null, true, ADMIN))
+                .isInstanceOf(NotFoundEntity.class)
+                .hasMessageContaining("Menu tidak ditemukan");
+
+        Integer baris = jdbc.queryForObject("SELECT count(*) FROM pembatasan", Integer.class);
+        assertThat(baris).isZero();
+    }
+
+    @Test
+    @DisplayName("SEC-KOR: blokir kategori sekolah lain ditolak 404, tidak ada baris tersimpan")
+    void blokirKategoriTenantLainDitolak() {
+        assertThatThrownBy(() ->
+                kontrol.ubahBlokirItem(SEKOLAH, SISWA, null, KATEGORI_SEKOLAH_LAIN, true, ADMIN))
+                .isInstanceOf(NotFoundEntity.class)
+                .hasMessageContaining("Kategori tidak ditemukan");
+
+        Integer baris = jdbc.queryForObject("SELECT count(*) FROM pembatasan", Integer.class);
+        assertThat(baris).isZero();
+    }
+
+    @Test
+    @DisplayName("SEC-KOR: menu soft-deleted di sekolah sendiri tidak bisa diblokir")
+    void blokirMenuTerhapusDitolak() {
+        jdbc.update("UPDATE menu SET deleted_at = now() WHERE id = ?", MENU_NASI);
+
+        assertThatThrownBy(() ->
+                kontrol.ubahBlokirItem(SEKOLAH, SISWA, MENU_NASI, null, true, ADMIN))
+                .isInstanceOf(NotFoundEntity.class)
+                .hasMessageContaining("Menu tidak ditemukan");
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // BULK — BATAS UKURAN PAYLOAD
+    // ────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("SEC-KOR: bulk maksimal 100 siswa — 101 ditolak")
+    void bulkLebihDariSeratusDitolak() {
+        List<Long> ids = java.util.stream.LongStream.rangeClosed(1, 101).boxed().toList();
+
+        assertThatThrownBy(() -> kontrol.kontrolBulk(SEKOLAH, ids))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("100");
+    }
+
+    @Test
+    @DisplayName("SEC-KOR: bulk tepat 100 siswa tetap dilayani")
+    void bulkSeratusDiizinkan() {
+        List<Long> ids = java.util.stream.LongStream.rangeClosed(1, 100).boxed().toList();
+
+        assertThat(kontrol.kontrolBulk(SEKOLAH, ids)).hasSize(100);
     }
 
     // ────────────────────────────────────────────────────────────────

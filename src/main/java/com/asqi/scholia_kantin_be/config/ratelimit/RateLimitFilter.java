@@ -111,7 +111,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
         if (mutasi && (path.startsWith("/api/kasir")
                 || path.startsWith("/api/saldo")
                 || path.startsWith("/api/stok")
-                || path.startsWith("/api/katalog"))) {
+                || path.startsWith("/api/katalog")
+                || path.startsWith("/api/kontrol-kartu"))) {
             return Kategori.SENSITIF;
         }
         if (path.startsWith("/api")) {
