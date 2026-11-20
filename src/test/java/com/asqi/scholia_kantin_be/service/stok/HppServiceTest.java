@@ -24,6 +24,14 @@ class HppServiceTest {
     }
 
     @Test
+    @DisplayName("ADR-0013: stok minus → HPP baru = harga beli (bukan error)")
+    void stokMinusPakaiHargaBeli() {
+        // Penjualan melebihi catatan membuat stok negatif; barang masuk berikutnya
+        // tidak boleh gagal hanya karena stok belum positif.
+        assertThat(hpp.hitungRataRataTertimbang(-3, 5000, 4, 7000)).isEqualTo(7000);
+    }
+
+    @Test
     @DisplayName("rata-rata tertimbang dasar")
     void rataRataDasar() {
         // (10 × 5000 + 10 × 6000) / 20 = 5500

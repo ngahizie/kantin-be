@@ -97,6 +97,57 @@ class LedgerStokServiceIT {
     }
 
     @Test
+    @DisplayName("ADR-0013: jual melebihi catatan → stok negatif, jenis PENJUALAN_MINUS, audit tercatat")
+    void penjualanMelebihiCatatan() {
+        tx.executeWithoutResult(s -> ledger.masukBarang(SEKOLAH, MENU, 2, 5_000, "BARANG_MASUK", "BM-1", 1L));
+
+        var hasil = tx.execute(s -> ledger.keluarPenjualan(
+                SEKOLAH, MENU, 5, null, true, "barang ada di gudang"));
+
+        assertThat(hasil.getStokSetelah()).isEqualTo(-3);
+        assertThat(ledger.stok(SEKOLAH, MENU)).isEqualTo(-3);
+        assertThat(ledger.hitungUlangDariLedger(SEKOLAH, MENU)).isEqualTo(-3L);
+        assertThat(jdbc.queryForObject(
+                "SELECT jenis FROM riwayat_stok WHERE menu_id = ? ORDER BY waktu DESC LIMIT 1",
+                String.class, MENU)).isEqualTo("PENJUALAN_MINUS");
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM catatan_audit WHERE aksi = 'PENJUALAN_STOK_MINUS' AND entitas_id = ?",
+                Long.class, "MENU:" + MENU)).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("ADR-0013: barang masuk setelah stok minus → HPP = harga beli baru, stok pulih")
+    void barangMasukSetelahMinus() {
+        tx.executeWithoutResult(s -> ledger.masukBarang(SEKOLAH, MENU, 2, 5_000, "BARANG_MASUK", "BM-1", 1L));
+        tx.executeWithoutResult(s -> ledger.keluarPenjualan(SEKOLAH, MENU, 5, null, true, null));
+
+        var hasil = tx.execute(s -> ledger.masukBarang(SEKOLAH, MENU, 4, 7_000, "BARANG_MASUK", "BM-2", 1L));
+
+        assertThat(hasil.getStokSetelah()).isEqualTo(1);   // -3 + 4
+        assertThat(hasil.getHppSetelah()).isEqualTo(7_000L); // stok ≤ 0 → harga beli barang masuk
+    }
+
+    @Test
+    @DisplayName("ADR-0013: cache stok tetap sinkron dengan hitung ulang ledger setelah minus, masuk, & opname")
+    void rekonsiliasiCacheSetelahMinus() {
+        tx.executeWithoutResult(s -> ledger.masukBarang(SEKOLAH, MENU, 2, 5_000, "BARANG_MASUK", "BM-1", 1L));
+        tx.executeWithoutResult(s -> ledger.keluarPenjualan(SEKOLAH, MENU, 5, null, true, "gudang"));
+        tx.executeWithoutResult(s -> ledger.masukBarang(SEKOLAH, MENU, 4, 7_000, "BARANG_MASUK", "BM-2", 1L));
+
+        // Cache = turunan ledger, walau sempat negatif.
+        assertThat(ledger.stok(SEKOLAH, MENU))
+                .isEqualTo((int) ledger.hitungUlangDariLedger(SEKOLAH, MENU))
+                .isEqualTo(1);
+
+        // Opname menutup selisih; cache tetap harus sama dengan ledger.
+        tx.executeWithoutResult(s -> ledger.sesuaikanOpname(SEKOLAH, MENU, 6, "hitung fisik", "OP-1", 1L));
+
+        assertThat(ledger.stok(SEKOLAH, MENU))
+                .isEqualTo((int) ledger.hitungUlangDariLedger(SEKOLAH, MENU))
+                .isEqualTo(6);
+    }
+
+    @Test
     @DisplayName("penjualan bersamaan — stok tak pernah minus")
     void penjualanBersamaan() throws Exception {
         tx.executeWithoutResult(s -> ledger.masukBarang(SEKOLAH, MENU, 10, 5_000, "BARANG_MASUK", "BM-1", 1L));

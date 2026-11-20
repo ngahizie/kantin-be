@@ -56,6 +56,21 @@ public class TapRequest {
     @Size(max = 100, message = "Nama pembeli maksimal 100 karakter")
     private String namaPembeli;
 
+    /**
+     * Kasir menyatakan sadar stok sistem kurang/habis karena barangnya masih ada
+     * di gudang/cadangan (ADR-0013, butir C.1 ceklis review).
+     *
+     * <p>Bila {@code true}: tap tidak ditolak walau stok tidak cukup, dan stok
+     * dicatat sebagai mutasi {@link com.asqi.scholia_kantin_be.enums.JenisMutasiStok#PENJUALAN_MINUS}
+     * (boleh negatif sampai opname menutupnya). Default {@code false} = perilaku
+     * lama: tap ditolak dengan pesan "habis"/"tidak cukup".
+     */
+    private Boolean izinkanStokMinus;
+
+    /** Alasan singkat penjualan melebihi catatan (opsional, maks 200) — ikut jejak audit. */
+    @Size(max = 200, message = "Alasan stok minus maksimal 200 karakter")
+    private String alasanStokMinus;
+
     /** Titik kasir tempat tap terjadi (wajib untuk audit & sesi). */
     @NotNull(message = "Titik kasir wajib diisi")
     private Long titikKasirId;

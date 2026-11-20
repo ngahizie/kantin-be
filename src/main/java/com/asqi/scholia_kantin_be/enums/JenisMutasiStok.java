@@ -10,6 +10,14 @@ public enum JenisMutasiStok {
     BARANG_MASUK,
     /** Stok berkurang karena terjual (PRD §6.2). */
     PENJUALAN,
+    /**
+     * Stok berkurang karena terjual <b>melebihi catatan</b> — stok sistem sudah
+     * habis padahal barangnya masih ada di gudang/cadangan (ADR-0013, butir C.1).
+     *
+     * <p>Hanya jenis ini yang boleh menghasilkan {@code stok_setelah < 0}; semua
+     * jenis lain tetap wajib {@code >= 0}. Wajib ditutup opname masuk.
+     */
+    PENJUALAN_MINUS,
     /** Stok kembali karena void transaksi (PRD §6.3). */
     VOID_PENJUALAN,
     /** Penyesuaian opname menambah stok (PRD §7.3). */

@@ -119,13 +119,14 @@ public class TapValidator {
                 }
             }
 
-            // ── Tahap 4: stok cukup ─────────────────────────────────
+            // ── Tahap 4: stok cukup (atau kasir izinkan jual melebihi catatan) ──
             int stok = ledgerStok.stok(sekolahId, menu.getMenuId());
-            if (stok <= 0) {
-                // Stok 0 = "Habis" (PRD §6.1/§7.5) — item tak dapat ditambahkan.
-                return gagal(4, menu.getNama() + " habis (stok 0)", null, 0);
-            }
-            if (stok < item.getQty()) {
+            if (stok < item.getQty() && !Boolean.TRUE.equals(request.getIzinkanStokMinus())) {
+                if (stok <= 0) {
+                    // Stok 0 = "Habis" (PRD §6.1/§7.5) — item tak dapat ditambahkan
+                    // kecuali kasir menyalakan izinkanStokMinus (ADR-0013).
+                    return gagal(4, menu.getNama() + " habis (stok 0)", null, 0);
+                }
                 return gagal(4, "Stok " + menu.getNama() + " tidak cukup (sisa " + stok + ")", null, 0);
             }
 

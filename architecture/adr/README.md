@@ -20,6 +20,7 @@
 | [0010](./0010-topologi-postgresql-db-terpisah-server-sama.md) | Topologi PostgreSQL: DB terpisah, server boleh sama untuk MVP | Diterima | 2026-10-07 |
 | [0011](./0011-rfid-usb-bridge-keyboard-wedge-mvp.md) | RFID USB bridge: keyboard-wedge untuk MVP, WebHID/agent menuju produksi | Diterima | 2026-10-07 |
 | [0012](./0012-peran-kepsek-terpisah-admin-sekolah.md) | Peran KEPSEK dipisah dari ADMIN_SEKOLAH (read-only laporan) | Diterima | 2026-10-08 |
+| [0013](./0013-penjualan-melebihi-catatan-stok.md) | Penjualan melebihi catatan stok (`PENJUALAN_MINUS`) bila barang masih ada di gudang | Diterima | 2026-11-19 |
 
 > Status: `Diusulkan` → `Diterima` → (`Ditolak` / `Digantikan oleh NNNN`).
 

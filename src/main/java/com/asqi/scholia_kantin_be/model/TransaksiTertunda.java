@@ -82,6 +82,17 @@ public class TransaksiTertunda implements Persistable<Long> {
     @Column(name = "status", nullable = false, length = 15)
     private StatusPendingTap status;
 
+    /**
+     * Kasir mengizinkan jual melebihi catatan stok (ADR-0013). Disimpan agar
+     * konfirmasi pending memakai jalur validasi yang sama dengan tap aslinya.
+     */
+    @Column(name = "izinkan_stok_minus", nullable = false)
+    private boolean izinkanStokMinus = false;
+
+    /** Alasan penjualan melebihi catatan (opsional, maks 200). */
+    @Column(name = "alasan_stok_minus", length = 200)
+    private String alasanStokMinus;
+
     /** ID transaksi hasil konfirmasi (null sampai dikonfirmasi). */
     @Column(name = "transaksi_id")
     private Long transaksiId;
