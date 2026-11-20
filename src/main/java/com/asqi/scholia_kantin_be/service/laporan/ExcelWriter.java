@@ -39,6 +39,8 @@ public class ExcelWriter {
     private static final byte[] RGB_ZEBRA = new byte[] {(byte) 240, (byte) 244, (byte) 251};    // #F0F4FB
     private static final byte[] RGB_GRAY = new byte[] {(byte) 100, (byte) 100, (byte) 100};     // #646464
     private static final byte[] RGB_BORDER = new byte[] {(byte) 224, (byte) 224, (byte) 224};   // #E0E0E0
+    /** Karakter awal yang membuat Excel/Calc mengeksekusi sel sebagai rumus. */
+    private static final String AWALAN_FORMULA = "=+-@";
     private static final byte[] RGB_WHITE = new byte[] {(byte) 255, (byte) 255, (byte) 255};    // #FFFFFF
 
     /**
@@ -327,8 +329,35 @@ public class ExcelWriter {
         } else if (nilai instanceof Boolean b) {
             cell.setCellValue(b);
         } else {
-            cell.setCellValue(nilai.toString());
+            cell.setCellValue(teksAman(nilai.toString()));
         }
+    }
+
+    /**
+     * Cegah <b>formula/CSV injection</b> (OWASP A05:2025, CWE-1236).
+     *
+     * <p>Excel dan Calc mengeksekusi teks yang diawali {@code = + - @} (juga tab dan
+     * carriage return/line feed) sebagai rumus. Nilai laporan berasal dari data yang
+     * bisa diisi pengguna (nama menu, kategori, nama petugas), jadi teks seperti itu
+     * diberi prefix petik tunggal agar diperlakukan sebagai teks literal.
+     *
+     * @param teks nilai yang akan ditulis ke sel
+     * @return teks aman (diberi prefix {@code '} bila perlu)
+     */
+    static String teksAman(String teks) {
+        if (teks == null || teks.isEmpty()) {
+            return teks;
+        }
+        // Spasi di depan diabaikan: sebagian parser melakukan trim sebelum
+        // mengeksekusi, jadi " =1+1" tetap harus disanitasi.
+        int i = 0;
+        while (i < teks.length() && teks.charAt(i) == ' ') {
+            i++;
+        }
+        char awal = i < teks.length() ? teks.charAt(i) : ' ';
+        boolean berbahaya = AWALAN_FORMULA.indexOf(awal) >= 0
+                || awal == '\t' || awal == '\r' || awal == '\n';
+        return berbahaya ? "'" + teks : teks;
     }
 
     private HorizontalAlignment tentukanAlignment(String header, Object val) {

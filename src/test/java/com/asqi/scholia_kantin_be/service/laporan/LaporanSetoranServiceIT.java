@@ -1,14 +1,17 @@
 package com.asqi.scholia_kantin_be.service.laporan;
 
 import com.asqi.scholia_kantin_be.dto.RekapSetoranItem;
+import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.enums.JenisLaporan;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * IT laporan setoran kas TU (PRD §9.2 &amp; §9.5, issue #143): rekap top-up
@@ -77,4 +80,29 @@ class LaporanSetoranServiceIT extends LaporanITSupport {
             assertThat(sheet.getRow(0).getCell(1).getStringCellValue()).contains("SETORAN");
         }
     }
+
+    @Test
+    @DisplayName("#388 SEC-03: rentang setoran lebih dari 366 hari ditolak")
+    void rentangSetoranDibatasi() {
+        topupTunaiPetugas(555L, 50_000);
+
+        OffsetDateTime dari = OffsetDateTime.parse("2020-01-01T00:00:00+07:00");
+        OffsetDateTime sampai = OffsetDateTime.parse("2026-01-01T00:00:00+07:00");
+
+        assertThatThrownBy(() -> laporan.laporanSetoran(SEKOLAH, null, dari, sampai))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("maksimal 366 hari");
+    }
+
+    @Test
+    @DisplayName("#388 SEC-03: rentang setoran terbalik ditolak")
+    void rentangSetoranTerbalikDitolak() {
+        OffsetDateTime dari = OffsetDateTime.parse("2026-11-10T00:00:00+07:00");
+        OffsetDateTime sampai = OffsetDateTime.parse("2026-11-01T00:00:00+07:00");
+
+        assertThatThrownBy(() -> laporan.laporanSetoran(SEKOLAH, null, dari, sampai))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("'dari' harus sebelum 'sampai'");
+    }
+
 }
