@@ -10,6 +10,8 @@ import com.asqi.scholia_kantin_be.helper.IdGenerator;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.model.Pembatasan;
+import com.asqi.scholia_kantin_be.repository.KategoriMenuRepository;
+import com.asqi.scholia_kantin_be.repository.MenuRepository;
 import com.asqi.scholia_kantin_be.repository.PembatasanRepository;
 import com.asqi.scholia_kantin_be.repository.SiswaRepository;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoKartu;
@@ -47,8 +49,13 @@ import java.util.Set;
 @Slf4j
 public class KontrolKartuService {
 
+    /** Batas jumlah siswa per permintaan bulk — menjaga biaya kueri tetap wajar. */
+    private static final int BATAS_SISWA_BULK = 100;
+
     private final PembatasanRepository pembatasanRepo;
     private final SiswaRepository siswaRepo;
+    private final MenuRepository menuRepo;
+    private final KategoriMenuRepository kategoriRepo;
     private final JamKantin jam;
     private final AuditLogger auditLogger;
     private final IdGenerator idGenerator;
@@ -146,8 +153,14 @@ public class KontrolKartuService {
     /**
      * Blokir / buka blokir satu item <b>atau</b> satu kategori untuk siswa.
      *
+     * <p>Target wajib milik sekolah pemanggil. Tanpa pemeriksaan ini, sekolah A
+     * bisa menyimpan pembatasan yang menunjuk menu/kategori sekolah B
+     * (pelanggaran isolasi tenant, OWASP A01:2025).
+     *
      * @param menuId     id menu yang diblokir (isi salah satu dengan kategoriId)
      * @param kategoriId id kategori yang diblokir (isi salah satu dengan menuId)
+     * @throws NotFoundEntity bila siswa, menu, atau kategori tidak ada di sekolah pemanggil
+     * @throws InvalidOperationException bila target tidak tepat satu atau id tidak positif
      */
     @Transactional
     public KontrolSubjekResponse ubahBlokirItem(Long sekolahId, Long siswaId,
@@ -159,6 +172,11 @@ public class KontrolKartuService {
         if (adaMenu == adaKategori) {
             throw new InvalidOperationException(
                     "Isi tepat satu: menuId (blokir per item) atau kategoriId (blokir per kategori)");
+        }
+        if (adaMenu) {
+            pastikanMenuMilikSekolah(sekolahId, menuId);
+        } else {
+            pastikanKategoriMilikSekolah(sekolahId, kategoriId);
         }
         OffsetDateTime now = jam.sekarang();
 
@@ -195,11 +213,25 @@ public class KontrolKartuService {
     // BACA
     // ────────────────────────────────────────────────────────────────
 
-    /** Ringkasan kontrol bulk beberapa siswa (tenant-scoped). */
+    /**
+     * Ringkasan kontrol bulk beberapa siswa (tenant-scoped).
+     *
+     * <p>Hasil selalu berisi satu entri per id yang diminta — termasuk id yang
+     * tidak ada / bukan milik tenant (entri default kosong). Perilaku ini
+     * disengaja: satu kueri untuk semua id (hindari N+1) dan tidak membocorkan
+     * keberadaan siswa lewat perbedaan jumlah baris.
+     *
+     * @param siswaIds daftar siswa, maksimal {@value #BATAS_SISWA_BULK} id
+     * @throws InvalidOperationException bila daftar melebihi batas (cegah query IN raksasa)
+     */
     @Transactional(readOnly = true)
     public List<KontrolSubjekResponse> kontrolBulk(Long sekolahId, List<Long> siswaIds) {
         if (siswaIds == null || siswaIds.isEmpty()) {
             return List.of();
+        }
+        if (siswaIds.size() > BATAS_SISWA_BULK) {
+            throw new InvalidOperationException(
+                    "Maksimal " + BATAS_SISWA_BULK + " siswa per permintaan bulk");
         }
 
         List<Pembatasan> semua = pembatasanRepo.findBySekolahIdAndSiswaIdIn(sekolahId, siswaIds);
@@ -277,6 +309,32 @@ public class KontrolKartuService {
         }
         if (siswaRepo.findByIdAndSekolahId(siswaId, sekolahId).isEmpty()) {
             throw new NotFoundEntity("Siswa tidak ditemukan");
+        }
+    }
+
+    /**
+     * Pastikan menu ada, belum dihapus, dan milik sekolah pemanggil.
+     * Menu tenant lain / soft-deleted → 404, bukan baris pembatasan lintas tenant.
+     */
+    private void pastikanMenuMilikSekolah(Long sekolahId, Long menuId) {
+        if (menuId <= 0) {
+            throw new InvalidOperationException("ID menu harus positif");
+        }
+        if (menuRepo.findByIdAndSekolahIdAndDeletedAtIsNull(menuId, sekolahId).isEmpty()) {
+            throw new NotFoundEntity("Menu tidak ditemukan");
+        }
+    }
+
+    /**
+     * Pastikan kategori ada, belum dihapus, dan milik sekolah pemanggil.
+     * Kategori tenant lain / soft-deleted → 404, bukan baris pembatasan lintas tenant.
+     */
+    private void pastikanKategoriMilikSekolah(Long sekolahId, Long kategoriId) {
+        if (kategoriId <= 0) {
+            throw new InvalidOperationException("ID kategori harus positif");
+        }
+        if (kategoriRepo.findByIdAndSekolahIdAndDeletedAtIsNull(kategoriId, sekolahId).isEmpty()) {
+            throw new NotFoundEntity("Kategori tidak ditemukan");
         }
     }
 

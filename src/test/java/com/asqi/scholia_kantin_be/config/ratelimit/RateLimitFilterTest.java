@@ -100,6 +100,26 @@ class RateLimitFilterTest {
     }
 
     @Test
+    @DisplayName("mutasi kontrol kartu memakai batas sensitif; baca tetap umum")
+    void mutasiKontrolKartuSensitif() throws Exception {
+        when(limiter.periksa(eq("sensitif"), anyString(), eq(60)))
+                .thenReturn(new RateLimiterRedis.Hasil(true, 1, 60));
+        when(limiter.periksa(eq("umum"), anyString(), eq(600)))
+                .thenReturn(new RateLimiterRedis.Hasil(true, 1, 600));
+
+        filter.doFilter(req("POST", "/api/kontrol-kartu/blokir"),
+                new MockHttpServletResponse(), mock(FilterChain.class));
+        filter.doFilter(req("PUT", "/api/kontrol-kartu/limit-harian"),
+                new MockHttpServletResponse(), mock(FilterChain.class));
+        filter.doFilter(req("GET", "/api/kontrol-kartu/bulk"),
+                new MockHttpServletResponse(), mock(FilterChain.class));
+
+        verify(limiter, org.mockito.Mockito.times(2))
+                .periksa(eq("sensitif"), anyString(), eq(60));
+        verify(limiter).periksa(eq("umum"), anyString(), eq(600));
+    }
+
+    @Test
     @DisplayName("melebihi batas → 429 + Retry-After, chain dihentikan")
     void ditolak429() throws Exception {
         when(limiter.periksa(anyString(), anyString(), anyInt()))
