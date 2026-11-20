@@ -199,6 +199,10 @@ public class SaldoController {
      * Rekap setoran kas TU harian per petugas (PRD §9.2) — dasar konfirmasi
      * bendahara. Menampilkan Σ top-up tunai petugas, uang disetor, selisih.
      * {@code tanggal} kosong = hari ini (zona kantin).
+     *
+     * <p><b>Peran sengaja hanya TU/Bendahara</b> (SET-03, PRD §9.5): admin
+     * sekolah tidak diberi akses ke rekap/konfirmasi kas. Pemisahan tugas —
+     * yang mengeluarkan uang tunai harus pihak yang sama yang mempertanggungjawabkannya.
      */
     @PerluPeran({AktorKantin.TU_SEKOLAH})
     @GetMapping("setoran-tu/rekap")
@@ -218,8 +222,11 @@ public class SaldoController {
     }
 
     /**
-     * Konfirmasi setoran kas TU oleh bendahara (PRD §9.2). Selisih kas dicatat,
-     * tidak dihapus; idempoten lewat nomor berita acara.
+     * Konfirmasi setoran kas TU oleh bendahara (PRD §9.2, §9.5). Selisih kas
+     * dicatat, tidak dihapus; idempoten lewat nomor berita acara.
+     *
+     * <p><b>Peran sengaja hanya TU/Bendahara</b> (SET-03): konfirmasi uang fisik
+     * adalah tanggung jawab bendahara, bukan admin sekolah (pemisahan tugas).
      */
     @PerluPeran({AktorKantin.TU_SEKOLAH})
     @PostMapping("setoran-tu")

@@ -124,8 +124,8 @@ Batas per-subjek ditegakkan di dalam `KontrolKartuController#ubahBlokir`.
 | `POST` | `/api/saldo/refund` | tu | §9.3 & §9.6 — *Refund & Koreksi: Bendahara (create, read)* | PRD diikuti |
 | `GET` | `/api/saldo/refund/kandidat` | tu, kepsek | §9.3 — daftar siswa nonaktif bersisa saldo | PRD diikuti |
 | `GET` | `/api/saldo/rekonsiliasi` | pengelola, tu, admin | — | di luar keputusan #250 — dipertahankan |
-| `POST` | `/api/saldo/setoran-tu` | tu | §9.2 & §9.5 — *Setoran kas TU: Bendahara* | PRD diikuti |
-| `GET` | `/api/saldo/setoran-tu/rekap` | tu | §9.2 & §9.5 — *Setoran kas TU: Bendahara* | PRD diikuti |
+| `POST` | `/api/saldo/setoran-tu` | tu | §9.2 & §9.5 — *Setoran kas TU: Bendahara* | PRD diikuti — admin sengaja tidak diberi akses (pemisahan tugas, evaluasi #380/SET-03) |
+| `GET` | `/api/saldo/setoran-tu/rekap` | tu | §9.2 & §9.5 — *Setoran kas TU: Bendahara* | PRD diikuti — admin sengaja tidak diberi akses (pemisahan tugas, evaluasi #380/SET-03) |
 | `POST` | `/api/saldo/topup` | tu | §9.2 & §9.6 — *Top-up Tunai: TU, Bendahara (create, read)* | PRD diikuti |
 | `GET` | `/api/siswa/` | pengelola, tu, admin, kepsek | — | di luar keputusan #250 — dipertahankan |
 | `GET` | `/api/siswa/{siswaId}/rfid` | tu, admin | §9.6 + Q7 — UID kartu sensitif: hanya pendaftaran/penugasan kartu (TU/Bendahara & Admin sekolah), #301 | di luar keputusan #250 — dipertahankan |

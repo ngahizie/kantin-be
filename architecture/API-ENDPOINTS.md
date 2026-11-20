@@ -62,7 +62,7 @@
 | `POST` | `/api/saldo/refund` | TU | Refund **seluruh** sisa saldo siswa keluar ke ortu; saldo → 0 & kartu diblokir |
 | `POST` | `/api/saldo/pindah-saldo` | TU | Pindah **seluruh** sisa saldo ke saudara kandung (aktif, sekolah sama); saldo sumber → 0 |
 | `GET` | `/api/saldo/setoran-tu/rekap` | TU | Rekap top-up tunai per petugas per hari + selisih. Query: `tanggal` (kosong = hari ini) |
-| `POST` | `/api/saldo/setoran-tu` | TU | Konfirmasi setoran kas TU (selisih dicatat, tidak dihapus; `referensiId` = idempotensi) |
+| `POST` | `/api/saldo/setoran-tu` | TU | Konfirmasi setoran kas TU (selisih dicatat, tidak dihapus; `referensiId` = idempotensi; `petugasId` wajib staf **aktif** di sekolah pemanggil — tenant lain/nonaktif → 404) |
 
 ## 4. Stok (StokController) — `/api/stok`
 
