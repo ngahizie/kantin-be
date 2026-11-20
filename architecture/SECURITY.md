@@ -167,7 +167,9 @@ deteksi anomali A09.
   per kategori: `auth` 20/menit, mutasi non-auth yang sensitif
   (kasir/saldo/stok/katalog/kontrol-kartu) 60/menit, request baca umum (`GET`/`HEAD`,
   termasuk POS) 600/menit, `umum` lainnya
-  600/menit. **Gagal-terbuka** default (`kantin.rate-limit.fail-closed=false`):
+  600/menit. `GET /api/kontrol-kartu/bulk` sengaja tetap `umum` (dipakai layar
+  kasir/POS, read-only); biaya kuerinya dibatasi di service — maksimal 100
+  `siswaIds` per permintaan. **Gagal-terbuka** default (`kantin.rate-limit.fail-closed=false`):
   Redis mati ⇒ request tetap dilayani agar kantin tidak lumpuh. Balas **429** +
   `Retry-After` + `X-RateLimit-Limit`.
 - ✅ **Cabut token (blacklist Redis)** (B28) — `POST /api/auth/cabut` (admin/TU).

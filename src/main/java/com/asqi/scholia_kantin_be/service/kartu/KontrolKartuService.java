@@ -216,6 +216,11 @@ public class KontrolKartuService {
     /**
      * Ringkasan kontrol bulk beberapa siswa (tenant-scoped).
      *
+     * <p>Hasil selalu berisi satu entri per id yang diminta — termasuk id yang
+     * tidak ada / bukan milik tenant (entri default kosong). Perilaku ini
+     * disengaja: satu kueri untuk semua id (hindari N+1) dan tidak membocorkan
+     * keberadaan siswa lewat perbedaan jumlah baris.
+     *
      * @param siswaIds daftar siswa, maksimal {@value #BATAS_SISWA_BULK} id
      * @throws InvalidOperationException bila daftar melebihi batas (cegah query IN raksasa)
      */
