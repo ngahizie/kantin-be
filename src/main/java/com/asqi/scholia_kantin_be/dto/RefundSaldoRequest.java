@@ -18,8 +18,12 @@ public class RefundSaldoRequest {
     @NotNull(message = "ID siswa wajib diisi")
     private Long siswaId;
 
+    /**
+     * Nomor bukti refund. Batas 57 = {@code idempotency_key} 64 karakter dikurangi
+     * awalan {@code "REFUND-"} (7) — issue #382.
+     */
     @NotBlank(message = "Nomor bukti refund wajib diisi (idempotency)")
-    @Size(max = 60)
+    @Size(max = 57, message = "Nomor bukti refund maksimal 57 karakter")
     private String referensiId;
 
     @Size(max = 255)

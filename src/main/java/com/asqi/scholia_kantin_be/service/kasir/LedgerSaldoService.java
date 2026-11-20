@@ -8,6 +8,7 @@ import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.helper.IdGenerator;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
+import com.asqi.scholia_kantin_be.helper.KunciIdempotensi;
 import com.asqi.scholia_kantin_be.model.Saldo;
 import com.asqi.scholia_kantin_be.model.MutasiSaldo;
 import com.asqi.scholia_kantin_be.repository.SaldoRepository;
@@ -109,7 +110,7 @@ public class LedgerSaldoService {
     public HasilMutasiSaldo pindahSaldo(Long sekolahId, Long sumberId,
                                         Long tujuanId, String referensiId, String keterangan,
                                         Long aktorId) {
-        String keySumber = "TRANSFER-" + referensiId;
+        String keySumber = KunciIdempotensi.gabung("TRANSFER-", referensiId);
 
         // Idempotency: replay → kembalikan kaki keluar lama tanpa menyentuh saldo.
         Optional<MutasiSaldo> lama = ledgerRepo.findBySekolahIdAndIdempotencyKey(sekolahId, keySumber);
@@ -130,7 +131,7 @@ public class LedgerSaldoService {
         terapkan(ArahMutasi.KREDIT, PerintahMutasiSaldo.builder()
                 .sekolahId(sekolahId).siswaId(tujuanId)
                 .jenis(JenisMutasiSaldo.TRANSFER).nominal(nominal)
-                .idempotencyKey(keySumber + "-MASUK").referensiTipe("TRANSFER").referensiId(referensiId)
+                .idempotencyKey(KunciIdempotensi.gabung(keySumber, "-MASUK")).referensiTipe("TRANSFER").referensiId(referensiId)
                 .keterangan(keterangan).aktorId(aktorId).build(), false);
 
         return keluar;

@@ -7,6 +7,7 @@ import com.asqi.scholia_kantin_be.enums.ArahMutasi;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.JenisNotifikasi;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
+import com.asqi.scholia_kantin_be.helper.KunciIdempotensi;
 import com.asqi.scholia_kantin_be.service.kasir.HasilMutasiSaldo;
 import com.asqi.scholia_kantin_be.service.kasir.LedgerSaldoService;
 import com.asqi.scholia_kantin_be.service.kasir.PerintahMutasiSaldo;
@@ -101,7 +102,7 @@ public class SaldoTopUpService {
                 .jenis(JenisMutasiSaldo.TOPUP_TUNAI)
                 .nominal(nominal)
                 .batasSaldoMaksimum(batasSaldoMaksimum(sekolahId))
-                .idempotencyKey("TOPUP-TUNAI-" + referensiId)
+                .idempotencyKey(KunciIdempotensi.gabung("TOPUP-TUNAI-", referensiId))
                 .referensiTipe("TOPUP")
                 .referensiId(referensiId)
                 .keterangan(keterangan)
@@ -171,7 +172,7 @@ public class SaldoTopUpService {
                 .jenis(JenisMutasiSaldo.TOPUP_ONLINE)
                 .nominal(nominal)
                 .batasSaldoMaksimum(batasSaldoMaksimum(sekolahId))
-                .idempotencyKey("TOPUP-ONLINE-" + ref)
+                .idempotencyKey(KunciIdempotensi.gabung("TOPUP-ONLINE-", ref))
                 .referensiTipe("TOPUP_ONLINE")
                 .referensiId(ref)
                 .keterangan(keterangan)
@@ -231,7 +232,7 @@ public class SaldoTopUpService {
                 .siswaId(siswaId)
                 .jenis(JenisMutasiSaldo.KOREKSI)
                 .nominal(nominal)
-                .idempotencyKey("KOREKSI-" + referensiId)
+                .idempotencyKey(KunciIdempotensi.gabung("KOREKSI-", referensiId))
                 .referensiTipe("KOREKSI")
                 .referensiId(referensiId)
                 .keterangan("Koreksi: " + alasan)

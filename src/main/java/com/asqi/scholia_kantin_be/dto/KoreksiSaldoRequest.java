@@ -30,7 +30,13 @@ public class KoreksiSaldoRequest {
     @Size(max = 255)
     private String alasan;
 
+    /**
+     * Nomor berita acara koreksi. Batas 56 = {@code idempotency_key} 64 karakter
+     * dikurangi awalan {@code "KOREKSI-"} (8) yang dipasang
+     * {@code SaldoTopUpService}; sebelumnya 60 sehingga referensi 57–60 karakter
+     * menghasilkan kunci 65–68 karakter dan INSERT gagal (HTTP 500, issue #382).
+     */
     @NotBlank(message = "Nomor berita acara koreksi wajib diisi (idempotency)")
-    @Size(max = 60)
+    @Size(max = 56, message = "Nomor berita acara koreksi maksimal 56 karakter")
     private String referensiId;
 }
