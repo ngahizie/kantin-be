@@ -369,6 +369,12 @@ Kartu Tamu adalah kartu RFID fisik milik kantin yang dipakai siapa pun yang buka
 | Per siswa | Riwayat lengkap satu siswa (untuk komplain ortu) | Bendahara, Admin |
 | Setoran kas TU | Rekap top-up tunai per petugas per hari + selisih | Bendahara |
 
+**Setoran kas TU — pemisahan tugas:** rekap dan konfirmasi setoran (termasuk
+selisihnya) hanya untuk Bendahara/TU, **bukan Admin sekolah**. Yang memegang uang
+fisik harus pihak yang mempertanggungjawabkannya; Admin tidak diberi akses agar
+satu orang tidak bisa mengeluarkan sekaligus mengonfirmasi kas (keputusan SET-03,
+issue #380).
+
 Semua laporan dapat diekspor ke Excel.
 
 ### 9.6 RBAC
