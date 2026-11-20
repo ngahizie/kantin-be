@@ -1,6 +1,7 @@
 package com.asqi.scholia_kantin_be.service.saldo;
 
 import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
+import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
 import com.asqi.scholia_kantin_be.component.logging.AuditLogger;
 import com.asqi.scholia_kantin_be.dto.RekapSetoranItem;
 import com.asqi.scholia_kantin_be.dto.SetoranResponse;
@@ -8,8 +9,10 @@ import com.asqi.scholia_kantin_be.enums.ArahMutasi;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.helper.IdGenerator;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
+import com.asqi.scholia_kantin_be.model.Pengguna;
 import com.asqi.scholia_kantin_be.model.Setoran;
 import com.asqi.scholia_kantin_be.repository.MutasiSaldoRepository;
+import com.asqi.scholia_kantin_be.repository.PenggunaRepository;
 import com.asqi.scholia_kantin_be.repository.SetoranRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +47,7 @@ public class SetoranService {
 
     private final MutasiSaldoRepository ledgerRepo;
     private final SetoranRepository setoranRepo;
+    private final PenggunaRepository penggunaRepo;
     private final AuditLogger auditLogger;
     private final IdGenerator idGenerator;
     private final JamKantin jam;
@@ -166,10 +170,22 @@ public class SetoranService {
      * <b>dicatat, tidak dihapus</b>.
      *
      * <p>Idempoten: bila {@code referensiId} sudah pernah dipakai (per sekolah),
-     * mengembalikan baris lama tanpa mencatat ulang.
+     * mengembalikan baris lama tanpa mencatat ulang — <b>termasuk</b> saat
+     * petugasnya sudah dinonaktifkan setelah konfirmasi pertama (retry jaringan
+     * tidak boleh berubah menjadi 404; lihat urutan di badan metode).
+     *
+     * <p><b>Validasi petugas (SET-05):</b> pada jalur yang benar-benar membuat
+     * baris baru, {@code petugasId} wajib menunjuk pengguna <b>aktif di sekolah
+     * pemanggil</b>. FK {@code setoran.petugas_id} hanya unik global, jadi tanpa
+     * cek ini id staf tenant lain akan lolos dan tercatat sebagai petugas setoran.
+     * Role tidak dibatasi di sini: sumber kebenaran petugas adalah aktor
+     * {@code TOPUP_TUNAI} di ledger (itulah yang muncul di rekap), sementara
+     * siapa yang boleh melakukan top-up sudah dijaga RBAC endpoint top-up
+     * (hanya TU/bendahara).
      *
      * @param referensiId nomor berita acara setoran (unik, idempotency)
      * @param aktorId     bendahara yang mengonfirmasi (audit)
+     * @throws NotFoundEntity bila petugas tidak ada di sekolah ini atau nonaktif
      */
     @Transactional
     public SetoranResponse konfirmasi(Long sekolahId, LocalDate tanggal, Long petugasId,
@@ -188,13 +204,21 @@ public class SetoranService {
             throw new InvalidOperationException(
                     "Nomor berita acara setoran wajib diisi (idempotency)");
         }
-
-        // Idempotency: berita acara sama (per sekolah) → kembalikan baris lama.
+        // Idempotency DULU, validasi petugas kemudian: konfirmasi yang sudah
+        // tercatat lalu petugasnya dinonaktifkan harus tetap mengembalikan baris
+        // lama saat klien retry (mis. timeout jaringan). Kalau validasi aktif
+        // dijalankan lebih dulu, retry itu dijawab 404 dan klien menyimpulkan
+        // setoran gagal padahal uangnya sudah tercatat — persis yang ingin
+        // dicegah idempotency. Lookup ini tenant-scoped, jadi replay tidak bisa
+        // mengembalikan baris sekolah lain.
         var lama = setoranRepo.findBySekolahIdAndReferensiId(sekolahId, referensiId);
         if (lama.isPresent()) {
             log.debug("Setoran TU replay referensi={} → id={}", referensiId, lama.get().getId());
             return SetoranResponse.dari(lama.get());
         }
+
+        // Jalur tulis: petugas wajib pengguna aktif di sekolah pemanggil.
+        pastikanPetugasAktifDiSekolah(sekolahId, petugasId);
 
         OffsetDateTime sejak = tanggal.atStartOfDay(jam.zona()).toOffsetDateTime();
         OffsetDateTime sampai = sejak.plusDays(1);
@@ -232,5 +256,24 @@ public class SetoranService {
         log.info("Setoran TU sekolah={} tanggal={} petugas={} topup={} disetor={} selisih={}",
                 sekolahId, tanggal, petugasId, totalTopup, jumlahDisetor, selisih);
         return SetoranResponse.dari(tersimpan);
+    }
+
+    /**
+     * Pastikan {@code petugasId} adalah pengguna aktif di sekolah pemanggil.
+     *
+     * <p>Tenant lain dijawab 404 (bukan 403) agar keberadaan akun sekolah lain
+     * tidak bocor — konsisten dengan aturan isolasi tenant PRD §11.4.
+     *
+     * <p>Pesan "tidak ditemukan" dan "tidak aktif" sengaja dibedakan: pemanggil
+     * endpoint ini hanya TU/bendahara sekolah yang sama, jadi membedakan status
+     * akun staf sendiri membuat galat bisa ditindaklanjuti dan bukan kebocoran.
+     */
+    private void pastikanPetugasAktifDiSekolah(Long sekolahId, Long petugasId) {
+        Pengguna petugas = penggunaRepo.findByIdAndSekolahId(petugasId, sekolahId)
+                .orElseThrow(() -> new NotFoundEntity(
+                        "Petugas TU tidak ditemukan di sekolah ini"));
+        if (!petugas.isAktif()) {
+            throw new NotFoundEntity("Petugas TU tidak aktif");
+        }
     }
 }

@@ -1,6 +1,7 @@
 package com.asqi.scholia_kantin_be.service.saldo;
 
 import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
+import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
 import com.asqi.scholia_kantin_be.dto.RekapSetoranItem;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
@@ -41,9 +42,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class SetoranServiceIT {
 
     private static final long SEKOLAH = 1L;
+    private static final long SEKOLAH_LAIN = 2L;
     private static final long PETUGAS_A = 555L;
     private static final long PETUGAS_B = 777L;
     private static final long BENDAHARA = 999L;
+    private static final long PETUGAS_SEKOLAH_LAIN = 888L;
+    private static final long PETUGAS_NONAKTIF = 889L;
+    private static final long PETUGAS_REPLAY = 890L;
 
     @Autowired
     private SetoranService setoranService;
@@ -67,8 +72,11 @@ class SetoranServiceIT {
         jdbc.execute("TRUNCATE TABLE setoran, mutasi_saldo, saldo, catatan_audit CASCADE");
         subjekBerikut = 10_000L;
         // Skema v2: setoran/mutasi_saldo ber-FK ke sekolah, pengguna, dan siswa.
-        FixtureInduk.sekolah(jdbc, SEKOLAH);
+        FixtureInduk.sekolah(jdbc, SEKOLAH, SEKOLAH_LAIN);
         FixtureInduk.pengguna(jdbc, SEKOLAH, PETUGAS_A, PETUGAS_B, BENDAHARA);
+        // Petugas tenant lain: FK setoran.petugas_id unik global, jadi baris ini
+        // bisa lolos FK kalau service tidak memvalidasi tenant (SET-05).
+        FixtureInduk.pengguna(jdbc, SEKOLAH_LAIN, PETUGAS_SEKOLAH_LAIN);
     }
 
     /** Catat satu top-up tunai oleh petugas tertentu (aktor_id = petugasId). */
@@ -182,6 +190,66 @@ class SetoranServiceIT {
 
         assertThat(s2.getId()).isEqualTo(s1.getId());
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM setoran", Integer.class)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("SET-05: retry berita acara lama tetap idempoten walau petugas sudah dinonaktifkan")
+    void replayTetapIdempotenSetelahPetugasNonaktif() {
+        // Pengguna khusus: menonaktifkan PETUGAS_A akan mencemari test lain
+        // (fixture pengguna ON CONFLICT DO NOTHING, dan tabel pengguna tidak
+        // di-TRUNCATE antar-test).
+        FixtureInduk.pengguna(jdbc, SEKOLAH, PETUGAS_REPLAY);
+
+        SetoranResponse pertama = setoranService.konfirmasi(SEKOLAH, jam.hariIni(), PETUGAS_REPLAY,
+                0L, "BA-REPLAY-1", null, BENDAHARA);
+
+        jdbc.update("UPDATE pengguna SET aktif = false WHERE id = ?", PETUGAS_REPLAY);
+
+        // Retry jaringan setelah petugas dinonaktifkan: harus mengembalikan baris
+        // lama, bukan 404 (setoran sudah tercatat; klien tidak boleh disuruh ulang).
+        SetoranResponse ulang = setoranService.konfirmasi(SEKOLAH, jam.hariIni(), PETUGAS_REPLAY,
+                0L, "BA-REPLAY-1", null, BENDAHARA);
+
+        assertThat(ulang.getId()).isEqualTo(pertama.getId());
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM setoran", Integer.class)).isEqualTo(1);
+
+        // Referensi BARU dengan petugas nonaktif tetap ditolak (jalur tulis).
+        assertThatThrownBy(() -> setoranService.konfirmasi(SEKOLAH, jam.hariIni(), PETUGAS_REPLAY,
+                0L, "BA-REPLAY-2", null, BENDAHARA))
+                .isInstanceOf(NotFoundEntity.class)
+                .hasMessageContaining("tidak aktif");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM setoran", Integer.class)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("SET-05: petugas dari sekolah lain ditolak 404 — tidak ada setoran tersimpan")
+    void konfirmasiPetugasTenantLainDitolak() {
+        topUpTunai(PETUGAS_A, 80_000);
+
+        assertThatThrownBy(() -> setoranService.konfirmasi(SEKOLAH, jam.hariIni(),
+                PETUGAS_SEKOLAH_LAIN, 80_000, "BA-TENANT-1", null, BENDAHARA))
+                .isInstanceOf(NotFoundEntity.class)
+                .hasMessageContaining("Petugas TU tidak ditemukan");
+
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM setoran", Integer.class)).isZero();
+    }
+
+    @Test
+    @DisplayName("SET-05: petugas nonaktif di sekolah sendiri ditolak 404")
+    void konfirmasiPetugasNonaktifDitolak() {
+        jdbc.update("""
+                INSERT INTO pengguna (id, sekolah_id, username, nama, role, password_hash, aktif)
+                VALUES (?, ?, ?, ?, 'BENDAHARA', 'x', false)
+                ON CONFLICT (id) DO UPDATE SET aktif = false
+                """, PETUGAS_NONAKTIF, SEKOLAH, "uji-" + PETUGAS_NONAKTIF, "Petugas Nonaktif");
+        topUpTunai(PETUGAS_A, 80_000);
+
+        assertThatThrownBy(() -> setoranService.konfirmasi(SEKOLAH, jam.hariIni(),
+                PETUGAS_NONAKTIF, 80_000, "BA-NONAKTIF-1", null, BENDAHARA))
+                .isInstanceOf(NotFoundEntity.class)
+                .hasMessageContaining("tidak aktif");
+
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM setoran", Integer.class)).isZero();
     }
 
     @Test
