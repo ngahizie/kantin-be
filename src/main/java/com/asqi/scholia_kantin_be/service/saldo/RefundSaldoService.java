@@ -1,6 +1,7 @@
 package com.asqi.scholia_kantin_be.service.saldo;
 
 import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
+import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
 import com.asqi.scholia_kantin_be.component.logging.AuditLogger;
 import com.asqi.scholia_kantin_be.dto.HasilRefundResponse;
 import com.asqi.scholia_kantin_be.dto.KandidatRefundItem;
@@ -10,6 +11,7 @@ import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.helper.KunciIdempotensi;
 import com.asqi.scholia_kantin_be.model.Saldo;
 import com.asqi.scholia_kantin_be.repository.SaldoRepository;
+import com.asqi.scholia_kantin_be.repository.SiswaRepository;
 import com.asqi.scholia_kantin_be.service.CariSiswaService;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoSiswa;
 import com.asqi.scholia_kantin_be.service.integrasi.NotifikasiService;
@@ -56,6 +58,7 @@ public class RefundSaldoService {
 
     private final LedgerSaldoService ledgerSaldo;
     private final SaldoRepository cacheRepo;
+    private final SiswaRepository siswaRepo;
     private final StatusSiswaPort statusSiswa;
     private final AuditLogger auditLogger;
     private final NotifikasiService notifikasi;
@@ -201,6 +204,13 @@ public class RefundSaldoService {
         }
         if (referensiId == null || referensiId.isBlank()) {
             throw new InvalidOperationException("Nomor berita acara pemindahan wajib diisi (idempotency)");
+        }
+        // REF-05 (#386): tujuan wajib terdaftar pada tenant ini. Dicek ke tabel
+        // otoritatif LOKAL (siswa) — bukan lewat CariSiswaPort yang fail-open dan
+        // tidak tenant-scoped pada adapter REST. Data sekolah lain dijawab 404
+        // (PRD §11.4), bukan 400.
+        if (siswaRepo.findByIdAndSekolahId(tujuanId, sekolahId).isEmpty()) {
+            throw new NotFoundEntity("Siswa tujuan tidak ditemukan di sekolah ini");
         }
         // Tujuan wajib siswa yang masih aktif (saudara kandung). Bila status tak
         // diketahui (integrasi Q7 belum siap) → dilewatkan (fail-safe).

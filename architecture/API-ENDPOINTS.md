@@ -60,7 +60,7 @@
 | `GET` | `/api/saldo/rekonsiliasi` | TU, admin, pengelola | Hitung ulang saldo dari ledger. Query: `subjekTipe`, `subjekId` |
 | `GET` | `/api/saldo/refund/kandidat` | TU, kepsek | Daftar siswa bersisa saldo (kandidat refund/pindah). Query: `hanyaTidakAktif`. Kepsek **hanya baca** (§9.6) |
 | `POST` | `/api/saldo/refund` | TU | Refund **seluruh** sisa saldo siswa keluar ke ortu; saldo → 0 & kartu diblokir |
-| `POST` | `/api/saldo/pindah-saldo` | TU | Pindah **seluruh** sisa saldo ke saudara kandung (aktif, sekolah sama); saldo sumber → 0 |
+| `POST` | `/api/saldo/pindah-saldo` | TU | Pindah **seluruh** sisa saldo ke saudara kandung (aktif, sekolah sama); saldo sumber → 0. Siswa tujuan **wajib terdaftar pada sekolah pemanggil** — dicek ke tabel `siswa` lokal, bila tidak ada di tenant ini → `404` `Siswa tujuan tidak ditemukan di sekolah ini` (REF-05, #386), tanpa mutasi apa pun |
 | `GET` | `/api/saldo/setoran-tu/rekap` | TU | Rekap top-up tunai per petugas per hari + selisih. Query: `tanggal` (kosong = hari ini) |
 | `POST` | `/api/saldo/setoran-tu` | TU | Konfirmasi setoran kas TU (selisih dicatat, tidak dihapus; `referensiId` = idempotensi; `petugasId` wajib staf **aktif** di sekolah pemanggil — tenant lain/nonaktif → 404) |
 

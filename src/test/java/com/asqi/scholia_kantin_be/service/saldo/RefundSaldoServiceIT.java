@@ -2,6 +2,7 @@ package com.asqi.scholia_kantin_be.service.saldo;
 
 import com.asqi.scholia_kantin_be.component.exception.ConflictException;
 import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
+import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
 import com.asqi.scholia_kantin_be.component.logging.AuditLogger;
 import com.asqi.scholia_kantin_be.dto.HasilRefundResponse;
 import com.asqi.scholia_kantin_be.dto.KandidatRefundItem;
@@ -63,6 +64,8 @@ class RefundSaldoServiceIT {
     private static final long SISWA_KELUAR = 100L;
     private static final long SISWA_SAUDARA = 200L;
     private static final long SISWA_LAIN = 300L;
+    /** Siswa yang hanya terdaftar di SEKOLAH_LAIN (uji batas tenant REF-05). */
+    private static final long SISWA_SEKOLAH_LAIN = 400L;
     private static final long AKTOR = 9L;
 
     @Autowired
@@ -178,6 +181,7 @@ class RefundSaldoServiceIT {
         FixtureInduk.sekolah(jdbc, SEKOLAH, SEKOLAH_LAIN);
         FixtureInduk.pengguna(jdbc, SEKOLAH, AKTOR);
         FixtureInduk.siswa(jdbc, SEKOLAH, SISWA_KELUAR, SISWA_SAUDARA, SISWA_LAIN);
+        FixtureInduk.siswa(jdbc, SEKOLAH_LAIN, SISWA_SEKOLAH_LAIN);
         jdbc.update("UPDATE siswa SET foto_url = NULL WHERE sekolah_id = ?", SEKOLAH);
 
         status.nonaktif.clear();
@@ -298,6 +302,38 @@ class RefundSaldoServiceIT {
     }
 
     @Test
+    @DisplayName("REF-05 (#386): tujuan tidak terdaftar di sekolah ini ditolak 404, tanpa mutasi")
+    void pindahTujuanTidakTerdaftarDitolak() {
+        isiSaldo(SISWA_KELUAR, 10_000);
+
+        assertThatThrownBy(() -> service.pindahKeSaudara(
+                SEKOLAH, SISWA_KELUAR, 999_999L, "BA-5", null, 9L))
+                .isInstanceOf(NotFoundEntity.class)
+                .hasMessageContaining("tidak ditemukan di sekolah ini");
+
+        assertThat(ledger.saldo(SEKOLAH, SISWA_KELUAR)).isEqualTo(10_000L);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM mutasi_saldo WHERE jenis = 'TRANSFER'", Integer.class)).isZero();
+    }
+
+    @Test
+    @DisplayName("REF-05 (#386): tujuan milik sekolah lain ditolak 404 (tenant scoping lokal)")
+    void pindahTujuanSekolahLainDitolak() {
+        isiSaldo(SISWA_KELUAR, 10_000);
+        // Siswa ini nyata di tabel `siswa`, tetapi terdaftar pada SEKOLAH_LAIN.
+        assertThat(siswaRepo.findByIdAndSekolahId(SISWA_SEKOLAH_LAIN, SEKOLAH_LAIN)).isPresent();
+
+        assertThatThrownBy(() -> service.pindahKeSaudara(
+                SEKOLAH, SISWA_KELUAR, SISWA_SEKOLAH_LAIN, "BA-6", null, 9L))
+                .isInstanceOf(NotFoundEntity.class)
+                .hasMessageContaining("tidak ditemukan di sekolah ini");
+
+        assertThat(ledger.saldo(SEKOLAH, SISWA_KELUAR)).isEqualTo(10_000L);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM mutasi_saldo WHERE jenis = 'TRANSFER'", Integer.class)).isZero();
+    }
+
+    @Test
     @DisplayName("pindah ke diri sendiri ditolak")
     void pindahKeDiriSendiriDitolak() {
         isiSaldo(SISWA_KELUAR, 10_000);
@@ -390,7 +426,7 @@ class RefundSaldoServiceIT {
 
         CariSiswaLokal cariSiswaLokal = new CariSiswaLokal(siswaRepo, orangTuaRepo, kartuRepo, ledger);
         RefundSaldoService serviceLokal = new RefundSaldoService(
-                ledger, saldoRepo, status, auditLogger, notifikasiService,
+                ledger, saldoRepo, siswaRepo, status, auditLogger, notifikasiService,
                 new CariSiswaService(cariSiswaLokal));
 
         List<KandidatRefundItem> hasil = serviceLokal.daftarKandidat(SEKOLAH, false);
