@@ -21,8 +21,13 @@ public class PindahSaldoRequest {
     @NotNull(message = "ID siswa tujuan (saudara) wajib diisi")
     private Long siswaTujuanId;
 
+    /**
+     * Nomor berita acara pemindahan. Batas 49 = {@code idempotency_key} 64 karakter
+     * dikurangi awalan {@code "TRANSFER-"} (9) dan akhiran {@code "-MASUK"} (6) yang
+     * dipakai sisi tujuan — issue #382.
+     */
     @NotBlank(message = "Nomor berita acara pemindahan wajib diisi (idempotency)")
-    @Size(max = 60)
+    @Size(max = 49, message = "Nomor berita acara pemindahan maksimal 49 karakter")
     private String referensiId;
 
     @Size(max = 255)

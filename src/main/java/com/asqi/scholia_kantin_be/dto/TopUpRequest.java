@@ -28,7 +28,12 @@ public class TopUpRequest {
     @Size(max = 120, message = "Nama penyetor maksimal 120 karakter")
     private String penyetor;
 
+    /**
+     * Nomor referensi/bukti. Batas 52 = {@code idempotency_key} 64 karakter
+     * dikurangi awalan {@code "TOPUP-TUNAI-"} (12) — pola yang sama dengan
+     * {@code KoreksiSaldoRequest} (issue #382).
+     */
     @NotBlank(message = "Nomor referensi/bukti wajib diisi")
-    @Size(max = 60, message = "Nomor referensi maksimal 60 karakter")
+    @Size(max = 52, message = "Nomor referensi maksimal 52 karakter")
     private String referensiId;
 }
