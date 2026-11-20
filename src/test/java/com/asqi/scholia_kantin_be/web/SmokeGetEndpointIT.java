@@ -1,6 +1,7 @@
 package com.asqi.scholia_kantin_be.web;
 
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import com.asqi.scholia_kantin_be.support.TestcontainersConfig;
 import io.jsonwebtoken.Jwts;
 import org.junit.jupiter.api.DisplayName;
@@ -104,6 +105,18 @@ class SmokeGetEndpointIT {
 
     @LocalServerPort
     private int port;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbc;
+
+    /**
+     * Tenant uji kini butuh baris {@code sekolah} nyata: ekspor laporan menulis
+     * {@code catatan_audit} yang ber-FK ke {@code sekolah(id)} (SEC-06, #388).
+     */
+    @org.junit.jupiter.api.BeforeEach
+    void siapkanTenant() {
+        FixtureInduk.sekolah(jdbc, SEKOLAH_ID);
+    }
 
     @DynamicPropertySource
     static void jwtDummy(DynamicPropertyRegistry registry) {
