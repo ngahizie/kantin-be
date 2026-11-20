@@ -201,6 +201,13 @@ public class RefundSaldoService {
         if (referensiId == null || referensiId.isBlank()) {
             throw new InvalidOperationException("Nomor berita acara pemindahan wajib diisi (idempotency)");
         }
+        // REF-05 (#386): tujuan wajib siswa yang benar-benar terdaftar pada tenant ini.
+        // Sengaja fail-closed — berbeda dari pengayaan tampilan (identitas/NIS) yang
+        // fail-open: bila identitas tujuan tidak dapat dipastikan, saldo TIDAK dipindah,
+        // karena menerima saldo ke entitas non-eksisten merusak invarian ledger.
+        cariSiswaService.identitas(sekolahId, tujuanId)
+                .orElseThrow(() -> new InvalidOperationException(
+                        "Siswa tujuan tidak ditemukan di sekolah ini"));
         // Tujuan wajib siswa yang masih aktif (saudara kandung). Bila status tak
         // diketahui (integrasi Q7 belum siap) → dilewatkan (fail-safe).
         if (Boolean.TRUE.equals(statusSiswa.tidakAktif(sekolahId, tujuanId))) {

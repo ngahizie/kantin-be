@@ -114,6 +114,8 @@ class RefundSaldoServiceIT {
     /** Fake identitas siswa (Q7): siswa yang punya identitas diatur per uji. */
     static class FakeCariSiswa implements CariSiswaPort {
         final Map<Long, InfoSiswa> data = new ConcurrentHashMap<>();
+        /** siswaId → sekolahId pemilik (meniru scoping tenant pada adapter asli). */
+        final Map<Long, Long> pemilik = new ConcurrentHashMap<>();
         final AtomicInteger panggilanBatch = new AtomicInteger();
         final AtomicInteger panggilanPerId = new AtomicInteger();
 
@@ -125,6 +127,10 @@ class RefundSaldoServiceIT {
         @Override
         public Optional<InfoSiswa> cariBerdasarkanId(Long sekolahId, Long siswaId) {
             panggilanPerId.incrementAndGet();
+            Long pemilikSekolah = pemilik.get(siswaId);
+            if (pemilikSekolah == null || !pemilikSekolah.equals(sekolahId)) {
+                return Optional.empty(); // bukan siswa tenant ini (atau tidak terdaftar)
+            }
             return Optional.ofNullable(data.get(siswaId));
         }
 
@@ -184,8 +190,21 @@ class RefundSaldoServiceIT {
         status.diblokir.clear();
         status.nonaktif.add(SISWA_KELUAR);
         identitasSiswa.data.clear();
+        identitasSiswa.pemilik.clear();
         identitasSiswa.panggilanBatch.set(0);
         identitasSiswa.panggilanPerId.set(0);
+
+        // REF-05 (#386): kepemilikan tenant didaftarkan; identitas lengkap diisi per uji.
+        for (long id : new long[]{SISWA_KELUAR, SISWA_SAUDARA, SISWA_LAIN}) {
+            identitasSiswa.pemilik.put(id, SEKOLAH);
+        }
+    }
+
+    /** Daftarkan identitas lengkap (meniru admin-be menjawab identitas siswa). */
+    private void daftarkanIdentitas(long siswaId) {
+        identitasSiswa.data.put(siswaId, InfoSiswa.builder()
+                .siswaId(siswaId).nis("NIS-" + siswaId).nama("Siswa " + siswaId).kelas("5A")
+                .tidakAktif(false).build());
     }
 
     private void isiSaldo(long siswaId, long nominal) {
@@ -252,6 +271,7 @@ class RefundSaldoServiceIT {
     @Test
     @DisplayName("pindah ke saudara — sumber 0, tujuan bertambah, dua kaki ledger")
     void pindahKeSaudara() {
+        daftarkanIdentitas(SISWA_SAUDARA);
         isiSaldo(SISWA_KELUAR, 12_000);
         isiSaldo(SISWA_SAUDARA, 5_000);
 
@@ -273,6 +293,7 @@ class RefundSaldoServiceIT {
     @Test
     @DisplayName("pindah idempoten — berita acara sama tidak memindah dua kali")
     void pindahIdempoten() {
+        daftarkanIdentitas(SISWA_SAUDARA);
         isiSaldo(SISWA_KELUAR, 8_000);
 
         service.pindahKeSaudara(SEKOLAH, SISWA_KELUAR, SISWA_SAUDARA, "BA-2", null, 9L);
@@ -288,6 +309,7 @@ class RefundSaldoServiceIT {
     @Test
     @DisplayName("pindah ke tujuan nonaktif ditolak")
     void pindahTujuanNonaktifDitolak() {
+        daftarkanIdentitas(SISWA_SAUDARA);
         isiSaldo(SISWA_KELUAR, 10_000);
         status.nonaktif.add(SISWA_SAUDARA);
 
@@ -295,6 +317,37 @@ class RefundSaldoServiceIT {
                 SEKOLAH, SISWA_KELUAR, SISWA_SAUDARA, "BA-3", null, 9L))
                 .isInstanceOf(InvalidOperationException.class)
                 .hasMessageContaining("tidak aktif");
+    }
+
+    @Test
+    @DisplayName("REF-05 (#386): tujuan tidak terdaftar di sekolah ini ditolak, tanpa mutasi")
+    void pindahTujuanTidakTerdaftarDitolak() {
+        isiSaldo(SISWA_KELUAR, 10_000);
+
+        assertThatThrownBy(() -> service.pindahKeSaudara(
+                SEKOLAH, SISWA_KELUAR, 999_999L, "BA-5", null, 9L))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("tidak ditemukan di sekolah ini");
+
+        assertThat(ledger.saldo(SEKOLAH, SISWA_KELUAR)).isEqualTo(10_000L);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM mutasi_saldo WHERE jenis = 'TRANSFER'", Integer.class)).isZero();
+    }
+
+    @Test
+    @DisplayName("REF-05 (#386): tujuan milik sekolah lain ditolak (tenant scoping)")
+    void pindahTujuanSekolahLainDitolak() {
+        isiSaldo(SISWA_KELUAR, 10_000);
+        // Adapter integrasi melaporkan siswa ini milik sekolah lain.
+        identitasSiswa.pemilik.put(SISWA_LAIN, SEKOLAH_LAIN);
+
+        assertThatThrownBy(() -> service.pindahKeSaudara(
+                SEKOLAH, SISWA_KELUAR, SISWA_LAIN, "BA-6", null, 9L))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("tidak ditemukan di sekolah ini");
+
+        assertThat(ledger.saldo(SEKOLAH, SISWA_LAIN)).isZero();
+        assertThat(ledger.saldo(SEKOLAH, SISWA_KELUAR)).isEqualTo(10_000L);
     }
 
     @Test
