@@ -22,6 +22,7 @@ import com.asqi.scholia_kantin_be.enums.JenisLaporan;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.payload.response.CommonResponse;
 import com.asqi.scholia_kantin_be.payload.response.Response;
+import com.asqi.scholia_kantin_be.security.AksesLaporan;
 import com.asqi.scholia_kantin_be.security.IdentitasKantin;
 import com.asqi.scholia_kantin_be.security.PerluPeran;
 import com.asqi.scholia_kantin_be.security.TenantContext;
@@ -48,7 +49,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 
@@ -70,22 +70,6 @@ import java.util.Set;
 @RequestMapping("api/laporan")
 @RequiredArgsConstructor
 public class LaporanController {
-
-    /**
-     * Jenis laporan yang boleh <b>diekspor</b> oleh kepsek (PRD §9.5 — hanya
-     * laporan yang kolom aksesnya menyebut Kepsek). Dipakai untuk menegakkan
-     * batas read-only pada endpoint ekspor yang melayani semua jenis.
-     */
-    private static final java.util.Set<JenisLaporan> JENIS_EKSPOR_KEPSEK = java.util.EnumSet.of(
-            JenisLaporan.PENJUALAN,
-            JenisLaporan.PENJUALAN_ITEM,
-            JenisLaporan.PENJUALAN_KATEGORI,
-            JenisLaporan.PENJUALAN_TITIK,
-            JenisLaporan.PENJUALAN_PETUGAS,
-            JenisLaporan.PENJUALAN_KASIR,
-            JenisLaporan.SALDO_MENGENDAP,
-            JenisLaporan.REKONSILIASI,
-            JenisLaporan.KERUGIAN_STOK);
 
     private final LaporanPenjualanService penjualan;
     private final LaporanSaldoService saldo;
@@ -179,15 +163,22 @@ public class LaporanController {
         return CommonResponse.dataHalaman(hasil, hasil.getContent());
     }
 
-    /** Kerugian stok (opname keluar &amp; barang rusak) (PRD §9.5). */
+    /**
+     * Kerugian stok (opname keluar &amp; barang rusak) (PRD §9.5) — berhalaman
+     * (SEC-03, issue #391): {@code data} tetap array (klien lama aman) dengan
+     * metadata {@code total}/{@code totalPages}/{@code currentPage}.
+     */
     @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.PENGELOLA_KANTIN, AktorKantin.KEPSEK})
     @GetMapping("kerugian-stok")
     public ResponseEntity<Response<List<BarisKerugianStok>>> kerugianStok(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tanggal,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime dari,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime sampai) {
-        return CommonResponse.data(
-                stok.kerugianStok(TenantContext.sekolahIdWajib(), tanggal, dari, sampai));
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime sampai,
+            @RequestParam(defaultValue = "0") int halaman,
+            @RequestParam(defaultValue = "200") int ukuran) {
+        Page<BarisKerugianStok> hasil = stok.kerugianStok(
+                TenantContext.sekolahIdWajib(), tanggal, dari, sampai, halaman, ukuran);
+        return CommonResponse.dataHalaman(hasil, hasil.getContent());
     }
 
     /** Ringkasan agregat kerugian stok, konsisten dengan daftar pada periode sama (#226). */
@@ -357,8 +348,10 @@ public class LaporanController {
      * Ekspor laporan ke Excel (.xlsx) — PRD §9.5 "semua laporan dapat diekspor".
      * Mengembalikan berkas unduhan langsung (bukan JSON).
      *
-     * <p>Kepsek boleh mengekspor <b>hanya</b> jenis laporan yang boleh dibacanya
-     * (§9.5); jenis lain → 403 meski anotasi mengizinkan peran tersebut.
+     * <p><b>SEC-04 (issue #391):</b> hak akses per jenis laporan ditegakkan lewat
+     * {@link AksesLaporan} — sumber yang sama dengan endpoint data JSON. Dulu
+     * hanya kepsek yang dibatasi, sehingga Admin Sekolah bisa mengunduh
+     * {@code KERUGIAN_STOK} meski endpoint datanya menolaknya 403.
      */
     @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH,
             AktorKantin.PENGELOLA_KANTIN, AktorKantin.KEPSEK})
@@ -371,11 +364,10 @@ public class LaporanController {
             @RequestParam(required = false) Long menuId,
             @RequestParam(required = false) Long siswaId) {
 
-        IdentitasKantin identitas = TenantContext.get();
-        if (identitas != null && identitas.getPeran() == AktorKantin.KEPSEK
-                && !JENIS_EKSPOR_KEPSEK.contains(jenis)) {
-            throw new ForbiddenException(
-                    "Kepsek tidak berhak mengekspor laporan " + jenis + " (PRD §9.5)");
+        AktorKantin peran = peranSekarang();
+        if (!AksesLaporan.boleh(jenis, peran)) {
+            throw new ForbiddenException("Peran " + peran + " tidak berhak mengekspor laporan "
+                    + jenis + " (PRD §9.5)");
         }
 
         LaporanExportService.HasilEkspor hasil = exportService.ekspor(

@@ -315,7 +315,17 @@ public class LaporanExportService {
 
     private HasilEkspor eksporKerugianStok(Long sekolahId, LocalDate tgl, OffsetDateTime dari,
                                            OffsetDateTime sampai, String label) {
-        List<BarisKerugianStok> data = stok.kerugianStok(sekolahId, tgl, dari, sampai);
+        // SEC-03 (issue #391): daftar kerugian kini berhalaman (≤ 200 baris per
+        // query) — ekspor menjelajah seluruh halaman agar berkas tetap utuh.
+        List<BarisKerugianStok> data = new ArrayList<>();
+        int nomorHalaman = 0;
+        Page<BarisKerugianStok> halaman;
+        do {
+            halaman = stok.kerugianStok(sekolahId, tgl, dari, sampai, nomorHalaman,
+                    UkuranHalaman.UKURAN_MAKS);
+            data.addAll(halaman.getContent());
+            nomorHalaman++;
+        } while (halaman.hasNext());
         List<String> header = List.of("Waktu", "No. Berita Acara", "Nama Menu", "Kategori", "Jenis",
                 "Qty", "HPP Unit", "Total Nilai", "Alasan", "Petugas");
         List<List<Object>> baris = new ArrayList<>();

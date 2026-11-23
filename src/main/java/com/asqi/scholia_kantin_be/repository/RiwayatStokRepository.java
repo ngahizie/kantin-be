@@ -3,7 +3,9 @@ package com.asqi.scholia_kantin_be.repository;
 import com.asqi.scholia_kantin_be.enums.ArahStok;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiStok;
 import com.asqi.scholia_kantin_be.model.RiwayatStok;
+import com.asqi.scholia_kantin_be.repository.projection.AgregatKerugianStok;
 import com.asqi.scholia_kantin_be.repository.projection.DibalikPerAsal;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -175,17 +177,48 @@ public interface RiwayatStokRepository extends JpaRepository<RiwayatStok, Long>,
 
     /**
      * Daftar mutasi kerugian stok (opname keluar & barang rusak) pada rentang waktu (PRD §9.5),
-     * terbaru dulu.
+     * terbaru dulu — <b>berhalaman</b> (SEC-03, issue #391: dulu tanpa batas atas sehingga
+     * seluruh baris periode dimuat ke memori JVM).
      */
-    @Query("""
+    @Query(value = """
             SELECT m FROM RiwayatStok m
             WHERE m.sekolahId = :sekolahId
               AND m.jenis IN :jenis
               AND m.waktu >= :dari AND m.waktu < :sampai
             ORDER BY m.waktu DESC, m.id DESC
+            """,
+            countQuery = """
+            SELECT COUNT(m) FROM RiwayatStok m
+            WHERE m.sekolahId = :sekolahId
+              AND m.jenis IN :jenis
+              AND m.waktu >= :dari AND m.waktu < :sampai
             """)
-    List<RiwayatStok> kerugianRentang(@Param("sekolahId") Long sekolahId,
+    Page<RiwayatStok> kerugianRentang(@Param("sekolahId") Long sekolahId,
                                      @Param("jenis") Collection<JenisMutasiStok> jenis,
                                      @Param("dari") OffsetDateTime dari,
-                                     @Param("sampai") OffsetDateTime sampai);
+                                     @Param("sampai") OffsetDateTime sampai,
+                                     Pageable pageable);
+
+    /**
+     * Agregat kerugian stok per jenis pada rentang waktu — dihitung di database
+     * (SEC-03, issue #391). Sebelumnya ringkasan memanggil ulang daftar penuh lalu
+     * menjumlahkannya dengan Java Stream di memori.
+     *
+     * <p>HPP {@code null} diperlakukan 0 (sama dengan perhitungan baris daftar).
+     */
+    @Query("""
+            SELECT m.jenis AS jenis,
+                   COALESCE(SUM(m.qty), 0) AS qty,
+                   COALESCE(SUM(m.qty * COALESCE(m.hppSnapshot, 0)), 0) AS nilai,
+                   COUNT(m) AS jumlah
+            FROM RiwayatStok m
+            WHERE m.sekolahId = :sekolahId
+              AND m.jenis IN :jenis
+              AND m.waktu >= :dari AND m.waktu < :sampai
+            GROUP BY m.jenis
+            """)
+    List<AgregatKerugianStok> agregatKerugian(@Param("sekolahId") Long sekolahId,
+                                             @Param("jenis") Collection<JenisMutasiStok> jenis,
+                                             @Param("dari") OffsetDateTime dari,
+                                             @Param("sampai") OffsetDateTime sampai);
 }

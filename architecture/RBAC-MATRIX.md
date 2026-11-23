@@ -89,10 +89,10 @@ Batas per-subjek ditegakkan di dalam `KontrolKartuController#ubahBlokir`.
 | `PUT` | `/api/kontrol-kartu/limit-harian` | admin, tu | §9.6 — *Kontrol Siswa: Admin (update)* | PRD diikuti |
 | `GET` | `/api/kontrol-kartu/{siswaId}` | kasir, pengelola, tu, admin | §9.6 | di luar keputusan #250 — dipertahankan |
 | `GET` | `/api/kontrol-kartu/bulk` | kasir, pengelola, tu, admin | §9.6 — batch query kontrol subjek (hindari N+1) | di luar keputusan #250 — dipertahankan |
-| `GET` | `/api/laporan/ekspor` | pengelola, tu, admin, kepsek | §9.5 — *Semua laporan dapat diekspor; akses mengikuti laporan asal* | PRD diikuti |
+| `GET` | `/api/laporan/ekspor` | pengelola, tu, admin, kepsek | §9.5 — *Semua laporan dapat diekspor; akses mengikuti laporan asal*. **Per `jenis` ditegakkan `AksesLaporan`** (SEC-04, #391) — peran di luar laporan asal → 403 (mis. admin pada `KERUGIAN_STOK`) | PRD diikuti |
 | `GET` | `/api/laporan/kartu-stok/{menuId}` | pengelola, tu | §9.5 — *Kartu stok per item: Pengelola, Bendahara* | PRD diikuti |
-| `GET` | `/api/laporan/kerugian-stok` | pengelola, tu, kepsek | §9.5 — *Kerugian stok: Pengelola, Bendahara, Kepsek* | PRD diikuti |
-| `GET` | `/api/laporan/kerugian-stok/ringkasan` | pengelola, tu, kepsek | §9.5 — *Kerugian stok: Pengelola, Bendahara, Kepsek* | PRD diikuti |
+| `GET` | `/api/laporan/kerugian-stok` | pengelola, tu, kepsek | §9.5 — *Kerugian stok: Pengelola, Bendahara, Kepsek* — **admin ditolak juga di ekspor** (SEC-04, #391) | PRD diikuti |
+| `GET` | `/api/laporan/kerugian-stok/ringkasan` | pengelola, tu, kepsek | §9.5 — *Kerugian stok: Pengelola, Bendahara, Kepsek* — **admin ditolak juga di ekspor** (SEC-04, #391) | PRD diikuti |
 | `GET` | `/api/laporan/pembatalan` | tu, admin | §9.5 — *Pembatalan kasir: Bendahara, Admin* | PRD diikuti |
 | `GET` | `/api/laporan/penjualan` | pengelola, tu, admin, kepsek | §9.5 — *Penjualan: Bendahara, Kepsek, Admin, Pengelola* | PRD diikuti |
 | `GET` | `/api/laporan/penjualan/item` | pengelola, tu, admin, kepsek | §9.5 — *Penjualan: Bendahara, Kepsek, Admin, Pengelola* | PRD diikuti |

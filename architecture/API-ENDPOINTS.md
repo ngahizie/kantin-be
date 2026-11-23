@@ -184,8 +184,8 @@
 | `GET` | `/api/laporan/saldo-mengendap/siswa` | TU, admin | **Rincian saldo per siswa** (#224): identitas dari integrasi siswa + saldo/kontrol tenant-lokal. Query: `search?`, `batas?` (default 20, max 50) |
 | `GET` | `/api/laporan/rekonsiliasi` | TU, admin, kepsek | Arus kas per jenis + cek invariant `seimbang`/`selisih` (PRD §5) |
 | `GET` | `/api/laporan/stok` | TU, pengelola | Stok + nilai persediaan; `menipis` dari `menu.stok_minimum`. Query: `hanyaMenipis`, `halaman` (0-based, default 0), `ukuran` (default 200, **maks 200**; di luar rentang → 400). Respons berhalaman: `data` tetap array + metadata `total`/`showing`/`totalPages`/`currentPage` (#375). **Tanpa kepsek** (§9.5) |
-| `GET` | `/api/laporan/kerugian-stok` | TU, pengelola, kepsek | Opname keluar & barang rusak: qty + nilai kerugian |
-| `GET` | `/api/laporan/kerugian-stok/ringkasan` | TU, pengelola, kepsek | **Agregat kerugian stok** (#226): total kerugian/qty/kejadian dan pemisahan opname vs barang rusak; periode sama dengan daftar |
+| `GET` | `/api/laporan/kerugian-stok` | TU, pengelola, kepsek | Opname keluar & barang rusak: qty + nilai kerugian. Query: `tanggal?`/`dari?`/`sampai?`, `halaman` (0-based, default 0), `ukuran` (default 200, **maks 200**; di luar rentang → 400). Respons berhalaman: `data` tetap array + metadata `total`/`showing`/`totalPages`/`currentPage` (SEC-03, #391) |
+| `GET` | `/api/laporan/kerugian-stok/ringkasan` | TU, pengelola, kepsek | **Agregat kerugian stok** (#226): total kerugian/qty/kejadian dan pemisahan opname vs barang rusak; periode sama dengan daftar. Dihitung lewat **agregasi SQL** (`SUM(qty)`, `SUM(qty × hpp_snapshot)`, `COUNT`) — tidak lagi memuat daftar penuh ke memori (SEC-03, #391) |
 | `GET` | `/api/laporan/pembatalan` | TU, admin | **Pembatalan kasir** (#114): daftar transaksi di-refund per subjek pada periode |
 | `GET` | `/api/laporan/penjualan/titik` | TU, admin, pengelola, kepsek | **Penjualan per titik kasir** (#116): transaksi, nilai, HPP, laba kotor per titik |
 | `GET` | `/api/laporan/penjualan/petugas` | TU, admin, pengelola, kepsek | **Penjualan per petugas** (#116): transaksi, nilai, HPP, laba kotor per petugas |
@@ -195,7 +195,7 @@
 | `GET` | `/api/laporan/transaksi-keseluruhan` | TU, admin, pengelola | **Riwayat transaksi/mutasi saldo keseluruhan** (FE LaporanRiwayatKeseluruhanPage): daftar mutasi saldo seluruh subjek untuk periode tertentu. Query: `tanggal?` (`yyyy-MM-dd`), `dari?`/`sampai?` (ISO date-time), `batas?` (default 100) |
 | `GET` | `/api/laporan/setoran-tu` | TU | **Setoran kas TU** (#143): rekap top-up tunai per petugas per hari + disetor + **selisih**. Query: `tanggal?`. **Tanpa kepsek** (§9.5: hanya Bendahara) |
 | `GET` | `/api/laporan/kartu-stok/{menuId}` | TU, pengelola | **Kartu stok per item** (#118): riwayat mutasi satu menu + saldo berjalan. Query: `batas?` |
-| `GET` | `/api/laporan/ekspor` | TU, admin, pengelola, kepsek | Unduh **Excel `.xlsx`** (bukan JSON). Query: `jenis` ∈ `JenisLaporan`, `tanggal`/`dari`/`sampai`, `menuId?` (KARTU_STOK), `subjekTipe?`/`subjekId` (PER_SISWA). *Kepsek hanya jenis yang boleh dibacanya — `STOK`/`BARANG_MASUK`/`SETORAN_TU`/`KARTU_STOK`/`PEMBATALAN`/`PER_SISWA` → **403** |
+| `GET` | `/api/laporan/ekspor` | TU, admin, pengelola, kepsek | Unduh **Excel `.xlsx`** (bukan JSON). Query: `jenis` ∈ `JenisLaporan`, `tanggal`/`dari`/`sampai`, `menuId?` (KARTU_STOK), `subjekTipe?`/`subjekId` (PER_SISWA). **Hak akses per `jenis` ditegakkan lewat `AksesLaporan` — sama dengan endpoint data JSON** (SEC-04, #391): di luar peran laporan asal → **403**, mis. `ADMIN_SEKOLAH` pada `KERUGIAN_STOK`/`STOK`/`KARTU_STOK`/`BARANG_MASUK`/`SETORAN_TU`, atau `KEPSEK` pada `STOK`/`BARANG_MASUK`/`SETORAN_TU`/`KARTU_STOK`/`PEMBATALAN`/`PER_SISWA` |
 
 > **`JenisLaporan` (16 jenis ekspor):** `PENJUALAN`, `PENJUALAN_ITEM`,
 > `PENJUALAN_KATEGORI`, `SALDO_MENGENDAP`, `REKONSILIASI`, `STOK`,

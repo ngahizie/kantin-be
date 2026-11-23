@@ -167,7 +167,7 @@ class RbacKepsekGuardTest {
                 LocalDate.class, OffsetDateTime.class, OffsetDateTime.class))
                 .contains(AktorKantin.KEPSEK);
         assertThat(peranPada(LaporanController.class, "kerugianStok",
-                LocalDate.class, OffsetDateTime.class, OffsetDateTime.class))
+                LocalDate.class, OffsetDateTime.class, OffsetDateTime.class, int.class, int.class))
                 .contains(AktorKantin.KEPSEK);
         assertThat(peranPada(LaporanController.class, "penjualanPerTitik",
                 LocalDate.class, OffsetDateTime.class, OffsetDateTime.class))
@@ -205,13 +205,18 @@ class RbacKepsekGuardTest {
     @DisplayName("#249 — matriks endpoint laporan: hanya yang menyebut Kepsek di §9.5 yang terbuka")
     void matriksEndpointLaporanUntukKepsek() {
         List<String> boleh = List.of("penjualan", "penjualanItem", "penjualanKategori",
-                "rekonsiliasi", "kerugianStok", "ringkasanKerugianStok",
+                "rekonsiliasi", "ringkasanKerugianStok",
                 "penjualanPerTitik", "penjualanPerPetugas", "penjualanPerKasir");
         for (String m : boleh) {
             assertThat(peranPada(LaporanController.class, m, PERIODE))
                     .as("%s harus terbuka untuk KEPSEK", m)
                     .contains(AktorKantin.KEPSEK);
         }
+        // #391: kerugian stok kini berhalaman (tambah parameter halaman & ukuran).
+        assertThat(peranPada(LaporanController.class, "kerugianStok",
+                LocalDate.class, OffsetDateTime.class, OffsetDateTime.class, int.class, int.class))
+                .as("kerugianStok harus terbuka untuk KEPSEK")
+                .contains(AktorKantin.KEPSEK);
 
         assertThat(peranPada(LaporanController.class, "saldoMengendapSiswa", String.class, int.class))
                 .doesNotContain(AktorKantin.KEPSEK);
