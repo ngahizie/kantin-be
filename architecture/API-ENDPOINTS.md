@@ -214,7 +214,11 @@
 
 > **Invariant rekonsiliasi (PRD §5).** `selisih = (Σ KREDIT − Σ DEBIT) − saldo
 > mengendap` **harus 0**; `seimbang=false` menandakan ledger & cache tidak
-> sinkron. Laba kotor = penjualan bersih − Σ HPP snapshot item terjual;
+> sinkron. Perhitungan ini **all-time** untuk tenant, tidak mengikuti filter
+> `tanggal`/`dari`/`sampai` — filter hanya membatasi field arus per jenis.
+> Periode tanpa mutasi mengosongkan arus, tetapi tidak mengubah `selisih`/
+> `seimbang`/`totalKreditSemua`/`totalDebitSemua`/`saldoMengendap` (SEC-06, #396).
+> Laba kotor = penjualan bersih − Σ HPP snapshot item terjual;
 > transaksi **refund dipisah** (tidak masuk bruto).
 
 ## 9. Konfigurasi Kantin & Solusi Demo (KonfigurasiKantinController) — `/api/konfigurasi`

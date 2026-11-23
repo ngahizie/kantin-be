@@ -137,7 +137,13 @@ public class LaporanController {
                 TenantContext.sekolahIdWajib(), search, batasAman));
     }
 
-    /** Rekonsiliasi harian + pemeriksaan invariant (PRD §9.5, §5). */
+    /**
+     * Rekonsiliasi harian + pemeriksaan invariant (PRD §9.5, §5).
+     *
+     * <p>Periode hanya membatasi arus kas yang ditampilkan. Field
+     * {@code selisih}/{@code seimbang} tetap merupakan invarian <b>all-time</b>;
+     * periode tanpa transaksi tidak membuat laporan otomatis seimbang.
+     */
     @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.KEPSEK})
     @GetMapping("rekonsiliasi")
     public ResponseEntity<Response<RingkasanRekonsiliasi>> rekonsiliasi(

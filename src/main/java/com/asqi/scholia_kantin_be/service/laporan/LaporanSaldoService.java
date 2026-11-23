@@ -119,6 +119,12 @@ public class LaporanSaldoService {
     /**
      * Arus saldo periode + pemeriksaan invariant menyeluruh (PRD §5).
      *
+     * <p>Filter {@code tanggal}/{@code dari}/{@code sampai} <b>hanya</b> membatasi
+     * field arus per jenis. {@code selisih}, {@code seimbang},
+     * {@code totalKreditSemua}, {@code totalDebitSemua}, dan {@code saldoMengendap}
+     * selalu dihitung <b>all-time</b> untuk tenant, sesuai kontrak
+     * {@link RingkasanRekonsiliasi}.
+     *
      * <p>Selisih dihitung {@code (Σ KREDIT − Σ DEBIT) − saldo mengendap};
      * {@code seimbang} bernilai true hanya bila selisih nol.
      *
