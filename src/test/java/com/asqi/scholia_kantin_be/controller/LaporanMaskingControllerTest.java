@@ -2,8 +2,11 @@ package com.asqi.scholia_kantin_be.controller;
 
 import com.asqi.scholia_kantin_be.dto.BarisPenjualan;
 import com.asqi.scholia_kantin_be.dto.BarisPenjualanDimensi;
+import com.asqi.scholia_kantin_be.dto.LaporanPerSiswa;
 import com.asqi.scholia_kantin_be.dto.RingkasanPenjualan;
 import com.asqi.scholia_kantin_be.enums.AktorKantin;
+import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
+import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.security.IdentitasKantin;
 import com.asqi.scholia_kantin_be.security.TenantContext;
 import com.asqi.scholia_kantin_be.service.laporan.LaporanExportService;
@@ -40,17 +43,19 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class LaporanMaskingControllerTest {
 
     private LaporanPenjualanService penjualan;
+    private LaporanSiswaService siswa;
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
         penjualan = mock(LaporanPenjualanService.class);
+        siswa = mock(LaporanSiswaService.class);
         mockMvc = MockMvcBuilders.standaloneSetup(new LaporanController(
                         penjualan,
                         mock(LaporanSaldoService.class),
                         mock(LaporanStokService.class),
                         mock(LaporanPembatalanService.class),
-                        mock(LaporanSiswaService.class),
+                        siswa,
                         mock(LaporanSetoranService.class),
                         mock(LaporanExportService.class)))
                 .build();
@@ -67,6 +72,13 @@ class LaporanMaskingControllerTest {
                 new BarisPenjualanDimensi(1L, "Kasir 1", 5, 21_000, 10_000L, 11_000L)));
         when(penjualan.penjualanPerPetugas(any(), any(), any(), any())).thenReturn(List.of(
                 new BarisPenjualanDimensi(5L, "Petugas A", 5, 21_000, 10_000L, 11_000L)));
+        when(siswa.laporanPerSiswa(any(), any(), any(), any(), any())).thenReturn(
+                new LaporanPerSiswa(SubjekTipe.SISWA, 9L, 50_000L, "2026-11-01",
+                        new LaporanPerSiswa.Ringkasan(2, 29_000, 0, 0, 50_000, 14_000L),
+                        List.of(new LaporanPerSiswa.BarisTransaksi(1L, StatusTransaksi.SUKSES,
+                                21_000, 10_000L, 5L, 1L, null,
+                                OffsetDateTime.parse("2026-11-01T08:00:00Z"))),
+                        List.of()));
     }
 
     @AfterEach
@@ -133,5 +145,29 @@ class LaporanMaskingControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].hpp").value(10_000))
                 .andExpect(jsonPath("$.data[0].labaKotor").value(11_000));
+    }
+
+    @Test
+    @DisplayName("#402: Admin Sekolah — laporan per siswa tetap tampil, totalHpp null")
+    void adminTidakMelihatHppPerSiswa() throws Exception {
+        masukSebagai(AktorKantin.ADMIN_SEKOLAH);
+        mockMvc.perform(get("/api/laporan/per-siswa").param("siswaId", "9"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.ringkasan.nilaiBelanjaSukses").value(29_000))
+                .andExpect(jsonPath("$.data.ringkasan.totalHpp")
+                        .value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data.transaksi[0].total").value(21_000))
+                .andExpect(jsonPath("$.data.transaksi[0].totalHpp")
+                        .value(org.hamcrest.Matchers.nullValue()));
+    }
+
+    @Test
+    @DisplayName("#402: Bendahara — totalHpp per siswa tetap tampil")
+    void bendaharaMelihatHppPerSiswa() throws Exception {
+        masukSebagai(AktorKantin.TU_SEKOLAH);
+        mockMvc.perform(get("/api/laporan/per-siswa").param("siswaId", "9"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.ringkasan.totalHpp").value(14_000))
+                .andExpect(jsonPath("$.data.transaksi[0].totalHpp").value(10_000));
     }
 }

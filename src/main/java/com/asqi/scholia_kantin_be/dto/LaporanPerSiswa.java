@@ -14,6 +14,11 @@ import java.util.List;
  * pada periode — ringkasan, daftar transaksi, dan mutasi saldo — untuk menjawab
  * komplain orang tua. Akses Bendahara/Admin.
  *
+ * <p><b>HPP (issue #402):</b> {@code totalHpp} bertipe {@link Long} dan bernilai
+ * {@code null} bila pemanggil tidak berhak melihat laba (Admin Sekolah). Ini
+ * sengaja bukan angka {@code 0} — nol berarti "modalnya nol", bukan "data
+ * disembunyikan". Lihat {@code LaporanMasking#tanpaHpp}.
+ *
  * @param subjekTipe  tipe subjek — selalu {@code SISWA} sejak C.2b
  * @param siswaId    id subjek
  * @param saldo       saldo berjalan saat ini
@@ -31,22 +36,22 @@ public record LaporanPerSiswa(
         List<BarisTransaksi> transaksi,
         List<BarisMutasi> mutasiSaldo) {
 
-    /** Agregat periode untuk satu siswa. */
+    /** Agregat periode untuk satu siswa; {@code totalHpp} null bila disamarkan. */
     public record Ringkasan(
             long jumlahTransaksiSukses,
             long nilaiBelanjaSukses,
             long jumlahTransaksiVoid,
             long nilaiVoid,
             long totalTopup,
-            long totalHpp) {
+            Long totalHpp) {
     }
 
-    /** Satu transaksi siswa pada periode. */
+    /** Satu transaksi siswa pada periode; {@code totalHpp} null bila disamarkan. */
     public record BarisTransaksi(
             Long id,
             StatusTransaksi status,
             long total,
-            long totalHpp,
+            Long totalHpp,
             Long petugasId,
             Long titikKasirId,
             String alasanVoid,

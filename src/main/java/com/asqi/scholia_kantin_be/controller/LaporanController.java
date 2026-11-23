@@ -266,6 +266,9 @@ public class LaporanController {
      * subjek ({@code SISWA}) pada periode — ringkasan + daftar transaksi +
      * mutasi saldo. Untuk menjawab komplain orang tua. RBAC Bendahara/Admin.
      *
+     * <p>Admin Sekolah tidak berhak melihat HPP (PRD §9.5) — {@code totalHpp}
+     * pada ringkasan dan tiap transaksi dikembalikan {@code null}.
+     *
      * @param siswaId id siswa
      */
     @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH})
@@ -275,9 +278,9 @@ public class LaporanController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tanggal,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime dari,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime sampai) {
-        return CommonResponse.data(
-                siswa.laporanPerSiswa(TenantContext.sekolahIdWajib(), siswaId,
-                        tanggal, dari, sampai));
+        LaporanPerSiswa hasil = siswa.laporanPerSiswa(TenantContext.sekolahIdWajib(), siswaId,
+                tanggal, dari, sampai);
+        return CommonResponse.data(bolehLihatLaba() ? hasil : LaporanMasking.tanpaHpp(hasil));
     }
 
     /**
