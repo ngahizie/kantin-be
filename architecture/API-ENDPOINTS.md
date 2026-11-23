@@ -52,9 +52,10 @@
 ## 3. Saldo (SaldoController) — `/api/saldo`
 
 > **Idempotensi (issue #392):** nomor bukti/referensi dipakai ulang untuk `siswaId`,
-> `jenis`, atau `arah` yang berbeda → **409** `Kunci idempotensi dipakai untuk siswa
-> atau jenis mutasi lain`, tanpa mutasi baru. Replay hanya mengembalikan baris lama
-> bila konteksnya identik.
+> `jenis`, `arah`, atau `nominal` (mode nominal tetap) yang berbeda → **409** dengan
+> pesan sesuai field yang beda, tanpa mutasi baru. Aturan ini berlaku baik saat
+> baris lama sudah ada maupun saat INSERT kalah balapan UNIQUE. Replay hanya
+> mengembalikan baris lama bila konteksnya identik.
 
 | Method | Path | Peran | Keterangan |
 |---|---|---|---|

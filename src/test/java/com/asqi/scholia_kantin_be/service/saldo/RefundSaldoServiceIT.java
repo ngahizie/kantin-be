@@ -252,7 +252,7 @@ class RefundSaldoServiceIT {
 
         assertThatThrownBy(() -> service.refund(SEKOLAH, SISWA_LAIN, "REF-SUBJEK-1", null, 9L))
                 .isInstanceOf(ConflictException.class)
-                .hasMessageContaining("siswa atau jenis mutasi lain");
+                .hasMessageContaining("siswa lain");
 
         assertThat(ledger.saldo(SEKOLAH, SISWA_LAIN)).isEqualTo(30_000L);
         Integer baris = jdbc.queryForObject(
