@@ -297,8 +297,13 @@ public class LaporanController {
     /**
      * Riwayat transaksi/mutasi saldo keseluruhan siswa (seluruh subjek) untuk
      * halaman Laporan Riwayat Transaksi (FE LaporanRiwayatKeseluruhanPage).
+     *
+     * <p><b>Kepsek ikut diizinkan (SEC-RIW-03, issue #398):</b> PRD §9.5 memberi
+     * kepala sekolah hak <i>baca</i> atas laporan transaksi sekolah. Sebelumnya
+     * FE menampilkan menu ini untuk peran kepsek tetapi API menjawab 403.
      */
-    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN})
+    @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH,
+            AktorKantin.PENGELOLA_KANTIN, AktorKantin.KEPSEK})
     @GetMapping("transaksi-keseluruhan")
     public ResponseEntity<Response<List<LaporanRiwayatKeseluruhanItem>>> riwayatKeseluruhan(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tanggal,

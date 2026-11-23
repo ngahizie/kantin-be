@@ -202,6 +202,15 @@ class RbacKepsekGuardTest {
     private static final Class<?>[] PERIODE = {LocalDate.class, OffsetDateTime.class, OffsetDateTime.class};
 
     @Test
+    @DisplayName("#398 — riwayat transaksi keseluruhan terbuka untuk kepsek (read-only)")
+    void transaksiKeseluruhanTerbukaUntukKepsek() {
+        assertThat(peranPada(LaporanController.class, "riwayatKeseluruhan",
+                LocalDate.class, OffsetDateTime.class, OffsetDateTime.class, int.class))
+                .as("riwayatKeseluruhan harus terbuka untuk KEPSEK (PRD §9.5 baca)")
+                .contains(AktorKantin.KEPSEK);
+    }
+
+    @Test
     @DisplayName("#249 — matriks endpoint laporan: hanya yang menyebut Kepsek di §9.5 yang terbuka")
     void matriksEndpointLaporanUntukKepsek() {
         List<String> boleh = List.of("penjualan", "penjualanItem", "penjualanKategori",
