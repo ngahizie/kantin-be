@@ -33,7 +33,8 @@ class LaporanStokServiceIT extends LaporanITSupport {
         tx.executeWithoutResult(s -> ledgerStok.sesuaikanOpname(SEKOLAH, MENU_A, 17, "opname harian", "OP-1", 1L));
         tx.executeWithoutResult(s -> ledgerStok.sesuaikanOpname(SEKOLAH, MENU_A, 15, "rusak/basi", "OP-2", true, "OPNAME", 1L));
 
-        List<BarisKerugianStok> r = laporan.kerugianStok(SEKOLAH, null, null, null);
+        List<BarisKerugianStok> r = laporan.kerugianStok(SEKOLAH, null, null, null, 0, 200)
+                .getContent();
 
         assertThat(r).extracting(BarisKerugianStok::jenis)
                 .containsExactlyInAnyOrder("OPNAME_KELUAR", "BARANG_RUSAK");
@@ -50,7 +51,8 @@ class LaporanStokServiceIT extends LaporanITSupport {
         tx.executeWithoutResult(s -> ledgerStok.sesuaikanOpname(SEKOLAH, MENU_A, 17, "opname harian", "OP-226-1", 1L));
         tx.executeWithoutResult(s -> ledgerStok.sesuaikanOpname(SEKOLAH, MENU_A, 15, "rusak/basi", "OP-226-2", true, "OPNAME", 1L));
 
-        List<BarisKerugianStok> daftar = laporan.kerugianStok(SEKOLAH, null, null, null);
+        List<BarisKerugianStok> daftar = laporan.kerugianStok(SEKOLAH, null, null, null, 0, 200)
+                .getContent();
         var ringkasan = laporan.ringkasanKerugianStok(SEKOLAH, null, null, null);
         long nilai = daftar.stream().mapToLong(BarisKerugianStok::totalNilai).sum();
         long qty = daftar.stream().mapToLong(BarisKerugianStok::totalQty).sum();
@@ -77,7 +79,65 @@ class LaporanStokServiceIT extends LaporanITSupport {
     void kerugianStokTenantScoping() {
         tx.executeWithoutResult(s -> ledgerStok.masukBarang(SEKOLAH, MENU_A, 20, 4_000, "BM-1", "BM-1", 1L));
 
-        assertThat(laporan.kerugianStok(SEKOLAH_LAIN, null, null, null)).isEmpty();
+        assertThat(laporan.kerugianStok(SEKOLAH_LAIN, null, null, null, 0, 200).getContent())
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("SEC-03 (#391): daftar kerugian berhalaman — total benar & halaman kedua terisi")
+    void kerugianStokBerhalaman() {
+        tx.executeWithoutResult(s -> ledgerStok.masukBarang(SEKOLAH, MENU_A, 20, 4_000, "BM-P", "BM-P", 1L));
+        // 5 kejadian kerugian: 3 opname keluar (20→17) + 2 barang rusak (17→15).
+        for (int target : new int[]{19, 18, 17}) {
+            final int t = target;
+            tx.executeWithoutResult(s -> ledgerStok.sesuaikanOpname(SEKOLAH, MENU_A, t,
+                    "opname " + t, "OP-P" + t, 1L));
+        }
+        for (int target : new int[]{16, 15}) {
+            final int t = target;
+            tx.executeWithoutResult(s -> ledgerStok.sesuaikanOpname(SEKOLAH, MENU_A, t,
+                    "rusak " + t, "OP-R" + t, true, "OPNAME", 1L));
+        }
+
+        var halaman1 = laporan.kerugianStok(SEKOLAH, null, null, null, 0, 2);
+        assertThat(halaman1.getTotalElements()).isEqualTo(5);
+        assertThat(halaman1.getTotalPages()).isEqualTo(3);
+        assertThat(halaman1.getContent()).hasSize(2);
+        assertThat(halaman1.hasNext()).isTrue();
+
+        var halaman3 = laporan.kerugianStok(SEKOLAH, null, null, null, 2, 2);
+        assertThat(halaman3.getContent()).hasSize(1);
+        assertThat(halaman3.hasNext()).isFalse();
+    }
+
+    @Test
+    @DisplayName("SEC-03 (#391): ringkasan memakai agregasi SQL — tetap utuh melebihi satu halaman")
+    void ringkasanKerugianStokMelebihiSatuHalaman() {
+        tx.executeWithoutResult(s -> ledgerStok.masukBarang(SEKOLAH, MENU_A, 30, 1_000, "BM-A", "BM-A", 1L));
+        for (int target : new int[]{29, 28, 27, 26, 25}) {
+            final int t = target;
+            tx.executeWithoutResult(s -> ledgerStok.sesuaikanOpname(SEKOLAH, MENU_A, t,
+                    "opname " + t, "OP-H" + t, 1L));
+        }
+
+        // Halaman 1 hanya memuat 2 baris; ringkasan harus menghitung SELURUH periode (5).
+        var halaman1 = laporan.kerugianStok(SEKOLAH, null, null, null, 0, 2);
+        assertThat(halaman1.getContent()).hasSize(2);
+
+        var ringkasan = laporan.ringkasanKerugianStok(SEKOLAH, null, null, null);
+        assertThat(ringkasan.jumlahKejadian()).isEqualTo(5);
+        assertThat(ringkasan.qtyOpname()).isEqualTo(5);
+        assertThat(ringkasan.kerugianOpname()).isEqualTo(5 * 1_000L);
+        assertThat(ringkasan.totalKerugian()).isEqualTo(5 * 1_000L);
+    }
+
+    @Test
+    @DisplayName("SEC-03 (#391): ukuran halaman di luar batas → 400, bukan di-clamp")
+    void kerugianStokUkuranTidakValid() {
+        assertThatThrownBy(() -> laporan.kerugianStok(SEKOLAH, null, null, null, 0, 0))
+                .isInstanceOf(InvalidOperationException.class);
+        assertThatThrownBy(() -> laporan.kerugianStok(SEKOLAH, null, null, null, 0, 201))
+                .isInstanceOf(InvalidOperationException.class);
     }
 
     @Test

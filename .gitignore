@@ -62,3 +62,7 @@ build.sh
 
 # Berkas unggahan storage lokal (demo/dev)
 tmp/
+
+### Koleksi Postman lokal (bukan bagian produk) ###
+.postman/
+postman/

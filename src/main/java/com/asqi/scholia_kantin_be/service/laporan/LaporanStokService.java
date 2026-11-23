@@ -15,6 +15,7 @@ import com.asqi.scholia_kantin_be.repository.KategoriMenuRepository;
 import com.asqi.scholia_kantin_be.repository.MenuRepository;
 import com.asqi.scholia_kantin_be.repository.RiwayatStokRepository;
 import com.asqi.scholia_kantin_be.repository.StokRepository;
+import com.asqi.scholia_kantin_be.repository.projection.AgregatKerugianStok;
 import com.asqi.scholia_kantin_be.repository.projection.BarisStokLaporan;
 import com.asqi.scholia_kantin_be.service.stok.HppService;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -50,6 +51,13 @@ public class LaporanStokService {
 
     /** Jumlah baris kartu stok bila klien tidak mengirim/mengirim batas tak wajar. */
     private static final int BATAS_KARTU_STOK_DEFAULT = 200;
+
+    /**
+     * Jenis mutasi yang dihitung sebagai kerugian stok (PRD §9.5, #391):
+     * opname keluar &amp; barang rusak.
+     */
+    private static final Set<JenisMutasiStok> JENIS_KERUGIAN =
+            EnumSet.of(JenisMutasiStok.OPNAME_KELUAR, JenisMutasiStok.BARANG_RUSAK);
 
     private final RiwayatStokRepository mutasiStokRepo;
     private final StokRepository stokCacheRepo;
@@ -92,80 +100,119 @@ public class LaporanStokService {
     /**
      * Kerugian stok: opname keluar &amp; barang rusak pada periode (PRD §9.5).
      *
-     * @return satu baris per mutasi kerugian; list kosong bila tidak ada
+     * <p><b>SEC-03 (issue #391):</b> daftar dibatasi per halaman di database —
+     * dulu satu periode penuh dimuat ke memori JVM tanpa batas atas. Ukuran di
+     * luar rentang {@code 1..200} → 400 (PRD §6.2, pola sama dengan laporan
+     * stok #375), bukan di-clamp diam-diam.
+     *
+     * @param halaman indeks halaman (0-based); negatif dinormalkan ke 0
+     * @param ukuran  jumlah baris per halaman (1..{@link UkuranHalaman#UKURAN_MAKS})
+     * @return satu halaman baris kerugian + total baris untuk metadata
      */
     @Transactional(readOnly = true)
-    public List<BarisKerugianStok> kerugianStok(Long sekolahId, LocalDate tanggal,
-                                                OffsetDateTime dari, OffsetDateTime sampai) {
+    public Page<BarisKerugianStok> kerugianStok(Long sekolahId, LocalDate tanggal,
+                                                OffsetDateTime dari, OffsetDateTime sampai,
+                                                int halaman, int ukuran) {
+        int ukuranAman = UkuranHalaman.validasi(ukuran, UkuranHalaman.UKURAN_MAKS);
+        int halamanAman = Math.max(0, halaman);
         OffsetDateTime[] r = LaporanHelper.rentang(jam, tanggal, dari, sampai);
-        List<RiwayatStok> mutasi = mutasiStokRepo.kerugianRentang(
-                sekolahId, EnumSet.of(JenisMutasiStok.OPNAME_KELUAR, JenisMutasiStok.BARANG_RUSAK),
-                r[0], r[1]);
 
+        Page<RiwayatStok> mutasi = mutasiStokRepo.kerugianRentang(sekolahId, JENIS_KERUGIAN,
+                r[0], r[1], PageRequest.of(halamanAman, ukuranAman));
+
+        // Nama menu & kategori diambil sekali per halaman (≤ 200 id) — bukan per baris.
+        Map<Long, Menu> menuMap = petaMenu(sekolahId, mutasi.getContent());
+        Map<Long, String> kategoriMap = petaKategori(sekolahId, menuMap.values());
+        return mutasi.map(m -> keBarisKerugian(m, menuMap, kategoriMap));
+    }
+
+    /** Peta {@code menuId → menu} tenant-scoped untuk baris satu halaman. */
+    private Map<Long, Menu> petaMenu(Long sekolahId, List<RiwayatStok> mutasi) {
         if (mutasi.isEmpty()) {
-            return List.of();
+            return Map.of();
         }
-
         Set<Long> menuIds = mutasi.stream().map(RiwayatStok::getMenuId).collect(Collectors.toSet());
-        List<Menu> menus = menuRepo.findAllById(menuIds);
-        Map<Long, Menu> menuMap = menus.stream()
+        return menuRepo.findAllById(menuIds).stream()
                 .filter(m -> m.getSekolahId().equals(sekolahId))
                 .collect(Collectors.toMap(Menu::getId, m -> m, (a, b) -> a));
+    }
 
+    /** Peta {@code kategoriId → nama} tenant-scoped untuk menu satu halaman. */
+    private Map<Long, String> petaKategori(Long sekolahId, Collection<Menu> menus) {
         Set<Long> kategoriIds = menus.stream()
                 .map(Menu::getKategoriId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
-        Map<Long, String> kategoriMap = kategoriRepo.findAllById(kategoriIds).stream()
+        if (kategoriIds.isEmpty()) {
+            return Map.of();
+        }
+        return kategoriRepo.findAllById(kategoriIds).stream()
                 .filter(k -> k.getSekolahId().equals(sekolahId))
                 .collect(Collectors.toMap(KategoriMenu::getId, KategoriMenu::getNama, (a, b) -> a));
+    }
 
-        List<BarisKerugianStok> hasil = new ArrayList<>();
-        for (RiwayatStok m : mutasi) {
-            Menu menu = menuMap.get(m.getMenuId());
-            String namaMenu = menu != null ? menu.getNama() : "Menu #" + m.getMenuId();
-            String kategoriNama = (menu != null && menu.getKategoriId() != null)
-                    ? kategoriMap.getOrDefault(menu.getKategoriId(), "Umum")
-                    : "Umum";
-            long hpp = m.getHppSnapshot() != null ? m.getHppSnapshot() : 0L;
-            long totalNilai = m.getQty() * hpp;
-            String petugas = m.getAktorNama() != null ? m.getAktorNama() : "Petugas";
+    /** Satu baris mutasi → DTO kontrak FE (nama menu/kategori dipetakan, fallback aman). */
+    private BarisKerugianStok keBarisKerugian(RiwayatStok m, Map<Long, Menu> menuMap,
+                                              Map<Long, String> kategoriMap) {
+        Menu menu = menuMap.get(m.getMenuId());
+        String namaMenu = menu != null ? menu.getNama() : "Menu #" + m.getMenuId();
+        String kategoriNama = (menu != null && menu.getKategoriId() != null)
+                ? kategoriMap.getOrDefault(menu.getKategoriId(), "Umum")
+                : "Umum";
+        long hpp = m.getHppSnapshot() != null ? m.getHppSnapshot() : 0L;
+        long totalNilai = m.getQty() * hpp;
+        String petugas = m.getAktorNama() != null ? m.getAktorNama() : "Petugas";
 
-            hasil.add(new BarisKerugianStok(
-                    m.getId(),
-                    m.getWaktu(),
-                    m.getMenuId(),
-                    namaMenu,
-                    kategoriNama,
-                    m.getJenis().name(),
-                    m.getQty(),
-                    hpp,
-                    totalNilai,
-                    m.getAlasan() != null ? m.getAlasan() : "-",
-                    m.getReferensiId() != null ? m.getReferensiId() : "-",
-                    petugas));
-        }
-        return hasil;
+        return new BarisKerugianStok(
+                m.getId(),
+                m.getWaktu(),
+                m.getMenuId(),
+                namaMenu,
+                kategoriNama,
+                m.getJenis().name(),
+                m.getQty(),
+                hpp,
+                totalNilai,
+                m.getAlasan() != null ? m.getAlasan() : "-",
+                m.getReferensiId() != null ? m.getReferensiId() : "-",
+                petugas);
     }
 
     /**
-     * Ringkasan kerugian stok dari agregasi yang sama dengan endpoint daftar (#226).
+     * Ringkasan kerugian stok pada periode yang sama dengan endpoint daftar (#226).
+     *
+     * <p><b>SEC-03 (issue #391):</b> dihitung lewat <b>agregasi SQL</b>
+     * ({@code SUM(qty)}, {@code SUM(qty × hpp_snapshot)}, {@code COUNT}) — dulu
+     * memanggil ulang daftar penuh lalu menjumlahkan di memori, sehingga satu
+     * permintaan ringkasan (dipanggil paralel dengan daftar oleh FE) menggandakan
+     * beban pemuatan entitas.
      *
      * @return total kerugian &amp; qty, dipecah opname keluar vs barang rusak
      */
     @Transactional(readOnly = true)
     public RingkasanKerugianStok ringkasanKerugianStok(Long sekolahId, LocalDate tanggal,
                                                        OffsetDateTime dari, OffsetDateTime sampai) {
-        List<BarisKerugianStok> baris = kerugianStok(sekolahId, tanggal, dari, sampai);
-        long kerugianOpname = baris.stream().filter(b -> b.jenis().equals(JenisMutasiStok.OPNAME_KELUAR.name()))
-                .mapToLong(BarisKerugianStok::totalNilai).sum();
-        long qtyOpname = baris.stream().filter(b -> b.jenis().equals(JenisMutasiStok.OPNAME_KELUAR.name()))
-                .mapToLong(BarisKerugianStok::totalQty).sum();
-        long kerugianRusak = baris.stream().filter(b -> b.jenis().equals(JenisMutasiStok.BARANG_RUSAK.name()))
-                .mapToLong(BarisKerugianStok::totalNilai).sum();
-        long qtyRusak = baris.stream().filter(b -> b.jenis().equals(JenisMutasiStok.BARANG_RUSAK.name()))
-                .mapToLong(BarisKerugianStok::totalQty).sum();
-        long jumlahKejadian = baris.stream().mapToLong(BarisKerugianStok::jumlahBaris).sum();
+        OffsetDateTime[] r = LaporanHelper.rentang(jam, tanggal, dari, sampai);
+        long kerugianOpname = 0;
+        long qtyOpname = 0;
+        long kerugianRusak = 0;
+        long qtyRusak = 0;
+        long jumlahKejadian = 0;
+
+        for (AgregatKerugianStok a : mutasiStokRepo.agregatKerugian(sekolahId, JENIS_KERUGIAN,
+                r[0], r[1])) {
+            long qty = a.getQty() == null ? 0 : a.getQty();
+            long nilai = a.getNilai() == null ? 0 : a.getNilai();
+            jumlahKejadian += a.getJumlah() == null ? 0 : a.getJumlah();
+            if (a.getJenis() == JenisMutasiStok.OPNAME_KELUAR) {
+                kerugianOpname = nilai;
+                qtyOpname = qty;
+            } else if (a.getJenis() == JenisMutasiStok.BARANG_RUSAK) {
+                kerugianRusak = nilai;
+                qtyRusak = qty;
+            }
+        }
+
         return new RingkasanKerugianStok(kerugianOpname + kerugianRusak, qtyOpname + qtyRusak,
                 jumlahKejadian, kerugianOpname, qtyOpname, kerugianRusak, qtyRusak);
     }
