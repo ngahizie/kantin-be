@@ -291,4 +291,50 @@ class LaporanSiswaServiceIT extends LaporanITSupport {
                 .isInstanceOf(InvalidOperationException.class)
                 .hasMessageContaining("dari");
     }
+
+    // ────────────────────────────────────────────────────────────────
+    // #403 — MAKS_HARI & urutan rentang pada riwayatSiswa
+    // ────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("#403: rentang > 366 hari ditolak 400 (MAKS_HARI, CWE-400)")
+    void riwayatSiswaRentangTerlaluPanjangDitolak() {
+        topup(SISWA, SubjekTipe.SISWA, 10_000, JenisMutasiSaldo.TOPUP_TUNAI);
+        OffsetDateTime sampai = jam.sekarang();
+
+        assertThatThrownBy(() -> laporan.riwayatSiswa(
+                SEKOLAH, SISWA, sampai.minusDays(400), sampai))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("366");
+    }
+
+    @Test
+    @DisplayName("#403: rentang terbalik ditolak 400, bukan nol baris senyap")
+    void riwayatSiswaRentangTerbalikDitolak() {
+        topup(SISWA, SubjekTipe.SISWA, 10_000, JenisMutasiSaldo.TOPUP_TUNAI);
+        OffsetDateTime akhir = jam.sekarang();
+
+        assertThatThrownBy(() -> laporan.riwayatSiswa(
+                SEKOLAH, SISWA, akhir, akhir.minusDays(1)))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("dari");
+    }
+
+    @Test
+    @DisplayName("#403: default tetap 30 hari — kontrak API tidak berubah")
+    void riwayatSiswaDefaultTetap30Hari() {
+        // Mutasi lama (40 hari lalu) disisipkan langsung: ledger append-only, UPDATE
+        // ditolak trigger tolak_perubahan_ledger (PRD 11.1).
+        jdbc.update("INSERT INTO mutasi_saldo (id, sekolah_id, arah, jenis, nominal, "
+                + "saldo_setelah, waktu, created_at, siswa_id, idempotency_key) "
+                + "VALUES (?, ?, 'KREDIT', 'TOPUP_TUNAI', 10000, 10000, "
+                + "now() - interval '40 days', now() - interval '40 days', ?, 'lama-403')",
+                9_403_001L, SEKOLAH, SISWA);
+        topup(SISWA, SubjekTipe.SISWA, 20_000, JenisMutasiSaldo.TOPUP_TUNAI);
+
+        var r = laporan.riwayatSiswa(SEKOLAH, SISWA, null, null);
+
+        assertThat(r.riwayat()).hasSize(1);
+        assertThat(r.riwayat().get(0).nominal()).isEqualTo(20_000L);
+    }
 }
