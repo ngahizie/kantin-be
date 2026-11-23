@@ -111,8 +111,14 @@ public class LaporanSiswaService {
         Saldo cache = saldoCacheRepo.findBySekolahIdAndSiswaId(sekolahId, siswaId)
                 .orElseThrow(() -> new NotFoundEntity("Siswa " + siswaId + " tidak ditemukan"));
 
-        OffsetDateTime akhir = sampai != null ? sampai : OffsetDateTime.now(jam.zona());
-        OffsetDateTime awal = dari != null ? dari : akhir.minusDays(HARI_RIWAYAT_DEFAULT);
+        // SEC-03 (#388) / issue #403: periode dihitung lewat helper bersama supaya
+        // batas MAKS_HARI dan urutan kronologis ikut ditegakkan — sebelumnya
+        // perhitungan manual membuat endpoint ini menerima rentang bertahun-tahun
+        // dan memuat seluruh mutasi + transaksi tanpa batas (CWE-400).
+        OffsetDateTime[] periode = LaporanHelper.rentangMundur(jam, dari, sampai,
+                HARI_RIWAYAT_DEFAULT);
+        OffsetDateTime awal = periode[0];
+        OffsetDateTime akhir = periode[1];
 
         List<MutasiSaldo> mutasi = new ArrayList<>(
                 saldoLedgerRepo.padaRentangSubjek(sekolahId, siswaId, awal, akhir));

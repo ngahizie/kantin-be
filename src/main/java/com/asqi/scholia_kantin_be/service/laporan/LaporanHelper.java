@@ -49,13 +49,52 @@ final class LaporanHelper {
         OffsetDateTime awal = (dari != null) ? dari : tgl.atStartOfDay(jam.zona()).toOffsetDateTime();
         OffsetDateTime akhir = (sampai != null) ? sampai : awal.plusDays(1);
 
-        // SEC-03 (#388) & SEC-RIW-06 (#398): tolak rentang terbalik.
+        // SEC-03 (#388) & SEC-RIW-06 (#398): tolak rentang terbalik & tak terbatas.
         pastikanUrutan(awal, akhir);
+        pastikanPanjangRentang(awal, akhir);
         if (akhir.isAfter(awal.plusDays(MAKS_HARI))) {
             throw new InvalidOperationException(
                     "Rentang tanggal terlalu panjang: maksimal " + MAKS_HARI + " hari per permintaan");
         }
         return new OffsetDateTime[]{awal, akhir};
+    }
+
+    /**
+     * Rentang "N hari terakhir" untuk laporan per subjek (issue #403).
+     *
+     * <p>Beda dengan {@link #rentang}: bila {@code dari} kosong, awalnya dihitung
+     * <b>mundur</b> dari akhir ({@code hariDefault}), bukan awal hari ini. Aturan
+     * validasinya sama — urutan kronologis dan {@link #MAKS_HARI} — sehingga
+     * endpoint yang memakai pola ini tidak lolos dari batas permintaan
+     * (SEC-03 #388 / CWE-400).
+     *
+     * @param jam         sumber zona sekolah
+     * @param dari        awal periode eksplisit (opsional)
+     * @param sampai      akhir periode eksplisit (opsional; default sekarang)
+     * @param hariDefault panjang jendela mundur bila {@code dari} kosong
+     * @return array dua elemen {@code [awal, akhir]}
+     */
+    static OffsetDateTime[] rentangMundur(JamKantin jam, OffsetDateTime dari,
+                                          OffsetDateTime sampai, int hariDefault) {
+        OffsetDateTime akhir = (sampai != null) ? sampai : OffsetDateTime.now(jam.zona());
+        OffsetDateTime awal = (dari != null) ? dari : akhir.minusDays(hariDefault);
+
+        pastikanUrutan(awal, akhir);
+        pastikanPanjangRentang(awal, akhir);
+        return new OffsetDateTime[]{awal, akhir};
+    }
+
+    /**
+     * Tolak rentang melebihi {@link #MAKS_HARI} (OWASP A06:2025 / CWE-400).
+     *
+     * @param awal  batas bawah
+     * @param akhir batas atas, eksklusif
+     */
+    static void pastikanPanjangRentang(OffsetDateTime awal, OffsetDateTime akhir) {
+        if (akhir.isAfter(awal.plusDays(MAKS_HARI))) {
+            throw new InvalidOperationException(
+                    "Rentang tanggal terlalu panjang: maksimal " + MAKS_HARI + " hari per permintaan");
+        }
     }
 
     /**
