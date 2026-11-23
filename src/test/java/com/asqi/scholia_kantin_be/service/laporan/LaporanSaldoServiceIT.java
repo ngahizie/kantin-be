@@ -9,6 +9,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -83,6 +84,31 @@ class LaporanSaldoServiceIT extends LaporanITSupport {
         assertThat(r.seimbang()).isTrue();
     }
 
+    @Test
+    @DisplayName("SEC-06 (#396): filter periode hanya membatasi arus, invariant tetap all-time")
+    void invariantTidakMengikutiPeriode() {
+        topup(SISWA, SubjekTipe.SISWA, 100_000, JenisMutasiSaldo.TOPUP_TUNAI);
+        tx.executeWithoutResult(s -> ledgerSaldo.debit(PerintahMutasiSaldo.builder()
+                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).siswaId(SISWA)
+                .jenis(JenisMutasiSaldo.PENJUALAN).nominal(21_000)
+                .idempotencyKey("jual-396").build()));
+
+        RingkasanRekonsiliasi hariIni = laporan.rekonsiliasi(SEKOLAH, null, null, null);
+        // Periode tanpa mutasi: arus kosong, tetapi invarian all-time tetap dihitung.
+        RingkasanRekonsiliasi periodeKosong =
+                laporan.rekonsiliasi(SEKOLAH, LocalDate.of(2099, 1, 1), null, null);
+
+        assertThat(periodeKosong.topupTunai()).isZero();
+        assertThat(periodeKosong.penjualan()).isZero();
+        assertThat(periodeKosong.totalKreditSemua())
+                .isEqualTo(hariIni.totalKreditSemua()).isEqualTo(100_000L);
+        assertThat(periodeKosong.totalDebitSemua())
+                .isEqualTo(hariIni.totalDebitSemua()).isEqualTo(21_000L);
+        assertThat(periodeKosong.saldoMengendap())
+                .isEqualTo(hariIni.saldoMengendap()).isEqualTo(79_000L);
+        assertThat(periodeKosong.selisih()).isZero();
+        assertThat(periodeKosong.seimbang()).isTrue();
+    }
     @Test
     @DisplayName("tenant scoping — sekolah lain tidak melihat saldo sekolah ini")
     void saldoTenantScoping() {
