@@ -65,7 +65,7 @@ throw new ForbiddenException("...");
 | **Qty** | `Integer`. |
 | **Waktu** | `LocalDateTime`, zona sekolah. Reset limit 00:00 waktu lokal sekolah. |
 | **ID** | `Constants.idGenerator()` (pola admin-be) untuk entitas bisnis. `BIGSERIAL` hanya untuk tabel murni internal bila disetujui. |
-| **Idempotency key** | Dibuat **klien kasir**, kolom `idempotency_key` UNIQUE. |
+| **Idempotency key** | Dibuat **klien kasir**, kolom `idempotency_key` UNIQUE per tenant (**bukan** per subjek). Replay hanya sah bila `siswaId`, `jenis`, dan `arah` sama; beda konteks → **409** (issue #392). |
 
 ---
 

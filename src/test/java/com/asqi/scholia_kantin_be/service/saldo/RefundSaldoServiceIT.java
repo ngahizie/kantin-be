@@ -243,6 +243,24 @@ class RefundSaldoServiceIT {
     }
 
     @Test
+    @DisplayName("issue #392: bukti sama untuk siswa lain ditolak 409, saldo tidak berubah")
+    void refundBuktiSamaSiswaLainDitolak() {
+        isiSaldo(SISWA_KELUAR, 20_000);
+        isiSaldo(SISWA_LAIN, 30_000);
+
+        service.refund(SEKOLAH, SISWA_KELUAR, "REF-SUBJEK-1", null, 9L);
+
+        assertThatThrownBy(() -> service.refund(SEKOLAH, SISWA_LAIN, "REF-SUBJEK-1", null, 9L))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("siswa atau jenis mutasi lain");
+
+        assertThat(ledger.saldo(SEKOLAH, SISWA_LAIN)).isEqualTo(30_000L);
+        Integer baris = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM mutasi_saldo WHERE sekolah_id = ? AND jenis = 'REFUND'",
+                Integer.class, SEKOLAH);
+        assertThat(baris).isEqualTo(1);
+    }
+    @Test
     @DisplayName("refund saldo kosong → ConflictException, tanpa mutasi")
     void refundSaldoKosongDitolak() {
         assertThatThrownBy(() -> service.refund(SEKOLAH, SISWA_LAIN, "REF-3", null, 9L))

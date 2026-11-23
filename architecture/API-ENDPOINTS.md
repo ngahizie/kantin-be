@@ -51,6 +51,11 @@
 
 ## 3. Saldo (SaldoController) — `/api/saldo`
 
+> **Idempotensi (issue #392):** nomor bukti/referensi dipakai ulang untuk `siswaId`,
+> `jenis`, atau `arah` yang berbeda → **409** `Kunci idempotensi dipakai untuk siswa
+> atau jenis mutasi lain`, tanpa mutasi baru. Replay hanya mengembalikan baris lama
+> bila konteksnya identik.
+
 | Method | Path | Peran | Keterangan |
 |---|---|---|---|
 | `POST` | `/api/saldo/topup` | TU | Top-up tunai (PRD §9.1); `referensiId` = kunci idempotensi |

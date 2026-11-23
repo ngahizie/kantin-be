@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -145,9 +146,20 @@ public class LedgerSaldoService {
             Optional<MutasiSaldo> lama = ledgerRepo.findBySekolahIdAndIdempotencyKey(
                     perintah.getSekolahId(), perintah.getIdempotencyKey());
             if (lama.isPresent()) {
+                MutasiSaldo mutasiLama = lama.get();
+                // Kunci unik per tenant, bukan per subjek: pastikan baris lama
+                // benar-benar operasi yang sama. Tanpa ini, nomor bukti yang
+                // dipakai ulang untuk siswa/jenis lain mengembalikan data orang
+                // lain dan operasi keduanya jadi no-op yang dilaporkan sukses.
+                if (!Objects.equals(mutasiLama.getSiswaId(), perintah.getSiswaId())
+                        || mutasiLama.getJenis() != perintah.getJenis()
+                        || mutasiLama.getArah() != arah) {
+                    throw new ConflictException(
+                            "Kunci idempotensi dipakai untuk siswa atau jenis mutasi lain");
+                }
                 log.debug("Idempotency replay saldo key={} → saldoSetelah={}",
-                        perintah.getIdempotencyKey(), lama.get().getSaldoSetelah());
-                return HasilMutasiSaldo.replay(lama.get());
+                        perintah.getIdempotencyKey(), mutasiLama.getSaldoSetelah());
+                return HasilMutasiSaldo.replay(mutasiLama);
             }
         }
 
