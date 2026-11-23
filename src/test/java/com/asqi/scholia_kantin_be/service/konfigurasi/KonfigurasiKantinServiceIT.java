@@ -1,9 +1,10 @@
 package com.asqi.scholia_kantin_be.service.konfigurasi;
 
 import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
-import com.asqi.scholia_kantin_be.dto.KebijakanKantinResponse;
 import com.asqi.scholia_kantin_be.dto.KejadianOfflineResponse;
 import com.asqi.scholia_kantin_be.dto.AkunBukuKasResponse;
+import com.asqi.scholia_kantin_be.dto.PengaturanKantinRequest;
+import com.asqi.scholia_kantin_be.dto.PengaturanKantinResponse;
 import com.asqi.scholia_kantin_be.enums.KebijakanSaldoMengendap;
 import com.asqi.scholia_kantin_be.helper.Constants;
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;
@@ -47,7 +48,7 @@ class KonfigurasiKantinServiceIT {
     private KejadianOfflineService insidenService;
 
     @Autowired
-    private KebijakanKantinService kebijakanService;
+    private PengaturanKantinService pengaturanService;
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -170,40 +171,61 @@ class KonfigurasiKantinServiceIT {
 
     // ────────────────────────────────────────────────────────────────
     // #25 / Q16 — KEBIJAKAN SALDO MENGENDAP
+    // (endpoint demo GET/PUT /api/konfigurasi/kebijakan dihapus pada audit #401;
+    //  kebijakan kini dibaca/diubah lewat /api/pengaturan-kantin)
     // ────────────────────────────────────────────────────────────────
 
     @Test
     @DisplayName("#25: kebijakan belum diisi → default REFUND (aman, tanpa simpan)")
     void kebijakanDefaultRefund() {
-        KebijakanKantinResponse k = kebijakanService.ambil(SEKOLAH);
+        PengaturanKantinResponse k = pengaturanService.ambil(SEKOLAH);
 
         assertThat(k.getKebijakanSaldoMengendap())
                 .isEqualTo(KebijakanSaldoMengendap.REFUND.name());
+        assertThat(k.getAmbangHari()).isEqualTo(90);
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM pengaturan_kantin", Integer.class)).isZero();
     }
 
     @Test
-    @DisplayName("#25: ubah kebijakan → tersimpan + audit mencatat nilai lama→baru")
+    @DisplayName("#25: ubah kebijakan lewat pengaturan kantin → tersimpan + audit")
     void ubahKebijakanTersimpanDanAudit() {
-        kebijakanService.ubah(SEKOLAH, KebijakanSaldoMengendap.PINDAH_SAUDARA, 30,
-                "Pindahkan ke saudara aktif", ADMIN);
+        PengaturanKantinRequest req = new PengaturanKantinRequest();
+        req.setKebijakanSaldoMengendap("pindah_saudara"); // huruf kecil → dinormalkan
+        req.setAmbangHari(30);
 
-        KebijakanKantinResponse k = kebijakanService.ambil(SEKOLAH);
+        pengaturanService.ubah(SEKOLAH, req, ADMIN);
+
+        PengaturanKantinResponse k = pengaturanService.ambil(SEKOLAH);
         assertThat(k.getKebijakanSaldoMengendap()).isEqualTo("PINDAH_SAUDARA");
         assertThat(k.getAmbangHari()).isEqualTo(30);
 
         Integer audit = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM catatan_audit WHERE aksi = 'UBAH_KEBIJAKAN_KANTIN'", Integer.class);
+                "SELECT COUNT(*) FROM catatan_audit WHERE aksi = 'UBAH_PENGATURAN_KANTIN'",
+                Integer.class);
         assertThat(audit).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("#401: nilai kebijakan di luar enum ditolak 400 (validasi pindah dari endpoint demo)")
+    void kebijakanTidakDikenalDitolak() {
+        PengaturanKantinRequest req = new PengaturanKantinRequest();
+        req.setKebijakanSaldoMengendap("NGARANG");
+
+        assertThatThrownBy(() -> pengaturanService.ubah(SEKOLAH, req, ADMIN))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("Kebijakan saldo mengendap tidak dikenal");
     }
 
     @Test
     @DisplayName("#25: kebijakan tenant-scoped — sekolah lain tetap default")
     void kebijakanTenantScoped() {
-        kebijakanService.ubah(SEKOLAH, KebijakanSaldoMengendap.TETAP_MENGENDAP, 120, null, ADMIN);
+        PengaturanKantinRequest req = new PengaturanKantinRequest();
+        req.setKebijakanSaldoMengendap(KebijakanSaldoMengendap.TETAP_MENGENDAP.name());
+        req.setAmbangHari(120);
+        pengaturanService.ubah(SEKOLAH, req, ADMIN);
 
-        assertThat(kebijakanService.ambil(SEKOLAH_LAIN).getKebijakanSaldoMengendap())
+        assertThat(pengaturanService.ambil(SEKOLAH_LAIN).getKebijakanSaldoMengendap())
                 .isEqualTo(KebijakanSaldoMengendap.REFUND.name());
     }
 }

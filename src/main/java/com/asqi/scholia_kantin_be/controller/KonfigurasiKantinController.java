@@ -1,11 +1,9 @@
 package com.asqi.scholia_kantin_be.controller;
 
-import com.asqi.scholia_kantin_be.dto.KebijakanKantinResponse;
 import com.asqi.scholia_kantin_be.dto.KejadianOfflineResponse;
 import com.asqi.scholia_kantin_be.dto.LaporInsidenRequest;
 import com.asqi.scholia_kantin_be.dto.AkunBukuKasResponse;
 import com.asqi.scholia_kantin_be.dto.ProfilKantinResponse;
-import com.asqi.scholia_kantin_be.dto.UbahKebijakanRequest;
 import com.asqi.scholia_kantin_be.enums.AktorKantin;
 import com.asqi.scholia_kantin_be.payload.response.CommonResponse;
 import com.asqi.scholia_kantin_be.payload.response.Response;
@@ -13,7 +11,6 @@ import com.asqi.scholia_kantin_be.security.IdentitasKantin;
 import com.asqi.scholia_kantin_be.security.PerluPeran;
 import com.asqi.scholia_kantin_be.security.TenantContext;
 import com.asqi.scholia_kantin_be.service.konfigurasi.KejadianOfflineService;
-import com.asqi.scholia_kantin_be.service.konfigurasi.KebijakanKantinService;
 import com.asqi.scholia_kantin_be.service.konfigurasi.AkunBukuKasService;
 import com.asqi.scholia_kantin_be.service.konfigurasi.ProfilKantinService;
 import jakarta.validation.Valid;
@@ -22,7 +19,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -40,9 +36,18 @@ import java.util.List;
  *       (fallback lokal sampai admin-be mengonfirmasi).</li>
  *   <li><b>#23 / Q14</b> — pencatatan insiden offline (prosedur darurat
  *       ADR-0006) sebagai dasar keputusan memajukan mode offline.</li>
- *   <li><b>#25 / Q16</b> — kebijakan saldo mengendap per sekolah
- *       (default REFUND).</li>
+ *   <li><b>#22/Q17 &amp; #24/Q15</b> — profil reader RFID &amp; postur regulasi
+ *       (asumsi demo untuk tim RFID &amp; legal).</li>
  * </ul>
+ *
+ * <p><b>Audit #401 (2026-11-23):</b> dua endpoint demo yang <b>duplikat</b> sudah
+ * dihapus — {@code GET /api/konfigurasi/pos-buku-kas} (respons
+ * {@code POST .../aktivasi} sudah memuat daftar pos) dan
+ * {@code GET}/{@code PUT /api/konfigurasi/kebijakan} (kebijakan saldo mengendap
+ * sudah dilayani {@code GET}/{@code PUT /api/pengaturan-kantin}, lihat
+ * {@link PengaturanKantinController}). Endpoint yang tersisa dipertahankan
+ * karena belum punya padanan dan menopang pertanyaan yang masih terbuka
+ * (#197). Rincian keputusan: {@code architecture/API-ENDPOINTS.md} §9.
  *
  * <p>Controller tipis (AGENTS.md §10): tenant dari {@link TenantContext}, RBAC
  * {@code @PerluPeran}, logika di service.
@@ -54,7 +59,6 @@ public class KonfigurasiKantinController {
 
     private final AkunBukuKasService posBukuKasService;
     private final KejadianOfflineService insidenOfflineService;
-    private final KebijakanKantinService kebijakanKantinService;
     private final ProfilKantinService profilKantinService;
 
     // ────────────────────────────────────────────────────────────────
@@ -73,14 +77,6 @@ public class KonfigurasiKantinController {
         List<AkunBukuKasResponse> pos = posBukuKasService.pastikanPosStandar(
                 TenantContext.sekolahIdWajib(), identitas.aktorIdWajib());
         return CommonResponse.data(pos, "Pos Buku Kas kantin siap");
-    }
-
-    /** Daftar pos Buku Kas kantin (tenant-scoped). */
-    @PerluPeran({AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN,
-            AktorKantin.TU_SEKOLAH, AktorKantin.PETUGAS_KANTIN})
-    @GetMapping("pos-buku-kas")
-    public ResponseEntity<Response<List<AkunBukuKasResponse>>> daftarPos() {
-        return CommonResponse.data(posBukuKasService.daftar(TenantContext.sekolahIdWajib()));
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -110,30 +106,6 @@ public class KonfigurasiKantinController {
     public ResponseEntity<Response<List<KejadianOfflineResponse>>> daftarInsiden() {
         return CommonResponse.data(
                 insidenOfflineService.daftar(TenantContext.sekolahIdWajib()));
-    }
-
-    // ────────────────────────────────────────────────────────────────
-    // #25 / Q16 — KEBIJAKAN SALDO MENGENDAP
-    // ────────────────────────────────────────────────────────────────
-
-    /** Ambil kebijakan kantin (default REFUND bila belum diubah). */
-    @PerluPeran({AktorKantin.ADMIN_SEKOLAH, AktorKantin.PENGELOLA_KANTIN, AktorKantin.TU_SEKOLAH})
-    @GetMapping("kebijakan")
-    public ResponseEntity<Response<KebijakanKantinResponse>> ambilKebijakan() {
-        return CommonResponse.data(kebijakanKantinService.ambil(TenantContext.sekolahIdWajib()));
-    }
-
-    /** Ubah kebijakan kantin (mis. saldo mengendap siswa lulus). */
-    @PerluPeran({AktorKantin.ADMIN_SEKOLAH})
-    @PutMapping("kebijakan")
-    public ResponseEntity<Response<KebijakanKantinResponse>> ubahKebijakan(
-            @Valid @RequestBody UbahKebijakanRequest request,
-            @AuthenticationPrincipal IdentitasKantin identitas) {
-
-        KebijakanKantinResponse hasil = kebijakanKantinService.ubah(
-                TenantContext.sekolahIdWajib(), request.getKebijakanSaldoMengendap(),
-                request.getAmbangHari(), request.getCatatan(), identitas.aktorIdWajib());
-        return CommonResponse.data(hasil, "Kebijakan kantin diperbarui");
     }
 
     // ────────────────────────────────────────────────────────────────

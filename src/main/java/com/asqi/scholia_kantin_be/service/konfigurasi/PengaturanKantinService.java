@@ -4,6 +4,7 @@ import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.component.logging.AuditLogger;
 import com.asqi.scholia_kantin_be.dto.PengaturanKantinRequest;
 import com.asqi.scholia_kantin_be.dto.PengaturanKantinResponse;
+import com.asqi.scholia_kantin_be.enums.KebijakanSaldoMengendap;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.model.PengaturanKantin;
 import com.asqi.scholia_kantin_be.repository.PengaturanKantinRepository;
@@ -14,6 +15,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
+import java.util.Locale;
 
 /**
  * Pengaturan kantin per sekolah (PRD §9.1, issue <b>#42</b>).
@@ -61,6 +64,11 @@ public class PengaturanKantinService {
                         .jamTutupOtomatis(DEFAULT_JAM_TUTUP)
                         .konfirmasiManual(false)
                         .durasiFotoDetik(DEFAULT_DURASI_FOTO_DETIK)
+                        // Audit #401: endpoint demo GET /api/konfigurasi/kebijakan dihapus;
+                        // default kebijakan saldo mengendap kini dilayani di sini agar
+                        // sekolah yang belum mengisi tetap mendapat nilai aman (Q16).
+                        .kebijakanSaldoMengendap(KEBIJAKAN_DEFAULT)
+                        .ambangHari(AMBANG_HARI_DEFAULT)
                         .disimpan(false)
                         .build());
     }
@@ -121,7 +129,7 @@ public class PengaturanKantinService {
             baris.setBatasSaldoSiswa(request.getBatasSaldoSiswa());
         }
         if (request.getKebijakanSaldoMengendap() != null) {
-            baris.setKebijakanSaldoMengendap(request.getKebijakanSaldoMengendap().trim().toUpperCase());
+            baris.setKebijakanSaldoMengendap(validasiKebijakan(request.getKebijakanSaldoMengendap()));
         }
         if (request.getAmbangHari() != null) {
             baris.setAmbangHari(Math.max(0, request.getAmbangHari()));
@@ -134,6 +142,27 @@ public class PengaturanKantinService {
                 String.valueOf(sekolahId), "Ubah pengaturan kantin", lama, ringkas(baris));
         log.info("Pengaturan kantin sekolah={} diperbarui oleh={}", sekolahId, aktorId);
         return PengaturanKantinResponse.dari(baris);
+    }
+
+    /**
+     * Validasi nilai kebijakan saldo mengendap (Q16).
+     *
+     * <p>Dulu validasi ini hanya ada di {@code PUT /api/konfigurasi/kebijakan}
+     * yang menerima enum bertipe; endpoint itu dihapus pada audit #401 sehingga
+     * nilainya kini masuk lewat {@link PengaturanKantinRequest} berupa teks —
+     * tanpa pemeriksaan di sini, nilai ngawur akan tersimpan dan memecah
+     * pembacaan kebijakan di kemudian hari.
+     *
+     * @throws InvalidOperationException (HTTP 400) bila nilai di luar enum
+     */
+    private static String validasiKebijakan(String nilai) {
+        String kandidat = nilai.trim().toUpperCase(Locale.ROOT);
+        try {
+            return KebijakanSaldoMengendap.valueOf(kandidat).name();
+        } catch (IllegalArgumentException e) {
+            throw new InvalidOperationException("Kebijakan saldo mengendap tidak dikenal: " + nilai
+                    + ". Pilihan: " + Arrays.toString(KebijakanSaldoMengendap.values()));
+        }
     }
 
     /** Ringkasan pengaturan untuk audit (nilai lama → baru). */

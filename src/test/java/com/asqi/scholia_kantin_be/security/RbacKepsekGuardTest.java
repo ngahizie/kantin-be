@@ -2,7 +2,6 @@ package com.asqi.scholia_kantin_be.security;
 
 import com.asqi.scholia_kantin_be.component.exception.ForbiddenException;
 import com.asqi.scholia_kantin_be.controller.AuthController;
-import com.asqi.scholia_kantin_be.controller.KonfigurasiKantinController;
 import com.asqi.scholia_kantin_be.controller.KontrolKartuController;
 import com.asqi.scholia_kantin_be.controller.LaporanController;
 import com.asqi.scholia_kantin_be.controller.PengaturanKantinController;
@@ -10,7 +9,6 @@ import com.asqi.scholia_kantin_be.dto.BlokirKartuRequest;
 import com.asqi.scholia_kantin_be.dto.LimitHarianRequest;
 import com.asqi.scholia_kantin_be.dto.PengaturanKantinRequest;
 import com.asqi.scholia_kantin_be.dto.TitikKasirRequest;
-import com.asqi.scholia_kantin_be.dto.UbahKebijakanRequest;
 import com.asqi.scholia_kantin_be.enums.AktorKantin;
 import com.asqi.scholia_kantin_be.enums.JenisLaporan;
 import com.asqi.scholia_kantin_be.enums.SumberToken;
@@ -124,14 +122,6 @@ class RbacKepsekGuardTest {
                 .doesNotContain(AktorKantin.KEPSEK);
         assertThat(peranPada(PengaturanKantinController.class, "nonaktifkanTitik",
                 Long.class, IdentitasKantin.class))
-                .doesNotContain(AktorKantin.KEPSEK);
-    }
-
-    @Test
-    @DisplayName("endpoint TULIS kebijakan kantin (§9.6) tertutup untuk kepsek")
-    void kebijakanKantinTertutupUntukKepsek() {
-        assertThat(peranPada(KonfigurasiKantinController.class, "ubahKebijakan",
-                UbahKebijakanRequest.class, IdentitasKantin.class))
                 .doesNotContain(AktorKantin.KEPSEK);
     }
 

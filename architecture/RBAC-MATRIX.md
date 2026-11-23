@@ -79,9 +79,6 @@ Batas per-subjek ditegakkan di dalam `KontrolKartuController#ubahBlokir`.
 | `PUT` | `/api/katalog/menu/{menuId}` | pengelola | §9.6 — *Menu & Kategori: Pengelola (CRUD)* | PRD diikuti |
 | `GET` | `/api/konfigurasi/insiden-offline` | pengelola, tu, admin | — | di luar keputusan #250 — dipertahankan |
 | `POST` | `/api/konfigurasi/insiden-offline` | kasir, pengelola, tu, admin | — | di luar keputusan #250 — dipertahankan |
-| `GET` | `/api/konfigurasi/kebijakan` | pengelola, tu, admin | — | di luar keputusan #250 — dipertahankan |
-| `PUT` | `/api/konfigurasi/kebijakan` | admin | — | di luar keputusan #250 — dipertahankan |
-| `GET` | `/api/konfigurasi/pos-buku-kas` | kasir, pengelola, tu, admin | — | di luar keputusan #250 — dipertahankan |
 | `POST` | `/api/konfigurasi/pos-buku-kas/aktivasi` | pengelola, tu, admin | — | di luar keputusan #250 — dipertahankan |
 | `GET` | `/api/konfigurasi/profil` | kasir, pengelola, tu, admin | — | di luar keputusan #250 — dipertahankan |
 | `POST` | `/api/kontrol-kartu/blokir` | tu, admin | §9.4 (blokir Kartu Tamu: TU/Bendahara) & §9.6 (kontrol siswa: Admin) | PRD diikuti |
