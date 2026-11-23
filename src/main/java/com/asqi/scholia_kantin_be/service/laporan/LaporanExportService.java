@@ -23,6 +23,7 @@ import com.asqi.scholia_kantin_be.enums.JenisLaporan;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.helper.UkuranHalaman;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -385,7 +386,18 @@ public class LaporanExportService {
 
     private HasilEkspor eksporPembatalan(Long sekolahId, LocalDate tgl, OffsetDateTime dari,
                                          OffsetDateTime sampai, String label) {
-        List<BarisPembatalanKasir> data = pembatalan.pembatalanKasir(sekolahId, tgl, dari, sampai);
+        // Issue #395 (tinjauan #397): endpoint JSON dibatasi 500 baris, tetapi berkas
+        // ekspor dipakai untuk rekonsiliasi kas/audit — jelajah semua halaman supaya
+        // tidak ada baris yang hilang tanpa penanda (pola ekspor stok & kerugian stok).
+        List<BarisPembatalanKasir> data = new ArrayList<>();
+        int nomorHalaman = 0;
+        List<BarisPembatalanKasir> halaman;
+        do {
+            halaman = pembatalan.pembatalanKasir(sekolahId, tgl, dari, sampai,
+                    PageRequest.of(nomorHalaman, LaporanPembatalanService.MAKS_BARIS));
+            data.addAll(halaman);
+            nomorHalaman++;
+        } while (halaman.size() == LaporanPembatalanService.MAKS_BARIS);
         List<String> header = List.of("Transaksi ID", "Subjek", "Subjek ID", "Total",
                 "Alasan Void", "Void Oleh", "Void At", "Petugas", "Titik Kasir", "Waktu");
         List<List<Object>> baris = new ArrayList<>();
