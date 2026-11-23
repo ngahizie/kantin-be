@@ -32,22 +32,6 @@ public interface MutasiSaldoRepository extends JpaRepository<MutasiSaldo, Long>,
         JpaSpecificationExecutor<MutasiSaldo> {
 
     /**
-     * Idempotency: satu key hanya boleh menghasilkan satu mutasi (PRD §11.3).
-     *
-     * @deprecated <b>BUKAN tenant-scoped</b> — bisa mencampur sekolah berbeda
-     *     (audit keamanan). Pakai {@link #findBySekolahIdAndIdempotencyKey}.
-     */
-    @Deprecated(since = "audit-keamanan", forRemoval = true)
-    Optional<MutasiSaldo> findByIdempotencyKey(String idempotencyKey);
-
-    /**
-     * @deprecated <b>BUKAN tenant-scoped</b> — pakai
-     *     {@link #findBySekolahIdAndIdempotencyKey}.
-     */
-    @Deprecated(since = "audit-keamanan", forRemoval = true)
-    boolean existsByIdempotencyKey(String idempotencyKey);
-
-    /**
      * Idempotency <b>tenant-scoped</b> (PRD §11.4): key yang sama di sekolah
      * berbeda adalah mutasi berbeda. Wajib dipakai untuk replay agar nomor
      * bukti antar sekolah tidak saling menelan.

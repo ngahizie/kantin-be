@@ -35,11 +35,6 @@ public interface TransaksiRepository extends JpaRepository<Transaksi, Long>,
     @Query("SELECT t FROM Transaksi t WHERE t.id = :id")
     Optional<Transaksi> kunciUntukVoid(@Param("id") Long id);
 
-    /** Idempotency: cari transaksi berdasarkan key dari klien kasir (PRD §11.3). */
-    Optional<Transaksi> findByIdempotencyKey(String idempotencyKey);
-
-    boolean existsByIdempotencyKey(String idempotencyKey);
-
     /**
      * Idempotency <b>tenant-scoped</b> (PRD §11.4) — key yang sama di sekolah
      * berbeda adalah transaksi berbeda. Wajib dipakai untuk replay tap agar
