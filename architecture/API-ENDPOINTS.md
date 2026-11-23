@@ -155,6 +155,25 @@
 > (ISO date-time). Keduanya kosong ⇒ hari ini. Peran: TU, admin, pengelola,
 > **kepsek** (PRD §9.5 — kepsek **read-only**, hanya laporan yang menyebutnya;
 > lihat ADR-0012 & issue #123).
+>
+> **Batas periode (SEC-03, #388):** `dari` harus **sebelum** `sampai`, dan satu
+> permintaan maksimal **366 hari** — pelanggaran dijawab `400`. Ini berlaku untuk
+> semua laporan dan ekspor.
+>
+> **Masking laba (SEC-02, #388):** field `modal`/`hpp`/`laba`/`labaKotor`/
+> `marginPersen` hanya diisi untuk **Bendahara (TU), Pengelola, dan Kepsek**
+> (PRD §9.5 baris "Laba kotor"). Peran **Admin Sekolah** tetap boleh membaca
+> angka penjualan, tetapi field finansial itu dijawab `null` — termasuk pada
+> berkas Excel hasil ekspor.
+>
+> **Audit ekspor (SEC-06, #388):** setiap `GET /api/laporan/ekspor` menulis baris
+> `catatan_audit` dengan `aksi=EXPORT_LAPORAN`, `entitas_id=<jenis laporan>`, dan
+> nilai lama berisi rentang periode; log terstruktur
+> `[AUDIT_EXPORT_LAPORAN] user=… sekolahId=… jenis=… rentang=[…]` juga dicetak.
+>
+> **Formula injection (SEC-01, #388):** teks pada berkas Excel yang diawali
+> `=`, `+`, `-`, `@`, tab, atau CR/LF diberi prefix `'` agar dieksekusi sebagai
+> teks, bukan rumus (CWE-1236).
 
 | Method | Path | Peran | Keterangan |
 |---|---|---|---|

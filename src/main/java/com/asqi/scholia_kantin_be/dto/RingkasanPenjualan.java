@@ -28,7 +28,7 @@ public record RingkasanPenjualan(
         long jumlahRefund,
         long nilaiRefund,
         long penjualanBersih,
-        long totalModal,
-        long laba,
-        double marginPersen) {
+        Long totalModal,
+        Long laba,
+        Double marginPersen) {
 }

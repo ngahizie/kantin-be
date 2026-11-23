@@ -7,6 +7,9 @@ import com.asqi.scholia_kantin_be.dto.RingkasanPenjualan;
 import com.asqi.scholia_kantin_be.enums.JenisLaporan;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import com.asqi.scholia_kantin_be.enums.AktorKantin;
+import com.asqi.scholia_kantin_be.security.IdentitasKantin;
+import com.asqi.scholia_kantin_be.security.TenantContext;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.List;
@@ -181,6 +184,64 @@ class LaporanPenjualanServiceIT extends LaporanITSupport {
         item(1, 1, MENU_A, "Nasi Uduk", 1, 8_000, 4_000);
 
         assertThat(laporan.ringkasanPenjualan(SEKOLAH_LAIN, null, null, null).penjualanBruto()).isZero();
+    }
+
+
+    @Test
+    @DisplayName("#388 SEC-06: ekspor laporan mencatat audit EXPORT_LAPORAN")
+    void eksporMencatatAudit() {
+        transaksi(1, SISWA, 8_000, 4_000);
+        item(1, 1, MENU_A, "Nasi Uduk", 1, 8_000, 4_000);
+
+        exportService.ekspor(SEKOLAH, JenisLaporan.PENJUALAN, null, null, null);
+
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM catatan_audit WHERE sekolah_id = ? AND aksi = 'EXPORT_LAPORAN'",
+                Integer.class, SEKOLAH)).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT entitas_id FROM catatan_audit WHERE sekolah_id = ? AND aksi = 'EXPORT_LAPORAN'"
+                        + " ORDER BY waktu DESC LIMIT 1",
+                String.class, SEKOLAH)).isEqualTo("PENJUALAN");
+    }
+
+    @Test
+    @DisplayName("#388 SEC-02: ekspor untuk Admin Sekolah tidak memuat angka laba")
+    void eksporAdminTanpaLaba() throws Exception {
+        transaksi(1, SISWA, 8_000, 4_000);
+        item(1, 1, MENU_A, "Nasi Uduk", 1, 8_000, 4_000);
+
+        TenantContext.set(IdentitasKantin.builder()
+                .userId("77").sekolahId(SEKOLAH).peran(AktorKantin.ADMIN_SEKOLAH).build());
+        try {
+            LaporanExportService.HasilEkspor hasil = exportService.ekspor(
+                    SEKOLAH, JenisLaporan.PENJUALAN, null, null, null);
+            try (var wb = new org.apache.poi.xssf.usermodel.XSSFWorkbook(
+                    new java.io.ByteArrayInputStream(hasil.isi()))) {
+                var sheet = wb.getSheetAt(0);
+                boolean labaKosong = false;
+                boolean barisLabaDitemukan = false;
+                for (var row : sheet) {
+                    for (int c = 0; c < row.getLastCellNum(); c++) {
+                        var sel = row.getCell(c);
+                        if (sel == null
+                                || org.apache.poi.ss.usermodel.CellType.STRING != sel.getCellType()
+                                || !"Laba".equals(sel.getStringCellValue().trim())) {
+                            continue;
+                        }
+                        barisLabaDitemukan = true;
+                        var nilai = row.getCell(c + 1);
+                        labaKosong = nilai == null
+                                || org.apache.poi.ss.usermodel.CellType.BLANK == nilai.getCellType()
+                                || (org.apache.poi.ss.usermodel.CellType.STRING == nilai.getCellType()
+                                    && nilai.getStringCellValue().isBlank());
+                    }
+                }
+                assertThat(barisLabaDitemukan).as("baris 'Laba' harus ada di berkas").isTrue();
+                assertThat(labaKosong).as("nilai laba harus kosong untuk Admin Sekolah").isTrue();
+            }
+        } finally {
+            TenantContext.clear();
+        }
     }
 
     @Test

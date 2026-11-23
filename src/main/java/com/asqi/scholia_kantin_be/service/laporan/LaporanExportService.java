@@ -14,6 +14,11 @@ import com.asqi.scholia_kantin_be.dto.RingkasanPenjualan;
 import com.asqi.scholia_kantin_be.dto.RingkasanRekonsiliasi;
 import com.asqi.scholia_kantin_be.dto.RingkasanSaldoMengendap;
 import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
+import com.asqi.scholia_kantin_be.component.logging.AuditLogger;
+import com.asqi.scholia_kantin_be.enums.AktorKantin;
+import com.asqi.scholia_kantin_be.security.IdentitasKantin;
+import com.asqi.scholia_kantin_be.security.TenantContext;
+import lombok.extern.slf4j.Slf4j;
 import com.asqi.scholia_kantin_be.enums.JenisLaporan;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
@@ -28,6 +33,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -42,6 +48,7 @@ import java.util.List;
  * JSON, sehingga isi ekspor selalu identik dengan tampilan di layar.
  */
 @Service
+@Slf4j
 public class LaporanExportService {
 
     private static final DateTimeFormatter FMT =
@@ -60,6 +67,14 @@ public class LaporanExportService {
     private final ExcelWriter excel;
     private final JamKantin jam;
     private final JdbcTemplate jdbc;
+
+    /** Opsional: dipakai mencatat audit ekspor laporan keuangan (SEC-06, #388). */
+    private AuditLogger auditLogger;
+
+    @Autowired(required = false)
+    public void setAuditLogger(AuditLogger auditLogger) {
+        this.auditLogger = auditLogger;
+    }
 
     /** Konstruktor tanpa JDBC — dipakai unit test yang tidak butuh kop sekolah. */
     public LaporanExportService(LaporanPenjualanService penjualan, LaporanSaldoService saldo,
@@ -123,7 +138,7 @@ public class LaporanExportService {
     public record HasilEkspor(String namaBerkas, byte[] isi) {
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public HasilEkspor ekspor(Long sekolahId, JenisLaporan jenis, LocalDate tanggal,
                               OffsetDateTime dari, OffsetDateTime sampai) {
         return ekspor(sekolahId, jenis, tanggal, dari, sampai, null, null);
@@ -134,7 +149,7 @@ public class LaporanExportService {
      * (mis. {@link JenisLaporan#KARTU_STOK}); {@code subjekTipe}/{@code siswaId}
      * hanya untuk {@link JenisLaporan#PER_SISWA}. Laporan lain mengabaikannya.
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public HasilEkspor ekspor(Long sekolahId, JenisLaporan jenis, LocalDate tanggal,
                               OffsetDateTime dari, OffsetDateTime sampai, Long menuId) {
         return ekspor(sekolahId, jenis, tanggal, dari, sampai, menuId, null);
@@ -145,12 +160,12 @@ public class LaporanExportService {
      * {@code subjekTipe}/{@code siswaId} wajib untuk {@link JenisLaporan#PER_SISWA}
      * (divalidasi di sini → 400 bila kosong).
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public HasilEkspor ekspor(Long sekolahId, JenisLaporan jenis, LocalDate tanggal,
                               OffsetDateTime dari, OffsetDateTime sampai, Long menuId,
                               Long siswaId) {
         String label = labelPeriode(tanggal, dari, sampai);
-        return switch (jenis) {
+        HasilEkspor hasil = switch (jenis) {
             case PENJUALAN -> eksporPenjualan(sekolahId, tanggal, dari, sampai, label);
             case PENJUALAN_ITEM -> eksporBarisPenjualan(sekolahId, tanggal, dari, sampai, label,
                     "Penjualan per Item", "Item",
@@ -175,6 +190,38 @@ public class LaporanExportService {
             case SETORAN_TU -> eksporSetoran(sekolahId, tanggal, label);
             case PER_SISWA -> eksporPerSiswa(sekolahId, siswaId, tanggal, dari, sampai, label);
         };
+        catatAuditEkspor(sekolahId, jenis, label, hasil.namaBerkas());
+        return hasil;
+    }
+
+    /**
+     * Audit ekspor laporan finansial (SEC-06, issue #388): baris log terstruktur
+     * plus catatan audit persisten bila {@link AuditLogger} tersedia.
+     */
+    private void catatAuditEkspor(Long sekolahId, JenisLaporan jenis, String periode,
+                                  String namaBerkas) {
+        IdentitasKantin identitas = TenantContext.get();
+        Long aktorId = null;
+        if (identitas != null) {
+            try {
+                aktorId = identitas.aktorIdWajib();
+            } catch (RuntimeException ignored) {
+                aktorId = null;
+            }
+        }
+        log.info("[AUDIT_EXPORT_LAPORAN] user={} sekolahId={} jenis={} periode={} berkas={}",
+                aktorId, sekolahId, jenis, periode, namaBerkas);
+        if (auditLogger != null && sekolahId != null) {
+            auditLogger.catat(aktorId, sekolahId, "EXPORT_LAPORAN", "Laporan", jenis.name(), null,
+                    "periode=" + periode, namaBerkas);
+        }
+    }
+
+    /** PRD §9.5: modal/laba/margin hanya untuk Bendahara, Pengelola, dan Kepsek. */
+    private static boolean bolehLihatLaba() {
+        IdentitasKantin identitas = TenantContext.get();
+        AktorKantin peran = identitas == null ? null : identitas.getPeran();
+        return LaporanMasking.bolehLihatLaba(peran);
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -182,26 +229,34 @@ public class LaporanExportService {
     private HasilEkspor eksporPenjualan(Long sekolahId, LocalDate tgl, OffsetDateTime dari,
                                         OffsetDateTime sampai, String label) {
         RingkasanPenjualan r = penjualan.ringkasanPenjualan(sekolahId, tgl, dari, sampai);
+        if (!bolehLihatLaba()) {
+            r = LaporanMasking.tanpaLaba(r);
+        }
         List<String> header = List.of("Metrik", "Nilai");
+        // Arrays.asList (bukan List.of) karena modal/laba/margin bisa null saat
+        // peran tidak berhak melihatnya (SEC-02) — List.of menolak null.
         List<List<Object>> baris = List.of(
                 List.of("Jumlah transaksi sukses", r.jumlahTransaksi()),
                 List.of("Penjualan bruto", r.penjualanBruto()),
                 List.of("Jumlah transaksi refund", r.jumlahRefund()),
                 List.of("Nilai refund", r.nilaiRefund()),
                 List.of("Penjualan bersih", r.penjualanBersih()),
-                List.of("Total modal", r.totalModal()),
-                List.of("Laba", r.laba()),
-                List.of("Margin (%)", r.marginPersen()));
+                Arrays.asList("Total modal", r.totalModal()),
+                Arrays.asList("Laba", r.laba()),
+                Arrays.asList("Margin (%)", r.marginPersen()));
         return berkas(sekolahId, "Penjualan & Laba Kotor", label, header, baris);
     }
 
     private HasilEkspor eksporBarisPenjualan(Long sekolahId, LocalDate tgl, OffsetDateTime dari,
                                              OffsetDateTime sampai, String label, String judul,
                                              String kolomNama, List<BarisPenjualan> data) {
+        if (!bolehLihatLaba()) {
+            data = LaporanMasking.tanpaLaba(data);
+        }
         List<String> header = List.of("ID", kolomNama, "Qty", "Harga Satuan", "Total", "Modal", "Margin (%)");
         List<List<Object>> baris = new ArrayList<>();
         for (BarisPenjualan b : data) {
-            baris.add(List.of(nvl(b.kunciId()), nvl(b.nama()), b.qty(),
+            baris.add(Arrays.asList(nvl(b.kunciId()), nvl(b.nama()), b.qty(),
                     nvl(b.hargaSatuan()), b.total(), b.modal(), b.marginPersen()));
         }
         return berkas(sekolahId, judul, label, header, baris);
@@ -340,10 +395,13 @@ public class LaporanExportService {
     private HasilEkspor eksporPenjualanDimensi(Long sekolahId, LocalDate tgl, OffsetDateTime dari,
                                                OffsetDateTime sampai, String label, String judul,
                                                String kolomNama, List<BarisPenjualanDimensi> data) {
+        if (!bolehLihatLaba()) {
+            data = LaporanMasking.tanpaLabaDimensi(data);
+        }
         List<String> header = List.of("ID", kolomNama, "Jumlah Transaksi", "Nilai", "HPP", "Laba Kotor");
         List<List<Object>> baris = new ArrayList<>();
         for (BarisPenjualanDimensi b : data) {
-            baris.add(List.of(nvl(b.kunciId()), nvl(b.nama()), b.jumlahTransaksi(),
+            baris.add(Arrays.asList(nvl(b.kunciId()), nvl(b.nama()), b.jumlahTransaksi(),
                     b.nilai(), b.hpp(), b.labaKotor()));
         }
         return berkas(sekolahId, judul, label, header, baris);

@@ -19,6 +19,6 @@ public record BarisPenjualan(
         long qty,
         long total,
         Long hargaSatuan,
-        long modal,
-        double marginPersen) {
+        Long modal,
+        Double marginPersen) {
 }

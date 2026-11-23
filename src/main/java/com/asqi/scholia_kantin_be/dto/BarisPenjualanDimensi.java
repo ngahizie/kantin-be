@@ -14,6 +14,6 @@ public record BarisPenjualanDimensi(
         String nama,
         long jumlahTransaksi,
         long nilai,
-        long hpp,
-        long labaKotor) {
+        Long hpp,
+        Long labaKotor) {
 }
