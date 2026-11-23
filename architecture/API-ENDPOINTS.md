@@ -3,7 +3,7 @@
 > **Single source of truth endpoint kantin-be.** Semua path berprefix `/api`.
 > Respons selalu dibungkus `Response<T>` (`{ responseCode, message, data, ... }`).
 >
-> **Sinkron terakhir:** 2026-11-12 · **Total: 91 endpoint** (90 di `controller/` + 1 shim dev)
+> **Sinkron terakhir:** 2026-11-23 · **Total: 88 endpoint** (87 di `controller/` + 1 shim dev)
 > di **12 controller**. Dijaga otomatis oleh `ApiEndpointsDocTest` — uji ini
 > **gagal** bila daftar di bawah tidak lagi sama persis dengan anotasi
 > `@…Mapping` di kode. Bila menambah/mengubah endpoint, perbarui dokumen ini.
@@ -226,15 +226,34 @@
 > Solusi "seadanya" untuk pertanyaan terblokir tim lain (#21–#25) selama
 > kantin-be belum rilis penuh. Semua **tenant-scoped** dari token. Lihat
 > `OPEN-QUESTIONS.md` Q8/Q14–Q17.
+>
+> **Audit #401 (2026-11-23) — keputusan per endpoint.** Endpoint demo yang
+> **duplikat** dihapus: `GET /api/konfigurasi/pos-buku-kas` (respons
+> `POST .../aktivasi` sudah memuat daftar pos yang sama) dan
+> `GET`/`PUT /api/konfigurasi/kebijakan` (kebijakan saldo mengendap dilayani
+> `GET`/`PUT /api/pengaturan-kantin`; validasi enum ikut dipindah ke sana).
+> Endpoint yang **dipertahankan** beserta alasannya:
+>
+> - `POST /api/konfigurasi/pos-buku-kas/aktivasi` — satu-satunya jalur seeding
+>   pos Buku Kas standar (Q8) selama admin-be belum menyediakan; idempoten.
+> - `POST`/`GET /api/konfigurasi/insiden-offline` — satu-satunya pencatatan
+>   insiden offline (Q14/ADR-0006); pertanyaan masih terbuka (#197).
+> - `GET /api/konfigurasi/profil` — kanal asumsi reader RFID & postur regulasi
+>   (Q15/Q17) yang dirujuk ADR-0008 & ADR-0009; pertanyaan masih terbuka (#197).
+>
+> Endpoint lain di daftar audit **tidak dihapus**: `GET /api/laporan/ekspor`
+> (kewajiban PRD §9.5 "semua laporan dapat diekspor", UAT U25, ADR-0012),
+> `GET /api/stok/menipis` & `GET /api/stok/{menuId}/rekonsiliasi` (keputusan
+> #196 + verifikasi ledger PRD §11.1), `GET /api/pengaturan-kantin/titik-kasir/{titikId}`
+> (simetri CRUD), dan `GET /api/pengaturan-kantin/aktivasi-modul` (diagnostik
+> `AktivasiModulFilter`). Telemetry audit klien (`POST /api/*/audit`) tidak
+> dibuat: jejak audit sudah ditulis server-side oleh `AuditLogger`.
 
 | Method | Path | Peran | Keterangan |
 |---|---|---|---|
-| `POST` | `/api/konfigurasi/pos-buku-kas/aktivasi` | TU, admin, pengelola | **#21/Q8** — buat pos Buku Kas standar (Pendapatan/Belanja Stok/Penyesuaian), **idempoten** |
-| `GET` | `/api/konfigurasi/pos-buku-kas` | TU, admin, pengelola, kasir | Daftar pos Buku Kas kantin |
+| `POST` | `/api/konfigurasi/pos-buku-kas/aktivasi` | TU, admin, pengelola | **#21/Q8** — buat pos Buku Kas standar (Pendapatan/Belanja Stok/Penyesuaian), **idempoten**; respons memuat daftar pos |
 | `POST` | `/api/konfigurasi/insiden-offline` | TU, admin, pengelola, kasir | **#23/Q14** — catat insiden offline (prosedur darurat ADR-0006), append-only |
 | `GET` | `/api/konfigurasi/insiden-offline` | TU, admin, pengelola | Daftar insiden offline, terbaru dulu |
-| `GET` | `/api/konfigurasi/kebijakan` | TU, admin, pengelola | **#25/Q16** — ambil kebijakan kantin (default `REFUND` bila belum diisi) |
-| `PUT` | `/api/konfigurasi/kebijakan` | admin | Ubah kebijakan saldo mengendap (`REFUND`/`PINDAH_SAUDARA`/`TETAP_MENGENDAP`) |
 | `GET` | `/api/konfigurasi/profil` | TU, admin, pengelola, kasir | **#22/Q17 & #24/Q15** — profil reader RFID & postur regulasi (asumsi demo) |
 
 ## 10. Pengaturan Kantin & Titik Kasir + Aktivasi Modul (PengaturanKantinController) — `/api/pengaturan-kantin`
