@@ -228,6 +228,10 @@ public class LaporanSiswaService {
         } else if (dari != null || sampai != null) {
             OffsetDateTime akhir = sampai != null ? sampai : OffsetDateTime.now(jam.zona());
             OffsetDateTime awal = dari != null ? dari : akhir.minusDays(HARI_RIWAYAT_DEFAULT);
+            // SEC-RIW-06 (#398): validasi rentang EFEKTIF (setelah default diisi),
+            // bukan parameter mentah. Tanpa ini `dari` di masa depan tanpa `sampai`
+            // menghasilkan awal > akhir → nol baris tanpa penjelasan.
+            LaporanHelper.pastikanUrutan(awal, akhir);
             mutasi = saldoLedgerRepo.riwayatKeseluruhanRentang(sekolahId, awal, akhir, pageable);
         } else {
             mutasi = saldoLedgerRepo.riwayatKeseluruhanTerbaru(sekolahId, pageable);
@@ -252,14 +256,9 @@ public class LaporanSiswaService {
 
         Map<Long, String> namaPetugas = ambilNamaPetugas(sekolahId, mutasi, transaksiById);
 
-        Map<Long, InfoSiswa> siswaById = new HashMap<>();
-        try {
-            for (InfoSiswa s : cariSiswaService.cari(sekolahId, "", false, 50)) {
-                siswaById.put(s.getSiswaId(), s);
-            }
-        } catch (Exception e) {
-            // port fallback
-        }
+        // SEC-RIW-02 (#398): identitas diambil per ID yang benar-benar muncul di
+        // mutasi (bukan 50 hasil pencarian pertama yang memotong senyap).
+        Map<Long, InfoSiswa> siswaById = identitasSiswa(sekolahId, mutasi);
 
         return mutasi.stream().map(l -> {
             Transaksi t = l.getTransaksiId() == null ? null : transaksiById.get(l.getTransaksiId());
@@ -399,5 +398,28 @@ public class LaporanSiswaService {
             case VOID_PENJUALAN -> "VOID";
             default -> jenis.name();
         };
+    }
+
+    /**
+     * Peta identitas siswa untuk baris mutasi (SEC-RIW-02, issue #398).
+     *
+     * <p>ID dikumpulkan dari mutasi lalu diambil dalam satu panggilan
+     * {@link CariSiswaService#identitasBanyak}. Fail-open (PRD §8.4): integrasi
+     * tidak tersedia → peta kosong, riwayat tetap dikirim dengan identitas null.
+     */
+    private Map<Long, InfoSiswa> identitasSiswa(Long sekolahId, List<MutasiSaldo> mutasi) {
+        Set<Long> siswaIds = mutasi.stream()
+                .map(MutasiSaldo::getSiswaId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (siswaIds.isEmpty()) {
+            return Map.of();
+        }
+        try {
+            return cariSiswaService.identitasBanyak(sekolahId, siswaIds);
+        } catch (RuntimeException e) {
+            log.warn("Identitas siswa tidak dapat diambil (riwayat tetap dikirim): {}", e.getMessage());
+            return Map.of();
+        }
     }
 }

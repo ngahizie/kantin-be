@@ -106,6 +106,28 @@ abstract class LaporanITSupport {
                             .siswaId(SISWA).nis("2024001").nama("Budi Santoso")
                             .kelas("7A").saldo(0).build());
                 });
+
+        // Lookup bertarget (issue #398): kembalikan identitas untuk setiap ID yang
+        // diminta, meniru integrasi yang sehat. Sekolah lain tetap kosong.
+        org.mockito.Mockito.when(cariSiswaPort.cariBanyak(
+                        org.mockito.ArgumentMatchers.anyLong(),
+                        org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(invocation -> {
+                    long sekolahId = invocation.getArgument(0);
+                    java.util.Collection<Long> ids = invocation.getArgument(1);
+                    if (SEKOLAH != sekolahId || ids == null || ids.isEmpty()) {
+                        return java.util.Map.of();
+                    }
+                    java.util.Map<Long, InfoSiswa> peta = new java.util.HashMap<>();
+                    for (Long id : ids) {
+                        if (id == null) {
+                            continue;
+                        }
+                        peta.put(id, InfoSiswa.builder().siswaId(id).nis("NIS-" + id)
+                                .nama("Siswa " + id).kelas("7A").saldo(0).build());
+                    }
+                    return peta;
+                });
     }
 
     /** Kosongkan tabel transaksi/ledger lalu siapkan induk skema v2 + katalog dasar. */
