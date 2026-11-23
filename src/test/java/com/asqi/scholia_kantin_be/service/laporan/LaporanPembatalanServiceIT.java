@@ -146,4 +146,40 @@ class LaporanPembatalanServiceIT extends LaporanITSupport {
         assertThat(b.getKartuUid()).isEqualTo(MaskingKartu.TOPENG + "C3D4");
         assertThat(b.getKartuUid()).doesNotContain("04A1B2");
     }
+
+    @Test
+    @DisplayName("#397: ekspor PEMBATALAN utuh walau > 500 baris, endpoint JSON tetap dibatasi")
+    void eksporPembatalanTidakTerpotong500() throws Exception {
+        jdbc.update("INSERT INTO transaksi (id, idempotency_key, sekolah_id, sesi_kasir_id, "
+                + "titik_kasir_id, siswa_id, petugas_id, total, total_hpp, status, alasan_void, "
+                + "void_at, void_oleh, waktu, created_at, updated_at) "
+                + "SELECT 6000 + g, 'trx-ekspor-' || g, ?, 1, 1, ?, 555, 1000, 0, 'VOID', "
+                + "'uji ekspor #397', now() - (g || ' minutes')::interval, 777, now(), now(), now() "
+                + "FROM generate_series(1, 600) g", SEKOLAH, SISWA);
+
+        OffsetDateTime sampai = jam.sekarang().plusMinutes(1);
+        OffsetDateTime dari = sampai.minusDays(2);
+
+        // Endpoint JSON tetap dibatasi 500 (SEC-BATAL-02).
+        assertThat(laporan.pembatalanKasir(SEKOLAH, null, dari, sampai)).hasSize(500);
+
+        LaporanExportService.HasilEkspor hasil = exportService.ekspor(
+                SEKOLAH, JenisLaporan.PEMBATALAN, null, dari, sampai);
+
+        try (var workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook(
+                new java.io.ByteArrayInputStream(hasil.isi()))) {
+            var sheet = workbook.getSheetAt(0);
+            long jumlahBaris = 0;
+            for (var row : sheet) {
+                for (var cell : row) {
+                    if (cell.getCellType() == org.apache.poi.ss.usermodel.CellType.STRING
+                            && "uji ekspor #397".equals(cell.getStringCellValue())) {
+                        jumlahBaris++;
+                    }
+                }
+            }
+            // 600 pembatalan harus semuanya ada di berkas, bukan 500 terbaru saja.
+            assertThat(jumlahBaris).isEqualTo(600);
+        }
+    }
 }

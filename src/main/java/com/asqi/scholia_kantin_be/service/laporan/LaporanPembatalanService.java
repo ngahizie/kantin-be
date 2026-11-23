@@ -10,6 +10,7 @@ import com.asqi.scholia_kantin_be.repository.TitikKasirRepository;
 import com.asqi.scholia_kantin_be.repository.TransaksiRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -62,9 +63,31 @@ public class LaporanPembatalanService {
     @Transactional(readOnly = true)
     public List<BarisPembatalanKasir> pembatalanKasir(Long sekolahId, LocalDate tanggal,
                                                       OffsetDateTime dari, OffsetDateTime sampai) {
+        return pembatalanKasir(sekolahId, tanggal, dari, sampai,
+                PageRequest.of(0, MAKS_BARIS));
+    }
+
+    /**
+     * Satu halaman pembatalan dengan ukuran halaman eksplisit (PRD §9.5).
+     *
+     * <p>Dipakai <b>ekspor</b> agar berkas audit tidak terpotong senyap: endpoint
+     * JSON tetap dibatasi {@value #MAKS_BARIS} lewat overload di atas, sedangkan
+     * ekspor menjelajah halaman sampai habis (pola yang sama dengan laporan stok
+     * dan kerugian stok).
+     *
+     * @param pageable nomor halaman &amp; ukuran (pemanggil yang menentukan batas)
+     */
+    @Transactional(readOnly = true)
+    public List<BarisPembatalanKasir> pembatalanKasir(Long sekolahId, LocalDate tanggal,
+                                                      OffsetDateTime dari, OffsetDateTime sampai,
+                                                      Pageable pageable) {
         OffsetDateTime[] r = LaporanHelper.rentang(jam, tanggal, dari, sampai);
-        List<Transaksi> transaksi = transaksiRepo.pembatalanRentang(
-                sekolahId, r[0], r[1], PageRequest.of(0, MAKS_BARIS));
+        return petakan(sekolahId,
+                transaksiRepo.pembatalanRentang(sekolahId, r[0], r[1], pageable));
+    }
+
+    /** Proyeksi + enrichment satu halaman transaksi VOID. */
+    private List<BarisPembatalanKasir> petakan(Long sekolahId, List<Transaksi> transaksi) {
         if (transaksi.isEmpty()) {
             return List.of();
         }
