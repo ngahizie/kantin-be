@@ -236,4 +236,16 @@ class LaporanSiswaServiceIT extends LaporanITSupport {
                 .isInstanceOf(InvalidOperationException.class)
                 .hasMessageContaining("dari");
     }
+
+    @Test
+    @DisplayName("#398: `dari` di masa depan tanpa `sampai` ditolak 400 (rentang efektif)")
+    void riwayatKeseluruhanDariMasaDepanDitolak() {
+        // `sampai` kosong → default-nya "sekarang", sehingga rentang efektifnya
+        // terbalik. Sebelum perbaikan ini query mengembalikan nol baris diam-diam.
+        OffsetDateTime dari = jam.sekarang().plusYears(5);
+
+        assertThatThrownBy(() -> laporan.riwayatKeseluruhan(SEKOLAH, null, dari, null, 10))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("dari");
+    }
 }

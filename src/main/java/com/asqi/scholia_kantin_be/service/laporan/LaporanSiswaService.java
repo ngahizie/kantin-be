@@ -220,11 +220,6 @@ public class LaporanSiswaService {
         int batasAman = Math.min(Math.max(batas, 1), 500);
         Pageable pageable = PageRequest.of(0, batasAman);
 
-        // SEC-RIW-06 (#398): rentang terbalik ditolak 400, bukan nol baris senyap.
-        if (dari != null && sampai != null) {
-            LaporanHelper.pastikanUrutan(dari, sampai);
-        }
-
         List<MutasiSaldo> mutasi;
         if (tanggal != null) {
             OffsetDateTime awal = tanggal.atStartOfDay(jam.zona()).toOffsetDateTime();
@@ -233,6 +228,10 @@ public class LaporanSiswaService {
         } else if (dari != null || sampai != null) {
             OffsetDateTime akhir = sampai != null ? sampai : OffsetDateTime.now(jam.zona());
             OffsetDateTime awal = dari != null ? dari : akhir.minusDays(HARI_RIWAYAT_DEFAULT);
+            // SEC-RIW-06 (#398): validasi rentang EFEKTIF (setelah default diisi),
+            // bukan parameter mentah. Tanpa ini `dari` di masa depan tanpa `sampai`
+            // menghasilkan awal > akhir → nol baris tanpa penjelasan.
+            LaporanHelper.pastikanUrutan(awal, akhir);
             mutasi = saldoLedgerRepo.riwayatKeseluruhanRentang(sekolahId, awal, akhir, pageable);
         } else {
             mutasi = saldoLedgerRepo.riwayatKeseluruhanTerbaru(sekolahId, pageable);

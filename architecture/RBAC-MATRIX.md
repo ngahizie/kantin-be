@@ -107,7 +107,7 @@ Batas per-subjek ditegakkan di dalam `KontrolKartuController#ubahBlokir`.
 | `GET` | `/api/laporan/setoran-tu` | tu | §9.5 — *Setoran kas TU: Bendahara* | PRD diikuti |
 | `GET` | `/api/laporan/siswa/{siswaId}/riwayat` | tu, admin | §9.5 — *Per siswa: Bendahara, Admin* | PRD diikuti |
 | `GET` | `/api/laporan/stok` | pengelola, tu | §9.5 — *Stok: Pengelola, Bendahara* | PRD diikuti |
-| `GET` | `/api/laporan/transaksi-keseluruhan` | kepsek, pengelola, tu, admin | §9.5 — *Riwayat keseluruhan: Bendahara, Admin, Pengelola, Kepsek (baca)* | PRD diikuti — kepsek ditambahkan #398/SEC-RIW-03 |
+| `GET` | `/api/laporan/transaksi-keseluruhan` | kepsek, pengelola, tu, admin | **PRD §9.5 tidak punya baris eksplisit** untuk laporan ini; baris terdekat "Per siswa" dibatasi Bendahara & Admin. Kepsek (baca) ditambahkan atas DoD #398/SEC-RIW-03 | **Perlu konfirmasi PRD/PM** — ekspansi hak baca ke ledger per-siswa tidak boleh berdiri hanya karena FE sudah menampilkan menunya |
 | `GET` | `/api/pengaturan-kantin/` | kasir, pengelola, tu, admin | — | di luar keputusan #250 — dipertahankan |
 | `PUT` | `/api/pengaturan-kantin/` | admin | — | di luar keputusan #250 — dipertahankan |
 | `GET` | `/api/pengaturan-kantin/aktivasi-modul` | pengelola, tu, admin | — | di luar keputusan #250 — dipertahankan |

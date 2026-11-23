@@ -298,9 +298,10 @@ public class LaporanController {
      * Riwayat transaksi/mutasi saldo keseluruhan siswa (seluruh subjek) untuk
      * halaman Laporan Riwayat Transaksi (FE LaporanRiwayatKeseluruhanPage).
      *
-     * <p><b>Kepsek ikut diizinkan (SEC-RIW-03, issue #398):</b> PRD §9.5 memberi
-     * kepala sekolah hak <i>baca</i> atas laporan transaksi sekolah. Sebelumnya
-     * FE menampilkan menu ini untuk peran kepsek tetapi API menjawab 403.
+     * <p><b>Kepsek ikut diizinkan (SEC-RIW-03, issue #398):</b> PRD §9.5
+     * <b>belum punya baris eksplisit</b> untuk laporan ini; akses baca kepsek
+     * ditambahkan atas permintaan DoD #398. Perlu konfirmasi PRD/PM karena baris
+     * terdekat di §9.5 ("Per siswa") justru dibatasi Bendahara &amp; Admin.
      */
     @PerluPeran({AktorKantin.TU_SEKOLAH, AktorKantin.ADMIN_SEKOLAH,
             AktorKantin.PENGELOLA_KANTIN, AktorKantin.KEPSEK})
