@@ -49,16 +49,30 @@ final class LaporanHelper {
         OffsetDateTime awal = (dari != null) ? dari : tgl.atStartOfDay(jam.zona()).toOffsetDateTime();
         OffsetDateTime akhir = (sampai != null) ? sampai : awal.plusDays(1);
 
-        // SEC-03 (#388): tolak rentang terbalik & rentang tak terbatas.
-        if (!akhir.isAfter(awal)) {
-            throw new InvalidOperationException(
-                    "Rentang tanggal tidak valid: 'dari' harus sebelum 'sampai'");
-        }
+        // SEC-03 (#388) & SEC-RIW-06 (#398): tolak rentang terbalik.
+        pastikanUrutan(awal, akhir);
         if (akhir.isAfter(awal.plusDays(MAKS_HARI))) {
             throw new InvalidOperationException(
                     "Rentang tanggal terlalu panjang: maksimal " + MAKS_HARI + " hari per permintaan");
         }
         return new OffsetDateTime[]{awal, akhir};
+    }
+
+    /**
+     * Tolak rentang kosong atau terbalik ({@code dari >= sampai}).
+     *
+     * <p>Dipakai bersama oleh {@link #rentang} dan endpoint yang menghitung
+     * periodenya sendiri (riwayat transaksi keseluruhan): rentang terbalik harus
+     * dijawab 400, bukan query yang diam-diam mengembalikan nol baris
+     * (SEC-RIW-06, issue #398).
+     *
+     * @throws InvalidOperationException (HTTP 400) bila {@code akhir <= awal}
+     */
+    static void pastikanUrutan(OffsetDateTime awal, OffsetDateTime akhir) {
+        if (!akhir.isAfter(awal)) {
+            throw new InvalidOperationException(
+                    "Rentang tanggal tidak valid: 'dari' harus sebelum 'sampai'");
+        }
     }
 
     /**

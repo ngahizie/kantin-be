@@ -1,7 +1,9 @@
 package com.asqi.scholia_kantin_be.service.laporan;
 
+import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
 import com.asqi.scholia_kantin_be.dto.LaporanPerSiswa;
+import com.asqi.scholia_kantin_be.dto.LaporanRiwayatKeseluruhanItem;
 import com.asqi.scholia_kantin_be.enums.JenisLaporan;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
@@ -10,6 +12,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -192,5 +196,56 @@ class LaporanSiswaServiceIT extends LaporanITSupport {
                 new java.io.ByteArrayInputStream(hasil.isi()))) {
             assertThat(workbook.getSheetAt(0).getPhysicalNumberOfRows()).isGreaterThan(0);
         }
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // #398 — SEC-RIW-02 & SEC-RIW-06
+    // ────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("#398: identitas siswa di luar 50 hasil pencarian tetap terisi (SEC-RIW-02)")
+    void riwayatKeseluruhanIdentitasDiLuarBatasPencarian() {
+        // 60 siswa tambahan; yang punya mutasi sengaja id terakhir (959), jauh di
+        // luar 50 hasil pertama kalau kode masih memakai cari(..., 50).
+        jdbc.update("INSERT INTO siswa (id, sekolah_id, nis, nama, kelas, aktif) "
+                + "SELECT 900 + g, ?, 'NIS-' || (900 + g), 'Siswa ' || (900 + g), '7A', true "
+                + "FROM generate_series(1, 60) g", SEKOLAH);
+        topup(959, SubjekTipe.SISWA, 25_000, JenisMutasiSaldo.TOPUP_TUNAI);
+
+        OffsetDateTime sampai = jam.sekarang().plusHours(1);
+        List<LaporanRiwayatKeseluruhanItem> hasil = laporan.riwayatKeseluruhan(
+                SEKOLAH, null, sampai.minusDays(1), sampai, 100);
+
+        LaporanRiwayatKeseluruhanItem baris = hasil.stream()
+                .filter(r -> Long.valueOf(959L).equals(r.siswaId()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("mutasi siswa 959 tidak muncul"));
+
+        assertThat(baris.siswaNama()).isEqualTo("Siswa 959");
+        assertThat(baris.siswaNis()).isEqualTo("NIS-959");
+        assertThat(baris.siswaKelas()).isEqualTo("7A");
+    }
+
+    @Test
+    @DisplayName("#398: rentang terbalik ditolak 400, bukan nol baris senyap (SEC-RIW-06)")
+    void riwayatKeseluruhanRentangTerbalikDitolak() {
+        OffsetDateTime akhir = jam.sekarang();
+
+        assertThatThrownBy(() -> laporan.riwayatKeseluruhan(
+                SEKOLAH, null, akhir, akhir.minusDays(1), 10))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("dari");
+    }
+
+    @Test
+    @DisplayName("#398: `dari` di masa depan tanpa `sampai` ditolak 400 (rentang efektif)")
+    void riwayatKeseluruhanDariMasaDepanDitolak() {
+        // `sampai` kosong → default-nya "sekarang", sehingga rentang efektifnya
+        // terbalik. Sebelum perbaikan ini query mengembalikan nol baris diam-diam.
+        OffsetDateTime dari = jam.sekarang().plusYears(5);
+
+        assertThatThrownBy(() -> laporan.riwayatKeseluruhan(SEKOLAH, null, dari, null, 10))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("dari");
     }
 }
