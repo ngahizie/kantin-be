@@ -2,6 +2,7 @@ package com.asqi.scholia_kantin_be.service.laporan;
 
 import com.asqi.scholia_kantin_be.dto.BarisPenjualan;
 import com.asqi.scholia_kantin_be.dto.BarisPenjualanDimensi;
+import com.asqi.scholia_kantin_be.dto.LaporanPerSiswa;
 import com.asqi.scholia_kantin_be.dto.RingkasanPenjualan;
 import com.asqi.scholia_kantin_be.enums.AktorKantin;
 
@@ -60,5 +61,31 @@ public final class LaporanMasking {
                 .map(b -> new BarisPenjualanDimensi(b.kunciId(), b.nama(), b.jumlahTransaksi(),
                         b.nilai(), null, null))
                 .toList();
+    }
+
+    /**
+     * Salinan laporan per siswa tanpa HPP pada ringkasan maupun tiap transaksi
+     * (issue #402). Angka belanja, saldo, dan mutasi tetap utuh.
+     *
+     * <p>Memakai {@code null}, bukan {@code 0}, supaya pembaca tidak mengira
+     * modalnya nol. DTO asli tidak dimutasi.
+     */
+    public static LaporanPerSiswa tanpaHpp(LaporanPerSiswa laporan) {
+        if (laporan == null) {
+            return null;
+        }
+        LaporanPerSiswa.Ringkasan asli = laporan.ringkasan();
+        LaporanPerSiswa.Ringkasan ringkasan = asli == null ? null
+                : new LaporanPerSiswa.Ringkasan(asli.jumlahTransaksiSukses(),
+                        asli.nilaiBelanjaSukses(), asli.jumlahTransaksiVoid(), asli.nilaiVoid(),
+                        asli.totalTopup(), null);
+        List<LaporanPerSiswa.BarisTransaksi> transaksi = laporan.transaksi() == null ? null
+                : laporan.transaksi().stream()
+                        .map(t -> new LaporanPerSiswa.BarisTransaksi(t.id(), t.status(),
+                                t.total(), null, t.petugasId(), t.titikKasirId(),
+                                t.alasanVoid(), t.waktu()))
+                        .toList();
+        return new LaporanPerSiswa(laporan.subjekTipe(), laporan.siswaId(), laporan.saldo(),
+                laporan.periode(), ringkasan, transaksi, laporan.mutasiSaldo());
     }
 }

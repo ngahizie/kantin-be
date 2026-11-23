@@ -475,7 +475,8 @@ public class LaporanExportService {
      * di {@link JenisLaporan}/{@link LaporanExportService}.
      *
      * <p>{@code siswaId} <b>wajib</b> untuk jenis ini → 400 bila kosong.
-     * Subjek laporan selalu {@code SISWA} sejak C.2b.
+     * Subjek laporan selalu {@code SISWA} sejak C.2b. Baris "Total HPP" dan
+     * kolom "HPP" hanya ditulis untuk peran yang berhak melihat laba (issue #402).
      */
     private HasilEkspor eksporPerSiswa(Long sekolahId, Long siswaId,
                                         LocalDate tgl, OffsetDateTime dari, OffsetDateTime sampai,
@@ -487,6 +488,9 @@ public class LaporanExportService {
         SubjekTipe tipe = SubjekTipe.SISWA;
         LaporanPerSiswa r = siswa.laporanPerSiswa(sekolahId, siswaId, tgl, dari, sampai);
 
+        // HPP adalah data "Laba kotor" (PRD §9.5): Admin Sekolah tidak berhak.
+        // Kolom/barisnya dihilangkan, bukan diisi 0 yang bisa dibaca sebagai modal nol.
+        boolean lihatHpp = bolehLihatLaba();
         List<List<Object>> ringkasan = new ArrayList<>();
         ringkasan.add(List.of("Subjek", tipe.name() + " #" + siswaId));
         ringkasan.add(List.of("Saldo saat ini", r.saldo()));
@@ -495,16 +499,24 @@ public class LaporanExportService {
         ringkasan.add(List.of("Jumlah transaksi void", r.ringkasan().jumlahTransaksiVoid()));
         ringkasan.add(List.of("Nilai void", r.ringkasan().nilaiVoid()));
         ringkasan.add(List.of("Total top-up tunai", r.ringkasan().totalTopup()));
-        ringkasan.add(List.of("Total HPP", r.ringkasan().totalHpp()));
+        if (lihatHpp) {
+            ringkasan.add(List.of("Total HPP", nvl(r.ringkasan().totalHpp())));
+        }
 
         List<List<Object>> transaksi = new ArrayList<>();
         for (LaporanPerSiswa.BarisTransaksi t : r.transaksi()) {
-            transaksi.add(List.of(
-                    nvl(t.id()),
-                    t.status() == null ? "" : t.status().name(),
-                    t.total(), t.totalHpp(), nvl(t.petugasId()), nvl(t.titikKasirId()),
-                    nvl(t.alasanVoid()),
-                    t.waktu() == null ? "" : FMT.format(t.waktu())));
+            List<Object> baris = new ArrayList<>();
+            baris.add(nvl(t.id()));
+            baris.add(t.status() == null ? "" : t.status().name());
+            baris.add(t.total());
+            if (lihatHpp) {
+                baris.add(nvl(t.totalHpp()));
+            }
+            baris.add(nvl(t.petugasId()));
+            baris.add(nvl(t.titikKasirId()));
+            baris.add(nvl(t.alasanVoid()));
+            baris.add(t.waktu() == null ? "" : FMT.format(t.waktu()));
+            transaksi.add(baris);
         }
 
         List<List<Object>> mutasi = new ArrayList<>();
@@ -517,10 +529,14 @@ public class LaporanExportService {
                     m.waktu() == null ? "" : FMT.format(m.waktu())));
         }
 
+        List<String> headerTransaksi = new ArrayList<>(List.of("Transaksi ID", "Status", "Total"));
+        if (lihatHpp) {
+            headerTransaksi.add("HPP");
+        }
+        headerTransaksi.addAll(List.of("Petugas", "Titik Kasir", "Alasan Void", "Waktu"));
         List<ExcelWriter.Bagian> bagian = List.of(
                 new ExcelWriter.Bagian(List.of("Metrik", "Nilai"), ringkasan),
-                new ExcelWriter.Bagian(List.of("Transaksi ID", "Status", "Total", "HPP",
-                        "Petugas", "Titik Kasir", "Alasan Void", "Waktu"), transaksi),
+                new ExcelWriter.Bagian(headerTransaksi, transaksi),
                 new ExcelWriter.Bagian(List.of("Mutasi ID", "Jenis", "Arah", "Nominal",
                         "Saldo Setelah", "Transaksi ID", "Keterangan", "Waktu"), mutasi));
 

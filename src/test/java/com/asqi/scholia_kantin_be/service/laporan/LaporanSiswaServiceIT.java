@@ -7,6 +7,9 @@ import com.asqi.scholia_kantin_be.dto.LaporanRiwayatKeseluruhanItem;
 import com.asqi.scholia_kantin_be.enums.JenisLaporan;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
+import com.asqi.scholia_kantin_be.enums.AktorKantin;
+import com.asqi.scholia_kantin_be.security.IdentitasKantin;
+import com.asqi.scholia_kantin_be.security.TenantContext;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoSiswa;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -195,6 +198,46 @@ class LaporanSiswaServiceIT extends LaporanITSupport {
         try (var workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook(
                 new java.io.ByteArrayInputStream(hasil.isi()))) {
             assertThat(workbook.getSheetAt(0).getPhysicalNumberOfRows()).isGreaterThan(0);
+        }
+    }
+
+    @Test
+    @DisplayName("#402: ekspor PER_SISWA — Admin tanpa baris/kolom HPP, Bendahara tetap dapat")
+    void eksporPerSiswaHppPerPeran() throws Exception {
+        topup(SISWA, SubjekTipe.SISWA, 50_000, JenisMutasiSaldo.TOPUP_TUNAI);
+        transaksi(1, SISWA, 21_000, 10_000);
+
+        String admin = teksWorkbook(eksporSebagai(AktorKantin.ADMIN_SEKOLAH).isi());
+        assertThat(admin).contains("Total top-up tunai", "Transaksi ID", "Mutasi ID")
+                .doesNotContain("Total HPP", "HPP");
+
+        String bendahara = teksWorkbook(eksporSebagai(AktorKantin.TU_SEKOLAH).isi());
+        assertThat(bendahara).contains("Total HPP", "HPP");
+    }
+
+    /** Ekspor PER_SISWA dengan peran tertentu; konteks dibersihkan setelahnya. */
+    private LaporanExportService.HasilEkspor eksporSebagai(AktorKantin peran) {
+        TenantContext.set(IdentitasKantin.builder()
+                .userId("77").sekolahId(SEKOLAH).peran(peran).build());
+        try {
+            return exportService.ekspor(
+                    SEKOLAH, JenisLaporan.PER_SISWA, null, null, null, null, SISWA);
+        } finally {
+            TenantContext.clear();
+        }
+    }
+
+    /** Teks semua sel di sheet pertama, untuk memeriksa keberadaan kolom/baris. */
+    private String teksWorkbook(byte[] isi) throws Exception {
+        try (var workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook(
+                new java.io.ByteArrayInputStream(isi))) {
+            StringBuilder semua = new StringBuilder();
+            for (var row : workbook.getSheetAt(0)) {
+                for (var cell : row) {
+                    semua.append(cell.toString()).append(' ');
+                }
+            }
+            return semua.toString();
         }
     }
 

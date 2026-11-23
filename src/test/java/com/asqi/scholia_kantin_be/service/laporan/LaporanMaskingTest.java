@@ -2,8 +2,11 @@ package com.asqi.scholia_kantin_be.service.laporan;
 
 import com.asqi.scholia_kantin_be.dto.BarisPenjualan;
 import com.asqi.scholia_kantin_be.dto.BarisPenjualanDimensi;
+import com.asqi.scholia_kantin_be.dto.LaporanPerSiswa;
 import com.asqi.scholia_kantin_be.dto.RingkasanPenjualan;
 import com.asqi.scholia_kantin_be.enums.AktorKantin;
+import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
+import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -78,5 +81,28 @@ class LaporanMaskingTest {
         assertThat(samar.get(0).nilai()).isEqualTo(21_000);
         assertThat(samar.get(0).hpp()).isNull();
         assertThat(samar.get(0).labaKotor()).isNull();
+    }
+
+    @Test
+    @DisplayName("#402: laporan per siswa tanpa HPP — angka lain utuh, objek asli tidak dimutasi")
+    void perSiswaTanpaHpp() {
+        var asli = new LaporanPerSiswa(SubjekTipe.SISWA, 9L, 50_000L, "2026-11-01",
+                new LaporanPerSiswa.Ringkasan(2, 29_000, 1, 16_000, 50_000, 14_000L),
+                List.of(new LaporanPerSiswa.BarisTransaksi(1L, StatusTransaksi.SUKSES, 21_000,
+                        10_000L, 5L, 1L, null, OffsetDateTime.parse("2026-11-01T08:00:00Z"))),
+                List.of());
+
+        LaporanPerSiswa samar = LaporanMasking.tanpaHpp(asli);
+
+        assertThat(samar.siswaId()).isEqualTo(9L);
+        assertThat(samar.saldo()).isEqualTo(50_000L);
+        assertThat(samar.ringkasan().nilaiBelanjaSukses()).isEqualTo(29_000);
+        assertThat(samar.ringkasan().totalTopup()).isEqualTo(50_000);
+        assertThat(samar.ringkasan().totalHpp()).isNull();
+        assertThat(samar.transaksi().get(0).total()).isEqualTo(21_000);
+        assertThat(samar.transaksi().get(0).totalHpp()).isNull();
+        // Ringkasan/baris asli tetap memuat HPP (record immutable, salinan dibuat).
+        assertThat(asli.ringkasan().totalHpp()).isEqualTo(14_000L);
+        assertThat(asli.transaksi().get(0).totalHpp()).isEqualTo(10_000L);
     }
 }
