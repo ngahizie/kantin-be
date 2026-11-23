@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -145,9 +146,11 @@ public class LedgerSaldoService {
             Optional<MutasiSaldo> lama = ledgerRepo.findBySekolahIdAndIdempotencyKey(
                     perintah.getSekolahId(), perintah.getIdempotencyKey());
             if (lama.isPresent()) {
+                MutasiSaldo mutasiLama = lama.get();
+                pastikanKonteksReplaySama(mutasiLama, perintah, arah, seluruhSaldo);
                 log.debug("Idempotency replay saldo key={} → saldoSetelah={}",
-                        perintah.getIdempotencyKey(), lama.get().getSaldoSetelah());
-                return HasilMutasiSaldo.replay(lama.get());
+                        perintah.getIdempotencyKey(), mutasiLama.getSaldoSetelah());
+                return HasilMutasiSaldo.replay(mutasiLama);
             }
         }
 
@@ -215,11 +218,14 @@ public class LedgerSaldoService {
             ledgerRepo.save(mutasi);
         } catch (DataIntegrityViolationException e) {
             // Balapan idempotency: dua request dengan key sama (per sekolah) nyaris bersamaan.
-            // Yang kalah memakai hasil pemenang (idempotent, bukan error).
+            // Yang kalah memakai hasil pemenang (idempotent, bukan error) — TAPI hanya
+            // bila konteksnya sama. Jalur ini tidak boleh melewati cek yang dipakai
+            // pra-cek, kalau tidak baris pemenang milik siswa/alur lain tetap bocor.
             if (perintah.getIdempotencyKey() != null) {
                 MutasiSaldo pemenang = ledgerRepo.findBySekolahIdAndIdempotencyKey(
                                 perintah.getSekolahId(), perintah.getIdempotencyKey())
                         .orElseThrow(() -> e);
+                pastikanKonteksReplaySama(pemenang, perintah, arah, seluruhSaldo);
                 return HasilMutasiSaldo.replay(pemenang);
             }
             throw e;
@@ -231,6 +237,34 @@ public class LedgerSaldoService {
         cacheRepo.save(cache);
 
         return HasilMutasiSaldo.baru(mutasi, setelah);
+    }
+
+    /**
+     * Pastikan mutasi hasil replay benar-benar operasi yang diminta.
+     *
+     * <p>Kunci idempotensi unik per tenant, bukan per subjek, dan dipakai bersama
+     * beberapa alur (top-up, koreksi, refund, void, transfer). Replay yang salah
+     * konteks membuat operasi kedua jadi no-op yang dilaporkan sukses sekaligus
+     * membocorkan nominal/saldo subjek lain — karenanya ditolak 409.
+     *
+     * <p>Nominal dibandingkan hanya pada mode nominal tetap. Untuk refund/pindah
+     * ({@code seluruhSaldo}) nominal diambil dari saldo berjalan, jadi membandingkan
+     * dengan nilai perintah (0) akan menolak replay yang sah.
+     */
+    private void pastikanKonteksReplaySama(MutasiSaldo lama, PerintahMutasiSaldo perintah,
+                                           ArahMutasi arah, boolean seluruhSaldo) {
+        if (!Objects.equals(lama.getSiswaId(), perintah.getSiswaId())) {
+            throw new ConflictException("Kunci idempotensi dipakai untuk siswa lain");
+        }
+        if (lama.getJenis() != perintah.getJenis()) {
+            throw new ConflictException("Kunci idempotensi dipakai untuk jenis mutasi lain");
+        }
+        if (lama.getArah() != arah) {
+            throw new ConflictException("Kunci idempotensi dipakai untuk arah mutasi lain");
+        }
+        if (!seluruhSaldo && !Objects.equals(lama.getNominal(), perintah.getNominal())) {
+            throw new ConflictException("Kunci idempotensi dipakai untuk nominal lain");
+        }
     }
 
     private void validasi(PerintahMutasiSaldo p, boolean seluruhSaldo) {
