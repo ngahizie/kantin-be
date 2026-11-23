@@ -7,6 +7,7 @@ import com.asqi.scholia_kantin_be.dto.HasilRefundResponse;
 import com.asqi.scholia_kantin_be.dto.KandidatRefundItem;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.JenisNotifikasi;
+import com.asqi.scholia_kantin_be.enums.ReferensiTipe;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.helper.KunciIdempotensi;
 import com.asqi.scholia_kantin_be.model.Saldo;
@@ -143,7 +144,7 @@ public class RefundSaldoService {
                 .jenis(JenisMutasiSaldo.REFUND)
                 .nominal(0L)
                 .idempotencyKey(KunciIdempotensi.gabung("REFUND-", referensiId))
-                .referensiTipe("REFUND")
+                .referensiTipe(ReferensiTipe.REFUND)
                 .referensiId(referensiId)
                 .keterangan(keterangan)
                 .aktorId(aktorId)

@@ -6,6 +6,7 @@ import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
 import com.asqi.scholia_kantin_be.component.logging.AuditLogger;
 import com.asqi.scholia_kantin_be.enums.ArahStok;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiStok;
+import com.asqi.scholia_kantin_be.enums.ReferensiTipe;
 import com.asqi.scholia_kantin_be.helper.IdGenerator;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.model.RiwayatStok;
@@ -203,7 +204,7 @@ public class LedgerStokService {
 
         RiwayatStok mutasi = catat(ArahStok.KELUAR, JenisMutasiStok.BARANG_MASUK_PEMBALIK,
                 sekolahId, asal.getMenuId(), qty, stokBaru, hppBaru, null,
-                "BARANG_MASUK_PEMBALIK", referensiId, alasan, aktorId,
+                ReferensiTipe.BARANG_MASUK_PEMBALIK.name(), referensiId, alasan, aktorId,
                 hargaBeliAsal, asal.getId());
 
         cache.setStok(stokBaru);
@@ -333,7 +334,7 @@ public class LedgerStokService {
     public HasilMutasiStok sesuaikanOpname(Long sekolahId, Long menuId, int qtyFisik,
                                            String alasan, String referensiId, Long aktorId) {
         return sesuaikanOpname(sekolahId, menuId, qtyFisik, alasan, referensiId, false,
-                "OPNAME", aktorId);
+                ReferensiTipe.OPNAME.name(), aktorId);
     }
 
     /**
@@ -344,8 +345,8 @@ public class LedgerStokService {
      * @param rusak         bila {@code true} dan stok berkurang → jenis
      *                      {@code BARANG_RUSAK} (rusak/basi), bukan
      *                      {@code OPNAME_KELUAR} (selisih audit)
-     * @param referensiTipe tipe referensi: {@code "OPNAME"} (tunggal) atau
-     *                      {@code "OPNAME_BATCH"} (idempotency batch)
+     * @param referensiTipe tipe referensi: {@link ReferensiTipe#OPNAME} (tunggal) atau
+     *                      {@link ReferensiTipe#OPNAME_BATCH} (idempotency batch)
      */
     @Transactional(propagation = Propagation.MANDATORY)
     public HasilMutasiStok sesuaikanOpname(Long sekolahId, Long menuId, int qtyFisik,

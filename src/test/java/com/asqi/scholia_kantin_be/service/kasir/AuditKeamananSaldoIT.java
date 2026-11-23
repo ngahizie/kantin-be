@@ -1,6 +1,7 @@
 package com.asqi.scholia_kantin_be.service.kasir;
 
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
+import com.asqi.scholia_kantin_be.enums.ReferensiTipe;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;
 import com.asqi.scholia_kantin_be.support.FixtureInduk;
@@ -65,7 +66,7 @@ class AuditKeamananSaldoIT {
                 .jenis(JenisMutasiSaldo.TOPUP_TUNAI)
                 .nominal(nominal)
                 .idempotencyKey("TOPUP-TUNAI-" + referensiId)
-                .referensiTipe("TOPUP")
+                .referensiTipe(ReferensiTipe.TOPUP)
                 .referensiId(referensiId)
                 .aktorId(9L)
                 .build();

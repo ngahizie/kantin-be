@@ -5,6 +5,7 @@ import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
 import com.asqi.scholia_kantin_be.component.logging.AuditLogger;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.MetodeBayar;
+import com.asqi.scholia_kantin_be.enums.ReferensiTipe;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.enums.JenisNotifikasi;
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
@@ -196,7 +197,7 @@ public class VoidService {
                     .nominal(trx.getTotal())
                     .idempotencyKey(prefix + trx.getId())
                     .transaksiId(trx.getId())
-                    .referensiTipe("TRANSAKSI")
+                    .referensiTipe(ReferensiTipe.TRANSAKSI)
                     .referensiId(String.valueOf(trx.getId()))
                     .keterangan((koreksi ? "Koreksi: " : "Refund: ") + alasan)
                     .aktorId(aktorId)

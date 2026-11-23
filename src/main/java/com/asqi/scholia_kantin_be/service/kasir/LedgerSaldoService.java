@@ -5,6 +5,7 @@ import com.asqi.scholia_kantin_be.component.exception.InvariantViolationExceptio
 import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
 import com.asqi.scholia_kantin_be.enums.ArahMutasi;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
+import com.asqi.scholia_kantin_be.enums.ReferensiTipe;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.helper.IdGenerator;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
@@ -122,7 +123,7 @@ public class LedgerSaldoService {
         HasilMutasiSaldo keluar = terapkan(ArahMutasi.DEBIT, PerintahMutasiSaldo.builder()
                 .sekolahId(sekolahId).siswaId(sumberId)
                 .jenis(JenisMutasiSaldo.TRANSFER).nominal(0L)
-                .idempotencyKey(keySumber).referensiTipe("TRANSFER").referensiId(referensiId)
+                .idempotencyKey(keySumber).referensiTipe(ReferensiTipe.TRANSFER).referensiId(referensiId)
                 .keterangan(keterangan).aktorId(aktorId).build(), true);
 
         long nominal = keluar.getMutasi().getNominal() == null ? 0L : keluar.getMutasi().getNominal();
@@ -132,7 +133,7 @@ public class LedgerSaldoService {
         terapkan(ArahMutasi.KREDIT, PerintahMutasiSaldo.builder()
                 .sekolahId(sekolahId).siswaId(tujuanId)
                 .jenis(JenisMutasiSaldo.TRANSFER).nominal(nominal)
-                .idempotencyKey(KunciIdempotensi.gabung(keySumber, "-MASUK")).referensiTipe("TRANSFER").referensiId(referensiId)
+                .idempotencyKey(KunciIdempotensi.gabung(keySumber, "-MASUK")).referensiTipe(ReferensiTipe.TRANSFER).referensiId(referensiId)
                 .keterangan(keterangan).aktorId(aktorId).build(), false);
 
         return keluar;
@@ -206,7 +207,8 @@ public class LedgerSaldoService {
                 .saldoSetelah(setelah)
                 .transaksiId(perintah.getTransaksiId())
                 .idempotencyKey(perintah.getIdempotencyKey())
-                .referensiTipe(perintah.getReferensiTipe())
+                .referensiTipe(perintah.getReferensiTipe() == null
+                        ? null : perintah.getReferensiTipe().name())
                 .referensiId(perintah.getReferensiId())
                 .keterangan(perintah.getKeterangan())
                 .aktorId(perintah.getAktorId())

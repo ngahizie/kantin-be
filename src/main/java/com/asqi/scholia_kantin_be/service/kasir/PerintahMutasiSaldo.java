@@ -1,6 +1,7 @@
 package com.asqi.scholia_kantin_be.service.kasir;
 
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
+import com.asqi.scholia_kantin_be.enums.ReferensiTipe;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import lombok.Builder;
 import lombok.Getter;
@@ -42,7 +43,8 @@ public class PerintahMutasiSaldo {
     /** Terisi bila mutasi berasal dari transaksi kasir. */
     private final Long transaksiId;
 
-    private final String referensiTipe;
+    /** Sumber mutasi (disimpan sebagai {@link ReferensiTipe#name()} di ledger). */
+    private final ReferensiTipe referensiTipe;
 
     private final String referensiId;
 
