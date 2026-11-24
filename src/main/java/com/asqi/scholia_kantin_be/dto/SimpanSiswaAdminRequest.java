@@ -1,5 +1,6 @@
 package com.asqi.scholia_kantin_be.dto;
 
+import com.asqi.scholia_kantin_be.validation.UidKartuValid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -33,11 +34,8 @@ public class SimpanSiswaAdminRequest {
     )
     private String fotoUrl;
 
-    @Size(max = 50, message = "UID RFID maksimal 50 karakter")
-    @Pattern(
-            regexp = "^$|^[A-Za-z0-9_-]{4,50}$",
-            message = "UID RFID hanya boleh berisi huruf, angka, '-' atau '_' (4-50 karakter)"
-    )
+    @Size(max = 64, message = "UID RFID maksimal 64 karakter")
+    @UidKartuValid
     private String rfidUid;
 
     @Size(max = 32, message = "Nomor kartu maksimal 32 karakter")
