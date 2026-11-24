@@ -3,6 +3,7 @@ package com.asqi.scholia_kantin_be.controller;
 import com.asqi.scholia_kantin_be.dto.BukaSesiRequest;
 import com.asqi.scholia_kantin_be.dto.HalamanResponse;
 import com.asqi.scholia_kantin_be.dto.SesiKasirAktifData;
+import com.asqi.scholia_kantin_be.dto.SesiKasirResponse;
 import com.asqi.scholia_kantin_be.dto.TapRequest;
 import com.asqi.scholia_kantin_be.dto.TapResponse;
 import com.asqi.scholia_kantin_be.dto.TransaksiKasirItem;
@@ -345,21 +346,22 @@ public class KasirController {
      */
     @PerluPeran({AktorKantin.PETUGAS_KANTIN})
     @PostMapping("sesi/{sesiId}/tutup")
-    public ResponseEntity<Response<SesiKasir>> tutupSesi(
+    public ResponseEntity<Response<SesiKasirResponse>> tutupSesi(
             @PathVariable Long sesiId,
             @AuthenticationPrincipal IdentitasKantin identitas,
             @Valid @RequestBody(required = false) TutupSesiRequest permintaan) {
 
         SesiKasir sesi = sesiKasirService.tutupSesi(
                 TenantContext.sekolahIdWajib(), sesiId, identitas.aktorIdWajib(), false, permintaan);
-        return CommonResponse.data(sesi, "Sesi kasir ditutup");
+        return CommonResponse.data(SesiKasirResponse.dari(sesi), "Sesi kasir ditutup");
     }
 
     /** Ambil detail satu sesi kasir (tenant-scoped). */
     @PerluPeran({AktorKantin.PETUGAS_KANTIN})
     @GetMapping("sesi/{sesiId}")
-    public ResponseEntity<Response<SesiKasir>> ambilSesi(@PathVariable Long sesiId) {
-        return CommonResponse.data(sesiKasirService.ambil(TenantContext.sekolahIdWajib(), sesiId));
+    public ResponseEntity<Response<SesiKasirResponse>> ambilSesi(@PathVariable Long sesiId) {
+        return CommonResponse.data(
+                SesiKasirResponse.dari(sesiKasirService.ambil(TenantContext.sekolahIdWajib(), sesiId)));
     }
 
     /**

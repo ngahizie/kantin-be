@@ -470,4 +470,26 @@ class KasirControllerTest {
                         .content("{\"uangFisik\":-1}"))
                 .andExpect(status().isBadRequest());
     }
+
+    /** Detail sesi memakai DTO, bukan entity — field lama tetap terbaca klien. */
+    @Test
+    @DisplayName("detail sesi: response DTO mengawetkan field entity")
+    void ambilSesiMengembalikanDto() throws Exception {
+        SesiKasir sesi = SesiKasir.builder()
+                .id(42L)
+                .sekolahId(7L)
+                .uangFisik(150_000L)
+                .postingBukuKas(true)
+                .referensiBukuKas("BK-42")
+                .build();
+        when(sesiKasirService.ambil(7L, 42L)).thenReturn(sesi);
+
+        mockMvc.perform(get("/api/kasir/sesi/42"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(42))
+                .andExpect(jsonPath("$.data.sekolahId").value(7))
+                .andExpect(jsonPath("$.data.uangFisik").value(150_000))
+                .andExpect(jsonPath("$.data.postingBukuKas").value(true))
+                .andExpect(jsonPath("$.data.referensiBukuKas").value("BK-42"));
+    }
 }
