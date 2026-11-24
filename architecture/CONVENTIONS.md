@@ -64,7 +64,7 @@ throw new ForbiddenException("...");
 | **Uang** | `Long` rupiah integer, kolom `BIGINT`. **Tidak pernah** `float`/`double`/`BigDecimal` untuk data kanonik kantin. (Konversi `BigDecimal` hanya saat kirim ke Buku Kas.) |
 | **Qty** | `Integer`. |
 | **Waktu** | `LocalDateTime`, zona sekolah. Reset limit 00:00 waktu lokal sekolah. |
-| **ID** | `Constants.idGenerator()` (pola admin-be) untuk entitas bisnis. `BIGSERIAL` hanya untuk tabel murni internal bila disetujui. |
+| **ID** | Bean `IdGenerator` (`helper/IdGenerator.java`) untuk entitas bisnis — monoton, anti-tabrakan. `BIGSERIAL` hanya untuk tabel murni internal bila disetujui. Generator lama `Constants.idGenerator()` sudah dihapus (#410). |
 | **Idempotency key** | Dibuat **klien kasir**, kolom `idempotency_key` UNIQUE per tenant (**bukan** per subjek). Replay hanya sah bila `siswaId`, `jenis`, `arah`, dan (mode nominal tetap) `nominal` sama; beda konteks → **409** (issue #392). Aturan yang sama dipakai di pra-cek **dan** saat INSERT kalah balapan UNIQUE. |
 
 ---
