@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -48,6 +49,20 @@ public interface SaldoRepository extends JpaRepository<Saldo, Saldo.SaldoId> {
     Optional<Saldo> findBySekolahIdAndSiswaId(Long sekolahId, Long siswaId);
 
     List<Saldo> findBySekolahId(Long sekolahId);
+
+    /**
+     * Batch baca cache saldo untuk banyak siswa dalam <b>satu</b> query
+     * ({@code WHERE sekolah_id = ? AND siswa_id IN (?)}), issue #413.
+     *
+     * <p><b>Tenant-scoped (PRD §11.4):</b> {@code sekolah_id} wajib ikut di
+     * {@code WHERE}, bukan disaring di Java — baris sekolah lain tidak pernah
+     * ikut terbaca. Siswa yang belum punya baris saldo tidak muncul di hasil
+     * (pemanggil memakai 0).
+     *
+     * <p>Dipakai untuk menghapus pola N+1 pada laporan rincian saldo mengendap:
+     * jumlah query tidak lagi tumbuh mengikuti jumlah siswa.
+     */
+    List<Saldo> findBySekolahIdAndSiswaIdIn(Long sekolahId, Collection<Long> siswaIds);
 
     /**
      * Total saldo mengendap (PRD §9.5) — kewajiban sekolah. Projection
