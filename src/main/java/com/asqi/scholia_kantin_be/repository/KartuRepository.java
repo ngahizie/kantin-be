@@ -4,6 +4,7 @@ import com.asqi.scholia_kantin_be.model.Kartu;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -19,6 +20,8 @@ public interface KartuRepository extends JpaRepository<Kartu, String> {
 
     Optional<Kartu> findByUidAndSekolahId(String uid, Long sekolahId);
 
+    Optional<Kartu> findByUidIgnoreCase(String uid);
+
     /**
      * Cadangan case-insensitive untuk baris lama yang terlanjur tersimpan
      * huruf kecil (issue #346). Jalur utama tetap {@link #findByUidAndSekolahId}
@@ -30,4 +33,8 @@ public interface KartuRepository extends JpaRepository<Kartu, String> {
     Optional<Kartu> findFirstBySekolahIdAndSiswaIdAndAktifTrue(Long sekolahId, Long siswaId);
 
     List<Kartu> findBySekolahIdAndSiswaIdOrderByCreatedAtDesc(Long sekolahId, Long siswaId);
+
+    List<Kartu> findBySekolahIdAndSiswaIdInAndAktifTrue(Long sekolahId, Collection<Long> siswaIds);
+
+    boolean existsBySekolahIdAndNomorKartu(Long sekolahId, String nomorKartu);
 }

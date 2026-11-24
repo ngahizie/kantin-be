@@ -5,10 +5,14 @@ import com.asqi.scholia_kantin_be.controller.AuthController;
 import com.asqi.scholia_kantin_be.controller.KontrolKartuController;
 import com.asqi.scholia_kantin_be.controller.LaporanController;
 import com.asqi.scholia_kantin_be.controller.PengaturanKantinController;
+import com.asqi.scholia_kantin_be.controller.SiswaManajemenController;
 import com.asqi.scholia_kantin_be.dto.BlokirKartuRequest;
 import com.asqi.scholia_kantin_be.dto.LimitHarianRequest;
+import com.asqi.scholia_kantin_be.dto.PasangKartuSiswaRequest;
 import com.asqi.scholia_kantin_be.dto.PengaturanKantinRequest;
+import com.asqi.scholia_kantin_be.dto.SimpanSiswaAdminRequest;
 import com.asqi.scholia_kantin_be.dto.TitikKasirRequest;
+import com.asqi.scholia_kantin_be.dto.UbahStatusSiswaRequest;
 import com.asqi.scholia_kantin_be.enums.AktorKantin;
 import com.asqi.scholia_kantin_be.enums.JenisLaporan;
 import com.asqi.scholia_kantin_be.enums.SumberToken;
@@ -134,6 +138,28 @@ class RbacKepsekGuardTest {
         assertThat(peranPada(KontrolKartuController.class, "setLimit",
                 LimitHarianRequest.class, IdentitasKantin.class))
                 .doesNotContain(AktorKantin.KEPSEK);
+    }
+
+    @Test
+    @DisplayName("endpoint manajemen siswa & RFID sementara hanya terbuka untuk ADMIN_SEKOLAH")
+    void manajemenSiswaHanyaUntukAdminSekolah() {
+        assertThat(peranPada(SiswaManajemenController.class, "daftar",
+                String.class, Boolean.class, Boolean.class, int.class))
+                .containsExactly(AktorKantin.ADMIN_SEKOLAH);
+        assertThat(peranPada(SiswaManajemenController.class, "detail", Long.class))
+                .containsExactly(AktorKantin.ADMIN_SEKOLAH);
+        assertThat(peranPada(SiswaManajemenController.class, "buat",
+                SimpanSiswaAdminRequest.class, IdentitasKantin.class))
+                .containsExactly(AktorKantin.ADMIN_SEKOLAH);
+        assertThat(peranPada(SiswaManajemenController.class, "perbarui",
+                Long.class, SimpanSiswaAdminRequest.class, IdentitasKantin.class))
+                .containsExactly(AktorKantin.ADMIN_SEKOLAH);
+        assertThat(peranPada(SiswaManajemenController.class, "aturKartu",
+                Long.class, PasangKartuSiswaRequest.class, IdentitasKantin.class))
+                .containsExactly(AktorKantin.ADMIN_SEKOLAH);
+        assertThat(peranPada(SiswaManajemenController.class, "ubahStatus",
+                Long.class, UbahStatusSiswaRequest.class, IdentitasKantin.class))
+                .containsExactly(AktorKantin.ADMIN_SEKOLAH);
     }
 
     @Test

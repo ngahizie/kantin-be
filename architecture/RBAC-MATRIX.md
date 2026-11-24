@@ -49,6 +49,12 @@ Batas per-subjek ditegakkan di dalam `KontrolKartuController#ubahBlokir`.
 
 | Method | Path | Peran | Acuan PRD | Keputusan |
 |---|---|---|---|---|
+| `GET` | `/api/admin/siswa/` | admin | §9.6 — *Manajemen Siswa & Kartu Sementara: Admin* | Fitur sementara Admin Sekolah — dipisahkan dari `/api/siswa` agar UID RFID & mutasi master tidak bocor ke peran lain |
+| `POST` | `/api/admin/siswa/` | admin | §9.6 — *Manajemen Siswa & Kartu Sementara: Admin* | Fitur sementara Admin Sekolah — saldo awal tetap Rp 0 (PRD §11.1) |
+| `GET` | `/api/admin/siswa/{siswaId}` | admin | §9.6 — *Manajemen Siswa & Kartu Sementara: Admin* | Fitur sementara Admin Sekolah |
+| `PUT` | `/api/admin/siswa/{siswaId}` | admin | §9.6 — *Manajemen Siswa & Kartu Sementara: Admin* | Fitur sementara Admin Sekolah |
+| `PUT` | `/api/admin/siswa/{siswaId}/kartu` | admin | §9.6 — *Manajemen Siswa & Kartu Sementara: Admin* | Fitur sementara Admin Sekolah — ganti/lepas kartu RFID atomik |
+| `PATCH` | `/api/admin/siswa/{siswaId}/status` | admin | §9.6 — *Manajemen Siswa & Kartu Sementara: Admin* | Fitur sementara Admin Sekolah — aktivasi/nonaktivasi siswa |
 | `POST` | `/api/auth/cabut` | tu, admin | — | di luar keputusan #250 — dipertahankan |
 | `GET` | `/api/auth/me` | — | — | di luar keputusan #250 — dipertahankan |
 | `GET` | `/api/kasir/sesi/aktif` | kasir | §9.6 — *Kasir: Petugas kantin (create, read)* | PRD diikuti |
