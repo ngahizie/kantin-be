@@ -4,6 +4,7 @@ import com.asqi.scholia_kantin_be.enums.ArahMutasi;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.model.MutasiSaldo;
 import com.asqi.scholia_kantin_be.repository.projection.ArusSaldo;
+import com.asqi.scholia_kantin_be.repository.projection.BelanjaSiswa;
 import com.asqi.scholia_kantin_be.repository.projection.TotalPerArah;
 import com.asqi.scholia_kantin_be.repository.projection.WaktuTerakhirSiswa;
 import org.springframework.data.domain.Pageable;
@@ -14,6 +15,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -79,6 +81,34 @@ public interface MutasiSaldoRepository extends JpaRepository<MutasiSaldo, Long>,
                                   @Param("debit") ArahMutasi debit,
                                   @Param("jenis") java.util.Collection<JenisMutasiSaldo> jenis,
                                   @Param("sejak") OffsetDateTime sejak);
+
+    /**
+     * Belanja bersih hari ini untuk <b>banyak</b> subjek dalam <b>satu</b> query
+     * (issue #413) — versi batch dari {@link #hitungBelanjaBersihSejak}.
+     *
+     * <p>Semantik identik dengan versi per-siswa: dihitung <b>net</b>
+     * (Σ DEBIT PENJUALAN − Σ KREDIT VOID_PENJUALAN sejak {@code sejak}), sehingga
+     * transaksi yang sudah di-void tidak lagi memakan jatah limit (PRD §6.3).
+     * Tenant-scoped dan dikelompokkan per {@code siswaId}; siswa tanpa mutasi
+     * hari ini tidak muncul di hasil (pemanggil memakai 0).
+     *
+     * <p>Projection {@link BelanjaSiswa}: {@code siswaId, total}.
+     */
+    @Query("""
+            SELECT l.siswaId AS siswaId,
+                   COALESCE(SUM(CASE WHEN l.arah = :debit THEN l.nominal ELSE -l.nominal END), 0) AS total
+            FROM MutasiSaldo l
+            WHERE l.sekolahId = :sekolahId
+              AND l.siswaId IN :siswaIds
+              AND l.jenis IN :jenis
+              AND l.waktu >= :sejak
+            GROUP BY l.siswaId
+            """)
+    List<BelanjaSiswa> belanjaBersihPerSiswaSejak(@Param("sekolahId") Long sekolahId,
+                                                  @Param("siswaIds") Collection<Long> siswaIds,
+                                                  @Param("debit") ArahMutasi debit,
+                                                  @Param("jenis") Collection<JenisMutasiSaldo> jenis,
+                                                  @Param("sejak") OffsetDateTime sejak);
 
     /**
      * Waktu mutasi terakhir per subjek untuk daftar siswa, dalam satu query

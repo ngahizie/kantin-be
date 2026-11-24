@@ -2,15 +2,19 @@ package com.asqi.scholia_kantin_be.service.laporan;
 
 import com.asqi.scholia_kantin_be.dto.RingkasanRekonsiliasi;
 import com.asqi.scholia_kantin_be.dto.RingkasanSaldoMengendap;
+import com.asqi.scholia_kantin_be.dto.SiswaSaldoDetail;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
+import com.asqi.scholia_kantin_be.service.integrasi.InfoSiswa;
 import com.asqi.scholia_kantin_be.service.kasir.PerintahMutasiSaldo;
+import com.asqi.scholia_kantin_be.support.FixtureInduk;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -48,6 +52,68 @@ class LaporanSaldoServiceIT extends LaporanITSupport {
         var tanpaMutasi = laporan.saldoMengendapSiswa(SEKOLAH, "2024002", 20);
         assertThat(tanpaMutasi).hasSize(1);
         assertThat(tanpaMutasi.getFirst().terakhirTransaksi()).isNull();
+    }
+
+    @Test
+    @DisplayName("#413: rincian saldo banyak siswa — batch query tetap presisi per siswa")
+    void saldoMengendapPerSiswaBatch() {
+        long siswa3 = 300L;
+        FixtureInduk.siswa(jdbc, SEKOLAH, siswa3);
+
+        topup(SISWA, SubjekTipe.SISWA, 50_000, JenisMutasiSaldo.TOPUP_TUNAI);
+        topup(SISWA2, SubjekTipe.SISWA, 30_000, JenisMutasiSaldo.TOPUP_ONLINE);
+        tx.executeWithoutResult(s -> ledgerSaldo.debit(PerintahMutasiSaldo.builder()
+                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).siswaId(SISWA)
+                .jenis(JenisMutasiSaldo.PENJUALAN).nominal(8_000)
+                .idempotencyKey("jual-413-a").build()));
+        tx.executeWithoutResult(s -> ledgerSaldo.debit(PerintahMutasiSaldo.builder()
+                .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).siswaId(SISWA2)
+                .jenis(JenisMutasiSaldo.PENJUALAN).nominal(5_000)
+                .idempotencyKey("jual-413-b").build()));
+
+        // SISWA diblokir, SISWA2 punya limit aktif, siswa3 limit nonaktif (diabaikan).
+        jdbc.update("INSERT INTO pembatasan (id, sekolah_id, siswa_id, jenis, alasan, aktif) "
+                + "VALUES (?, ?, ?, 'BLOKIR_SISWA', 'kartu hilang', true)", 9_001L, SEKOLAH, SISWA);
+        jdbc.update("INSERT INTO pembatasan (id, sekolah_id, siswa_id, jenis, nominal, aktif) "
+                + "VALUES (?, ?, ?, 'LIMIT_HARIAN', ?, true)", 9_002L, SEKOLAH, SISWA2, 20_000L);
+        jdbc.update("INSERT INTO pembatasan (id, sekolah_id, siswa_id, jenis, nominal, aktif) "
+                + "VALUES (?, ?, ?, 'LIMIT_HARIAN', ?, false)", 9_003L, SEKOLAH, siswa3, 15_000L);
+
+        org.mockito.Mockito.when(cariSiswaPort.cari(SEKOLAH, "batch", false, 20)).thenReturn(List.of(
+                InfoSiswa.builder().siswaId(SISWA).nis("2024001").nama("Budi Santoso")
+                        .kelas("7A").namaOrangTua("Pak Budi").teleponOrangTua("0811").build(),
+                InfoSiswa.builder().siswaId(SISWA2).nis("2024002").nama("Siswa Tanpa Mutasi")
+                        .kelas("7B").build(),
+                InfoSiswa.builder().siswaId(siswa3).nis("2024003").nama("Citra")
+                        .kelas("7C").build()));
+
+        var hasil = laporan.saldoMengendapSiswa(SEKOLAH, "batch", 20);
+
+        assertThat(hasil).hasSize(3);
+        // Urutan mengikuti hasil pencarian identitas, bukan urutan tabel.
+        SiswaSaldoDetail s1 = hasil.get(0);
+        assertThat(s1.siswaId()).isEqualTo(SISWA);
+        assertThat(s1.saldo()).isEqualTo(42_000);
+        assertThat(s1.belanjaHariIni()).isEqualTo(8_000);
+        assertThat(s1.isBlocked()).isTrue();
+        assertThat(s1.limitHarian()).isNull();
+        assertThat(s1.terakhirTransaksi()).isNotNull();
+
+        SiswaSaldoDetail s2 = hasil.get(1);
+        assertThat(s2.siswaId()).isEqualTo(SISWA2);
+        assertThat(s2.saldo()).isEqualTo(25_000);
+        assertThat(s2.belanjaHariIni()).isEqualTo(5_000);
+        assertThat(s2.isBlocked()).isFalse();
+        assertThat(s2.limitHarian()).isEqualTo(20_000L);
+
+        // Tanpa baris saldo & tanpa mutasi hari ini → 0, dan limit nonaktif diabaikan.
+        SiswaSaldoDetail s3 = hasil.get(2);
+        assertThat(s3.siswaId()).isEqualTo(siswa3);
+        assertThat(s3.saldo()).isZero();
+        assertThat(s3.belanjaHariIni()).isZero();
+        assertThat(s3.isBlocked()).isFalse();
+        assertThat(s3.limitHarian()).isNull();
+        assertThat(s3.terakhirTransaksi()).isNull();
     }
 
     @Test
