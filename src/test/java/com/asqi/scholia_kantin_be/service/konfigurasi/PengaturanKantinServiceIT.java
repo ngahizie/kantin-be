@@ -111,6 +111,84 @@ class PengaturanKantinServiceIT {
     }
 
     @Test
+    @DisplayName("#414: batas saldo siswa < maks top-up → ditolak, tidak tersimpan")
+    void batasSaldoKurangDariMaksTopupDitolak() {
+        PengaturanKantinRequest req = new PengaturanKantinRequest();
+        req.setMinTopup(10_000L);
+        req.setMaksTopup(200_000L);
+        req.setBatasSaldoSiswa(150_000L);
+
+        assertThatThrownBy(() -> pengaturanService.ubah(SEKOLAH, req, ADMIN))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("Batas saldo siswa")
+                .hasMessageContaining("maksimum top-up");
+
+        // Ditolak sebelum menyimpan apa pun — pengaturan tetap default.
+        assertThat(pengaturanService.ambil(SEKOLAH).isDisimpan()).isFalse();
+    }
+
+    @Test
+    @DisplayName("#414: batas saldo siswa < min top-up → ditolak")
+    void batasSaldoKurangDariMinTopupDitolak() {
+        PengaturanKantinRequest req = new PengaturanKantinRequest();
+        req.setMinTopup(100_000L);
+        req.setBatasSaldoSiswa(50_000L);
+
+        assertThatThrownBy(() -> pengaturanService.ubah(SEKOLAH, req, ADMIN))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("Batas saldo siswa")
+                .hasMessageContaining("minimum top-up");
+    }
+
+    @Test
+    @DisplayName("#414: maks top-up baru melampaui batas saldo tersimpan → ditolak (nilai lama dipertahankan)")
+    void maksTopupMelampauiBatasTersimpanDitolak() {
+        PengaturanKantinRequest awal = new PengaturanKantinRequest();
+        awal.setMinTopup(10_000L);
+        awal.setMaksTopup(100_000L);
+        awal.setBatasSaldoSiswa(300_000L);
+        pengaturanService.ubah(SEKOLAH, awal, ADMIN);
+
+        // Hanya maks top-up yang dikirim; batas saldo diambil dari baris tersimpan.
+        PengaturanKantinRequest naik = new PengaturanKantinRequest();
+        naik.setMaksTopup(500_000L);
+
+        assertThatThrownBy(() -> pengaturanService.ubah(SEKOLAH, naik, ADMIN))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("Batas saldo siswa");
+
+        assertThat(pengaturanService.ambil(SEKOLAH).getMaksTopup()).isEqualTo(100_000L);
+        assertThat(pengaturanService.ambil(SEKOLAH).getBatasSaldoSiswa()).isEqualTo(300_000L);
+    }
+
+    @Test
+    @DisplayName("#414: batas saldo siswa == maks top-up → diterima (batas inklusif)")
+    void batasSaldoSamaDenganMaksTopupDiterima() {
+        PengaturanKantinRequest req = new PengaturanKantinRequest();
+        req.setMinTopup(10_000L);
+        req.setMaksTopup(200_000L);
+        req.setBatasSaldoSiswa(200_000L);
+
+        var p = pengaturanService.ubah(SEKOLAH, req, ADMIN);
+
+        assertThat(p.getMaksTopup()).isEqualTo(200_000L);
+        assertThat(p.getBatasSaldoSiswa()).isEqualTo(200_000L);
+    }
+
+    @Test
+    @DisplayName("#414: tanpa batas saldo siswa → maks top-up bebas (tanpa batas atas)")
+    void tanpaBatasSaldoMaksTopupBebas() {
+        PengaturanKantinRequest req = new PengaturanKantinRequest();
+        req.setMinTopup(10_000L);
+        req.setMaksTopup(5_000_000L);
+
+        var p = pengaturanService.ubah(SEKOLAH, req, ADMIN);
+
+        assertThat(p.getMaksTopup()).isEqualTo(5_000_000L);
+        assertThat(p.getBatasSaldoSiswa()).isNull();
+    }
+
+    @Test
     @DisplayName("#42: jam tutup otomatis efektif per sekolah (default bila belum diatur)")
     void jamTutupEfektif() {
         assertThat(pengaturanService.jamTutupOtomatis(SEKOLAH)).isEqualTo(LocalTime.of(23, 59));

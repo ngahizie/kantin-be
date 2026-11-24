@@ -105,10 +105,10 @@ public class PengaturanKantinService {
 
         Long minTopup = request.getMinTopup() != null ? request.getMinTopup() : baris.getMinTopup();
         Long maksTopup = request.getMaksTopup() != null ? request.getMaksTopup() : baris.getMaksTopup();
-        if (minTopup != null && maksTopup != null && minTopup > maksTopup) {
-            throw new InvalidOperationException(
-                    "Minimum top-up tidak boleh melebihi maksimum top-up");
-        }
+        Long batasSaldoSiswa = request.getBatasSaldoSiswa() != null
+                ? request.getBatasSaldoSiswa()
+                : baris.getBatasSaldoSiswa();
+        validasiBatasTopup(minTopup, maksTopup, batasSaldoSiswa);
 
         String lama = ringkas(baris);
         if (request.getNamaKantin() != null) {
@@ -125,9 +125,7 @@ public class PengaturanKantinService {
         }
         baris.setMinTopup(minTopup);
         baris.setMaksTopup(maksTopup);
-        if (request.getBatasSaldoSiswa() != null) {
-            baris.setBatasSaldoSiswa(request.getBatasSaldoSiswa());
-        }
+        baris.setBatasSaldoSiswa(batasSaldoSiswa);
         if (request.getKebijakanSaldoMengendap() != null) {
             baris.setKebijakanSaldoMengendap(validasiKebijakan(request.getKebijakanSaldoMengendap()));
         }
@@ -142,6 +140,44 @@ public class PengaturanKantinService {
                 String.valueOf(sekolahId), "Ubah pengaturan kantin", lama, ringkas(baris));
         log.info("Pengaturan kantin sekolah={} diperbarui oleh={}", sekolahId, aktorId);
         return PengaturanKantinResponse.dari(baris);
+    }
+
+    /**
+     * Validasi silang batas top-up dengan plafon saldo siswa (issue #414).
+     *
+     * <p>Frontend sudah menolak kombinasi ini, tetapi klien dapat memanggil
+     * {@code PUT /api/pengaturan-kantin} langsung. Tanpa pemeriksaan di server,
+     * {@code maksTopup} yang melebihi {@code batasSaldoSiswa} akan tersimpan dan
+     * top-up berikutnya dapat mendorong saldo siswa melewati plafon
+     * (OWASP A06:2025 — Insecure Design, CWE-20).
+     *
+     * <p>Aturan hanya berlaku bila <b>kedua</b> nilai terisi; {@code null} berarti
+     * "tanpa batas" sehingga tidak ada yang perlu diperiksa:
+     * <ol>
+     *   <li>{@code minTopup <= maksTopup}</li>
+     *   <li>{@code batasSaldoSiswa >= maksTopup}</li>
+     *   <li>{@code batasSaldoSiswa >= minTopup}</li>
+     * </ol>
+     *
+     * <p>Nilai yang divalidasi adalah nilai <b>efektif</b> (gabungan request dan
+     * baris tersimpan), sehingga permintaan yang hanya mengirim {@code maksTopup}
+     * tetap diperiksa terhadap plafon yang sudah tersimpan.
+     *
+     * @throws InvalidOperationException (HTTP 400) bila salah satu aturan dilanggar
+     */
+    private static void validasiBatasTopup(Long minTopup, Long maksTopup, Long batasSaldoSiswa) {
+        if (minTopup != null && maksTopup != null && minTopup > maksTopup) {
+            throw new InvalidOperationException(
+                    "Minimum top-up tidak boleh melebihi maksimum top-up");
+        }
+        if (batasSaldoSiswa != null && maksTopup != null && batasSaldoSiswa < maksTopup) {
+            throw new InvalidOperationException(
+                    "Batas saldo siswa tidak boleh lebih kecil dari maksimum top-up");
+        }
+        if (batasSaldoSiswa != null && minTopup != null && batasSaldoSiswa < minTopup) {
+            throw new InvalidOperationException(
+                    "Batas saldo siswa tidak boleh lebih kecil dari minimum top-up");
+        }
     }
 
     /**
