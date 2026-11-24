@@ -1,4 +1,4 @@
-package com.asqi.scholia_kantin_be.service;
+package com.asqi.scholia_kantin_be.service.siswa;
 
 import com.asqi.scholia_kantin_be.service.integrasi.CariSiswaPort;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoSiswa;

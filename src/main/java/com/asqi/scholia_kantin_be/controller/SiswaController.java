@@ -6,7 +6,7 @@ import com.asqi.scholia_kantin_be.payload.response.CommonResponse;
 import com.asqi.scholia_kantin_be.payload.response.Response;
 import com.asqi.scholia_kantin_be.security.PerluPeran;
 import com.asqi.scholia_kantin_be.security.TenantContext;
-import com.asqi.scholia_kantin_be.service.CariSiswaService;
+import com.asqi.scholia_kantin_be.service.siswa.CariSiswaService;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoSiswa;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;

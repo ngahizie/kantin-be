@@ -22,7 +22,7 @@ import com.asqi.scholia_kantin_be.repository.SaldoRepository;
 import com.asqi.scholia_kantin_be.repository.TitikKasirRepository;
 import com.asqi.scholia_kantin_be.repository.TransaksiItemRepository;
 import com.asqi.scholia_kantin_be.repository.TransaksiRepository;
-import com.asqi.scholia_kantin_be.service.CariSiswaService;
+import com.asqi.scholia_kantin_be.service.siswa.CariSiswaService;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoSiswa;
 import com.asqi.scholia_kantin_be.service.kasir.LedgerSaldoService;
 import lombok.RequiredArgsConstructor;

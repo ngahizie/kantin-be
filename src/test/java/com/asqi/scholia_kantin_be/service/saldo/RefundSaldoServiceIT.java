@@ -12,7 +12,7 @@ import com.asqi.scholia_kantin_be.repository.KartuRepository;
 import com.asqi.scholia_kantin_be.repository.OrangTuaRepository;
 import com.asqi.scholia_kantin_be.repository.SaldoRepository;
 import com.asqi.scholia_kantin_be.repository.SiswaRepository;
-import com.asqi.scholia_kantin_be.service.CariSiswaService;
+import com.asqi.scholia_kantin_be.service.siswa.CariSiswaService;
 import com.asqi.scholia_kantin_be.service.integrasi.CariSiswaLokal;
 import com.asqi.scholia_kantin_be.service.integrasi.CariSiswaPort;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoSiswa;

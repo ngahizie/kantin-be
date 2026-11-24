@@ -15,7 +15,7 @@ import com.asqi.scholia_kantin_be.repository.SaldoRepository;
 import com.asqi.scholia_kantin_be.repository.projection.ArusSaldo;
 import com.asqi.scholia_kantin_be.repository.projection.SaldoMengendap;
 import com.asqi.scholia_kantin_be.repository.projection.TotalPerArah;
-import com.asqi.scholia_kantin_be.service.CariSiswaService;
+import com.asqi.scholia_kantin_be.service.siswa.CariSiswaService;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoSiswa;
 import com.asqi.scholia_kantin_be.service.kasir.LedgerSaldoService;
 import lombok.RequiredArgsConstructor;

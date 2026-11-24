@@ -13,7 +13,7 @@ import com.asqi.scholia_kantin_be.helper.KunciIdempotensi;
 import com.asqi.scholia_kantin_be.model.Saldo;
 import com.asqi.scholia_kantin_be.repository.SaldoRepository;
 import com.asqi.scholia_kantin_be.repository.SiswaRepository;
-import com.asqi.scholia_kantin_be.service.CariSiswaService;
+import com.asqi.scholia_kantin_be.service.siswa.CariSiswaService;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoSiswa;
 import com.asqi.scholia_kantin_be.service.integrasi.NotifikasiService;
 import com.asqi.scholia_kantin_be.service.integrasi.PerintahNotifikasi;
