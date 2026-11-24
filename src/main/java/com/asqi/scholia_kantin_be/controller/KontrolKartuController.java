@@ -1,12 +1,10 @@
 package com.asqi.scholia_kantin_be.controller;
 
-import com.asqi.scholia_kantin_be.component.exception.ForbiddenException;
 import com.asqi.scholia_kantin_be.dto.BlokirItemRequest;
 import com.asqi.scholia_kantin_be.dto.BlokirKartuRequest;
 import com.asqi.scholia_kantin_be.dto.KontrolSubjekResponse;
 import com.asqi.scholia_kantin_be.dto.LimitHarianRequest;
 import com.asqi.scholia_kantin_be.enums.AktorKantin;
-import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.payload.response.CommonResponse;
 import com.asqi.scholia_kantin_be.payload.response.Response;
 import com.asqi.scholia_kantin_be.security.IdentitasKantin;

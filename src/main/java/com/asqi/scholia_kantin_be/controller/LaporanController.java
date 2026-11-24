@@ -19,7 +19,6 @@ import com.asqi.scholia_kantin_be.dto.RingkasanSaldoMengendap;
 import com.asqi.scholia_kantin_be.dto.RingkasanKerugianStok;
 import com.asqi.scholia_kantin_be.enums.AktorKantin;
 import com.asqi.scholia_kantin_be.enums.JenisLaporan;
-import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.payload.response.CommonResponse;
 import com.asqi.scholia_kantin_be.payload.response.Response;
 import com.asqi.scholia_kantin_be.security.AksesLaporan;
@@ -50,7 +49,6 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Endpoint laporan &amp; ekspor Excel (PRD §9.5).

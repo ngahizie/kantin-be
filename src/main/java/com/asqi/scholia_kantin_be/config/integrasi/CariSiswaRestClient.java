@@ -1,6 +1,5 @@
 package com.asqi.scholia_kantin_be.config.integrasi;
 
-import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.service.integrasi.CariSiswaPort;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoSiswa;
 import com.asqi.scholia_kantin_be.service.kasir.LedgerSaldoService;

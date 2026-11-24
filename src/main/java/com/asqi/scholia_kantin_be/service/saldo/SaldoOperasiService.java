@@ -5,7 +5,6 @@ import com.asqi.scholia_kantin_be.dto.MutasiKoreksiItem;
 import com.asqi.scholia_kantin_be.dto.MutasiSaldoItem;
 import com.asqi.scholia_kantin_be.dto.SaldoResponse;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
-import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.helper.UkuranHalaman;
 import com.asqi.scholia_kantin_be.model.MutasiSaldo;
@@ -25,9 +24,6 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Facade baca saldo untuk HTTP: menggabungkan saldo berjalan, belanja hari ini,

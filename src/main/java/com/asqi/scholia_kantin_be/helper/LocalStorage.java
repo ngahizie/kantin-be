@@ -9,7 +9,6 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.*;
 import java.nio.file.*;
 import java.util.*;
-import java.util.stream.Collectors;
 
 import static java.util.Objects.isNull;
 
@@ -124,23 +123,4 @@ public class LocalStorage {
         return new BufferedInputStream(Files.newInputStream(filePath));
     }
 
-    /** Daftar file di dalam folder tertentu */
-    public List<String> listFiles(String folderName) throws Exception {
-        Path dir = rootDir.resolve(folderName);
-        if (!Files.exists(dir)) {
-            return Collections.emptyList();
-        }
-        try {
-            return Files.list(dir)
-                    .filter(Files::isRegularFile)
-                    .map(p -> {
-                        String relative = rootDir.relativize(p).toString();
-                        // Normalisasi separator
-                        return relative.replace("\\", "/");
-                    })
-                    .collect(Collectors.toList());
-        } catch (IOException e) {
-            throw new Exception("Gagal membaca daftar file di storage lokal", e);
-        }
-    }
 }

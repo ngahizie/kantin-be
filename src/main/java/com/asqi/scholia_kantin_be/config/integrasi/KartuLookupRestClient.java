@@ -10,7 +10,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClientResponseException;
 import tools.jackson.databind.JsonNode;
 
-import java.util.Optional;
 
 /**
  * Adapter REST nyata {@link KartuLookupPort} — kartu siswa dari <b>admin-be</b>

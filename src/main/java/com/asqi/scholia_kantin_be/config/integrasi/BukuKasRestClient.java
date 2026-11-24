@@ -1,6 +1,5 @@
 package com.asqi.scholia_kantin_be.config.integrasi;
 
-import com.asqi.scholia_kantin_be.config.integrasi.IntegrasiRestProperties.Endpoint;
 import com.asqi.scholia_kantin_be.service.integrasi.BukuKasPort;
 import com.asqi.scholia_kantin_be.service.integrasi.HasilJurnalBukuKas;
 import com.asqi.scholia_kantin_be.service.integrasi.PerintahBukuKas;
