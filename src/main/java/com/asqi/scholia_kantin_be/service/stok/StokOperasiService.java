@@ -10,6 +10,7 @@ import com.asqi.scholia_kantin_be.dto.OpnameBatchResponse;
 import com.asqi.scholia_kantin_be.dto.RiwayatStokItem;
 import com.asqi.scholia_kantin_be.enums.ArahStok;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiStok;
+import com.asqi.scholia_kantin_be.enums.ReferensiTipe;
 import com.asqi.scholia_kantin_be.repository.projection.DibalikPerAsal;
 import com.asqi.scholia_kantin_be.model.Menu;
 import com.asqi.scholia_kantin_be.model.RiwayatStok;
@@ -88,7 +89,7 @@ public class StokOperasiService {
         validasiReferensi(referensiId, "Nomor bukti barang masuk");
         pastikanMenuMilikSekolah(sekolahId, menuId);
         HasilMutasiStok hasil = ledgerStok.masukBarang(sekolahId, menuId, qty, hargaBeliPerUnit,
-                "BARANG_MASUK", referensiId, aktorId, alasan);
+                ReferensiTipe.BARANG_MASUK.name(), referensiId, aktorId, alasan);
 
         // PRD §5.1/§7.2: setiap barang masuk diposting sebagai pengeluaran Buku Kas
         // pos "Belanja Stok Kantin". Idempoten (refId deterministik) & fail-open —
@@ -181,7 +182,7 @@ public class StokOperasiService {
 
         // Idempotency: batch dengan nomor berita acara sama sudah pernah diproses.
         List<RiwayatStok> sudahAda = mutasiRepo.cariByReferensiTipeDanId(
-                sekolahId, "OPNAME_BATCH", referensiId);
+                sekolahId, ReferensiTipe.OPNAME_BATCH.name(), referensiId);
         if (!sudahAda.isEmpty()) {
             log.debug("Idempotency replay opname batch referensi={} → {} baris",
                     referensiId, sudahAda.size());
@@ -194,7 +195,7 @@ public class StokOperasiService {
         for (OpnameBatchItemRequest item : items) {
             HasilMutasiStok h = ledgerStok.sesuaikanOpname(
                     sekolahId, item.getMenuId(), item.getQtyFisik(), item.getAlasan(),
-                    referensiId, Boolean.TRUE.equals(item.getRusak()), "OPNAME_BATCH", aktorId);
+                    referensiId, Boolean.TRUE.equals(item.getRusak()), ReferensiTipe.OPNAME_BATCH.name(), aktorId);
 
             RiwayatStok mutasi = h.getMutasi();
             int stokSebelum = mutasi == null

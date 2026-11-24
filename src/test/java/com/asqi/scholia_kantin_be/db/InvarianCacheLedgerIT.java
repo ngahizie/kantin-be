@@ -3,6 +3,7 @@ package com.asqi.scholia_kantin_be.db;
 import com.asqi.scholia_kantin_be.component.exception.ConflictException;
 import com.asqi.scholia_kantin_be.dto.RingkasanRekonsiliasi;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
+import com.asqi.scholia_kantin_be.enums.ReferensiTipe;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.repository.SaldoRepository;
 import com.asqi.scholia_kantin_be.service.kasir.LedgerSaldoService;
@@ -206,7 +207,7 @@ class InvarianCacheLedgerIT {
                 .jenis(jenis)
                 .nominal(nominal)
                 .idempotencyKey(idempotencyKey)
-                .referensiTipe("TRANSAKSI")
+                .referensiTipe(ReferensiTipe.TRANSAKSI)
                 .aktorId(USER_ID)
                 .build();
     }

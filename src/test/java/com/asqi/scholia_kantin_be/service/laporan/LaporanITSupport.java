@@ -1,6 +1,7 @@
 package com.asqi.scholia_kantin_be.service.laporan;
 
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
+import com.asqi.scholia_kantin_be.enums.ReferensiTipe;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.service.integrasi.CariSiswaPort;
@@ -219,7 +220,7 @@ abstract class LaporanITSupport {
         tx.executeWithoutResult(s -> ledgerSaldo.kredit(PerintahMutasiSaldo.builder()
                 .sekolahId(SEKOLAH).subjekTipe(SubjekTipe.SISWA).siswaId(subjek)
                 .jenis(JenisMutasiSaldo.TOPUP_TUNAI).nominal(nominal)
-                .referensiTipe("TOPUP").aktorId(petugasId)
+                .referensiTipe(ReferensiTipe.TOPUP).aktorId(petugasId)
                 .idempotencyKey("setoran-" + petugasId + "-" + System.nanoTime()).build()));
     }
 }
