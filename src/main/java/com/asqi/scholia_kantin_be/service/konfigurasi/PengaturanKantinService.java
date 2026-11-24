@@ -7,7 +7,9 @@ import com.asqi.scholia_kantin_be.dto.PengaturanKantinResponse;
 import com.asqi.scholia_kantin_be.enums.KebijakanSaldoMengendap;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.model.PengaturanKantin;
+import com.asqi.scholia_kantin_be.model.Pengguna;
 import com.asqi.scholia_kantin_be.repository.PengaturanKantinRepository;
+import com.asqi.scholia_kantin_be.repository.PenggunaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -47,6 +49,7 @@ public class PengaturanKantinService {
     public static final int AMBANG_HARI_DEFAULT = 90;
 
     private final PengaturanKantinRepository repo;
+    private final PenggunaRepository penggunaRepo;
     private final JamKantin jam;
     private final AuditLogger auditLogger;
 
@@ -57,7 +60,7 @@ public class PengaturanKantinService {
     @Transactional(readOnly = true)
     public PengaturanKantinResponse ambil(Long sekolahId) {
         return repo.findById(sekolahId)
-                .map(PengaturanKantinResponse::dari)
+                .map(baris -> proyeksi(baris, sekolahId))
                 .orElseGet(() -> PengaturanKantinResponse.builder()
                         .sekolahId(sekolahId)
                         .namaKantin(null)
@@ -139,7 +142,29 @@ public class PengaturanKantinService {
         auditLogger.catat(aktorId, sekolahId, "UBAH_PENGATURAN_KANTIN", "PengaturanKantin",
                 String.valueOf(sekolahId), "Ubah pengaturan kantin", lama, ringkas(baris));
         log.info("Pengaturan kantin sekolah={} diperbarui oleh={}", sekolahId, aktorId);
-        return PengaturanKantinResponse.dari(baris);
+        return proyeksi(baris, sekolahId);
+    }
+
+    /**
+     * Proyeksi baris + nama aktor pengubah (issue #416).
+     *
+     * <p>Lookup dibatasi {@code sekolah_id} lewat
+     * {@link PenggunaRepository#findByIdAndSekolahId}: ID pengguna sekolah lain
+     * tidak boleh muncul sebagai nama, dan aktor yang sudah dihapus tidak
+     * membuat endpoint gagal — namanya cukup {@code null}.
+     */
+    private PengaturanKantinResponse proyeksi(PengaturanKantin baris, Long sekolahId) {
+        return PengaturanKantinResponse.dari(baris, namaAktor(sekolahId, baris.getDiperbaruiOleh()));
+    }
+
+    /** Nama tampilan aktor, atau {@code null} bila tidak ada di sekolah ini. */
+    private String namaAktor(Long sekolahId, Long aktorId) {
+        if (aktorId == null) {
+            return null;
+        }
+        return penggunaRepo.findByIdAndSekolahId(aktorId, sekolahId)
+                .map(Pengguna::getNama)
+                .orElse(null);
     }
 
     /**
