@@ -13,7 +13,6 @@ import com.asqi.scholia_kantin_be.dto.SaldoResponse;
 import com.asqi.scholia_kantin_be.dto.SetoranResponse;
 import com.asqi.scholia_kantin_be.dto.TopUpRequest;
 import com.asqi.scholia_kantin_be.enums.AktorKantin;
-import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.payload.response.CommonResponse;
 import com.asqi.scholia_kantin_be.payload.response.Response;
 import com.asqi.scholia_kantin_be.security.IdentitasKantin;

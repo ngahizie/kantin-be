@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Uji LocalStorage: unggah, baca, hapus, daftar, validasi ekstensi, validasi path.
+ * Uji LocalStorage: unggah, baca, hapus, validasi ekstensi, validasi path.
  */
 class LocalStorageTest {
 
@@ -115,17 +115,5 @@ class LocalStorageTest {
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> storage.viewFile("sekolah-1/a;rm.pdf"))
                 .isInstanceOf(IllegalArgumentException.class);
-    }
-
-    @Test
-    void listFileBerhasil() throws Exception {
-        byte[] content = "content".getBytes();
-        MockMultipartFile file = new MockMultipartFile(
-                "file", "test.jpg", "image/jpeg",
-                new ByteArrayInputStream(content));
-        storage.uploadFile("sekolah-1/menu", file);
-
-        var list = storage.listFiles("sekolah-1/menu");
-        assertThat(list).isNotEmpty();
     }
 }

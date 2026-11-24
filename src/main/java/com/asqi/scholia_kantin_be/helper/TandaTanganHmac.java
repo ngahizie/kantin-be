@@ -48,15 +48,6 @@ public final class TandaTanganHmac {
         }
     }
 
-    /** SHA-256 hex badan request — sidik jari untuk deteksi payload berbeda. */
-    public static String hashPayload(byte[] badan) {
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            return HexFormat.of().formatHex(md.digest(badan == null ? new byte[0] : badan));
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 tidak tersedia", e);
-        }
-    }
 
     /**
      * Bandingkan dua signature secara <b>konstan-waktu</b>. Menerima bentuk
