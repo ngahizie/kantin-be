@@ -279,4 +279,57 @@ class PengaturanKantinServiceIT {
                 .isInstanceOf(ConflictException.class)
                 .hasMessageContaining("sesi terbuka");
     }
+
+    // ────────────────────────────────────────────────────────────────
+    // #415 — batas nilai pengaturan (OWASP A06:2025 / CWE-1284)
+    // ────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("#415: nilai tepat di batas atas tetap tersimpan")
+    void nilaiBatasAtasTersimpan() {
+        PengaturanKantinRequest req = new PengaturanKantinRequest();
+        req.setDurasiFotoDetik(60);
+        req.setMinTopup(1_000L);
+        req.setMaksTopup(100_000_000L);
+        req.setBatasSaldoSiswa(500_000_000L);
+        req.setAmbangHari(3_650);
+
+        var p = pengaturanService.ubah(SEKOLAH, req, ADMIN);
+
+        assertThat(p.getDurasiFotoDetik()).isEqualTo(60);
+        assertThat(p.getMinTopup()).isEqualTo(1_000L);
+        assertThat(p.getMaksTopup()).isEqualTo(100_000_000L);
+        assertThat(p.getBatasSaldoSiswa()).isEqualTo(500_000_000L);
+        assertThat(p.getAmbangHari()).isEqualTo(3_650);
+    }
+
+    @Test
+    @DisplayName("#415: database menolak durasi foto 0/61 dan nilai keuangan ekstrem")
+    void constraintDbMenolakNilaiEkstrem() {
+        // DTO sudah menolak lewat @Min/@Max; constraint V41 menutup baris lama dan
+        // jalur SQL langsung. durasi 0 = verifikasi visual wajah siswa hilang.
+        assertThatThrownBy(() -> jdbc.update(
+                "INSERT INTO pengaturan_kantin (sekolah_id, durasi_foto_detik) VALUES (?, 0)",
+                SEKOLAH))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbc.update(
+                "INSERT INTO pengaturan_kantin (sekolah_id, durasi_foto_detik) VALUES (?, 61)",
+                SEKOLAH))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbc.update(
+                "INSERT INTO pengaturan_kantin (sekolah_id, min_topup) VALUES (?, 200000000)",
+                SEKOLAH))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbc.update(
+                "INSERT INTO pengaturan_kantin (sekolah_id, ambang_hari) VALUES (?, 4000)",
+                SEKOLAH))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+
+        // Nilai sah tetap bisa disimpan.
+        jdbc.update("INSERT INTO pengaturan_kantin (sekolah_id, durasi_foto_detik) VALUES (?, 3)",
+                SEKOLAH);
+        assertThat(jdbc.queryForObject(
+                "SELECT durasi_foto_detik FROM pengaturan_kantin WHERE sekolah_id = ?",
+                Integer.class, SEKOLAH)).isEqualTo(3);
+    }
 }

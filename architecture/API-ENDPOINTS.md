@@ -264,7 +264,7 @@
 | Method | Path | Peran | Keterangan |
 |---|---|---|---|
 | `GET` | `/api/pengaturan-kantin` | petugas, pengelola, TU, admin | Ambil pengaturan (default aman bila belum diatur). Kasir POS membaca `jamTutupOtomatis` & `durasiFotoDetik` dari sini |
-| `PUT` | `/api/pengaturan-kantin` | admin | Ubah nama, jam tutup otomatis, konfirmasi manual, durasi foto, min/maks top-up, batas saldo siswa/Kartu Tamu |
+| `PUT` | `/api/pengaturan-kantin` | admin | Ubah nama, jam tutup otomatis, konfirmasi manual, durasi foto, min/maks top-up, batas saldo siswa/Kartu Tamu. Rentang: `durasiFotoDetik` 1–60, `minTopup`/`maksTopup` 1.000–100.000.000, `batasSaldoSiswa` 10.000–500.000.000, `ambangHari` 0–3.650 — di luar itu **400** (#415) |
 | `GET` | `/api/pengaturan-kantin/titik-kasir` | TU, admin, pengelola, kasir | Daftar titik kasir. Query: `hanyaAktif` |
 | `GET` | `/api/pengaturan-kantin/titik-kasir/{titikId}` | TU, admin, pengelola, kasir | Detail titik kasir |
 | `POST` | `/api/pengaturan-kantin/titik-kasir` | admin | Buat titik kasir (kode unik per sekolah) |
