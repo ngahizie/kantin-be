@@ -332,4 +332,61 @@ class PengaturanKantinServiceIT {
                 "SELECT durasi_foto_detik FROM pengaturan_kantin WHERE sekolah_id = ?",
                 Integer.class, SEKOLAH)).isEqualTo(3);
     }
+
+    // ────────────────────────────────────────────────────────────────
+    // #416 — aktor pengubah pada respons (OWASP A09:2025 / CWE-778)
+    // ────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("#416: ubah pengaturan mengembalikan ID + nama aktor pengubah")
+    void ubahMenyertakanAktorPengubah() {
+        FixtureInduk.pengguna(jdbc, SEKOLAH, ADMIN);
+        PengaturanKantinRequest req = new PengaturanKantinRequest();
+        req.setNamaKantin("Kantin Aktor");
+
+        var p = pengaturanService.ubah(SEKOLAH, req, ADMIN);
+
+        assertThat(p.getDiperbaruiOleh()).isEqualTo(ADMIN);
+        assertThat(p.getUpdatedBy()).isEqualTo("Pengguna Uji " + ADMIN);
+    }
+
+    @Test
+    @DisplayName("#416: ambil pengaturan juga memuat aktor pengubah terakhir")
+    void ambilMenyertakanAktorPengubah() {
+        FixtureInduk.pengguna(jdbc, SEKOLAH, ADMIN);
+        PengaturanKantinRequest req = new PengaturanKantinRequest();
+        req.setNamaKantin("Kantin Aktor");
+        pengaturanService.ubah(SEKOLAH, req, ADMIN);
+
+        var p = pengaturanService.ambil(SEKOLAH);
+
+        assertThat(p.getDiperbaruiOleh()).isEqualTo(ADMIN);
+        assertThat(p.getUpdatedBy()).isEqualTo("Pengguna Uji " + ADMIN);
+    }
+
+    @Test
+    @DisplayName("#416: aktor dari sekolah lain tidak bocor jadi nama (tenant-scoped)")
+    void aktorSekolahLainTidakBocor() {
+        long aktorLain = 901L;
+        FixtureInduk.pengguna(jdbc, SEKOLAH_LAIN, aktorLain);
+        jdbc.update("INSERT INTO pengaturan_kantin (sekolah_id, diperbarui_oleh) VALUES (?, ?)",
+                SEKOLAH, aktorLain);
+
+        var p = pengaturanService.ambil(SEKOLAH);
+
+        // ID tetap dikirim apa adanya (data baris), tetapi namanya tidak diambil
+        // dari sekolah lain.
+        assertThat(p.getDiperbaruiOleh()).isEqualTo(aktorLain);
+        assertThat(p.getUpdatedBy()).isNull();
+    }
+
+    @Test
+    @DisplayName("#416: pengaturan yang belum pernah disimpan tidak punya aktor")
+    void defaultTanpaAktor() {
+        var p = pengaturanService.ambil(SEKOLAH);
+
+        assertThat(p.isDisimpan()).isFalse();
+        assertThat(p.getDiperbaruiOleh()).isNull();
+        assertThat(p.getUpdatedBy()).isNull();
+    }
 }

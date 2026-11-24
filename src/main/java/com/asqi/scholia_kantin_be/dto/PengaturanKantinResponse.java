@@ -41,8 +41,36 @@ public class PengaturanKantinResponse {
 
     private OffsetDateTime updatedAt;
 
-    /** Proyeksi entitas → DTO (baris tersimpan). */
+    /**
+     * ID pengguna yang terakhir mengubah pengaturan; {@code null} bila baris
+     * belum pernah disimpan (masih default).
+     *
+     * <p>Issue #416 (OWASP A09:2025 / CWE-778): tanpa field ini klien hanya punya
+     * {@code updatedAt} dan menampilkan nama statis, sehingga admin tidak bisa
+     * menelusuri siapa yang mengubah konfigurasi.
+     */
+    private Long diperbaruiOleh;
+
+    /**
+     * Nama tampilan aktor pengubah (lookup tenant-scoped oleh service);
+     * {@code null} bila {@code diperbaruiOleh} kosong atau penggunanya tidak ada
+     * di sekolah tersebut.
+     */
+    private String updatedBy;
+
+    /** Proyeksi entitas → DTO (baris tersimpan), tanpa nama aktor. */
     public static PengaturanKantinResponse dari(PengaturanKantin c) {
+        return dari(c, null);
+    }
+
+    /**
+     * Proyeksi entitas → DTO beserta nama tampilan aktor pengubah.
+     *
+     * @param c          baris pengaturan tersimpan
+     * @param namaAktor  nama pengguna aktor (boleh {@code null})
+     * @return DTO siap dikirim
+     */
+    public static PengaturanKantinResponse dari(PengaturanKantin c, String namaAktor) {
         return PengaturanKantinResponse.builder()
                 .sekolahId(c.getSekolahId())
                 .namaKantin(c.getNamaKantin())
@@ -56,6 +84,8 @@ public class PengaturanKantinResponse {
                 .ambangHari(c.getAmbangHari())
                 .disimpan(true)
                 .updatedAt(c.getUpdatedAt())
+                .diperbaruiOleh(c.getDiperbaruiOleh())
+                .updatedBy(namaAktor)
                 .build();
     }
 }
