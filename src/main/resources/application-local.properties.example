@@ -47,9 +47,11 @@ kantin.metrics.public=true
 kantin.openapi.public=true
 
 # --- Redis (docker compose up -d) ---
+# WAJIB sama dengan REDIS_PASSWORD di .env (docker-compose memakai --requirepass,
+# issue #434). Kosong = NOAUTH saat rate limit/blacklist token dipakai.
 spring.data.redis.host=localhost
 spring.data.redis.port=6379
-spring.data.redis.password=
+spring.data.redis.password=<GANTI_REDIS_PASSWORD>
 
 # --- MinIO (opsional di lokal) ---
 # MinIO lokal: docker run -p 9000:9000 -p 9001:9001 minio/minio server /data --console-address ":9001"

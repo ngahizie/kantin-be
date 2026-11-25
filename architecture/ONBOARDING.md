@@ -65,6 +65,7 @@ Cek cepat (harus menampilkan **Java version: 25**):
 - [ ] **3. Baca PRD** (minimal non-teknis + §6/§11 teknis).
 - [ ] **4. Setup infra lokal**
   ```bash
+  cp .env.example .env        # WAJIB: isi DB_PASSWORD & REDIS_PASSWORD
   docker compose up -d        # PostgreSQL + Redis
   ```
 - [ ] **5. Salin config**

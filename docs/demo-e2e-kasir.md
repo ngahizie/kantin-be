@@ -12,6 +12,7 @@ stok → tutup sesi → cek laporan* — **tanpa** menunggu data/keys tim SKOOLI
 ## 0. Ringkas alur
 
 ```
+cp .env.example .env            # WAJIB: isi DB_PASSWORD & REDIS_PASSWORD
 docker compose up -d            # PostgreSQL + Redis
 SPRING_PROFILES_ACTIVE=local,demo  (butuh private key JWT dummy)
                                 # seed dev TIDAK otomatis — jalankan psql -f (lihat §3)
@@ -41,6 +42,7 @@ FE tanpa mock.
 ## 1. Infrastruktur
 
 ```bash
+cp .env.example .env         # WAJIB: isi DB_PASSWORD & REDIS_PASSWORD
 docker compose up -d
 docker compose ps            # pastikan postgres & redis "healthy"
 ```

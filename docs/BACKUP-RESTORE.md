@@ -72,5 +72,6 @@ Tanpa `--yes`, script menolak menimpa database asli.
    batasi izin berkas.
 3. **Retensi berbasis waktu**, bukan jumlah berkas. Dengan `KEEP=7`, ukuran
    folder dibatasi oleh ukuran DB × 7.
-4. **Kredensial default hanya untuk lokal** (`kantin_dev`). Di server, isi lewat
-   environment `KANTIN_DB_*`, jangan hardcode.
+4. **Tidak ada kredensial default** (sejak issue #434). Skrip backup/restore
+   berhenti bila `KANTIN_DB_PASSWORD` kosong. Di server, isi lewat environment
+   `KANTIN_DB_*`, jangan hardcode.
