@@ -154,9 +154,14 @@ Target `docker-compose.yml` (dibuat di Fase scaffold):
 - **Redis 7** — cache, blacklist token, rate limit
 
 ```bash
+cp .env.example .env   # WAJIB: isi DB_PASSWORD & REDIS_PASSWORD (tanpa default)
 docker compose up -d
 docker compose ps      # pastikan keduanya healthy
 ```
+
+> **Sejak issue #434:** port hanya di-bind ke `127.0.0.1` (tidak terekspos ke LAN)
+> dan Redis memakai `--requirepass`. Tanpa `DB_PASSWORD`/`REDIS_PASSWORD`,
+> `docker compose up` gagal dengan pesan jelas (fail-closed).
 
 **Waktu & zona:** set `TZ=Asia/Jakarta` pada service, agar konsisten dengan app.
 

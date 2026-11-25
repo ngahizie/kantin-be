@@ -1,9 +1,16 @@
 # ============================================================
 # docker-compose.yml - Infrastruktur DEV kantin-be
+#   cp .env.example .env      # WAJIB: isi DB_PASSWORD & REDIS_PASSWORD
 #   docker compose up -d
-#   docker compose ps   # pastikan keduanya healthy
+#   docker compose ps         # pastikan keduanya healthy
 #
 # TZ=Asia/Jakarta agar konsisten dengan app (ENVIRONMENT.md §6).
+#
+# ⚠️ KEAMANAN (issue #434) — jangan dilonggarkan:
+#   * TIDAK ADA password default. Tanpa DB_PASSWORD / REDIS_PASSWORD di .env,
+#     `docker compose up` berhenti dengan pesan jelas (fail-closed).
+#   * Port hanya di-bind ke 127.0.0.1 agar DB & Redis tidak terekspos ke LAN.
+#   * Redis memakai --requirepass; tanpa password container menolak start.
 # ============================================================
 services:
   postgres:
@@ -13,11 +20,13 @@ services:
     environment:
       POSTGRES_DB: kantin_db
       POSTGRES_USER: kantin
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-kantin_dev}
+      # `:?` = compose gagal bila variabel kosong/tidak ada (tanpa fallback).
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD-wajib-diisi}
       TZ: Asia/Jakarta
       PGTZ: Asia/Jakarta
     ports:
-      - "5432:5432"
+      # 127.0.0.1: hanya dapat diakses dari mesin ini, tidak dari LAN.
+      - "127.0.0.1:5432:5432"
     volumes:
       # ⚠️ PostgreSQL 18 mengubah tata letak data: mount di /var/lib/postgresql
       # (BUKAN /var/lib/postgresql/data). Cara lama menyebabkan container
@@ -35,15 +44,25 @@ services:
     image: redis:7-alpine
     container_name: kantin-redis
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
+    # requirepass: Redis tanpa autentikasi membuka rate limit & blacklist token
+    # untuk dimanipulasi (issue #434).
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --requirepass
+      - ${REDIS_PASSWORD:?REDIS_PASSWORD-wajib-diisi}
     environment:
       TZ: Asia/Jakarta
+      # Dipakai healthcheck. `$$` = escape compose agar dibaca shell container.
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD-wajib-diisi}
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - kantin_redisdata:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      # Setelah requirepass aktif, redis-cli butuh AUTH.
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
       interval: 5s
       timeout: 3s
       retries: 10
