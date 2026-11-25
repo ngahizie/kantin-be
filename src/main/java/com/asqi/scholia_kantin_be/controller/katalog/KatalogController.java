@@ -1,5 +1,6 @@
 package com.asqi.scholia_kantin_be.controller.katalog;
 
+import com.asqi.scholia_kantin_be.dto.katalog.KategoriDetailResponse;
 import com.asqi.scholia_kantin_be.dto.katalog.KategoriRequest;
 import com.asqi.scholia_kantin_be.dto.katalog.KategoriResponse;
 import com.asqi.scholia_kantin_be.dto.katalog.MenuRequest;
@@ -58,25 +59,25 @@ public class KatalogController {
 
     @PerluPeran({AktorKantin.PENGELOLA_KANTIN})
     @PostMapping("kategori")
-    public ResponseEntity<Response<KategoriMenu>> buatKategori(
+    public ResponseEntity<Response<KategoriDetailResponse>> buatKategori(
             @Valid @RequestBody KategoriRequest request,
             @AuthenticationPrincipal IdentitasKantin identitas) {
         KategoriMenu kategori = katalog.buatKategori(
                 TenantContext.sekolahIdWajib(), request.getNama(),
                 request.getUrutan(), identitas.aktorIdWajib());
-        return CommonResponse.data(kategori, "Kategori dibuat");
+        return CommonResponse.data(KategoriDetailResponse.dari(kategori), "Kategori dibuat");
     }
 
     @PerluPeran({AktorKantin.PENGELOLA_KANTIN})
     @PutMapping("kategori/{kategoriId}")
-    public ResponseEntity<Response<KategoriMenu>> ubahKategori(
+    public ResponseEntity<Response<KategoriDetailResponse>> ubahKategori(
             @PathVariable Long kategoriId,
             @Valid @RequestBody KategoriRequest request,
             @AuthenticationPrincipal IdentitasKantin identitas) {
         KategoriMenu kategori = katalog.ubahKategori(
                 TenantContext.sekolahIdWajib(), kategoriId, request.getNama(),
                 request.getUrutan(), request.getAktif(), identitas.aktorIdWajib());
-        return CommonResponse.data(kategori, "Kategori diperbarui");
+        return CommonResponse.data(KategoriDetailResponse.dari(kategori), "Kategori diperbarui");
     }
 
     /** Hapus kategori dari katalog — ditolak bila masih ada menu terkait. */

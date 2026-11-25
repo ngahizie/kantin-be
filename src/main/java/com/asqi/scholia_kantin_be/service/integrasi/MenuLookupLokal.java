@@ -1,4 +1,4 @@
-package com.asqi.scholia_kantin_be.service.katalog;
+package com.asqi.scholia_kantin_be.service.integrasi;
 
 import com.asqi.scholia_kantin_be.model.Menu;
 import com.asqi.scholia_kantin_be.repository.katalog.MenuRepository;
@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Implementasi <b>nyata</b> (produksi) {@link MenuLookupPort} — menggantikan
+ * Adapter lokal basis data untuk {@link MenuLookupPort} — menggantikan
  * {@code MenuLookupFallback} yang mengembalikan {@code null}.
  *
  * <p>Dipanggil {@code TapService} untuk snapshot transaksi: nama, harga jual,
@@ -22,7 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 @RequiredArgsConstructor
-public class MenuLookupKatalogAdapter implements MenuLookupPort {
+public class MenuLookupLokal implements MenuLookupPort {
 
     private final MenuRepository menuRepo;
 

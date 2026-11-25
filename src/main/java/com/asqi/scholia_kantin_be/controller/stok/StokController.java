@@ -3,6 +3,7 @@ package com.asqi.scholia_kantin_be.controller.stok;
 import com.asqi.scholia_kantin_be.dto.stok.BarangMasukPembalikRequest;
 import com.asqi.scholia_kantin_be.dto.stok.BarangMasukRequest;
 import com.asqi.scholia_kantin_be.dto.umum.HalamanResponse;
+import com.asqi.scholia_kantin_be.dto.stok.HasilMutasiStokResponse;
 import com.asqi.scholia_kantin_be.dto.stok.OpnameBatchRequest;
 import com.asqi.scholia_kantin_be.dto.stok.OpnameBatchResponse;
 import com.asqi.scholia_kantin_be.dto.stok.OpnameRequest;
@@ -52,7 +53,7 @@ public class StokController {
     /** Barang masuk / stok awal (PRD §7.2) — perbarui HPP rata-rata tertimbang. */
     @PerluPeran({AktorKantin.PENGELOLA_KANTIN})
     @PostMapping("barang-masuk")
-    public ResponseEntity<Response<HasilMutasiStok>> barangMasuk(
+    public ResponseEntity<Response<HasilMutasiStokResponse>> barangMasuk(
             @Valid @RequestBody BarangMasukRequest request,
             @AuthenticationPrincipal IdentitasKantin identitas) {
 
@@ -60,7 +61,7 @@ public class StokController {
                 TenantContext.sekolahIdWajib(), request.getMenuId(), request.getQty(),
                 request.getHargaBeliPerUnit(), request.getReferensiId(), identitas.aktorIdWajib(),
                 request.getAlasan());
-        return CommonResponse.data(hasil, "Barang masuk tercatat");
+        return CommonResponse.data(HasilMutasiStokResponse.dari(hasil), "Barang masuk tercatat");
     }
 
     /**
@@ -70,27 +71,27 @@ public class StokController {
      */
     @PerluPeran({AktorKantin.PENGELOLA_KANTIN})
     @PostMapping("barang-masuk-pembalik")
-    public ResponseEntity<Response<HasilMutasiStok>> barangMasukPembalik(
+    public ResponseEntity<Response<HasilMutasiStokResponse>> barangMasukPembalik(
             @Valid @RequestBody BarangMasukPembalikRequest request,
             @AuthenticationPrincipal IdentitasKantin identitas) {
 
         HasilMutasiStok hasil = operasi.pembalikBarangMasuk(
                 TenantContext.sekolahIdWajib(), request.getMutasiId(), request.getQty(),
                 request.getAlasan(), request.getReferensiId(), identitas.aktorIdWajib());
-        return CommonResponse.data(hasil, "Barang masuk pembalik tercatat");
+        return CommonResponse.data(HasilMutasiStokResponse.dari(hasil), "Barang masuk pembalik tercatat");
     }
 
     /** Penyesuaian stok hasil opname fisik (PRD §7.3) — alasan wajib. */
     @PerluPeran({AktorKantin.PENGELOLA_KANTIN})
     @PostMapping("opname")
-    public ResponseEntity<Response<HasilMutasiStok>> opname(
+    public ResponseEntity<Response<HasilMutasiStokResponse>> opname(
             @Valid @RequestBody OpnameRequest request,
             @AuthenticationPrincipal IdentitasKantin identitas) {
 
         HasilMutasiStok hasil = operasi.sesuaikanOpname(
                 TenantContext.sekolahIdWajib(), request.getMenuId(), request.getQtyFisik(),
                 request.getAlasan(), request.getReferensiId(), identitas.aktorIdWajib());
-        return CommonResponse.data(hasil, "Penyesuaian stok tercatat");
+        return CommonResponse.data(HasilMutasiStokResponse.dari(hasil), "Penyesuaian stok tercatat");
     }
 
     /**

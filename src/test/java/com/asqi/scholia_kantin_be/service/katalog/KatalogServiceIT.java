@@ -6,6 +6,7 @@ import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
 import com.asqi.scholia_kantin_be.enums.SatuanMenu;
 import com.asqi.scholia_kantin_be.repository.stok.StokRepository;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoMenu;
+import com.asqi.scholia_kantin_be.service.integrasi.MenuLookupLokal;
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;
 import com.asqi.scholia_kantin_be.support.TestcontainersConfig;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,7 +40,7 @@ class KatalogServiceIT {
     private KatalogService katalog;
 
     @Autowired
-    private MenuLookupKatalogAdapter lookup;
+    private MenuLookupLokal lookup;
 
     @Autowired
     private StokRepository cacheRepo;

@@ -17,6 +17,11 @@
 | Konstanta | `UPPER_SNAKE_CASE` | `KATEGORI_PENDAPATAN_KANTIN` |
 | Enum | `PascalCase` + nilai `UPPER_SNAKE` | `AlasanPenyesuaian.RUSAK` |
 | File migrasi | `V{n}__{PascalCase}.sql` | `V3__CreateLedgerSaldo.sql` |
+| DTO request | akhiran `Request` | `TopUpRequest`, `BukaSesiRequest` |
+| DTO respons endpoint | akhiran `Response` | `SaldoResponse`, `KategoriDetailResponse` |
+| Baris/ringkasan di dalam respons | akhiran `Item`, `Baris`, atau `Ringkasan` | `MutasiSaldoItem`, `BarisPenjualan`, `RingkasanPenjualan` |
+
+DTO lama yang belum memakai sufiks di atas (`*Data`, `*Hasil`, `*Detail`, dll.) dikecualikan; DTO **baru** wajib mengikuti aturan ini.
 
 **Istilah domain (konsisten, jangan diterjemahkan):**
 `Saldo`, `Mutasi`, `Void`, `Hpp`, `Opname`, `KartuTamu`, `SesiKasir`, `TitikKasir`, `LimitHarian`, `BlokirItem`.

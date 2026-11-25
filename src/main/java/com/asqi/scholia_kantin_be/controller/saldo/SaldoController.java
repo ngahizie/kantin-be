@@ -1,6 +1,7 @@
 package com.asqi.scholia_kantin_be.controller.saldo;
 
 import com.asqi.scholia_kantin_be.dto.umum.HalamanResponse;
+import com.asqi.scholia_kantin_be.dto.saldo.HasilMutasiSaldoResponse;
 import com.asqi.scholia_kantin_be.dto.saldo.HasilRefundResponse;
 import com.asqi.scholia_kantin_be.dto.saldo.KandidatRefundItem;
 import com.asqi.scholia_kantin_be.dto.saldo.KonfirmasiSetoranRequest;
@@ -62,7 +63,7 @@ public class SaldoController {
      */
     @PerluPeran({AktorKantin.TU_SEKOLAH})
     @PostMapping("topup")
-    public ResponseEntity<Response<HasilMutasiSaldo>> topUp(
+    public ResponseEntity<Response<HasilMutasiSaldoResponse>> topUp(
             @Valid @RequestBody TopUpRequest request,
             @AuthenticationPrincipal IdentitasKantin identitas) {
 
@@ -70,7 +71,7 @@ public class SaldoController {
                 TenantContext.sekolahIdWajib(), request.getSiswaId(),
                 request.getNominal(), request.getPenyetor(), request.getReferensiId(),
                 identitas.aktorIdWajib());
-        return CommonResponse.data(hasil, "Top-up berhasil");
+        return CommonResponse.data(HasilMutasiSaldoResponse.dari(hasil), "Top-up berhasil");
     }
 
     /**
@@ -79,7 +80,7 @@ public class SaldoController {
      */
     @PerluPeran({AktorKantin.TU_SEKOLAH})
     @PostMapping("koreksi")
-    public ResponseEntity<Response<HasilMutasiSaldo>> koreksi(
+    public ResponseEntity<Response<HasilMutasiSaldoResponse>> koreksi(
             @Valid @RequestBody KoreksiSaldoRequest request,
             @AuthenticationPrincipal IdentitasKantin identitas) {
 
@@ -87,7 +88,7 @@ public class SaldoController {
                 TenantContext.sekolahIdWajib(), request.getSiswaId(),
                 request.getArah(), request.getNominal(), request.getAlasan(),
                 request.getReferensiId(), identitas.aktorIdWajib());
-        return CommonResponse.data(hasil, "Koreksi saldo berhasil");
+        return CommonResponse.data(HasilMutasiSaldoResponse.dari(hasil), "Koreksi saldo berhasil");
     }
 
     /**
