@@ -2,7 +2,7 @@ package com.asqi.scholia_kantin_be.service.saldo;
 
 import com.asqi.scholia_kantin_be.component.exception.ConflictException;
 import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
-import com.asqi.scholia_kantin_be.dto.PengaturanKantinRequest;
+import com.asqi.scholia_kantin_be.dto.konfigurasi.PengaturanKantinRequest;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.service.kasir.LedgerSaldoService;
@@ -104,7 +104,8 @@ class BatasSaldoTopUpIT {
     @Test
     @DisplayName("#112: top-up melebihi batas saldo siswa ditolak; saldo tidak bertambah")
     void tolakMelebihiBatasSaldoSiswa() {
-        aturBatas(1_000L, 1_000_000L, 100_000L);
+        // #414: maks top-up tidak boleh melampaui plafon saldo (maks == batas).
+        aturBatas(1_000L, 100_000L, 100_000L);
         saldoTopUp.topUpTunai(SEKOLAH, SISWA, 90_000L, "Ibu", "TU-3", 99L);
 
         assertThatThrownBy(() -> saldoTopUp.topUpTunai(SEKOLAH, SISWA,
@@ -123,7 +124,8 @@ class BatasSaldoTopUpIT {
     @Test
     @DisplayName("#112: top-up tepat menyentuh batas tetap diterima")
     void tepatDiBatasDiterima() {
-        aturBatas(1_000L, 1_000_000L, 100_000L);
+        // #414: maks top-up tidak boleh melampaui plafon saldo (maks == batas).
+        aturBatas(1_000L, 100_000L, 100_000L);
 
         saldoTopUp.topUpTunai(SEKOLAH, SISWA, 100_000L, "Ibu", "TU-7", 99L);
 

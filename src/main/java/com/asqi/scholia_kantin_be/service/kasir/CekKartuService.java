@@ -2,7 +2,7 @@ package com.asqi.scholia_kantin_be.service.kasir;
 
 import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
-import com.asqi.scholia_kantin_be.dto.CekKartuResponse;
+import com.asqi.scholia_kantin_be.dto.kasir.CekKartuResponse;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.helper.UidKartu;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoKartu;

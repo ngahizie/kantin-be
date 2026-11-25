@@ -1,6 +1,6 @@
 package com.asqi.scholia_kantin_be.service.laporan;
 
-import com.asqi.scholia_kantin_be.dto.RekapSetoranItem;
+import com.asqi.scholia_kantin_be.dto.umum.RekapSetoranItem;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.service.saldo.SetoranService;
 import lombok.RequiredArgsConstructor;

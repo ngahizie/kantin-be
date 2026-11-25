@@ -1,8 +1,8 @@
 package com.asqi.scholia_kantin_be.service.saldo;
 
 import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
-import com.asqi.scholia_kantin_be.dto.HalamanResponse;
-import com.asqi.scholia_kantin_be.dto.MutasiKoreksiItem;
+import com.asqi.scholia_kantin_be.dto.umum.HalamanResponse;
+import com.asqi.scholia_kantin_be.dto.saldo.MutasiKoreksiItem;
 import com.asqi.scholia_kantin_be.enums.ArahMutasi;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.security.TenantContext;

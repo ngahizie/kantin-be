@@ -1,6 +1,6 @@
 package com.asqi.scholia_kantin_be.security;
 
-import com.asqi.scholia_kantin_be.controller.LaporanController;
+import com.asqi.scholia_kantin_be.controller.laporan.LaporanController;
 import com.asqi.scholia_kantin_be.enums.AktorKantin;
 import com.asqi.scholia_kantin_be.enums.JenisLaporan;
 import org.junit.jupiter.api.DisplayName;

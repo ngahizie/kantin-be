@@ -16,7 +16,7 @@
 | **Anti saldo/stok minus** | CHECK `saldo_setelah >= 0` & `stok_setelah >= 0` di level DB (bukan hanya kode). |
 | **Tenant scoping** | Semua tabel ledger/transaksi punya `sekolah_id` dan indeks dimulai dengan `sekolah_id`. |
 | **Uang = BIGINT rupiah** | Tidak pakai FLOAT/NUMERIC pecahan; rupiah bilangan bulat. |
-| **ID dari aplikasi** | `Constants.idGenerator()` (pola admin-be, CONVENTIONS §1). Tidak ada BIGSERIAL untuk entitas bisnis. |
+| **ID dari aplikasi** | Bean `IdGenerator` (monoton & anti-tabrakan). Tidak ada BIGSERIAL untuk entitas bisnis; generator lama `Constants.idGenerator()` sudah dihapus (#410). |
 
 ## 2. Tabel
 
@@ -84,4 +84,4 @@ Diuji pada **PostgreSQL 18.6** (cluster sementara) + boot aplikasi:
 2. **MinIO di konstruktor = app gagal boot** bila kredensial kosong. `S3Storage` sudah dibuat *lazy*.
 3. **`admin-be` mengirim JWT tanpa `sekolah_id`/`role`** (hanya `sub/typ/jti/iat/exp`) → resolusi tenant kantin **tidak bisa** mengandalkan claim; perlu endpoint/lookup (lihat OPEN-QUESTIONS Q1/Q2).
 4. **`siswa` di admin-be tidak punya `sekolah_id`** → tenant lewat `siswa → kelas → sekolah_id`.
-5. **`Constants.idGenerator()` admin-be = epoch_ms + random(100–999)** → berisiko **tabrakan PK** pada trafik tinggi (tap bersamaan). Untuk ledger, pertimbangkan ID berbasis sequence/ULID atau retry-on-conflict. **Perlu keputusan tim.**
+5. **`Constants.idGenerator()` admin-be = epoch_ms + random(100–999)** → berisiko **tabrakan PK** pada trafik tinggi (tap bersamaan). **Sudah diputuskan & diterapkan:** kantin-be memakai bean `IdGenerator` yang monoton dan anti-tabrakan; generator lama dihapus (#410).

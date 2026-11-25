@@ -1,11 +1,11 @@
 package com.asqi.scholia_kantin_be.db;
 
 import com.asqi.scholia_kantin_be.component.exception.ConflictException;
-import com.asqi.scholia_kantin_be.dto.RingkasanRekonsiliasi;
+import com.asqi.scholia_kantin_be.dto.laporan.RingkasanRekonsiliasi;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.ReferensiTipe;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
-import com.asqi.scholia_kantin_be.repository.SaldoRepository;
+import com.asqi.scholia_kantin_be.repository.saldo.SaldoRepository;
 import com.asqi.scholia_kantin_be.service.kasir.LedgerSaldoService;
 import com.asqi.scholia_kantin_be.service.kasir.PerintahMutasiSaldo;
 import com.asqi.scholia_kantin_be.service.laporan.LaporanSaldoService;

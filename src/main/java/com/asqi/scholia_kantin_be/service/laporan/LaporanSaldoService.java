@@ -1,21 +1,21 @@
 package com.asqi.scholia_kantin_be.service.laporan;
 
-import com.asqi.scholia_kantin_be.dto.RingkasanRekonsiliasi;
-import com.asqi.scholia_kantin_be.dto.RingkasanSaldoMengendap;
-import com.asqi.scholia_kantin_be.dto.SiswaSaldoDetail;
+import com.asqi.scholia_kantin_be.dto.laporan.RingkasanRekonsiliasi;
+import com.asqi.scholia_kantin_be.dto.laporan.RingkasanSaldoMengendap;
+import com.asqi.scholia_kantin_be.dto.laporan.SiswaSaldoDetail;
 import com.asqi.scholia_kantin_be.enums.ArahMutasi;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.JenisPembatasan;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.model.Pembatasan;
 import com.asqi.scholia_kantin_be.model.Saldo;
-import com.asqi.scholia_kantin_be.repository.MutasiSaldoRepository;
-import com.asqi.scholia_kantin_be.repository.PembatasanRepository;
-import com.asqi.scholia_kantin_be.repository.SaldoRepository;
+import com.asqi.scholia_kantin_be.repository.saldo.MutasiSaldoRepository;
+import com.asqi.scholia_kantin_be.repository.siswa.PembatasanRepository;
+import com.asqi.scholia_kantin_be.repository.saldo.SaldoRepository;
 import com.asqi.scholia_kantin_be.repository.projection.ArusSaldo;
 import com.asqi.scholia_kantin_be.repository.projection.SaldoMengendap;
 import com.asqi.scholia_kantin_be.repository.projection.TotalPerArah;
-import com.asqi.scholia_kantin_be.service.CariSiswaService;
+import com.asqi.scholia_kantin_be.service.siswa.CariSiswaService;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoSiswa;
 import com.asqi.scholia_kantin_be.service.kasir.LedgerSaldoService;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -72,6 +73,14 @@ public class LaporanSaldoService {
      * Identitas dicari melalui {@link CariSiswaService}; saldo, pembatasan, dan
      * waktu transaksi terakhir dibaca tenant-lokal.
      *
+     * <p><b>Query konstan (issue #413):</b> seluruh data pelengkap dibaca
+     * <b>batch</b> untuk semua {@code siswaIds} sekaligus — satu query saldo
+     * cache ({@code IN}), satu query pembatasan ({@code IN}), satu query waktu
+     * terakhir, dan satu query belanja hari ini. Sebelumnya tiga query
+     * dijalankan <b>per siswa</b> (N+1), sehingga 50 siswa berarti ±150 query
+     * berturut-turut dan berisiko menguras pool koneksi HikariCP
+     * (OWASP A06:2025 — Insecure Design, NIST PR.PT-01).
+     *
      * @param sekolahId tenant pemanggil
      * @param search    kata kunci NIS/nama (boleh kosong)
      * @param batas     jumlah maksimum siswa yang dikembalikan
@@ -85,19 +94,33 @@ public class LaporanSaldoService {
                 .filter(Objects::nonNull)
                 .distinct()
                 .toList();
+
+        // Baca batch: jumlah query tetap, tidak lagi 3 query per siswa.
+        Map<Long, Long> saldoPerSiswa = new HashMap<>();
+        Map<Long, List<Pembatasan>> pembatasanPerSiswa = new HashMap<>();
         Map<Long, OffsetDateTime> waktuTerakhir = new HashMap<>();
+        Map<Long, Long> belanjaPerSiswa = new HashMap<>();
         if (!siswaIds.isEmpty()) {
+            for (Saldo s : saldoCacheRepo.findBySekolahIdAndSiswaIdIn(sekolahId, siswaIds)) {
+                if (s.getSiswaId() != null) {
+                    saldoPerSiswa.put(s.getSiswaId(), LaporanHelper.nolJikaNull(s.getSaldo()));
+                }
+            }
+            pembatasanRepo.findBySekolahIdAndSiswaIdIn(sekolahId, siswaIds)
+                    .forEach(p -> pembatasanPerSiswa
+                            .computeIfAbsent(p.getSiswaId(), k -> new ArrayList<>())
+                            .add(p));
             saldoLedgerRepo.waktuTerakhirPerSubjek(sekolahId, siswaIds)
                     .forEach(b -> waktuTerakhir.put(b.getSiswaId(), b.getWaktu()));
+            belanjaPerSiswa.putAll(ledgerSaldo.belanjaHariIniBanyak(sekolahId, siswaIds));
         }
+
         return siswaList.stream()
                 .map(siswa -> {
                     Long siswaId = siswa.getSiswaId();
-                    Saldo cache = saldoCacheRepo
-                            .findBySekolahIdAndSiswaId(sekolahId, siswaId)
-                            .orElse(null);
-                    List<Pembatasan> pembatasan = pembatasanRepo
-                            .findBySekolahIdAndSiswaId(sekolahId, siswaId);
+                    List<Pembatasan> pembatasan = siswaId == null
+                            ? List.of()
+                            : pembatasanPerSiswa.getOrDefault(siswaId, List.of());
                     boolean diblokir = pembatasan.stream()
                             .anyMatch(x -> x.getJenis() == JenisPembatasan.BLOKIR_SISWA && x.isAktif());
                     Long limit = pembatasan.stream()
@@ -107,11 +130,11 @@ public class LaporanSaldoService {
                             .orElse(null);
                     return new SiswaSaldoDetail(
                             siswaId, siswa.getNis(), null, siswa.getNama(), siswa.getKelas(),
-                            cache == null || cache.getSaldo() == null ? 0L : cache.getSaldo(),
-                            ledgerSaldo.belanjaHariIni(sekolahId, siswaId),
+                            siswaId == null ? 0L : saldoPerSiswa.getOrDefault(siswaId, 0L),
+                            siswaId == null ? 0L : belanjaPerSiswa.getOrDefault(siswaId, 0L),
                             limit, diblokir,
                             siswa.getNamaOrangTua(), siswa.getTeleponOrangTua(),
-                            waktuTerakhir.get(siswaId));
+                            siswaId == null ? null : waktuTerakhir.get(siswaId));
                 })
                 .toList();
     }

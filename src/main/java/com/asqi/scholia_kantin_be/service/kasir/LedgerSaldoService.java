@@ -11,10 +11,11 @@ import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.helper.KunciIdempotensi;
 import com.asqi.scholia_kantin_be.model.Saldo;
 import com.asqi.scholia_kantin_be.model.MutasiSaldo;
-import com.asqi.scholia_kantin_be.repository.SaldoRepository;
+import com.asqi.scholia_kantin_be.repository.saldo.SaldoRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
-import com.asqi.scholia_kantin_be.repository.MutasiSaldoRepository;
+import com.asqi.scholia_kantin_be.repository.saldo.MutasiSaldoRepository;
+import com.asqi.scholia_kantin_be.repository.projection.BelanjaSiswa;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -23,7 +24,10 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -319,6 +323,37 @@ public class LedgerSaldoService {
                 List.of(JenisMutasiSaldo.PENJUALAN, JenisMutasiSaldo.VOID_PENJUALAN),
                 jam.awalHariIni());
         return hasil == null ? 0L : hasil;
+    }
+
+    /**
+     * Total belanja bersih hari ini untuk <b>banyak</b> subjek sekaligus —
+     * versi batch dari {@link #belanjaHariIni} (issue #413).
+     *
+     * <p>Satu query {@code GROUP BY siswa_id} untuk seluruh {@code siswaIds},
+     * sehingga pemanggil daftar (mis. rincian saldo mengendap) tidak lagi
+     * menjalankan query per siswa (N+1). Semantik nilai sama persis dengan
+     * {@link #belanjaHariIni}: net (void dikurangkan), reset 00:00 waktu sekolah.
+     *
+     * @param sekolahId tenant pemanggil
+     * @param siswaIds  subjek yang diminta (boleh kosong)
+     * @return peta {@code siswaId → total}; siswa tanpa mutasi hari ini tidak ada
+     *         di peta (pemanggil memakai 0)
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, Long> belanjaHariIniBanyak(Long sekolahId, Collection<Long> siswaIds) {
+        if (sekolahId == null || siswaIds == null || siswaIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, Long> hasil = new HashMap<>();
+        for (BelanjaSiswa b : ledgerRepo.belanjaBersihPerSiswaSejak(
+                sekolahId, siswaIds, ArahMutasi.DEBIT,
+                List.of(JenisMutasiSaldo.PENJUALAN, JenisMutasiSaldo.VOID_PENJUALAN),
+                jam.awalHariIni())) {
+            if (b.getSiswaId() != null) {
+                hasil.put(b.getSiswaId(), b.getTotal() == null ? 0L : b.getTotal());
+            }
+        }
+        return hasil;
     }
 
     /** Riwayat mutasi terbaru satu subjek (PRD §8.4). */

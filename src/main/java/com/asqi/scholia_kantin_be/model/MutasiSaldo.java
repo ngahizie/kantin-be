@@ -29,7 +29,7 @@ import java.time.OffsetDateTime;
  * bukan mengubah baris lama.
  *
  * <p>Tidak ada setter publik: nilai ditetapkan sekali saat pembuatan.
- * Kolom {@code id} berasal dari aplikasi ({@code Constants.sortableIdGenerator()}),
+ * Kolom {@code id} berasal dari aplikasi ({@link com.asqi.scholia_kantin_be.helper.IdGenerator}),
  * bukan autoincrement (CONVENTIONS.md §4).
  */
 @Entity

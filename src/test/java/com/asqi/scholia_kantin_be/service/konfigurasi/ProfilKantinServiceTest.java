@@ -1,7 +1,7 @@
 package com.asqi.scholia_kantin_be.service.konfigurasi;
 
 import com.asqi.scholia_kantin_be.config.KantinProfilProperties;
-import com.asqi.scholia_kantin_be.dto.ProfilKantinResponse;
+import com.asqi.scholia_kantin_be.dto.konfigurasi.ProfilKantinResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

@@ -3,8 +3,8 @@ package com.asqi.scholia_kantin_be.service.konfigurasi;
 import com.asqi.scholia_kantin_be.component.exception.ConflictException;
 import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
-import com.asqi.scholia_kantin_be.dto.PengaturanKantinRequest;
-import com.asqi.scholia_kantin_be.dto.TitikKasirResponse;
+import com.asqi.scholia_kantin_be.dto.konfigurasi.PengaturanKantinRequest;
+import com.asqi.scholia_kantin_be.dto.konfigurasi.TitikKasirResponse;
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;
 import com.asqi.scholia_kantin_be.support.TestcontainersConfig;
 import org.junit.jupiter.api.BeforeEach;
@@ -111,6 +111,84 @@ class PengaturanKantinServiceIT {
     }
 
     @Test
+    @DisplayName("#414: batas saldo siswa < maks top-up → ditolak, tidak tersimpan")
+    void batasSaldoKurangDariMaksTopupDitolak() {
+        PengaturanKantinRequest req = new PengaturanKantinRequest();
+        req.setMinTopup(10_000L);
+        req.setMaksTopup(200_000L);
+        req.setBatasSaldoSiswa(150_000L);
+
+        assertThatThrownBy(() -> pengaturanService.ubah(SEKOLAH, req, ADMIN))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("Batas saldo siswa")
+                .hasMessageContaining("maksimum top-up");
+
+        // Ditolak sebelum menyimpan apa pun — pengaturan tetap default.
+        assertThat(pengaturanService.ambil(SEKOLAH).isDisimpan()).isFalse();
+    }
+
+    @Test
+    @DisplayName("#414: batas saldo siswa < min top-up → ditolak")
+    void batasSaldoKurangDariMinTopupDitolak() {
+        PengaturanKantinRequest req = new PengaturanKantinRequest();
+        req.setMinTopup(100_000L);
+        req.setBatasSaldoSiswa(50_000L);
+
+        assertThatThrownBy(() -> pengaturanService.ubah(SEKOLAH, req, ADMIN))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("Batas saldo siswa")
+                .hasMessageContaining("minimum top-up");
+    }
+
+    @Test
+    @DisplayName("#414: maks top-up baru melampaui batas saldo tersimpan → ditolak (nilai lama dipertahankan)")
+    void maksTopupMelampauiBatasTersimpanDitolak() {
+        PengaturanKantinRequest awal = new PengaturanKantinRequest();
+        awal.setMinTopup(10_000L);
+        awal.setMaksTopup(100_000L);
+        awal.setBatasSaldoSiswa(300_000L);
+        pengaturanService.ubah(SEKOLAH, awal, ADMIN);
+
+        // Hanya maks top-up yang dikirim; batas saldo diambil dari baris tersimpan.
+        PengaturanKantinRequest naik = new PengaturanKantinRequest();
+        naik.setMaksTopup(500_000L);
+
+        assertThatThrownBy(() -> pengaturanService.ubah(SEKOLAH, naik, ADMIN))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("Batas saldo siswa");
+
+        assertThat(pengaturanService.ambil(SEKOLAH).getMaksTopup()).isEqualTo(100_000L);
+        assertThat(pengaturanService.ambil(SEKOLAH).getBatasSaldoSiswa()).isEqualTo(300_000L);
+    }
+
+    @Test
+    @DisplayName("#414: batas saldo siswa == maks top-up → diterima (batas inklusif)")
+    void batasSaldoSamaDenganMaksTopupDiterima() {
+        PengaturanKantinRequest req = new PengaturanKantinRequest();
+        req.setMinTopup(10_000L);
+        req.setMaksTopup(200_000L);
+        req.setBatasSaldoSiswa(200_000L);
+
+        var p = pengaturanService.ubah(SEKOLAH, req, ADMIN);
+
+        assertThat(p.getMaksTopup()).isEqualTo(200_000L);
+        assertThat(p.getBatasSaldoSiswa()).isEqualTo(200_000L);
+    }
+
+    @Test
+    @DisplayName("#414: tanpa batas saldo siswa → maks top-up bebas (tanpa batas atas)")
+    void tanpaBatasSaldoMaksTopupBebas() {
+        PengaturanKantinRequest req = new PengaturanKantinRequest();
+        req.setMinTopup(10_000L);
+        req.setMaksTopup(5_000_000L);
+
+        var p = pengaturanService.ubah(SEKOLAH, req, ADMIN);
+
+        assertThat(p.getMaksTopup()).isEqualTo(5_000_000L);
+        assertThat(p.getBatasSaldoSiswa()).isNull();
+    }
+
+    @Test
     @DisplayName("#42: jam tutup otomatis efektif per sekolah (default bila belum diatur)")
     void jamTutupEfektif() {
         assertThat(pengaturanService.jamTutupOtomatis(SEKOLAH)).isEqualTo(LocalTime.of(23, 59));
@@ -200,5 +278,115 @@ class PengaturanKantinServiceIT {
         assertThatThrownBy(() -> titikKasirService.nonaktifkan(SEKOLAH, t.getId(), ADMIN))
                 .isInstanceOf(ConflictException.class)
                 .hasMessageContaining("sesi terbuka");
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // #415 — batas nilai pengaturan (OWASP A06:2025 / CWE-1284)
+    // ────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("#415: nilai tepat di batas atas tetap tersimpan")
+    void nilaiBatasAtasTersimpan() {
+        PengaturanKantinRequest req = new PengaturanKantinRequest();
+        req.setDurasiFotoDetik(60);
+        req.setMinTopup(1_000L);
+        req.setMaksTopup(100_000_000L);
+        req.setBatasSaldoSiswa(500_000_000L);
+        req.setAmbangHari(3_650);
+
+        var p = pengaturanService.ubah(SEKOLAH, req, ADMIN);
+
+        assertThat(p.getDurasiFotoDetik()).isEqualTo(60);
+        assertThat(p.getMinTopup()).isEqualTo(1_000L);
+        assertThat(p.getMaksTopup()).isEqualTo(100_000_000L);
+        assertThat(p.getBatasSaldoSiswa()).isEqualTo(500_000_000L);
+        assertThat(p.getAmbangHari()).isEqualTo(3_650);
+    }
+
+    @Test
+    @DisplayName("#415: database menolak durasi foto 0/61 dan nilai keuangan ekstrem")
+    void constraintDbMenolakNilaiEkstrem() {
+        // DTO sudah menolak lewat @Min/@Max; constraint V41 menutup baris lama dan
+        // jalur SQL langsung. durasi 0 = verifikasi visual wajah siswa hilang.
+        assertThatThrownBy(() -> jdbc.update(
+                "INSERT INTO pengaturan_kantin (sekolah_id, durasi_foto_detik) VALUES (?, 0)",
+                SEKOLAH))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbc.update(
+                "INSERT INTO pengaturan_kantin (sekolah_id, durasi_foto_detik) VALUES (?, 61)",
+                SEKOLAH))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbc.update(
+                "INSERT INTO pengaturan_kantin (sekolah_id, min_topup) VALUES (?, 200000000)",
+                SEKOLAH))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbc.update(
+                "INSERT INTO pengaturan_kantin (sekolah_id, ambang_hari) VALUES (?, 4000)",
+                SEKOLAH))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+
+        // Nilai sah tetap bisa disimpan.
+        jdbc.update("INSERT INTO pengaturan_kantin (sekolah_id, durasi_foto_detik) VALUES (?, 3)",
+                SEKOLAH);
+        assertThat(jdbc.queryForObject(
+                "SELECT durasi_foto_detik FROM pengaturan_kantin WHERE sekolah_id = ?",
+                Integer.class, SEKOLAH)).isEqualTo(3);
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // #416 — aktor pengubah pada respons (OWASP A09:2025 / CWE-778)
+    // ────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("#416: ubah pengaturan mengembalikan ID + nama aktor pengubah")
+    void ubahMenyertakanAktorPengubah() {
+        FixtureInduk.pengguna(jdbc, SEKOLAH, ADMIN);
+        PengaturanKantinRequest req = new PengaturanKantinRequest();
+        req.setNamaKantin("Kantin Aktor");
+
+        var p = pengaturanService.ubah(SEKOLAH, req, ADMIN);
+
+        assertThat(p.getDiperbaruiOleh()).isEqualTo(ADMIN);
+        assertThat(p.getUpdatedBy()).isEqualTo("Pengguna Uji " + ADMIN);
+    }
+
+    @Test
+    @DisplayName("#416: ambil pengaturan juga memuat aktor pengubah terakhir")
+    void ambilMenyertakanAktorPengubah() {
+        FixtureInduk.pengguna(jdbc, SEKOLAH, ADMIN);
+        PengaturanKantinRequest req = new PengaturanKantinRequest();
+        req.setNamaKantin("Kantin Aktor");
+        pengaturanService.ubah(SEKOLAH, req, ADMIN);
+
+        var p = pengaturanService.ambil(SEKOLAH);
+
+        assertThat(p.getDiperbaruiOleh()).isEqualTo(ADMIN);
+        assertThat(p.getUpdatedBy()).isEqualTo("Pengguna Uji " + ADMIN);
+    }
+
+    @Test
+    @DisplayName("#416: aktor dari sekolah lain tidak bocor jadi nama (tenant-scoped)")
+    void aktorSekolahLainTidakBocor() {
+        long aktorLain = 901L;
+        FixtureInduk.pengguna(jdbc, SEKOLAH_LAIN, aktorLain);
+        jdbc.update("INSERT INTO pengaturan_kantin (sekolah_id, diperbarui_oleh) VALUES (?, ?)",
+                SEKOLAH, aktorLain);
+
+        var p = pengaturanService.ambil(SEKOLAH);
+
+        // ID tetap dikirim apa adanya (data baris), tetapi namanya tidak diambil
+        // dari sekolah lain.
+        assertThat(p.getDiperbaruiOleh()).isEqualTo(aktorLain);
+        assertThat(p.getUpdatedBy()).isNull();
+    }
+
+    @Test
+    @DisplayName("#416: pengaturan yang belum pernah disimpan tidak punya aktor")
+    void defaultTanpaAktor() {
+        var p = pengaturanService.ambil(SEKOLAH);
+
+        assertThat(p.isDisimpan()).isFalse();
+        assertThat(p.getDiperbaruiOleh()).isNull();
+        assertThat(p.getUpdatedBy()).isNull();
     }
 }

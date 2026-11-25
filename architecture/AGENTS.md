@@ -75,20 +75,23 @@ kantin-be/
 ├── Dockerfile  Dockerfile-dev  Jenkinsfile  docker-compose.yml
 └── src/
     ├── main/java/com/asqi/scholia_kantin_be/
-    │   ├── config/security/       # decoder JWT, filter, WebSecurityConfig
-    │   ├── component/             # GlobalExceptionHandler, exception/, logging/
-    │   ├── controller/            # tipis: hanya validasi request & delegasi
-    │   ├── dto/                   # objek transfer antar layer
+    │   ├── config/                # konfigurasi Spring (integrasi/, security/, ratelimit/, ...)
+    │   ├── component/             # GlobalExceptionHandler, exception/, logging/, metrics/, ratelimit/
+    │   ├── controller/<domain>/   # tipis: validasi request & delegasi (10 domain)
+    │   ├── dev/                   # endpoint/demo khusus profil dev (DevLogin, demo integrasi)
+    │   ├── dto/<domain>/          # request & response per domain (+ dto/umum/)
     │   ├── enums/
-    │   ├── helper/                # Constants (idGenerator), util
+    │   ├── helper/                # util murni: IdGenerator, JamKantin, storage, HMAC
     │   ├── model/                 # entity JPA (pemilik data kantin)
-    │   ├── payload/request|response/
-    │   ├── repository/
-    │   ├── security/              # TenantContext, SekolahGuard, RbacChecker
+    │   ├── payload/response/      # envelope Response<T> & CommonResponse
+    │   ├── repository/<domain>/   # Spring Data JPA per domain (+ projection/)
+    │   ├── scheduler/             # job terjadwal (tutup kasir, retry jurnal)
+    │   ├── security/              # TenantContext, SekolahGuard, RBAC
+    │   ├── validation/            # constraint & validator khusus
     │   └── service/
-    │       ├── kasir/  stok/  saldo/  kartu/  katalog/  laporan/
-    │       ├── integrasi/         # adaptor ke SKOOLIA (BukuKasClient, dsb.)
-    │       └── audit/
+    │       ├── kartu/  kasir/  katalog/  konfigurasi/  laporan/
+    │       ├── saldo/  siswa/  stok/  storage/
+    │       └── integrasi/         # adaptor ke SKOOLIA (port, fallback, REST client)
     ├── main/resources/
     │   ├── application*.properties
     │   └── db/migration/          # Flyway V{n}__{Nama}.sql
@@ -103,10 +106,11 @@ kantin-be/
 
 Detail lengkap di [`CONVENTIONS.md`](./CONVENTIONS.md). Ringkasan:
 
+- **Subpaket domain:** `controller/`, `service/`, `repository/`, dan `dto/` dipecah per domain. `model/`, `enums/`, `helper/` tetap flat karena berisi kosakata bersama.
 - **Penamaan:** entity = PascalCase tunggal (`Transaksi`, `KartuTamu`). Tabel = `snake_case` plural (`transaksi`, `kartu_tamu`). Kolom = `snake_case`.
 - **Response:** gunakan `CommonResponse.data(...)` / `Response<T>` — **samakan** dengan `admin-be`.
 - **Exception:** pakai kelas di `component/exception/` (`ConflictException`, `NotFoundEntity`, dst). Jangan lempar `RuntimeException` mentah.
-- **ID:** gunakan `Constants.idGenerator()` (pola `admin-be`) — jangan autoincrement untuk entitas bisnis yang perlu ID global.
+- **ID:** gunakan bean `IdGenerator` (`helper/IdGenerator.java`) — monoton & anti-tabrakan. Jangan autoincrement untuk entitas bisnis yang perlu ID global, dan **jangan** pakai generator epoch+acak lama (`Constants.idGenerator()` sudah dihapus di #410).
 - **Uang:** selalu `Long` rupiah integer. Format ke tampilan hanya di FE.
 - **Waktu:** `LocalDateTime` disimpan dalam zona sekolah; gunakan jam server terkonfigurasi.
 - **Bahasa komentar:** Bahasa Indonesia (konsisten dengan `admin-be`).

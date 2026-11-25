@@ -2,9 +2,9 @@ package com.asqi.scholia_kantin_be.service.siswa;
 
 import com.asqi.scholia_kantin_be.component.exception.ConflictException;
 import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
-import com.asqi.scholia_kantin_be.dto.PasangKartuSiswaRequest;
-import com.asqi.scholia_kantin_be.dto.SimpanSiswaAdminRequest;
-import com.asqi.scholia_kantin_be.dto.SiswaManajemenResponse;
+import com.asqi.scholia_kantin_be.dto.siswa.PasangKartuSiswaRequest;
+import com.asqi.scholia_kantin_be.dto.siswa.SimpanSiswaAdminRequest;
+import com.asqi.scholia_kantin_be.dto.siswa.SiswaManajemenResponse;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoKartu;
 import com.asqi.scholia_kantin_be.service.integrasi.KartuLookupPort;
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;

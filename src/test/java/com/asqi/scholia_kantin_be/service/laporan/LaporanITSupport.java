@@ -136,7 +136,7 @@ abstract class LaporanITSupport {
     void bersihkan() {
         jdbc.execute("TRUNCATE TABLE transaksi_item, transaksi, sesi_kasir, titik_kasir, "
                 + "mutasi_saldo, saldo, riwayat_stok, stok, kategori_menu, menu, "
-                + "kartu, setoran, catatan_audit CASCADE");
+                + "kartu, setoran, catatan_audit, pembatasan CASCADE");
 
         // Induk wajib skema v2 (FK): sekolah → siswa/pengguna.
         FixtureInduk.sekolah(jdbc, SEKOLAH, SEKOLAH_LAIN);

@@ -1,6 +1,6 @@
 package com.asqi.scholia_kantin_be.service.kasir;
 
-import com.asqi.scholia_kantin_be.dto.SesiKasirAktifData;
+import com.asqi.scholia_kantin_be.dto.kasir.SesiKasirAktifData;
 import com.asqi.scholia_kantin_be.model.SesiKasir;
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;
 import com.asqi.scholia_kantin_be.support.FixtureInduk;

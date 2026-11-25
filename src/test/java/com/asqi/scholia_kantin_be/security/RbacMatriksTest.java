@@ -229,7 +229,7 @@ class RbacMatriksTest {
         for (String paket : PAKET_CONTROLLER) {
             Resource[] resources;
             try {
-                resources = resolver.getResources("classpath*:" + paket + "/*.class");
+                resources = resolver.getResources("classpath*:" + paket + "/**/*.class");
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -271,7 +271,7 @@ class RbacMatriksTest {
         if (!relatif.endsWith(".class") || relatif.contains("$")) {
             return null;
         }
-        return paket.replace('/', '.') + "." + relatif.substring(0, relatif.length() - 6);
+        return paket.replace('/', '.') + "." + relatif.substring(0, relatif.length() - 6).replace('/', '.');
     }
 
     private String basePath(Class<?> kelas) {
