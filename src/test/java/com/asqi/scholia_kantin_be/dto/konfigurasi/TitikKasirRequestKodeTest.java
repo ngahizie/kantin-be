@@ -1,4 +1,4 @@
-package com.asqi.scholia_kantin_be.dto;
+package com.asqi.scholia_kantin_be.dto.konfigurasi;
 
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
