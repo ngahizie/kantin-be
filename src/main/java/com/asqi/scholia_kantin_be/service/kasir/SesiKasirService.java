@@ -67,7 +67,7 @@ public class SesiKasirService {
      */
     @Transactional(propagation = Propagation.MANDATORY)
     public SesiKasir sesiTerbukaAtauBuka(Long sekolahId, Long titikKasirId, Long aktorId) {
-        pastikanTitikKasirMilikSekolah(sekolahId, titikKasirId);
+        pastikanTitikKasirAktifMilikSekolah(sekolahId, titikKasirId);
         LocalDate hariIni = jam.hariIni();
         var ada = sesiRepo.kunciBerdasarkanTitikTanggal(sekolahId, titikKasirId, hariIni);
         if (ada.isPresent()) {
@@ -92,7 +92,7 @@ public class SesiKasirService {
      */
     @Transactional
     public SesiKasir bukaSesi(Long sekolahId, Long titikKasirId, Long aktorId) {
-        pastikanTitikKasirMilikSekolah(sekolahId, titikKasirId);
+        pastikanTitikKasirAktifMilikSekolah(sekolahId, titikKasirId);
         LocalDate hariIni = jam.hariIni();
         var ada = sesiRepo.kunciBerdasarkanTitikTanggal(sekolahId, titikKasirId, hariIni);
         if (ada.isPresent()) {
@@ -108,10 +108,28 @@ public class SesiKasirService {
         return buatSesiBaru(sekolahId, titikKasirId, hariIni, aktorId);
     }
 
-    private void pastikanTitikKasirMilikSekolah(Long sekolahId, Long titikKasirId) {
-        titikKasirRepo.findById(titikKasirId)
-                .filter(titik -> sekolahId.equals(titik.getSekolahId()))
+    /**
+     * Pastikan titik kasir ada, milik sekolah pemanggil, dan <b>masih aktif</b>.
+     *
+     * <p>Validasi aktif (SEC-TITIK-01) mencegah perangkat yang sudah
+     * dinonaktifkan admin (rusak/hilang/izin operasi dicabut) tetap membuka
+     * sesi baru atau menerima tap. Sengaja <b>tidak</b> dipakai oleh
+     * {@link #tutupSesi}: sesi yang telanjur terbuka harus tetap bisa ditutup
+     * walau titiknya dinonaktifkan.
+     *
+     * @param sekolahId sekolah pemanggil
+     * @param titikKasirId titik yang dipakai sesi/tap
+     * @throws NotFoundEntity titik tidak ada atau milik sekolah lain
+     * @throws InvalidOperationException titik ada tetapi {@code is_active = false}
+     */
+    private void pastikanTitikKasirAktifMilikSekolah(Long sekolahId, Long titikKasirId) {
+        TitikKasir titik = titikKasirRepo.findById(titikKasirId)
+                .filter(t -> sekolahId.equals(t.getSekolahId()))
                 .orElseThrow(() -> new NotFoundEntity("Titik kasir tidak ditemukan"));
+        if (!titik.isAktif()) {
+            throw new InvalidOperationException(
+                    "Titik kasir sedang dinonaktifkan dan tidak dapat digunakan untuk sesi baru");
+        }
     }
 
     private SesiKasir buatSesiBaru(Long sekolahId, Long titikKasirId, LocalDate tanggal, Long aktorId) {
