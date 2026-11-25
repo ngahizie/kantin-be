@@ -1,9 +1,9 @@
 package com.asqi.scholia_kantin_be.service.laporan;
 
-import com.asqi.scholia_kantin_be.dto.BarisPenjualan;
-import com.asqi.scholia_kantin_be.dto.BarisPenjualanDimensi;
-import com.asqi.scholia_kantin_be.dto.BarisPenjualanKasir;
-import com.asqi.scholia_kantin_be.dto.RingkasanPenjualan;
+import com.asqi.scholia_kantin_be.dto.laporan.BarisPenjualan;
+import com.asqi.scholia_kantin_be.dto.laporan.BarisPenjualanDimensi;
+import com.asqi.scholia_kantin_be.dto.laporan.BarisPenjualanKasir;
+import com.asqi.scholia_kantin_be.dto.laporan.RingkasanPenjualan;
 import com.asqi.scholia_kantin_be.enums.JenisLaporan;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

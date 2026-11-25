@@ -2,8 +2,8 @@ package com.asqi.scholia_kantin_be.service.kasir;
 
 import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
-import com.asqi.scholia_kantin_be.dto.HalamanResponse;
-import com.asqi.scholia_kantin_be.dto.TransaksiKasirItem;
+import com.asqi.scholia_kantin_be.dto.umum.HalamanResponse;
+import com.asqi.scholia_kantin_be.dto.kasir.TransaksiKasirItem;
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.security.TenantContext;

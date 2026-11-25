@@ -2,7 +2,7 @@ package com.asqi.scholia_kantin_be.service.integrasi;
 
 import com.asqi.scholia_kantin_be.enums.StatusSesiKasir;
 import com.asqi.scholia_kantin_be.model.SesiKasir;
-import com.asqi.scholia_kantin_be.repository.SesiKasirRepository;
+import com.asqi.scholia_kantin_be.repository.kasir.SesiKasirRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

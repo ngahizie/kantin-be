@@ -77,14 +77,14 @@ kantin-be/
     ├── main/java/com/asqi/scholia_kantin_be/
     │   ├── config/                # konfigurasi Spring (integrasi/, security/, ratelimit/, ...)
     │   ├── component/             # GlobalExceptionHandler, exception/, logging/, metrics/, ratelimit/
-    │   ├── controller/            # tipis: hanya validasi request & delegasi
+    │   ├── controller/<domain>/   # tipis: validasi request & delegasi (10 domain)
     │   ├── dev/                   # endpoint/demo khusus profil dev (DevLogin, demo integrasi)
-    │   ├── dto/                   # objek transfer request & response antar layer
+    │   ├── dto/<domain>/          # request & response per domain (+ dto/umum/)
     │   ├── enums/
     │   ├── helper/                # util murni: IdGenerator, JamKantin, storage, HMAC
     │   ├── model/                 # entity JPA (pemilik data kantin)
     │   ├── payload/response/      # envelope Response<T> & CommonResponse
-    │   ├── repository/            # Spring Data JPA (+ projection/)
+    │   ├── repository/<domain>/   # Spring Data JPA per domain (+ projection/)
     │   ├── scheduler/             # job terjadwal (tutup kasir, retry jurnal)
     │   ├── security/              # TenantContext, SekolahGuard, RBAC
     │   ├── validation/            # constraint & validator khusus
@@ -106,6 +106,7 @@ kantin-be/
 
 Detail lengkap di [`CONVENTIONS.md`](./CONVENTIONS.md). Ringkasan:
 
+- **Subpaket domain:** `controller/`, `service/`, `repository/`, dan `dto/` dipecah per domain. `model/`, `enums/`, `helper/` tetap flat karena berisi kosakata bersama.
 - **Penamaan:** entity = PascalCase tunggal (`Transaksi`, `KartuTamu`). Tabel = `snake_case` plural (`transaksi`, `kartu_tamu`). Kolom = `snake_case`.
 - **Response:** gunakan `CommonResponse.data(...)` / `Response<T>` — **samakan** dengan `admin-be`.
 - **Exception:** pakai kelas di `component/exception/` (`ConflictException`, `NotFoundEntity`, dst). Jangan lempar `RuntimeException` mentah.

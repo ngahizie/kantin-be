@@ -1,7 +1,7 @@
 package com.asqi.scholia_kantin_be.service.kasir;
 
-import com.asqi.scholia_kantin_be.dto.PengaturanKantinRequest;
-import com.asqi.scholia_kantin_be.dto.TapRequest;
+import com.asqi.scholia_kantin_be.dto.konfigurasi.PengaturanKantinRequest;
+import com.asqi.scholia_kantin_be.dto.kasir.TapRequest;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.security.IdentitasKantin;

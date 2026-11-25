@@ -40,16 +40,19 @@ controller  →  service  →  repository  →  model
 
 **Kepemilikan paket** (jangan taruh kelas di paket lain tanpa alasan yang ditulis di javadoc):
 
+**Subpaket domain.** Empat layer di bawah memakai subpaket domain yang sama: `controller/<domain>/`, `service/<domain>/`, `repository/<domain>/`, `dto/<domain>/`. Domain: `auth`, `audit`, `integrasi`, `kasir`, `katalog`, `kartu`, `konfigurasi`, `laporan`, `saldo`, `siswa`, `stok`, `storage`, `umum` (sesuai kebutuhan layer). `model/`, `enums/`, `helper/`, `payload/`, `security/`, `component/`, `config/` sudah berisi kelas lintas domain atau wiring, jadi tidak mengikuti pola ini. Entity saling referensi lintas domain, jadi memecah `model/` hanya menambah import silang.
+
+
 | Paket | Isi |
 |---|---|
-| `controller/` | Hanya `@RestController` HTTP: validasi request, panggil service, bungkus respons. |
+| `controller/<domain>/` | Hanya `@RestController` HTTP: validasi request, panggil service, bungkus respons. |
 | `service/<domain>/` | Aturan bisnis per domain (`kasir/`, `stok/`, `saldo/`, `katalog/`, `laporan/`, `konfigurasi/`, `kartu/`, `siswa/`, `storage/`). |
 | `service/integrasi/` | Port, fallback, value object, dan service lintas sistem (Buku Kas, notifikasi, retry). |
 | `config/<fitur>/` | `@Configuration`, `@ConfigurationProperties`, filter, dan adapter HTTP (`*RestClient`). Tidak berisi aturan bisnis. |
 | `component/<fitur>/` | Implementasi teknis lintas domain: exception handler, logging, metrics, rate limiter. |
 | `security/` | Tenant context, RBAC (`@PerluPeran`, guard), blacklist token. |
 | `helper/` | Util murni tanpa dependensi ke service/controller/model. |
-| `dto/` | Request & response antar layer/API. Response untuk endpoint **wajib** di sini. |
+| `dto/<domain>/` | Request & response per domain; `dto/umum/` untuk DTO yang dipakai lebih dari satu domain. Response untuk endpoint **wajib** di sini. |
 | `dev/` | Hanya untuk profil `local`/demo dan wajib punya gerbang `@Profile`/`@ConditionalOnProperty`. |
 
 ---

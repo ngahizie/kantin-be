@@ -1,15 +1,15 @@
 package com.asqi.scholia_kantin_be.service.laporan;
 
-import com.asqi.scholia_kantin_be.dto.BarisPenjualan;
-import com.asqi.scholia_kantin_be.dto.BarisPenjualanDimensi;
-import com.asqi.scholia_kantin_be.dto.BarisPenjualanKasir;
-import com.asqi.scholia_kantin_be.dto.RingkasanPenjualan;
+import com.asqi.scholia_kantin_be.dto.laporan.BarisPenjualan;
+import com.asqi.scholia_kantin_be.dto.laporan.BarisPenjualanDimensi;
+import com.asqi.scholia_kantin_be.dto.laporan.BarisPenjualanKasir;
+import com.asqi.scholia_kantin_be.dto.laporan.RingkasanPenjualan;
 import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
-import com.asqi.scholia_kantin_be.repository.KategoriMenuRepository;
-import com.asqi.scholia_kantin_be.repository.TitikKasirRepository;
-import com.asqi.scholia_kantin_be.repository.TransaksiItemRepository;
-import com.asqi.scholia_kantin_be.repository.TransaksiRepository;
+import com.asqi.scholia_kantin_be.repository.katalog.KategoriMenuRepository;
+import com.asqi.scholia_kantin_be.repository.konfigurasi.TitikKasirRepository;
+import com.asqi.scholia_kantin_be.repository.kasir.TransaksiItemRepository;
+import com.asqi.scholia_kantin_be.repository.kasir.TransaksiRepository;
 import com.asqi.scholia_kantin_be.repository.projection.ItemTerlaris;
 import com.asqi.scholia_kantin_be.repository.projection.PenjualanDimensi;
 import com.asqi.scholia_kantin_be.repository.projection.PenjualanKasir;

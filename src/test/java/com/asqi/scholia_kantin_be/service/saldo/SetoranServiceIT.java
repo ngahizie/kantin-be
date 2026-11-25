@@ -2,12 +2,12 @@ package com.asqi.scholia_kantin_be.service.saldo;
 
 import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
-import com.asqi.scholia_kantin_be.dto.RekapSetoranItem;
+import com.asqi.scholia_kantin_be.dto.umum.RekapSetoranItem;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.ReferensiTipe;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
-import com.asqi.scholia_kantin_be.dto.SetoranResponse;
+import com.asqi.scholia_kantin_be.dto.saldo.SetoranResponse;
 import com.asqi.scholia_kantin_be.service.kasir.LedgerSaldoService;
 import com.asqi.scholia_kantin_be.service.kasir.PerintahMutasiSaldo;
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;

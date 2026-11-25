@@ -1,8 +1,8 @@
 package com.asqi.scholia_kantin_be.service.laporan;
 
-import com.asqi.scholia_kantin_be.dto.RingkasanRekonsiliasi;
-import com.asqi.scholia_kantin_be.dto.RingkasanSaldoMengendap;
-import com.asqi.scholia_kantin_be.dto.SiswaSaldoDetail;
+import com.asqi.scholia_kantin_be.dto.laporan.RingkasanRekonsiliasi;
+import com.asqi.scholia_kantin_be.dto.laporan.RingkasanSaldoMengendap;
+import com.asqi.scholia_kantin_be.dto.laporan.SiswaSaldoDetail;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoSiswa;

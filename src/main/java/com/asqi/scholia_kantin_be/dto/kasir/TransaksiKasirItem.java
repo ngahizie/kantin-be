@@ -1,0 +1,131 @@
+package com.asqi.scholia_kantin_be.dto.kasir;
+
+import com.asqi.scholia_kantin_be.enums.MetodeBayar;
+import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
+import com.asqi.scholia_kantin_be.enums.SubjekTipe;
+import com.asqi.scholia_kantin_be.model.Transaksi;
+import lombok.Builder;
+import lombok.Data;
+
+import java.time.OffsetDateTime;
+import java.util.List;
+
+/**
+ * Satu baris <b>daftar transaksi kasir</b> (PRD §6.3, §9.2) untuk
+ * {@code GET /api/kasir/transaksi} — dipakai bendahara memilih transaksi yang
+ * akan dikoreksi pada <b>sesi yang sudah ditutup</b> (issue #212).
+ *
+ * <p><b>Latar.</b> Aksi koreksinya sudah ada
+ * ({@code POST /api/kasir/transaksi/{transaksiId}/koreksi}), tetapi bendahara
+ * tidak punya cara menemukan {@code transaksiId} — FE memanggil endpoint daftar
+ * yang belum ada dan menerima <b>404</b>. DTO ini mengisi kekosongan itu.
+ *
+ * <p>Kolom internal disembunyikan (HPP, idempotency key). Nama titik kasir
+ * diisi service secara <i>batch</i> (hindari N+1); untuk subjek {@code SISWA}
+ * nama <b>tidak</b> tersedia di kantin-be (data siswa milik admin-be,
+ * ADR-0002) sehingga bernilai {@code null} — FE menampilkan nomor
+ * induk/identitasnya sendiri. Transaksi tunai tanpa kartu (C.2a) tidak punya
+ * {@code siswaId} sehingga {@code subjekTipe} juga {@code null}.
+ */
+@Data
+@Builder
+public class TransaksiKasirItem {
+
+    /** ID transaksi — dipakai sebagai {@code transaksiId} saat mengoreksi. */
+    private Long id;
+
+    private OffsetDateTime waktu;
+
+    private Long sesiKasirId;
+
+    private Long titikKasirId;
+
+    /** Nama titik kasir; {@code null} bila titiknya sudah dihapus/di luar tenant. */
+    private String titikKasirNama;
+
+    /** Akun petugas yang memproses (PRD §6.6). Nama petugas tak ada di kantin-be. */
+    private Long petugasId;
+
+    private SubjekTipe subjekTipe;
+
+    private Long siswaId;
+
+    /**
+     * Label subjek: nama pembeli yang diketik kasir untuk transaksi tunai tanpa
+     * kartu (C.2a); {@code null} untuk subjek {@code SISWA} (lihat catatan kelas).
+     */
+    private String subjekNama;
+
+    /** Kartu fisik yang dipakai — jejak audit sengketa. */
+    private String kartuUid;
+
+    private Long total;
+
+    /** Cara bayar transaksi (C.2a) — {@code null} pada data lama = SALDO. */
+    private MetodeBayar metodeBayar;
+
+    private StatusTransaksi status;
+
+    /** Alasan koreksi/void (terisi hanya bila {@code status = VOID}). */
+    private String alasanVoid;
+
+    /** Waktu transaksi di-void/dikoreksi (terisi hanya bila {@code status = VOID}). */
+    private OffsetDateTime voidAt;
+
+    /** true bila transaksi masih dapat dikoreksi bendahara (belum VOID). */
+    private boolean dapatDikoreksi;
+
+    /**
+     * Ringkasan item belanja dalam satu kalimat — mis. {@code "2x Kopi Susu, Pisang Goreng"}.
+     *
+     * <p>Disisi <b>batch</b> oleh service (satu query untuk seluruh baris halaman),
+     * bukan per transaksi. Berguna untuk tampilan ringkas (mis. dashboard) yang
+     * tidak perlu merinci tiap baris item.
+     */
+    private String ringkasanItem;
+
+    /**
+     * Rincian item belanja (snapshot nama menu &amp; harga saat transaksi).
+     *
+     * <p>Kosong (bukan {@code null}) bila transaksi tidak punya baris item —
+     * FE aman merender tanpa cek {@code null}.
+     */
+    private List<Item> items;
+
+    /**
+     * Satu baris rincian item belanja.
+     *
+     * <p><b>Nama field</b> {@code nama}/{@code harga} disamakan dengan
+     * {@link LaporanRiwayatSiswa.Item} (endpoint laporan) dan dengan bentuk
+     * yang sudah dipakai FE untuk endpoint ini — sehingga FE bisa membaca
+     * {@code items[]} dari daftar transaksi &amp; laporan tanpa dua bentuk data.
+     */
+    public record Item(
+            Long menuId,
+            String nama,
+            Integer qty,
+            Long harga,
+            Long subtotal) {
+    }
+
+    /** Proyeksi entitas → DTO (tanpa nama titik/subjek — diisi service batch). */
+    public static TransaksiKasirItem dari(Transaksi t) {
+        return TransaksiKasirItem.builder()
+                .id(t.getId())
+                .waktu(t.getWaktu())
+                .sesiKasirId(t.getSesiKasirId())
+                .titikKasirId(t.getTitikKasirId())
+                .petugasId(t.getPetugasId())
+                .subjekTipe(t.getSiswaId() == null ? null : SubjekTipe.SISWA)
+                .siswaId(t.getSiswaId())
+                .subjekNama(t.getSiswaId() == null ? t.getNamaPembeli() : null)
+                .kartuUid(t.getKartuUid())
+                .total(t.getTotal())
+                .metodeBayar(t.getMetodeBayar() == null ? MetodeBayar.SALDO : t.getMetodeBayar())
+                .status(t.getStatus())
+                .alasanVoid(t.getAlasanVoid())
+                .voidAt(t.getVoidAt())
+                .dapatDikoreksi(t.getStatus() == StatusTransaksi.SUKSES)
+                .build();
+    }
+}

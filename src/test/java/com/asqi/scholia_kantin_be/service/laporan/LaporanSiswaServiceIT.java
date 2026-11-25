@@ -2,8 +2,8 @@ package com.asqi.scholia_kantin_be.service.laporan;
 
 import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
-import com.asqi.scholia_kantin_be.dto.LaporanPerSiswa;
-import com.asqi.scholia_kantin_be.dto.LaporanRiwayatKeseluruhanItem;
+import com.asqi.scholia_kantin_be.dto.laporan.LaporanPerSiswa;
+import com.asqi.scholia_kantin_be.dto.laporan.LaporanRiwayatKeseluruhanItem;
 import com.asqi.scholia_kantin_be.enums.JenisLaporan;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;

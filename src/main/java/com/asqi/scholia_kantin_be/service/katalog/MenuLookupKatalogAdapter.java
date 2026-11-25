@@ -1,7 +1,7 @@
 package com.asqi.scholia_kantin_be.service.katalog;
 
 import com.asqi.scholia_kantin_be.model.Menu;
-import com.asqi.scholia_kantin_be.repository.MenuRepository;
+import com.asqi.scholia_kantin_be.repository.katalog.MenuRepository;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoMenu;
 import com.asqi.scholia_kantin_be.service.integrasi.MenuLookupPort;
 import lombok.RequiredArgsConstructor;

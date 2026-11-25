@@ -1,13 +1,13 @@
 package com.asqi.scholia_kantin_be.service.laporan;
 
-import com.asqi.scholia_kantin_be.dto.BarisPembatalanKasir;
+import com.asqi.scholia_kantin_be.dto.laporan.BarisPembatalanKasir;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.model.Siswa;
 import com.asqi.scholia_kantin_be.model.TitikKasir;
 import com.asqi.scholia_kantin_be.model.Transaksi;
-import com.asqi.scholia_kantin_be.repository.SiswaRepository;
-import com.asqi.scholia_kantin_be.repository.TitikKasirRepository;
-import com.asqi.scholia_kantin_be.repository.TransaksiRepository;
+import com.asqi.scholia_kantin_be.repository.siswa.SiswaRepository;
+import com.asqi.scholia_kantin_be.repository.konfigurasi.TitikKasirRepository;
+import com.asqi.scholia_kantin_be.repository.kasir.TransaksiRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;

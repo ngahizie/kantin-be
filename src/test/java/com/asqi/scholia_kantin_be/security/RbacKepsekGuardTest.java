@@ -1,14 +1,14 @@
 package com.asqi.scholia_kantin_be.security;
 
 import com.asqi.scholia_kantin_be.component.exception.ForbiddenException;
-import com.asqi.scholia_kantin_be.controller.AuthController;
-import com.asqi.scholia_kantin_be.controller.KontrolKartuController;
-import com.asqi.scholia_kantin_be.controller.LaporanController;
-import com.asqi.scholia_kantin_be.controller.PengaturanKantinController;
-import com.asqi.scholia_kantin_be.dto.BlokirKartuRequest;
-import com.asqi.scholia_kantin_be.dto.LimitHarianRequest;
-import com.asqi.scholia_kantin_be.dto.PengaturanKantinRequest;
-import com.asqi.scholia_kantin_be.dto.TitikKasirRequest;
+import com.asqi.scholia_kantin_be.controller.auth.AuthController;
+import com.asqi.scholia_kantin_be.controller.kartu.KontrolKartuController;
+import com.asqi.scholia_kantin_be.controller.laporan.LaporanController;
+import com.asqi.scholia_kantin_be.controller.konfigurasi.PengaturanKantinController;
+import com.asqi.scholia_kantin_be.dto.kartu.BlokirKartuRequest;
+import com.asqi.scholia_kantin_be.dto.kartu.LimitHarianRequest;
+import com.asqi.scholia_kantin_be.dto.konfigurasi.PengaturanKantinRequest;
+import com.asqi.scholia_kantin_be.dto.konfigurasi.TitikKasirRequest;
 import com.asqi.scholia_kantin_be.enums.AktorKantin;
 import com.asqi.scholia_kantin_be.enums.JenisLaporan;
 import com.asqi.scholia_kantin_be.enums.SumberToken;

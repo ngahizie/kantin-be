@@ -1,9 +1,9 @@
 package com.asqi.scholia_kantin_be.service.kasir;
 
-import com.asqi.scholia_kantin_be.dto.TapRequest;
-import com.asqi.scholia_kantin_be.dto.TutupSesiRequest;
-import com.asqi.scholia_kantin_be.dto.TapResponse;
-import com.asqi.scholia_kantin_be.dto.TransaksiRefundResponse;
+import com.asqi.scholia_kantin_be.dto.kasir.TapRequest;
+import com.asqi.scholia_kantin_be.dto.kasir.TutupSesiRequest;
+import com.asqi.scholia_kantin_be.dto.kasir.TapResponse;
+import com.asqi.scholia_kantin_be.dto.kasir.TransaksiRefundResponse;
 import com.asqi.scholia_kantin_be.helper.NomorStruk;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.MetodeBayar;

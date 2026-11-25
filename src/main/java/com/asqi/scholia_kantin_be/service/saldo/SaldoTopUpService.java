@@ -2,7 +2,7 @@ package com.asqi.scholia_kantin_be.service.saldo;
 
 import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.component.logging.AuditLogger;
-import com.asqi.scholia_kantin_be.dto.PengaturanKantinResponse;
+import com.asqi.scholia_kantin_be.dto.konfigurasi.PengaturanKantinResponse;
 import com.asqi.scholia_kantin_be.enums.ArahMutasi;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.JenisNotifikasi;

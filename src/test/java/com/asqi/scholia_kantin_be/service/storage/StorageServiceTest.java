@@ -2,7 +2,7 @@ package com.asqi.scholia_kantin_be.service.storage;
 
 import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
-import com.asqi.scholia_kantin_be.dto.UploadResponse;
+import com.asqi.scholia_kantin_be.dto.storage.UploadResponse;
 import com.asqi.scholia_kantin_be.helper.S3Storage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

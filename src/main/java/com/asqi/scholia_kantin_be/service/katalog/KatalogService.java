@@ -4,7 +4,7 @@ import com.asqi.scholia_kantin_be.component.exception.ConflictException;
 import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
 import com.asqi.scholia_kantin_be.component.logging.AuditLogger;
-import com.asqi.scholia_kantin_be.dto.KategoriResponse;
+import com.asqi.scholia_kantin_be.dto.katalog.KategoriResponse;
 import com.asqi.scholia_kantin_be.enums.SatuanMenu;
 import com.asqi.scholia_kantin_be.helper.IdGenerator;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
@@ -12,9 +12,9 @@ import com.asqi.scholia_kantin_be.model.KategoriMenu;
 import com.asqi.scholia_kantin_be.model.Menu;
 import com.asqi.scholia_kantin_be.repository.projection.JumlahMenuKategori;
 import com.asqi.scholia_kantin_be.model.Stok;
-import com.asqi.scholia_kantin_be.repository.KategoriMenuRepository;
-import com.asqi.scholia_kantin_be.repository.MenuRepository;
-import com.asqi.scholia_kantin_be.repository.StokRepository;
+import com.asqi.scholia_kantin_be.repository.katalog.KategoriMenuRepository;
+import com.asqi.scholia_kantin_be.repository.katalog.MenuRepository;
+import com.asqi.scholia_kantin_be.repository.stok.StokRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -399,7 +399,7 @@ public class KatalogService {
     /**
      * Pastikan path foto benar-benar milik tenant pemanggil (M-03).
      *
-     * <p>Anotasi {@code @Pattern} di {@link com.asqi.scholia_kantin_be.dto.MenuRequest}
+     * <p>Anotasi {@code @Pattern} di {@link com.asqi.scholia_kantin_be.dto.katalog.MenuRequest}
      * hanya memeriksa bentuk; metode ini menutup celah path
      * {@code sekolah-<id-lain>/...} dan query {@code /api/storage/file?path=...}.
      * URL absolut http(s) ke host lain sengaja dibiarkan (dipakai data

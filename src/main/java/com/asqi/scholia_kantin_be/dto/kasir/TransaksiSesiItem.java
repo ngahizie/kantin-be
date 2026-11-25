@@ -1,0 +1,91 @@
+package com.asqi.scholia_kantin_be.dto.kasir;
+
+import com.asqi.scholia_kantin_be.enums.MetodeBayar;
+import com.asqi.scholia_kantin_be.enums.StatusTransaksi;
+import com.asqi.scholia_kantin_be.helper.NomorStruk;
+import com.asqi.scholia_kantin_be.enums.SubjekTipe;
+import com.asqi.scholia_kantin_be.model.Transaksi;
+import com.asqi.scholia_kantin_be.model.TransaksiItem;
+
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+
+/**
+ * Satu transaksi dalam <b>riwayat satu sesi kasir</b> (issue #229) — bentuk
+ * mengikuti tipe FE {@code TransaksiSesiItem}: daftar <b>tanpa paginasi</b>
+ * (terikat satu sesi) beserta rincian item belanja.
+ *
+ * <p><b>Batas data (ADR-0002).</b> Nama/kelas/NIS/foto siswa tidak disimpan
+ * kantin-be, jadi {@code pembeliNama} untuk subjek {@code SISWA} diisi
+ * {@code "Siswa #<id>"} dan field identitas lain {@code null}. Transaksi tunai
+ * tanpa kartu (C.2a) memakai {@code "Tamu (tunai)"} karena tidak punya siswa.
+ * Nama petugas juga tidak tersedia — hanya {@code voidOleh} (id akun).
+ */
+public record TransaksiSesiItem(
+        Long id,
+        Long transaksiId,
+        String nomorReferensi,
+        OffsetDateTime waktu,
+        String pembeliTipe,
+        String pembeliNama,
+        String pembeliKelas,
+        String pembeliNis,
+        String pembeliFotoUrl,
+        String kartuUid,
+        List<Item> items,
+        long total,
+        StatusTransaksi status,
+        String voidAlasan,
+        OffsetDateTime voidAt,
+        String voidOleh,
+        MetodeBayar metodeBayar,
+        Long uangDiterima,
+        Long kembalian) {
+
+    /** Rincian satu item belanja. */
+    public record Item(Long menuId, String namaMenu, Integer qty, Long hargaSatuan, Long subtotal) {
+    }
+
+    private static final DateTimeFormatter TANGGAL = DateTimeFormatter.ofPattern("yyyyMMdd");
+
+    /**
+     * Proyeksi entitas → DTO. Nama titik kasir &amp; pemegang kartu diisi service
+     * secara batch (hindari N+1).
+     */
+    public static TransaksiSesiItem dari(Transaksi t, String namaTitik,
+                                         String namaPemegang, List<TransaksiItem> item) {
+        // Tanpa siswa (tunai tanpa kartu, C.2a) pakai nama yang diketik kasir;
+        // jangan tampil "Siswa #null".
+        String pembeliNama = namaPemegang != null ? namaPemegang
+                : (t.getSiswaId() != null ? "Siswa #" + t.getSiswaId()
+                : (t.getNamaPembeli() != null ? t.getNamaPembeli() : "Tamu (tunai)"));
+        MetodeBayar metode = t.getMetodeBayar() == null ? MetodeBayar.SALDO : t.getMetodeBayar();
+        Long uangDiterima = metode == MetodeBayar.TUNAI ? t.getUangDiterima() : null;
+
+        return new TransaksiSesiItem(
+                t.getId(),
+                t.getId(),
+                NomorStruk.dari(t.getId(), t.getWaktu()),
+                t.getWaktu(),
+                t.getSiswaId() == null ? null : SubjekTipe.SISWA.name(),
+                pembeliNama,
+                null,
+                null,
+                null,
+                t.getKartuUid(),
+                item.stream()
+                        .map(i -> new Item(i.getMenuId(), i.getNamaMenu(), i.getQty(),
+                                i.getHargaJual(), i.getSubtotal()))
+                        .toList(),
+                t.getTotal() == null ? 0L : t.getTotal(),
+                t.getStatus(),
+                t.getAlasanVoid(),
+                t.getVoidAt(),
+                t.getVoidOleh() == null ? null : String.valueOf(t.getVoidOleh()),
+                metode,
+                uangDiterima,
+                // Kembalian = uang diterima − total; null bila bukan tunai.
+                uangDiterima == null || t.getTotal() == null ? null : uangDiterima - t.getTotal());
+    }
+}

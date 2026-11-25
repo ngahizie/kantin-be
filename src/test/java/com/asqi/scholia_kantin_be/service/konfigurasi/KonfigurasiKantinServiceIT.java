@@ -1,10 +1,10 @@
 package com.asqi.scholia_kantin_be.service.konfigurasi;
 
 import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
-import com.asqi.scholia_kantin_be.dto.KejadianOfflineResponse;
-import com.asqi.scholia_kantin_be.dto.AkunBukuKasResponse;
-import com.asqi.scholia_kantin_be.dto.PengaturanKantinRequest;
-import com.asqi.scholia_kantin_be.dto.PengaturanKantinResponse;
+import com.asqi.scholia_kantin_be.dto.konfigurasi.KejadianOfflineResponse;
+import com.asqi.scholia_kantin_be.dto.konfigurasi.AkunBukuKasResponse;
+import com.asqi.scholia_kantin_be.dto.konfigurasi.PengaturanKantinRequest;
+import com.asqi.scholia_kantin_be.dto.konfigurasi.PengaturanKantinResponse;
 import com.asqi.scholia_kantin_be.enums.KebijakanSaldoMengendap;
 import com.asqi.scholia_kantin_be.helper.Constants;
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;
