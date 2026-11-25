@@ -28,14 +28,29 @@
 ```
 controller  →  service  →  repository  →  model
                   │
-                  └→ service/integrasi/*Client  (panggilan ke SKOOLIA)
+                  ├→ service/integrasi/*Port    (kontrak ke SKOOLIA)
+                  └→ config/integrasi/*Client   (implementasi HTTP, di-wire IntegrasiConfig)
 ```
 
 **Aturan:**
 - Controller **tipis**: `@RequestBody` → panggil service → bungkus `CommonResponse`. Tanpa logika bisnis.
 - Service = tempat semua aturan bisnis & transaksi (`@Transactional`).
 - Repository = akses data. Query kompleks pakai `@Query`. Ledger pakai locking.
-- Entity **tidak** keluar dari layer service — selalu konversi ke DTO/isi respons.
+- Entity **tidak** keluar dari layer service — selalu konversi ke DTO/isi respons. Termasuk **tidak** boleh ada entity sebagai field DTO respons atau sebagai tipe `Response<...>`.
+
+**Kepemilikan paket** (jangan taruh kelas di paket lain tanpa alasan yang ditulis di javadoc):
+
+| Paket | Isi |
+|---|---|
+| `controller/` | Hanya `@RestController` HTTP: validasi request, panggil service, bungkus respons. |
+| `service/<domain>/` | Aturan bisnis per domain (`kasir/`, `stok/`, `saldo/`, `katalog/`, `laporan/`, `konfigurasi/`, `kartu/`, `siswa/`, `storage/`). |
+| `service/integrasi/` | Port, fallback, value object, dan service lintas sistem (Buku Kas, notifikasi, retry). |
+| `config/<fitur>/` | `@Configuration`, `@ConfigurationProperties`, filter, dan adapter HTTP (`*RestClient`). Tidak berisi aturan bisnis. |
+| `component/<fitur>/` | Implementasi teknis lintas domain: exception handler, logging, metrics, rate limiter. |
+| `security/` | Tenant context, RBAC (`@PerluPeran`, guard), blacklist token. |
+| `helper/` | Util murni tanpa dependensi ke service/controller/model. |
+| `dto/` | Request & response antar layer/API. Response untuk endpoint **wajib** di sini. |
+| `dev/` | Hanya untuk profil `local`/demo dan wajib punya gerbang `@Profile`/`@ConditionalOnProperty`. |
 
 ---
 
