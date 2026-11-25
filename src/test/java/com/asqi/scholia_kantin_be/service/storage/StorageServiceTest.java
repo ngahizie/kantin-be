@@ -176,4 +176,18 @@ class StorageServiceTest {
 
         assertThat(service.buka(7L, "sekolah-7/menu/a.png")).isSameAs(is);
     }
+
+    @Test
+    @DisplayName("folder siswa menerima gambar raster dan menolak svg")
+    void folderSiswaValidasiRaster() throws Exception {
+        when(storage.uploadFile(eq("sekolah-7/siswa"), any()))
+                .thenReturn("sekolah-7/siswa/budi.png");
+
+        UploadResponse hasil = service.unggah(7L, "siswa", file("budi.png"));
+        assertThat(hasil.getPath()).isEqualTo("sekolah-7/siswa/budi.png");
+
+        assertThatThrownBy(() -> service.unggah(7L, "siswa", file("budi.svg")))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("tidak diizinkan untuk foto siswa");
+    }
 }

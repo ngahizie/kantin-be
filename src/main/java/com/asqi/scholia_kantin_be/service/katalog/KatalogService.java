@@ -416,7 +416,7 @@ public class KatalogService {
      * @param basisPublik basis URL publik storage; boleh kosong
      * @throws InvalidOperationException bila path menunjuk tenant lain
      */
-    static void validasiFotoUrlMilikTenant(Long sekolahId, String fotoUrl, String basisPublik) {
+    public static void validasiFotoUrlMilikTenant(Long sekolahId, String fotoUrl, String basisPublik) {
         if (fotoUrl == null || fotoUrl.isBlank()) {
             return;
         }

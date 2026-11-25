@@ -3,8 +3,8 @@
 > **Single source of truth endpoint kantin-be.** Semua path berprefix `/api`.
 > Respons selalu dibungkus `Response<T>` (`{ responseCode, message, data, ... }`).
 >
-> **Sinkron terakhir:** 2026-11-23 · **Total: 88 endpoint** (87 di `controller/` + 1 shim dev)
-> di **12 controller**. Dijaga otomatis oleh `ApiEndpointsDocTest` — uji ini
+> **Sinkron terakhir:** 2026-11-24 · **Total: 94 endpoint** (93 di `controller/` + 1 shim dev)
+> di **13 controller**. Dijaga otomatis oleh `ApiEndpointsDocTest` — uji ini
 > **gagal** bila daftar di bawah tidak lagi sama persis dengan anotasi
 > `@…Mapping` di kode. Bila menambah/mengubah endpoint, perbarui dokumen ini.
 >
@@ -333,6 +333,22 @@
 |---|---|---|---|
 | `GET` | `/api/siswa` | TU, admin, pengelola, kepsek (read) | Cari siswa (nama/NIS) + saldo dari ledger lokal. Query: `q` (nama/NIS), `hanyaTidakAktif` (refund §9.3), `batas` (default 20, maks 50) |
 | `GET` | `/api/siswa/{siswaId}/rfid` | TU, admin | UID kartu RFID satu siswa (lookup khusus, #301). UID **tidak** disertakan pada daftar siswa; bila tidak tersedia → `rfidUid=null`, `ditemukan=false` (200) |
+
+---
+
+## 16. Manajemen Siswa & RFID Sementara (SiswaManajemenController) — `/api/admin/siswa`
+
+> Endpoint sementara khusus `ADMIN_SEKOLAH` sebelum integrasi penuh ke `admin-be`.
+> Siswa baru otomatis mulai dengan saldo `Rp 0` tanpa mutasi ledger.
+
+| Method | Path | Auth | Keterangan |
+|---|---|---|---|
+| `GET` | `/api/admin/siswa` | admin | Daftar lengkap siswa sementara beserta wali & UID RFID aktif (query opsional `q`, `aktif`, `punyaKartu`, `limit`) |
+| `GET` | `/api/admin/siswa/{siswaId}` | admin | Detail satu siswa beserta wali, saldo, dan kartu RFID aktif |
+| `POST` | `/api/admin/siswa` | admin | Tambah siswa baru (opsional data wali & kartu RFID; saldo awal tetap `Rp 0`) |
+| `PUT` | `/api/admin/siswa/{siswaId}` | admin | Perbarui profil siswa, data wali, atau foto |
+| `PUT` | `/api/admin/siswa/{siswaId}/kartu` | admin | Pasang/ganti kartu RFID aktif (menonaktifkan kartu lama secara atomik) atau lepas kartu (`nonaktifkanKartu=true`) |
+| `PATCH` | `/api/admin/siswa/{siswaId}/status` | admin | Aktifkan atau nonaktifkan status siswa |
 
 ---
 

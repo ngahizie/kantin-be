@@ -33,12 +33,12 @@ public class StorageService {
      * bisa membuat struktur folder sembarang di dalam namespace tenant.
      */
     private static final Set<String> FOLDER_DIIZINKAN = Set.of(
-            "menu", "nota", "kartu-tamu", "lain");
+            "menu", "siswa", "nota", "kartu-tamu", "lain");
 
     private static final String FOLDER_DEFAULT = "lain";
 
-    /** Folder foto menu punya batas lebih ketat daripada nota/berkas lain. */
-    private static final String FOLDER_MENU = "menu";
+    /** Folder foto menu & siswa punya batas lebih ketat daripada nota/berkas lain. */
+    private static final Set<String> FOLDER_FOTO_RASTER = Set.of("menu", "siswa");
 
     /** Batas ukuran foto menu (M-01) — FE sudah membatasi 2 MB, BE mengunci 5 MB. */
     private static final long UKURAN_MAKS_MENU_BYTES = 5L * 1024 * 1024;
@@ -145,7 +145,7 @@ public class StorageService {
      * @throws InvalidOperationException bila ukuran melebihi batas
      */
     private void validasiUkuran(String folder, MultipartFile file) {
-        long batas = FOLDER_MENU.equals(folder) ? UKURAN_MAKS_MENU_BYTES : UKURAN_MAKS_DEFAULT_BYTES;
+        long batas = FOLDER_FOTO_RASTER.contains(folder) ? UKURAN_MAKS_MENU_BYTES : UKURAN_MAKS_DEFAULT_BYTES;
         if (file.getSize() > batas) {
             throw new InvalidOperationException(
                     "Ukuran berkas maksimal " + (batas / (1024 * 1024)) + " MB untuk folder " + folder);
@@ -153,7 +153,7 @@ public class StorageService {
     }
 
     /**
-     * Terapkan allowlist ekstensi khusus foto menu (M-02). Validasi diletakkan
+     * Terapkan allowlist ekstensi khusus foto menu & siswa (M-02). Validasi diletakkan
      * di sini agar berlaku untuk S3Storage maupun LocalStorage.
      *
      * @param folder folder logis yang sudah dinormalisasi
@@ -161,18 +161,18 @@ public class StorageService {
      * @throws InvalidOperationException bila ekstensi tidak termasuk gambar raster
      */
     private void validasiEkstensi(String folder, MultipartFile file) {
-        if (!FOLDER_MENU.equals(folder)) {
+        if (!FOLDER_FOTO_RASTER.contains(folder)) {
             return;
         }
         String nama = file.getOriginalFilename();
         if (nama == null || !nama.contains(".")) {
             throw new InvalidOperationException(
-                    "Berkas foto menu wajib memiliki ekstensi gambar");
+                    "Berkas foto wajib memiliki ekstensi gambar");
         }
         String ekstensi = nama.substring(nama.lastIndexOf('.')).toLowerCase(Locale.ROOT);
         if (!EKSTENSI_MENU.contains(ekstensi)) {
             throw new InvalidOperationException("Ekstensi " + ekstensi
-                    + " tidak diizinkan untuk foto menu (gunakan .jpg, .jpeg, .png, .webp)");
+                    + " tidak diizinkan untuk foto " + folder + " (gunakan .jpg, .jpeg, .png, .webp)");
         }
     }
 
