@@ -29,6 +29,7 @@ layanan tap yang tetap Java (ADR-0007); k6 hanya klien beban eksternal.
 
 ```bash
 # 1) Infrastruktur
+cp .env.example .env         # WAJIB: isi DB_PASSWORD & REDIS_PASSWORD
 docker compose up -d
 docker compose ps            # pastikan postgres & redis "healthy"
 

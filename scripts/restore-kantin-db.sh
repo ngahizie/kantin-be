@@ -22,7 +22,7 @@ DIR="${KANTIN_BACKUP_DIR:-$ROOT/tmp/backups}"
 DB_HOST="${KANTIN_DB_HOST:-localhost}"
 DB_PORT="${KANTIN_DB_PORT:-5432}"
 DB_USER="${KANTIN_DB_USER:-kantin}"
-export PGPASSWORD="${KANTIN_DB_PASSWORD:-kantin_dev}"
+export PGPASSWORD="${KANTIN_DB_PASSWORD:?KANTIN_DB_PASSWORD wajib diisi (tanpa default sejak issue #434)}"
 
 FILE=""
 TARGET="kantin_restore_test"

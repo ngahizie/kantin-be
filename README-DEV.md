@@ -13,12 +13,21 @@ integrasi REST ke SKOOLIA (admin-be / mobile-be).
 ## 1. Menyalakan Infrastruktur Dev
 
 ```bash
+cp .env.example .env       # WAJIB sekali di awal
+# isi DB_PASSWORD & REDIS_PASSWORD di .env — tanpa itu `up` akan gagal
 docker compose up -d
 docker compose ps          # pastikan postgres & redis "healthy"
 ```
 
-Yang jalan: **PostgreSQL 18** (`localhost:5432`, db `kantin_db`, user `kantin`)
-dan **Redis 7** (`localhost:6379`).
+Yang jalan: **PostgreSQL 18** (`127.0.0.1:5432`, db `kantin_db`, user `kantin`)
+dan **Redis 7** (`127.0.0.1:6379`, memakai `--requirepass` dari `REDIS_PASSWORD`).
+
+> **Sejak issue #434:** tidak ada password default dan port hanya di-bind ke
+> `127.0.0.1` (tidak terekspos ke LAN). Tanpa `DB_PASSWORD` / `REDIS_PASSWORD`,
+> `docker compose up` berhenti dengan pesan jelas — ini **disengaja**
+> (fail-closed), jangan ditambahkan fallback. Aplikasi lokal juga wajib memakai
+> password Redis yang sama di `application-local.properties`
+> (`spring.data.redis.password`).
 
 ```bash
 docker compose down        # stop (data tetap)

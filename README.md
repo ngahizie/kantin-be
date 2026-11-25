@@ -32,6 +32,7 @@ stok berkurang otomatis, dan penjualan terposting ke Buku Kas SKOOLIA.
 ## 🚀 Menjalankan Cepat (Lokal)
 
 ```bash
+cp .env.example .env                                  # WAJIB: isi DB_PASSWORD & REDIS_PASSWORD
 docker compose up -d                                  # PostgreSQL 18 + Redis 7
 docker compose ps                                     # pastikan keduanya "healthy"
 
