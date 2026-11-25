@@ -145,6 +145,11 @@ request **429** ⇒ kantin berhenti melayani.
       bila ada migrasi baru sebelum rilis.
 - [ ] `DB_URL` menunjuk **`kantin_db`** (DB terpisah) & `DB_USERNAME` **bukan** `postgres`
       di produksi — lihat ADR-0010 §Tinjauan Pra-Rilis
+- [ ] `DB_URL` memakai **`sslmode=verify-full`** + `sslrootcert` menunjuk CA
+      PostgreSQL (issue #432). Aplikasi **menolak start** bila profil non-dev
+      masih memakai `prefer`/`disable`/`require`/`verify-ca` — verifikasi lewat
+      log `TLS database terverifikasi: sslmode=verify-full`. Prosedur uji:
+      `docs/tls-database.md`
 - [ ] **Backup** database sebelum deploy
 - [ ] Ukuran pool Hikari sesuai kapasitas host — default `KANTIN_DB_POOL_MAX=30`.
       Bukti uji beban 100 tap/dtk: kolam 10 ⇒ antrean koneksi, p95 1,2 dtk;
