@@ -31,8 +31,10 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -115,6 +117,38 @@ class PengaturanKantinControllerTest {
                 .andExpect(jsonPath("$.data.aktif").value(true));
 
         verify(service).toggle(eq(7L), eq(5L), isNull(), eq(42L));
+    }
+
+    /**
+     * SEC-TITIK-05: kode dengan markup/karakter kontrol ditolak bean validation
+     * (400) sebelum menyentuh service.
+     */
+    @Test
+    @DisplayName("POST titik kasir: kode berkarakter terlarang ditolak 400")
+    void kodeTerlarangDitolakSebelumService() throws Exception {
+        mockMvc.perform(post("/api/pengaturan-kantin/titik-kasir")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nama\":\"Kasir 1\",\"kode\":\"POS<script>\"}"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    @DisplayName("POST titik kasir: kode valid diteruskan ke service")
+    void kodeValidDiteruskan() throws Exception {
+        when(service.buat(eq(7L), eq("Kasir 1"), eq("POS-01"), eq(42L)))
+                .thenReturn(TitikKasirResponse.builder()
+                        .id(5L).nama("Kasir 1").kode("POS-01").aktif(true).build());
+
+        mockMvc.perform(post("/api/pengaturan-kantin/titik-kasir")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nama\":\"Kasir 1\",\"kode\":\"POS-01\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.kode").value("POS-01"))
+                .andExpect(jsonPath("$.message").value("Titik kasir dibuat"));
+
+        verify(service).buat(eq(7L), eq("Kasir 1"), eq("POS-01"), eq(42L));
     }
 
     /**
