@@ -1,5 +1,6 @@
 package com.asqi.scholia_kantin_be.config.integrasi;
 
+import com.asqi.scholia_kantin_be.helper.MaskingKartu;
 import com.asqi.scholia_kantin_be.service.integrasi.UidSiswaPort;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -53,18 +54,18 @@ public class UidSiswaRestClient extends IntegrasiRestSupport implements UidSiswa
             if (sekolahId != null) {
                 url.append("&sekolahId=").append(sekolahId);
             }
-            String json = coba("cek UID " + rfidUid, () -> {
+            String json = coba("cek UID " + MaskingKartu.uid(rfidUid), () -> {
                 var spec = klien().get().uri(url.toString());
                 return beriHeader(spec, null).retrieve().body(String.class);
             });
             return parse(json);
         } catch (RestClientResponseException e) {
-            log.warn("[UidSiswa] admin-be menolak cek UID {} (HTTP {}).", rfidUid,
-                    e.getStatusCode().value());
+            log.warn("[UidSiswa] admin-be menolak cek UID {} (HTTP {}).",
+                    MaskingKartu.uid(rfidUid), e.getStatusCode().value());
             return null;
         } catch (RuntimeException e) {
-            log.warn("[UidSiswa] Gagal cek UID {} (tidak diketahui, fail-open): {}", rfidUid,
-                    e.getMessage());
+            log.warn("[UidSiswa] Gagal cek UID {} (tidak diketahui, fail-open): {}",
+                    MaskingKartu.uid(rfidUid), e.getMessage());
             return null;
         }
     }
