@@ -1,8 +1,8 @@
 package com.asqi.scholia_kantin_be.service.stok;
 
 import com.asqi.scholia_kantin_be.component.exception.NotFoundEntity;
-import com.asqi.scholia_kantin_be.dto.OpnameBatchItemRequest;
-import com.asqi.scholia_kantin_be.dto.OpnameBatchResponse;
+import com.asqi.scholia_kantin_be.dto.stok.OpnameBatchItemRequest;
+import com.asqi.scholia_kantin_be.dto.stok.OpnameBatchResponse;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiStok;
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;
 import com.asqi.scholia_kantin_be.support.TestcontainersConfig;

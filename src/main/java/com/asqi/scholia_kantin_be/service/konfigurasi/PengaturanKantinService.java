@@ -2,14 +2,14 @@ package com.asqi.scholia_kantin_be.service.konfigurasi;
 
 import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.component.logging.AuditLogger;
-import com.asqi.scholia_kantin_be.dto.PengaturanKantinRequest;
-import com.asqi.scholia_kantin_be.dto.PengaturanKantinResponse;
+import com.asqi.scholia_kantin_be.dto.konfigurasi.PengaturanKantinRequest;
+import com.asqi.scholia_kantin_be.dto.konfigurasi.PengaturanKantinResponse;
 import com.asqi.scholia_kantin_be.enums.KebijakanSaldoMengendap;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.model.PengaturanKantin;
 import com.asqi.scholia_kantin_be.model.Pengguna;
-import com.asqi.scholia_kantin_be.repository.PengaturanKantinRepository;
-import com.asqi.scholia_kantin_be.repository.PenggunaRepository;
+import com.asqi.scholia_kantin_be.repository.konfigurasi.PengaturanKantinRepository;
+import com.asqi.scholia_kantin_be.repository.auth.PenggunaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

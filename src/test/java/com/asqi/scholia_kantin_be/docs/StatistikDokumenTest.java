@@ -116,7 +116,7 @@ class StatistikDokumenTest {
                 .as("Direktori tidak ditemukan dari cwd %s: %s",
                         Paths.get("").toAbsolutePath(), direktori)
                 .isTrue();
-        try (Stream<Path> berkas = Files.list(direktori)) {
+        try (Stream<Path> berkas = Files.walk(direktori)) {
             return berkas
                     .filter(Files::isRegularFile)
                     .filter(p -> p.getFileName().toString().endsWith(akhiran))

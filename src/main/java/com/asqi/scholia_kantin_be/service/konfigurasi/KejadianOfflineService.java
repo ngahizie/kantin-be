@@ -2,11 +2,11 @@ package com.asqi.scholia_kantin_be.service.konfigurasi;
 
 import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.component.logging.AuditLogger;
-import com.asqi.scholia_kantin_be.dto.KejadianOfflineResponse;
+import com.asqi.scholia_kantin_be.dto.konfigurasi.KejadianOfflineResponse;
 import com.asqi.scholia_kantin_be.helper.IdGenerator;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.model.KejadianOffline;
-import com.asqi.scholia_kantin_be.repository.KejadianOfflineRepository;
+import com.asqi.scholia_kantin_be.repository.konfigurasi.KejadianOfflineRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

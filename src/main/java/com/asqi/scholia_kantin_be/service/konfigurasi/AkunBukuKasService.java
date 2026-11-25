@@ -1,12 +1,12 @@
 package com.asqi.scholia_kantin_be.service.konfigurasi;
 
 import com.asqi.scholia_kantin_be.component.logging.AuditLogger;
-import com.asqi.scholia_kantin_be.dto.AkunBukuKasResponse;
+import com.asqi.scholia_kantin_be.dto.konfigurasi.AkunBukuKasResponse;
 import com.asqi.scholia_kantin_be.helper.Constants;
 import com.asqi.scholia_kantin_be.helper.IdGenerator;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.model.AkunBukuKas;
-import com.asqi.scholia_kantin_be.repository.AkunBukuKasRepository;
+import com.asqi.scholia_kantin_be.repository.konfigurasi.AkunBukuKasRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

@@ -1,7 +1,7 @@
 package com.asqi.scholia_kantin_be.service.kasir;
 
-import com.asqi.scholia_kantin_be.dto.TapRequest;
-import com.asqi.scholia_kantin_be.dto.TapResponse;
+import com.asqi.scholia_kantin_be.dto.kasir.TapRequest;
+import com.asqi.scholia_kantin_be.dto.kasir.TapResponse;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.enums.MetodeBayar;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
@@ -10,7 +10,7 @@ import com.asqi.scholia_kantin_be.service.integrasi.InfoKartu;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoMenu;
 import com.asqi.scholia_kantin_be.service.integrasi.KartuLookupPort;
 import com.asqi.scholia_kantin_be.service.integrasi.MenuLookupPort;
-import com.asqi.scholia_kantin_be.dto.PengaturanKantinRequest;
+import com.asqi.scholia_kantin_be.dto.konfigurasi.PengaturanKantinRequest;
 import com.asqi.scholia_kantin_be.service.konfigurasi.PengaturanKantinService;
 import com.asqi.scholia_kantin_be.service.stok.LedgerStokService;
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;

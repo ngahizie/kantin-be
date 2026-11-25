@@ -17,6 +17,11 @@
 | Konstanta | `UPPER_SNAKE_CASE` | `KATEGORI_PENDAPATAN_KANTIN` |
 | Enum | `PascalCase` + nilai `UPPER_SNAKE` | `AlasanPenyesuaian.RUSAK` |
 | File migrasi | `V{n}__{PascalCase}.sql` | `V3__CreateLedgerSaldo.sql` |
+| DTO request | akhiran `Request` | `TopUpRequest`, `BukaSesiRequest` |
+| DTO respons endpoint | akhiran `Response` | `SaldoResponse`, `KategoriDetailResponse` |
+| Baris/ringkasan di dalam respons | akhiran `Item`, `Baris`, atau `Ringkasan` | `MutasiSaldoItem`, `BarisPenjualan`, `RingkasanPenjualan` |
+
+DTO lama yang belum memakai sufiks di atas (`*Data`, `*Hasil`, `*Detail`, dll.) dikecualikan; DTO **baru** wajib mengikuti aturan ini.
 
 **Istilah domain (konsisten, jangan diterjemahkan):**
 `Saldo`, `Mutasi`, `Void`, `Hpp`, `Opname`, `KartuTamu`, `SesiKasir`, `TitikKasir`, `LimitHarian`, `BlokirItem`.
@@ -28,14 +33,32 @@
 ```
 controller  →  service  →  repository  →  model
                   │
-                  └→ service/integrasi/*Client  (panggilan ke SKOOLIA)
+                  ├→ service/integrasi/*Port    (kontrak ke SKOOLIA)
+                  └→ config/integrasi/*Client   (implementasi HTTP, di-wire IntegrasiConfig)
 ```
 
 **Aturan:**
 - Controller **tipis**: `@RequestBody` → panggil service → bungkus `CommonResponse`. Tanpa logika bisnis.
 - Service = tempat semua aturan bisnis & transaksi (`@Transactional`).
 - Repository = akses data. Query kompleks pakai `@Query`. Ledger pakai locking.
-- Entity **tidak** keluar dari layer service — selalu konversi ke DTO/isi respons.
+- Entity **tidak** keluar dari layer service — selalu konversi ke DTO/isi respons. Termasuk **tidak** boleh ada entity sebagai field DTO respons atau sebagai tipe `Response<...>`.
+
+**Kepemilikan paket** (jangan taruh kelas di paket lain tanpa alasan yang ditulis di javadoc):
+
+**Subpaket domain.** Empat layer di bawah memakai subpaket domain yang sama: `controller/<domain>/`, `service/<domain>/`, `repository/<domain>/`, `dto/<domain>/`. Domain: `auth`, `audit`, `integrasi`, `kasir`, `katalog`, `kartu`, `konfigurasi`, `laporan`, `saldo`, `siswa`, `stok`, `storage`, `umum` (sesuai kebutuhan layer). `model/`, `enums/`, `helper/`, `payload/`, `security/`, `component/`, `config/` sudah berisi kelas lintas domain atau wiring, jadi tidak mengikuti pola ini. Entity saling referensi lintas domain, jadi memecah `model/` hanya menambah import silang.
+
+
+| Paket | Isi |
+|---|---|
+| `controller/<domain>/` | Hanya `@RestController` HTTP: validasi request, panggil service, bungkus respons. |
+| `service/<domain>/` | Aturan bisnis per domain (`kasir/`, `stok/`, `saldo/`, `katalog/`, `laporan/`, `konfigurasi/`, `kartu/`, `siswa/`, `storage/`). |
+| `service/integrasi/` | Port, fallback, value object, dan service lintas sistem (Buku Kas, notifikasi, retry). |
+| `config/<fitur>/` | `@Configuration`, `@ConfigurationProperties`, filter, dan adapter HTTP (`*RestClient`). Tidak berisi aturan bisnis. |
+| `component/<fitur>/` | Implementasi teknis lintas domain: exception handler, logging, metrics, rate limiter. |
+| `security/` | Tenant context, RBAC (`@PerluPeran`, guard), blacklist token. |
+| `helper/` | Util murni tanpa dependensi ke service/controller/model. |
+| `dto/<domain>/` | Request & response per domain; `dto/umum/` untuk DTO yang dipakai lebih dari satu domain. Response untuk endpoint **wajib** di sini. |
+| `dev/` | Hanya untuk profil `local`/demo dan wajib punya gerbang `@Profile`/`@ConditionalOnProperty`. |
 
 ---
 
@@ -64,7 +87,7 @@ throw new ForbiddenException("...");
 | **Uang** | `Long` rupiah integer, kolom `BIGINT`. **Tidak pernah** `float`/`double`/`BigDecimal` untuk data kanonik kantin. (Konversi `BigDecimal` hanya saat kirim ke Buku Kas.) |
 | **Qty** | `Integer`. |
 | **Waktu** | `LocalDateTime`, zona sekolah. Reset limit 00:00 waktu lokal sekolah. |
-| **ID** | `Constants.idGenerator()` (pola admin-be) untuk entitas bisnis. `BIGSERIAL` hanya untuk tabel murni internal bila disetujui. |
+| **ID** | Bean `IdGenerator` (`helper/IdGenerator.java`) untuk entitas bisnis — monoton, anti-tabrakan. `BIGSERIAL` hanya untuk tabel murni internal bila disetujui. Generator lama `Constants.idGenerator()` sudah dihapus (#410). |
 | **Idempotency key** | Dibuat **klien kasir**, kolom `idempotency_key` UNIQUE per tenant (**bukan** per subjek). Replay hanya sah bila `siswaId`, `jenis`, `arah`, dan (mode nominal tetap) `nominal` sama; beda konteks → **409** (issue #392). Aturan yang sama dipakai di pra-cek **dan** saat INSERT kalah balapan UNIQUE. |
 
 ---

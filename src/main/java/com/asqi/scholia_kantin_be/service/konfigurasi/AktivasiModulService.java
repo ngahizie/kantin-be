@@ -1,6 +1,6 @@
 package com.asqi.scholia_kantin_be.service.konfigurasi;
 
-import com.asqi.scholia_kantin_be.dto.AktivasiModulResponse;
+import com.asqi.scholia_kantin_be.dto.konfigurasi.AktivasiModulResponse;
 import com.asqi.scholia_kantin_be.service.integrasi.AktivasiModulInfo;
 import com.asqi.scholia_kantin_be.service.integrasi.AktivasiModulPort;
 import lombok.RequiredArgsConstructor;

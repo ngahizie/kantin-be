@@ -1,6 +1,6 @@
 package com.asqi.scholia_kantin_be.config.aktivasi;
 
-import com.asqi.scholia_kantin_be.dto.AktivasiModulResponse;
+import com.asqi.scholia_kantin_be.dto.konfigurasi.AktivasiModulResponse;
 import com.asqi.scholia_kantin_be.security.IdentitasKantin;
 import com.asqi.scholia_kantin_be.security.TenantContext;
 import com.asqi.scholia_kantin_be.service.konfigurasi.AktivasiModulService;

@@ -1,8 +1,8 @@
 package com.asqi.scholia_kantin_be.service.laporan;
 
-import com.asqi.scholia_kantin_be.dto.BarisKerugianStok;
-import com.asqi.scholia_kantin_be.dto.BarisStok;
-import com.asqi.scholia_kantin_be.dto.KartuStokItem;
+import com.asqi.scholia_kantin_be.dto.laporan.BarisKerugianStok;
+import com.asqi.scholia_kantin_be.dto.laporan.BarisStok;
+import com.asqi.scholia_kantin_be.dto.laporan.KartuStokItem;
 import com.asqi.scholia_kantin_be.enums.JenisLaporan;
 import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiStok;

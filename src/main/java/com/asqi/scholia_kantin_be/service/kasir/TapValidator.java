@@ -1,7 +1,7 @@
 package com.asqi.scholia_kantin_be.service.kasir;
 
-import com.asqi.scholia_kantin_be.dto.HasilValidasiTap;
-import com.asqi.scholia_kantin_be.dto.TapRequest;
+import com.asqi.scholia_kantin_be.dto.kasir.HasilValidasiTap;
+import com.asqi.scholia_kantin_be.dto.kasir.TapRequest;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoKartu;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoMenu;
 import com.asqi.scholia_kantin_be.service.stok.LedgerStokService;

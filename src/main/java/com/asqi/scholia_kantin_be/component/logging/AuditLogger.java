@@ -3,7 +3,7 @@ package com.asqi.scholia_kantin_be.component.logging;
 import com.asqi.scholia_kantin_be.helper.IdGenerator;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.model.CatatanAudit;
-import com.asqi.scholia_kantin_be.repository.CatatanAuditRepository;
+import com.asqi.scholia_kantin_be.repository.audit.CatatanAuditRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;

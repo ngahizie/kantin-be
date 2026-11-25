@@ -1,14 +1,14 @@
 package com.asqi.scholia_kantin_be.service.saldo;
 
-import com.asqi.scholia_kantin_be.dto.HalamanResponse;
-import com.asqi.scholia_kantin_be.dto.MutasiKoreksiItem;
-import com.asqi.scholia_kantin_be.dto.MutasiSaldoItem;
-import com.asqi.scholia_kantin_be.dto.SaldoResponse;
+import com.asqi.scholia_kantin_be.dto.umum.HalamanResponse;
+import com.asqi.scholia_kantin_be.dto.saldo.MutasiKoreksiItem;
+import com.asqi.scholia_kantin_be.dto.saldo.MutasiSaldoItem;
+import com.asqi.scholia_kantin_be.dto.saldo.SaldoResponse;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiSaldo;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
 import com.asqi.scholia_kantin_be.helper.UkuranHalaman;
 import com.asqi.scholia_kantin_be.model.MutasiSaldo;
-import com.asqi.scholia_kantin_be.repository.MutasiSaldoRepository;
+import com.asqi.scholia_kantin_be.repository.saldo.MutasiSaldoRepository;
 import com.asqi.scholia_kantin_be.service.kasir.LedgerSaldoService;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;

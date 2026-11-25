@@ -1,8 +1,8 @@
 package com.asqi.scholia_kantin_be.service.stok;
 
 import com.asqi.scholia_kantin_be.component.exception.InvalidOperationException;
-import com.asqi.scholia_kantin_be.dto.HalamanResponse;
-import com.asqi.scholia_kantin_be.dto.RiwayatStokItem;
+import com.asqi.scholia_kantin_be.dto.umum.HalamanResponse;
+import com.asqi.scholia_kantin_be.dto.stok.RiwayatStokItem;
 import com.asqi.scholia_kantin_be.enums.JenisMutasiStok;
 import com.asqi.scholia_kantin_be.security.TenantContext;
 import com.asqi.scholia_kantin_be.support.EnabledIfDockerAvailable;
