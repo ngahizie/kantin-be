@@ -145,6 +145,14 @@ request **429** ⇒ kantin berhenti melayani.
       bila ada migrasi baru sebelum rilis.
 - [ ] `DB_URL` menunjuk **`kantin_db`** (DB terpisah) & `DB_USERNAME` **bukan** `postgres`
       di produksi — lihat ADR-0010 §Tinjauan Pra-Rilis
+- [ ] **Peran DB least-privilege** (issue #433): `DB_USERNAME=kantin_app` (DML-only),
+      `SPRING_FLYWAY_USER=kantin_owner` (DDL), keduanya **berbeda** & password terisi.
+      Aplikasi **menolak start** bila role runtime superuser/punya hak DDL atau role
+      migrasi sama dengan role runtime — verifikasi log
+      `Peran database terverifikasi: runtime='kantin_app' … migrasi='kantin_owner'`,
+      lalu jalankan `scripts/cek-peran-db.sh`. Prosedur: `docs/database-role.md`
+- [ ] Keputusan **RLS** sudah dibaca: ditunda, prasyaratnya di
+      [ADR-0014](../architecture/adr/0014-rls-ditunda-peran-db-least-privilege.md)
 - [ ] `DB_URL` memakai **`sslmode=verify-full`** + `sslrootcert` menunjuk CA
       PostgreSQL (issue #432). Aplikasi **menolak start** bila profil non-dev
       masih memakai `prefer`/`disable`/`require`/`verify-ca` — verifikasi lewat

@@ -14,13 +14,14 @@ integrasi REST ke SKOOLIA (admin-be / mobile-be).
 
 ```bash
 cp .env.example .env       # WAJIB sekali di awal
-# isi DB_PASSWORD & REDIS_PASSWORD di .env — tanpa itu `up` akan gagal
+# isi DB_PASSWORD, SPRING_FLYWAY_PASSWORD & REDIS_PASSWORD di .env
+# — tanpa itu `up` akan gagal
 docker compose up -d
 docker compose ps          # pastikan postgres & redis "healthy"
 ```
 
-Yang jalan: **PostgreSQL 18** (`127.0.0.1:5432`, db `kantin_db`, user `kantin`)
-dan **Redis 7** (`127.0.0.1:6379`, memakai `--requirepass` dari `REDIS_PASSWORD`).
+Yang jalan: **PostgreSQL 18** (`127.0.0.1:5432`, db `kantin_db`) dan **Redis 7**
+(`127.0.0.1:6379`, memakai `--requirepass` dari `REDIS_PASSWORD`).
 
 > **Sejak issue #434:** tidak ada password default dan port hanya di-bind ke
 > `127.0.0.1` (tidak terekspos ke LAN). Tanpa `DB_PASSWORD` / `REDIS_PASSWORD`,
@@ -28,6 +29,21 @@ dan **Redis 7** (`127.0.0.1:6379`, memakai `--requirepass` dari `REDIS_PASSWORD`
 > (fail-closed), jangan ditambahkan fallback. Aplikasi lokal juga wajib memakai
 > password Redis yang sama di `application-local.properties`
 > (`spring.data.redis.password`).
+
+> **Sejak issue #433 (peran DB least-privilege):** container membuat **dua role**
+> lewat `scripts/peran-db/buat-peran.sql` — `kantin_owner` (DDL, dipakai Flyway)
+> dan `kantin_app` (DML saja, dipakai aplikasi). User `kantin` hanyalah role
+> bootstrap/superuser container dan **tidak** dipakai aplikasi. Script init hanya
+> berjalan saat volume data **kosong**, jadi setelah menarik perubahan ini pada
+> mesin yang sudah punya data:
+>
+> ```bash
+> docker compose down -v && docker compose up -d   # dev: reset total (data hilang)
+> # atau, pertahankan data: jalankan buat-peran.sql manual — docs/database-role.md §4b
+> ```
+>
+> Config lokal: `spring.datasource.username=kantin_app`,
+> `spring.flyway.user=kantin_owner` (lihat `application-local.properties.example`).
 
 ```bash
 docker compose down        # stop (data tetap)

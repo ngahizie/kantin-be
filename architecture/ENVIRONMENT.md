@@ -154,7 +154,7 @@ Target `docker-compose.yml` (dibuat di Fase scaffold):
 - **Redis 7** — cache, blacklist token, rate limit
 
 ```bash
-cp .env.example .env   # WAJIB: isi DB_PASSWORD & REDIS_PASSWORD (tanpa default)
+cp .env.example .env   # WAJIB: isi DB_PASSWORD, SPRING_FLYWAY_PASSWORD & REDIS_PASSWORD (tanpa default)
 docker compose up -d
 docker compose ps      # pastikan keduanya healthy
 ```
@@ -162,6 +162,12 @@ docker compose ps      # pastikan keduanya healthy
 > **Sejak issue #434:** port hanya di-bind ke `127.0.0.1` (tidak terekspos ke LAN)
 > dan Redis memakai `--requirepass`. Tanpa `DB_PASSWORD`/`REDIS_PASSWORD`,
 > `docker compose up` gagal dengan pesan jelas (fail-closed).
+
+> **Sejak issue #433 (peran DB least-privilege):** container membuat role
+> `kantin_owner` (DDL, dipakai Flyway) dan `kantin_app` (DML saja, dipakai
+> aplikasi) lewat `scripts/peran-db/buat-peran.sql`. Aplikasi **menolak start**
+> bila memakai superuser. Script init hanya jalan pada volume data kosong —
+> untuk data lama lihat [`docs/database-role.md`](../docs/database-role.md) §4b.
 
 **Waktu & zona:** set `TZ=Asia/Jakarta` pada service, agar konsisten dengan app.
 
