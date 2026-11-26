@@ -28,20 +28,31 @@ import static org.mockito.Mockito.mock;
  * OWASP A09:2025 / NIST CSF PR.DS-1).
  *
  * <p>UID kartu adalah <i>possession credential</i> sekaligus penanda identitas
- * siswa, jadi tidak boleh muncul utuh di log — termasuk pada pesan retry yang
- * disusun {@code IntegrasiRestSupport.coba(...)} dari label operasi. Test ini
- * memicu jalur galat nyata lewat WireMock lalu memeriksa seluruh baris log yang
- * dihasilkan paket adapter.
+ * siswa, jadi tidak boleh muncul utuh di log. Ada tiga jalur yang bocor dengan
+ * cara berbeda, dan ketiganya diuji di sini:
+ * <ol>
+ *   <li>pesan {@code log.warn} di adapter (nilai identitas sebagai argumen),</li>
+ *   <li>pesan retry {@code IntegrasiRestSupport.coba(...)} — label operasi ikut
+ *       dicatat, jadi labelnya pun harus tersamar,</li>
+ *   <li>argumen {@code e.getMessage()} — {@code ResourceAccessException} memuat
+ *       URL lengkap dengan UID/ID di path atau query, sehingga masking label saja
+ *       tidak cukup. Jalur ini dipicu dengan base-url {@code http://127.0.0.1:1}
+ *       (port tertutup), bukan WireMock, karena kegagalan koneksinya harus nyata.</li>
+ * </ol>
  */
 @DisplayName("Log adapter integrasi — UID & ID siswa tersamar (#437)")
 class LogMaskingIntegrasiTest {
 
     private static final String UID_MENTAH = "04A1B2C3D4";
     private static final String UID_TERSAMAR = MaskingKartu.TOPENG + "C3D4";
-    private static final long SISWA_ID = 1001L;
+    /** ID panjang supaya pencarian "nilai mentah" tidak salah tangkap angka lain. */
+    private static final long SISWA_ID = 987654321L;
+    /** Port yang dijamin tidak ada pendengarnya → ResourceAccessException. */
+    private static final String BASE_URL_MATI = "http://127.0.0.1:1";
 
     private WireMockServer wm;
     private Logger logger;
+    private Level levelAwal;
     private ListAppender<ILoggingEvent> appender;
 
     @BeforeEach
@@ -50,6 +61,7 @@ class LogMaskingIntegrasiTest {
         wm.start();
 
         logger = (Logger) LoggerFactory.getLogger("com.asqi.scholia_kantin_be.config.integrasi");
+        levelAwal = logger.getLevel();
         appender = new ListAppender<>();
         appender.start();
         logger.addAppender(appender);
@@ -58,9 +70,13 @@ class LogMaskingIntegrasiTest {
 
     @AfterEach
     void henti() {
-        if (logger != null && appender != null) {
-            logger.detachAppender(appender);
-            appender.stop();
+        if (logger != null) {
+            if (appender != null) {
+                logger.detachAppender(appender);
+                appender.stop();
+            }
+            // Kembalikan level semula supaya tidak mempengaruhi test lain.
+            logger.setLevel(levelAwal);
         }
         if (wm != null) {
             wm.stop();
@@ -85,6 +101,16 @@ class LogMaskingIntegrasiTest {
         return new KartuLookupRestClient(p);
     }
 
+    private KartuLookupRestClient kartuLookupMati() {
+        IntegrasiRestProperties p = props();
+        var e = p.getKartuLookup();
+        e.setEnabled(true);
+        e.setBaseUrl(BASE_URL_MATI);
+        e.setMaxAttempts(2);
+        e.setBackoffMs(5);
+        return new KartuLookupRestClient(p);
+    }
+
     private UidSiswaRestClient uidSiswa(int maxAttempts) {
         IntegrasiRestProperties p = props();
         var e = p.getUidSiswa();
@@ -104,6 +130,18 @@ class LogMaskingIntegrasiTest {
         e.setBackoffMs(5);
         return new CariSiswaRestClient(p, mock(LedgerSaldoService.class));
     }
+
+    private StatusSiswaRestClient statusSiswaMati() {
+        IntegrasiRestProperties p = props();
+        var e = p.getStatusSiswa();
+        e.setEnabled(true);
+        e.setBaseUrl(BASE_URL_MATI);
+        e.setMaxAttempts(2);
+        e.setBackoffMs(5);
+        return new StatusSiswaRestClient(p);
+    }
+
+    // ── 5xx / 404 lewat WireMock ────────────────────────────────────────
 
     @Test
     @DisplayName("KartuLookup gagal 5xx: retry & WARN tidak memuat UID penuh")
@@ -172,6 +210,34 @@ class LogMaskingIntegrasiTest {
         List<String> pesan = pesanLog();
         assertThat(pesan).isNotEmpty();
         assertThat(pesan).noneMatch(p -> p.contains(String.valueOf(SISWA_ID)));
+        assertThat(pesan).anyMatch(p -> p.contains(MaskingKartu.idSiswa(SISWA_ID)));
+    }
+
+    // ── Koneksi gagal: pesan exception memuat URL ───────────────────────
+
+    @Test
+    @DisplayName("KartuLookup koneksi ditolak: UID di URL tidak bocor ke WARN")
+    void kartuLookupKoneksiGagalTidakMembocorkanUid() {
+        kartuLookupMati().cariBerdasarkanUid(1L, UID_MENTAH);
+
+        List<String> pesan = pesanLog();
+        assertThat(pesan).isNotEmpty();
+        // Inilah jalur yang dulu bocor: ResourceAccessException memuat URL lengkap
+        // termasuk UID di path, pada pesan retry maupun pesan adapter.
+        assertThat(pesan).noneMatch(p -> p.contains(UID_MENTAH));
+        assertThat(pesan).anyMatch(p -> p.contains("ResourceAccessException"));
+        assertThat(pesan).anyMatch(p -> p.contains(UID_TERSAMAR));
+    }
+
+    @Test
+    @DisplayName("StatusSiswa koneksi ditolak: ID siswa di URL tidak bocor ke WARN")
+    void statusSiswaKoneksiGagalTidakMembocorkanIdSiswa() {
+        statusSiswaMati().tidakAktif(1L, SISWA_ID);
+
+        List<String> pesan = pesanLog();
+        assertThat(pesan).isNotEmpty();
+        assertThat(pesan).noneMatch(p -> p.contains(String.valueOf(SISWA_ID)));
+        assertThat(pesan).anyMatch(p -> p.contains("ResourceAccessException"));
         assertThat(pesan).anyMatch(p -> p.contains(MaskingKartu.idSiswa(SISWA_ID)));
     }
 }

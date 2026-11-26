@@ -65,7 +65,7 @@ public class UidSiswaRestClient extends IntegrasiRestSupport implements UidSiswa
             return null;
         } catch (RuntimeException e) {
             log.warn("[UidSiswa] Gagal cek UID {} (tidak diketahui, fail-open): {}",
-                    MaskingKartu.uid(rfidUid), e.getMessage());
+                    MaskingKartu.uid(rfidUid), ringkasGalat(e));
             return null;
         }
     }

@@ -68,7 +68,7 @@ public class KartuLookupRestClient extends IntegrasiRestSupport implements Kartu
             // Fail-closed untuk lookup kartu: kartu tak dikenal → tap ditolak dengan
             // pesan benar (PRD §6.1), bukan crash atau meloloskan transaksi.
             log.warn("[KartuLookup] Gagal lookup UID {} (dianggap tidak dikenal): {}",
-                    MaskingKartu.uid(rfidUid), e.getMessage());
+                    MaskingKartu.uid(rfidUid), ringkasGalat(e));
             return InfoKartu.tidakDikenal();
         }
     }

@@ -58,16 +58,27 @@ public final class MaskingKartu {
             return null;
         }
         byte[] hash = sha256("siswa:" + siswaId);
-        return "S#" + String.format("%04x", ((hash[0] & 0xff) << 8) | (hash[1] & 0xff));
+        if (hash == null) {
+            return "S#?";
+        }
+        // 32 bit: dengan ~1.000 siswa, 16 bit saja menghasilkan 7-8 pasang tabrakan
+        // pseudonim (birthday paradox) sehingga dua siswa bisa tampak sama di log.
+        long nilai = ((long) (hash[0] & 0xff) << 24)
+                | ((hash[1] & 0xff) << 16)
+                | ((hash[2] & 0xff) << 8)
+                | (hash[3] & 0xff);
+        return "S#" + String.format("%08x", nilai);
     }
 
+    /** SHA-256 dari teks, atau {@code null} bila algoritma tidak tersedia. */
     private static byte[] sha256(String teks) {
         try {
             return MessageDigest.getInstance("SHA-256").digest(teks.getBytes(StandardCharsets.UTF_8));
         } catch (NoSuchAlgorithmException e) {
-            // SHA-256 wajib ada di setiap JRE; jangan sampai pencatatan log
-            // menggagalkan alur transaksi.
-            throw new IllegalStateException("SHA-256 tidak tersedia", e);
+            // Praktis tak terjangkau (SHA-256 wajib ada di JRE), tetapi pencatatan
+            // log tidak boleh menggagalkan alur transaksi — pemanggil memakai
+            // placeholder "S#?".
+            return null;
         }
     }
 }

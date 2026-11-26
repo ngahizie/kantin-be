@@ -101,7 +101,7 @@ public class CariSiswaRestClient extends IntegrasiRestSupport implements CariSis
         } catch (RuntimeException e) {
             // Fail-open: sama seperti CariSiswaFallback (daftar kosong).
             log.warn("[CariSiswa] Gagal mencari siswa q='{}' (dianggap kosong): {}",
-                    q, e.getMessage());
+                    q, ringkasGalat(e));
             return List.of();
         }
 
@@ -152,7 +152,7 @@ public class CariSiswaRestClient extends IntegrasiRestSupport implements CariSis
             return Optional.empty();
         } catch (RuntimeException e) {
             log.warn("[CariSiswa] Gagal mengambil identitas siswa id={} (dianggap kosong): {}",
-                    MaskingKartu.idSiswa(siswaId), e.getMessage());
+                    MaskingKartu.idSiswa(siswaId), ringkasGalat(e));
             return Optional.empty();
         }
         if (isi == null || isi.isNull() || !isi.isObject()) {
@@ -199,7 +199,7 @@ public class CariSiswaRestClient extends IntegrasiRestSupport implements CariSis
                         e.getStatusCode().value(), potong.size());
             } catch (RuntimeException e) {
                 log.warn("[CariSiswa] Gagal mengambil batch {} siswa (dilewati): {}",
-                        potong.size(), e.getMessage());
+                        potong.size(), ringkasGalat(e));
             }
         }
         log.debug("[CariSiswa] batch {} id → {} identitas.", ids.size(), hasil.size());
@@ -236,7 +236,7 @@ public class CariSiswaRestClient extends IntegrasiRestSupport implements CariSis
             return Optional.empty();
         } catch (RuntimeException e) {
             log.warn("[CariSiswa] Gagal mengambil UID siswa id={} (dianggap kosong): {}",
-                    MaskingKartu.idSiswa(siswaId), e.getMessage());
+                    MaskingKartu.idSiswa(siswaId), ringkasGalat(e));
             return Optional.empty();
         }
         if (isi == null || isi.isNull() || !isi.isObject()) {

@@ -81,7 +81,7 @@ public class StatusSiswaRestClient extends IntegrasiRestSupport implements Statu
             return null;
         } catch (RuntimeException e) {
             log.warn("[StatusSiswa] Gagal status siswa={} (tidak diketahui): {}",
-                    MaskingKartu.idSiswa(siswaId), e.getMessage());
+                    MaskingKartu.idSiswa(siswaId), ringkasGalat(e));
             return null;
         }
     }
@@ -162,7 +162,7 @@ public class StatusSiswaRestClient extends IntegrasiRestSupport implements Statu
                         e.getStatusCode().value(), potong.size());
             } catch (RuntimeException e) {
                 log.warn("[StatusSiswa] Gagal batch status {} siswa (dilewati): {}",
-                        potong.size(), e.getMessage());
+                        potong.size(), ringkasGalat(e));
             }
         }
         log.debug("[StatusSiswa] batch {} id → {} status.", ids.size(), hasil.size());
@@ -200,7 +200,7 @@ public class StatusSiswaRestClient extends IntegrasiRestSupport implements Statu
         } catch (RuntimeException e) {
             // Best-effort: perpindahan uang di ledger sudah sah & idempoten (PRD §9.3).
             log.warn("[StatusSiswa] Blokir kartu siswa={} gagal (best-effort, tidak membatalkan): {}",
-                    MaskingKartu.idSiswa(siswaId), e.getMessage());
+                    MaskingKartu.idSiswa(siswaId), ringkasGalat(e));
         }
     }
 }

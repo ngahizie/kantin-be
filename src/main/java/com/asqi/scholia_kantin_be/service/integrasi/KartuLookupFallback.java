@@ -1,5 +1,6 @@
 package com.asqi.scholia_kantin_be.service.integrasi;
 
+import com.asqi.scholia_kantin_be.helper.MaskingKartu;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -22,7 +23,8 @@ public class KartuLookupFallback implements KartuLookupPort {
 
     @Override
     public InfoKartu cariBerdasarkanUid(Long sekolahId, String rfidUid) {
-        log.warn("Lookup kartu belum dikonfigurasi (Q7). UID={} dianggap tidak dikenal.", rfidUid);
+        log.warn("Lookup kartu belum dikonfigurasi (Q7). UID={} dianggap tidak dikenal.",
+                MaskingKartu.uid(rfidUid));
         return InfoKartu.tidakDikenal();
     }
 }

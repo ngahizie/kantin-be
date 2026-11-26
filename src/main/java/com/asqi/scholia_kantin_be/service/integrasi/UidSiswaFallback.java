@@ -1,5 +1,6 @@
 package com.asqi.scholia_kantin_be.service.integrasi;
 
+import com.asqi.scholia_kantin_be.helper.MaskingKartu;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -24,7 +25,7 @@ public class UidSiswaFallback implements UidSiswaPort {
     @Override
     public Boolean dipakaiSiswa(Long sekolahId, String rfidUid) {
         log.debug("Cek UID siswa belum dikonfigurasi (Q7). UID={} dianggap tidak diketahui.",
-                rfidUid);
+                MaskingKartu.uid(rfidUid));
         return null;
     }
 }

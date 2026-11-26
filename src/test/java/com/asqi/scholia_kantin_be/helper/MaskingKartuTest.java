@@ -43,7 +43,7 @@ class MaskingKartuTest {
     void idSiswaPseudonimStabil() {
         String pseudonim = MaskingKartu.idSiswa(1001L);
 
-        assertThat(pseudonim).startsWith("S#").hasSize(6);
+        assertThat(pseudonim).startsWith("S#").hasSize(10);   // S# + 8 hex (32 bit)
         assertThat(pseudonim).isEqualTo(MaskingKartu.idSiswa(1001L));
         assertThat(pseudonim).doesNotContain("1001");
     }

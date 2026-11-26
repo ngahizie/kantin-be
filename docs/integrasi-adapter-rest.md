@@ -60,6 +60,12 @@ Rahasia **tidak** ditulis di properti; selalu lewat environment
   untuk label operasi yang dipakai `coba(...)` pada pesan retry — bukan hanya
   pesan `log.warn` di adapter — supaya tidak ada jalur log yang membocorkan nilai
   mentah. Dijaga `LogMaskingIntegrasiTest`.
+- **Pesan exception tidak dicetak mentah**: `ResourceAccessException` memuat URL
+  lengkap (UID/ID ada di path atau query), jadi log memakai `ringkasGalat(e)` —
+  hanya kelas + status HTTP, mis. `ResourceAccessException (koneksi/timeout)` atau
+  `HttpServerErrorException HTTP 500`. Berlaku juga di pesan retry `coba(...)`.
+- Implementasi `*Fallback` (yang aktif saat flag integrasi OFF) memakai penyamaran
+  yang sama; dijaga `LogMaskingFallbackTest`.
 
 ## Cara menyalakan
 
