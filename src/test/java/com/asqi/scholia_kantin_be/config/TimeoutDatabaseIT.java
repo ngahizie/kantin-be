@@ -6,6 +6,7 @@ import com.zaxxer.hikari.HikariDataSource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -47,19 +48,36 @@ class TimeoutDatabaseIT {
     @Autowired
     private DataSource dataSource;
 
-    /** Cek setiap koneksi baru dari kolam sudah membawa kedua batas waktu. */
+    /**
+     * Nilai yang diharapkan dibaca dari konfigurasi/env yang sama dengan
+     * connection-init-sql, bukan ditulis ulang sebagai literal di test. Dengan
+     * begitu, mengubah default lewat environment tidak membuat test merah.
+     */
+    @Value("${KANTIN_DB_STATEMENT_TIMEOUT:10s}")
+    private String statementTimeout;
+
+    @Value("${KANTIN_DB_LOCK_TIMEOUT:3s}")
+    private String lockTimeout;
+
+    @Value("${KANTIN_DB_CONNECTION_TIMEOUT_MS:5000}")
+    private long connectionTimeoutMs;
+
+    /** Cek setiap koneksi baru dari kolam sudah membawa batas waktu. */
     @Test
     @DisplayName("batas waktu terpasang di koneksi kolam")
     void batasWaktuTerpasangDiKoneksi() {
-        assertThat(jdbc.queryForObject("SHOW statement_timeout", String.class)).isEqualTo("10s");
-        assertThat(jdbc.queryForObject("SHOW lock_timeout", String.class)).isEqualTo("3s");
+        assertThat(jdbc.queryForObject("SHOW statement_timeout", String.class))
+                .isEqualTo(statementTimeout);
+        assertThat(jdbc.queryForObject("SHOW lock_timeout", String.class))
+                .isEqualTo(lockTimeout);
     }
 
     /** Batas tunggu koneksi dari kolam harus eksplisit, bukan default Hikari. */
     @Test
     @DisplayName("batas tunggu koneksi kolam terpasang")
     void connectionTimeoutTerpasang() {
-        assertThat(((HikariDataSource) dataSource).getConnectionTimeout()).isEqualTo(3000L);
+        assertThat(((HikariDataSource) dataSource).getConnectionTimeout())
+                .isEqualTo(connectionTimeoutMs);
     }
 
     /** Query lambat harus dipotong PostgreSQL, bukan memegang koneksi selamanya. */
@@ -124,6 +142,7 @@ class TimeoutDatabaseIT {
             jdbc.execute("SET LOCAL statement_timeout = '2s'");
             assertThat(jdbc.queryForObject("SHOW statement_timeout", String.class)).isEqualTo("2s");
         });
-        assertThat(jdbc.queryForObject("SHOW statement_timeout", String.class)).isEqualTo("10s");
+        assertThat(jdbc.queryForObject("SHOW statement_timeout", String.class))
+                .isEqualTo(statementTimeout);
     }
 }
