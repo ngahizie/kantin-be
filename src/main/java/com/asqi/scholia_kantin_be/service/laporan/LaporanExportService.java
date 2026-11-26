@@ -26,6 +26,7 @@ import com.asqi.scholia_kantin_be.helper.UkuranHalaman;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -71,6 +72,18 @@ public class LaporanExportService {
 
     /** Opsional: dipakai mencatat audit ekspor laporan keuangan (SEC-06, #388). */
     private AuditLogger auditLogger;
+
+    /**
+     * Batas waktu query khusus ekspor laporan (issue #435).
+     *
+     * <p>Batas global {@code statement_timeout} (default 5 dtk) melindungi kolam
+     * koneksi dari query yang menggantung, tetapi ekspor laporan memang berat:
+     * ia menjelajah halaman dan menyusun .xlsx. Karena itu ekspor menaikkan
+     * batasnya sendiri lewat {@code SET LOCAL} — hanya untuk transaksi ini,
+     * tidak mengubah sesi lain di kolam.
+     */
+    @Value("${kantin.db.statement-timeout-laporan-ms:30000}")
+    private long batasWaktuLaporanMs = 30_000;
 
     @Autowired(required = false)
     public void setAuditLogger(AuditLogger auditLogger) {
@@ -165,6 +178,7 @@ public class LaporanExportService {
     public HasilEkspor ekspor(Long sekolahId, JenisLaporan jenis, LocalDate tanggal,
                               OffsetDateTime dari, OffsetDateTime sampai, Long menuId,
                               Long siswaId) {
+        longgarkanBatasWaktuQuery();
         String label = labelPeriode(tanggal, dari, sampai);
         HasilEkspor hasil = switch (jenis) {
             case PENJUALAN -> eksporPenjualan(sekolahId, tanggal, dari, sampai, label);
@@ -226,6 +240,21 @@ public class LaporanExportService {
     }
 
     // ────────────────────────────────────────────────────────────────
+
+    /**
+     * Naikkan {@code statement_timeout} untuk transaksi ekspor ini saja
+     * (issue #435). Aman dipanggil walau {@code jdbc} null (unit test tanpa DB):
+     * saat itu tidak ada query yang perlu dilonggarkan.
+     */
+    private void longgarkanBatasWaktuQuery() {
+        if (jdbc == null) {
+            return;
+        }
+        long batas = Math.max(0, batasWaktuLaporanMs);
+        // SET LOCAL hanya berlaku sampai transaksi berakhir; nilainya angka
+        // terverifikasi dari properti, bukan input pengguna.
+        jdbc.execute("SET LOCAL statement_timeout = " + batas);
+    }
 
     private HasilEkspor eksporPenjualan(Long sekolahId, LocalDate tgl, OffsetDateTime dari,
                                         OffsetDateTime sampai, String label) {
