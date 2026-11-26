@@ -79,7 +79,7 @@ public class BukuKasRestClient extends IntegrasiRestSupport implements BukuKasPo
                     "Buku Kas menolak (HTTP " + e.getStatusCode().value() + ")");
         } catch (RuntimeException e) {
             log.warn("[BukuKas] Gagal posting refId={} (fail-open, sesi tetap tertutup): {}",
-                    perintah.getRefId(), e.getMessage());
+                    perintah.getRefId(), ringkasGalat(e));
             return HasilJurnalBukuKas.gagal("Gagal menghubungi Buku Kas: " + e.getMessage());
         }
     }

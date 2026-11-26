@@ -1,6 +1,7 @@
 package com.asqi.scholia_kantin_be.config.integrasi;
 
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
+import com.asqi.scholia_kantin_be.helper.MaskingKartu;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoKartu;
 import com.asqi.scholia_kantin_be.service.integrasi.KartuLookupPort;
 import lombok.extern.slf4j.Slf4j;
@@ -49,7 +50,7 @@ public class KartuLookupRestClient extends IntegrasiRestSupport implements Kartu
 
     private InfoKartu cariSiswa(String rfidUid) {
         try {
-            String json = coba("lookup " + rfidUid, () -> {
+            String json = coba("lookup " + MaskingKartu.uid(rfidUid), () -> {
                 var spec = klien().get().uri(path(PATH_DEFAULT), rfidUid);
                 return beriHeader(spec, null).retrieve().body(String.class);
             });
@@ -57,17 +58,17 @@ public class KartuLookupRestClient extends IntegrasiRestSupport implements Kartu
         } catch (RestClientResponseException e) {
             // 404 = kartu tidak terdaftar ke siswa mana pun (bukan error).
             if (e.getStatusCode().value() == 404) {
-                log.debug("[KartuLookup] UID {} tidak dikenal siswa (404).", rfidUid);
+                log.debug("[KartuLookup] UID {} tidak dikenal siswa (404).", MaskingKartu.uid(rfidUid));
                 return InfoKartu.tidakDikenal();
             }
-            log.warn("[KartuLookup] admin-be menolak lookup UID {} (HTTP {}).", rfidUid,
-                    e.getStatusCode().value());
+            log.warn("[KartuLookup] admin-be menolak lookup UID {} (HTTP {}).",
+                    MaskingKartu.uid(rfidUid), e.getStatusCode().value());
             return InfoKartu.tidakDikenal();
         } catch (RuntimeException e) {
             // Fail-closed untuk lookup kartu: kartu tak dikenal → tap ditolak dengan
             // pesan benar (PRD §6.1), bukan crash atau meloloskan transaksi.
             log.warn("[KartuLookup] Gagal lookup UID {} (dianggap tidak dikenal): {}",
-                    rfidUid, e.getMessage());
+                    MaskingKartu.uid(rfidUid), ringkasGalat(e));
             return InfoKartu.tidakDikenal();
         }
     }

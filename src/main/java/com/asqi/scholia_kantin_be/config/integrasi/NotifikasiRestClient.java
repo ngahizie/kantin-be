@@ -1,5 +1,6 @@
 package com.asqi.scholia_kantin_be.config.integrasi;
 
+import com.asqi.scholia_kantin_be.helper.MaskingKartu;
 import com.asqi.scholia_kantin_be.service.integrasi.HasilKirimNotifikasi;
 import com.asqi.scholia_kantin_be.service.integrasi.NotifikasiPort;
 import com.asqi.scholia_kantin_be.service.integrasi.PerintahNotifikasi;
@@ -63,7 +64,7 @@ public class NotifikasiRestClient extends IntegrasiRestSupport implements Notifi
                 return beriHeader(spec, raw).body(body).retrieve().body(String.class);
             });
             log.info("[Notifikasi] {} terkirim ke mobile-be (siswa={}).", perintah.getJenis(),
-                    perintah.getSiswaId());
+                    MaskingKartu.idSiswa(perintah.getSiswaId()));
             return HasilKirimNotifikasi.terkirim("Terkirim ke mobile-be");
         } catch (RestClientResponseException e) {
             log.warn("[Notifikasi] mobile-be menolak {} (HTTP {}): {}", perintah.getJenis(),
@@ -72,7 +73,7 @@ public class NotifikasiRestClient extends IntegrasiRestSupport implements Notifi
                     "Notifikasi ditolak (HTTP " + e.getStatusCode().value() + ")");
         } catch (RuntimeException e) {
             log.warn("[Notifikasi] Gagal kirim {} (best-effort, transaksi tetap sah): {}",
-                    perintah.getJenis(), e.getMessage());
+                    perintah.getJenis(), ringkasGalat(e));
             return HasilKirimNotifikasi.gagal("Gagal menghubungi mobile-be: " + e.getMessage());
         }
     }

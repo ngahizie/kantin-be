@@ -9,6 +9,7 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -105,13 +106,40 @@ public abstract class IntegrasiRestSupport {
             } catch (HttpServerErrorException | ResourceAccessException e) {
                 terakhir = e;
                 log.warn("[{}] {} gagal (percobaan {}/{}): {}", nama, operasi, attempt, maks,
-                        e.getMessage());
+                        ringkasGalat(e));
                 if (attempt < maks) {
                     jeda(attempt);
                 }
             }
         }
         throw terakhir;
+    }
+
+    /**
+     * Ringkasan galat untuk log — <b>tanpa</b> pesan mentah (issue #437, review #446).
+     *
+     * <p>Pesan {@code ResourceAccessException} memuat URL lengkap yang ditempeli
+     * UID/ID siswa di path atau query (mis. {@code I/O error on GET request for
+     * "http://host/api/siswa/cek-kartu/04A1B2C3D4"}), jadi mencetak
+     * {@code e.getMessage()} membatalkan masking pada label operasi. Yang dicatat
+     * cukup kelas + status HTTP: itu yang dibutuhkan operasional untuk membedakan
+     * "admin-be menolak" dari "koneksi/timeout".
+     *
+     * @param galat pengecualian yang ditangkap (boleh null)
+     * @return ringkasan pendek tanpa URL, path, atau nilai identitas
+     */
+    protected static String ringkasGalat(Throwable galat) {
+        if (galat == null) {
+            return "galat tidak diketahui";
+        }
+        if (galat instanceof RestClientResponseException respons) {
+            return respons.getClass().getSimpleName() + " HTTP "
+                    + respons.getStatusCode().value();
+        }
+        if (galat instanceof ResourceAccessException) {
+            return "ResourceAccessException (koneksi/timeout)";
+        }
+        return galat.getClass().getSimpleName();
     }
 
     private void jeda(int attempt) {

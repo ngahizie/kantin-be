@@ -1,5 +1,6 @@
 package com.asqi.scholia_kantin_be.config.integrasi;
 
+import com.asqi.scholia_kantin_be.helper.MaskingKartu;
 import com.asqi.scholia_kantin_be.service.integrasi.CariSiswaPort;
 import com.asqi.scholia_kantin_be.service.integrasi.InfoSiswa;
 import com.asqi.scholia_kantin_be.service.kasir.LedgerSaldoService;
@@ -100,7 +101,7 @@ public class CariSiswaRestClient extends IntegrasiRestSupport implements CariSis
         } catch (RuntimeException e) {
             // Fail-open: sama seperti CariSiswaFallback (daftar kosong).
             log.warn("[CariSiswa] Gagal mencari siswa q='{}' (dianggap kosong): {}",
-                    q, e.getMessage());
+                    q, ringkasGalat(e));
             return List.of();
         }
 
@@ -140,18 +141,18 @@ public class CariSiswaRestClient extends IntegrasiRestSupport implements CariSis
         }
         JsonNode isi;
         try {
-            String json = coba("identitas siswa id=" + siswaId, () -> {
+            String json = coba("identitas siswa id=" + MaskingKartu.idSiswa(siswaId), () -> {
                 var spec = klien().get().uri(b -> b.path(pathById(siswaId)).build());
                 return beriHeader(spec, null).retrieve().body(String.class);
             });
             isi = data(JSON.readTree(json));
         } catch (RestClientResponseException e) {
             log.warn("[CariSiswa] admin-be menjawab HTTP {} untuk siswa id={} → identitas kosong.",
-                    e.getStatusCode().value(), siswaId);
+                    e.getStatusCode().value(), MaskingKartu.idSiswa(siswaId));
             return Optional.empty();
         } catch (RuntimeException e) {
             log.warn("[CariSiswa] Gagal mengambil identitas siswa id={} (dianggap kosong): {}",
-                    siswaId, e.getMessage());
+                    MaskingKartu.idSiswa(siswaId), ringkasGalat(e));
             return Optional.empty();
         }
         if (isi == null || isi.isNull() || !isi.isObject()) {
@@ -198,7 +199,7 @@ public class CariSiswaRestClient extends IntegrasiRestSupport implements CariSis
                         e.getStatusCode().value(), potong.size());
             } catch (RuntimeException e) {
                 log.warn("[CariSiswa] Gagal mengambil batch {} siswa (dilewati): {}",
-                        potong.size(), e.getMessage());
+                        potong.size(), ringkasGalat(e));
             }
         }
         log.debug("[CariSiswa] batch {} id → {} identitas.", ids.size(), hasil.size());
@@ -224,18 +225,18 @@ public class CariSiswaRestClient extends IntegrasiRestSupport implements CariSis
         }
         JsonNode isi;
         try {
-            String json = coba("uid siswa id=" + siswaId, () -> {
+            String json = coba("uid siswa id=" + MaskingKartu.idSiswa(siswaId), () -> {
                 var spec = klien().get().uri(b -> b.path(pathById(siswaId)).build());
                 return beriHeader(spec, null).retrieve().body(String.class);
             });
             isi = data(JSON.readTree(json));
         } catch (RestClientResponseException e) {
             log.warn("[CariSiswa] admin-be menjawab HTTP {} untuk UID siswa id={} → kosong.",
-                    e.getStatusCode().value(), siswaId);
+                    e.getStatusCode().value(), MaskingKartu.idSiswa(siswaId));
             return Optional.empty();
         } catch (RuntimeException e) {
             log.warn("[CariSiswa] Gagal mengambil UID siswa id={} (dianggap kosong): {}",
-                    siswaId, e.getMessage());
+                    MaskingKartu.idSiswa(siswaId), ringkasGalat(e));
             return Optional.empty();
         }
         if (isi == null || isi.isNull() || !isi.isObject()) {

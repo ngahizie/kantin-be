@@ -54,6 +54,19 @@ timeout / 5xx**, dengan backoff linear (`max-attempts`, `backoff-ms`).
 Rahasia **tidak** ditulis di properti; selalu lewat environment
 (`KANTIN_INTEGRASI_<NAMA>_BEARER_TOKEN`, `…_SECRET`).
 
+- **Log tidak memuat identitas mentah** (issue #437, OWASP A09:2025): UID kartu
+  disamarkan dengan `MaskingKartu.uid()` (`04A1B2C3D4` → `****C3D4`) dan ID siswa
+  diganti pseudonim `MaskingKartu.idSiswa()` (`1001` → `S#a3f9`). Ini berlaku juga
+  untuk label operasi yang dipakai `coba(...)` pada pesan retry — bukan hanya
+  pesan `log.warn` di adapter — supaya tidak ada jalur log yang membocorkan nilai
+  mentah. Dijaga `LogMaskingIntegrasiTest`.
+- **Pesan exception tidak dicetak mentah**: `ResourceAccessException` memuat URL
+  lengkap (UID/ID ada di path atau query), jadi log memakai `ringkasGalat(e)` —
+  hanya kelas + status HTTP, mis. `ResourceAccessException (koneksi/timeout)` atau
+  `HttpServerErrorException HTTP 500`. Berlaku juga di pesan retry `coba(...)`.
+- Implementasi `*Fallback` (yang aktif saat flag integrasi OFF) memakai penyamaran
+  yang sama; dijaga `LogMaskingFallbackTest`.
+
 ## Cara menyalakan
 
 ```properties

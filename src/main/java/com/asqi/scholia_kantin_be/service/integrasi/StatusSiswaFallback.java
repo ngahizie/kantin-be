@@ -1,5 +1,6 @@
 package com.asqi.scholia_kantin_be.service.integrasi;
 
+import com.asqi.scholia_kantin_be.helper.MaskingKartu;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -27,13 +28,14 @@ public class StatusSiswaFallback implements StatusSiswaPort {
 
     @Override
     public Boolean tidakAktif(Long sekolahId, Long siswaId) {
-        log.warn("Status siswa belum dikonfigurasi (Q7). siswaId={} dianggap tidak diketahui.", siswaId);
+        log.warn("Status siswa belum dikonfigurasi (Q7). siswaId={} dianggap tidak diketahui.",
+                MaskingKartu.idSiswa(siswaId));
         return null;
     }
 
     @Override
     public void blokirKartu(Long sekolahId, Long siswaId, String alasan) {
         log.warn("Blokir kartu siswa belum dikonfigurasi (Q7). siswaId={} dilewati. alasan={}",
-                siswaId, alasan);
+                MaskingKartu.idSiswa(siswaId), alasan);
     }
 }

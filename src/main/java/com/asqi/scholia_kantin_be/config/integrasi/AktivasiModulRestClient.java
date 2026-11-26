@@ -55,7 +55,7 @@ public class AktivasiModulRestClient extends IntegrasiRestSupport implements Akt
                     "internal-be menolak (HTTP " + e.getStatusCode().value() + ")");
         } catch (RuntimeException e) {
             log.warn("[AktivasiModul] Gagal status sekolah={} (fail-open, modul dianggap aktif): {}",
-                    sekolahId, e.getMessage());
+                    sekolahId, ringkasGalat(e));
             return AktivasiModulInfo.tidakDiketahui("Gagal menghubungi internal-be: " + e.getMessage());
         }
     }

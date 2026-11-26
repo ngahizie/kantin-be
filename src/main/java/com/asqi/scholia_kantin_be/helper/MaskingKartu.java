@@ -1,5 +1,9 @@
 package com.asqi.scholia_kantin_be.helper;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+
 /**
  * Penyamaran kredensial kartu pada respons laporan (SEC-BATAL-05, issue #395).
  *
@@ -32,5 +36,49 @@ public final class MaskingKartu {
             return TOPENG;
         }
         return TOPENG + bersih.substring(bersih.length() - 4);
+    }
+
+    /**
+     * Pseudonim stabil ID siswa untuk log: {@code 1001} → {@code S#a3f9}.
+     *
+     * <p>ID siswa berupa angka dengan ruang nilai kecil, jadi menyamarkan digit
+     * (mis. {@code ****01}) tetap membocorkan nilainya. Yang dipakai adalah empat
+     * heksadesimal pertama SHA-256 dengan awalan domain: baris log untuk siswa
+     * yang sama tetap bisa dikorelasikan tanpa menuliskan identitasnya.
+     *
+     * <p>Pseudonim, <b>bukan rahasia</b>: ruang ID kecil sehingga bisa
+     * di-brute-force. Tujuannya mencegah identitas terbaca langsung oleh staf
+     * non-berwenang atau agregator log pihak ketiga (issue #437).
+     *
+     * @param siswaId ID siswa (boleh null)
+     * @return pseudonim, atau {@code null} bila input null
+     */
+    public static String idSiswa(Long siswaId) {
+        if (siswaId == null) {
+            return null;
+        }
+        byte[] hash = sha256("siswa:" + siswaId);
+        if (hash == null) {
+            return "S#?";
+        }
+        // 32 bit: dengan ~1.000 siswa, 16 bit saja menghasilkan 7-8 pasang tabrakan
+        // pseudonim (birthday paradox) sehingga dua siswa bisa tampak sama di log.
+        long nilai = ((long) (hash[0] & 0xff) << 24)
+                | ((hash[1] & 0xff) << 16)
+                | ((hash[2] & 0xff) << 8)
+                | (hash[3] & 0xff);
+        return "S#" + String.format("%08x", nilai);
+    }
+
+    /** SHA-256 dari teks, atau {@code null} bila algoritma tidak tersedia. */
+    private static byte[] sha256(String teks) {
+        try {
+            return MessageDigest.getInstance("SHA-256").digest(teks.getBytes(StandardCharsets.UTF_8));
+        } catch (NoSuchAlgorithmException e) {
+            // Praktis tak terjangkau (SHA-256 wajib ada di JRE), tetapi pencatatan
+            // log tidak boleh menggagalkan alur transaksi — pemanggil memakai
+            // placeholder "S#?".
+            return null;
+        }
     }
 }

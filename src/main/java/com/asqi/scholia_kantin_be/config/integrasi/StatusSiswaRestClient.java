@@ -1,5 +1,6 @@
 package com.asqi.scholia_kantin_be.config.integrasi;
 
+import com.asqi.scholia_kantin_be.helper.MaskingKartu;
 import com.asqi.scholia_kantin_be.service.integrasi.StatusSiswaPort;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -64,7 +65,7 @@ public class StatusSiswaRestClient extends IntegrasiRestSupport implements Statu
             return null;
         }
         try {
-            String json = coba("status siswa=" + siswaId, () -> {
+            String json = coba("status siswa=" + MaskingKartu.idSiswa(siswaId), () -> {
                 var spec = klien().get().uri(path(PATH_DEFAULT), siswaId);
                 return beriHeader(spec, null).retrieve().body(String.class);
             });
@@ -72,15 +73,15 @@ public class StatusSiswaRestClient extends IntegrasiRestSupport implements Statu
         } catch (RestClientResponseException e) {
             if (e.getStatusCode().value() == 404) {
                 // Siswa tak ditemukan = tidak diketahui (fail-safe), bukan "nonaktif".
-                log.debug("[StatusSiswa] siswa={} tidak ditemukan (404).", siswaId);
+                log.debug("[StatusSiswa] siswa={} tidak ditemukan (404).", MaskingKartu.idSiswa(siswaId));
                 return null;
             }
-            log.warn("[StatusSiswa] admin-be menolak status siswa={} (HTTP {}).", siswaId,
-                    e.getStatusCode().value());
+            log.warn("[StatusSiswa] admin-be menolak status siswa={} (HTTP {}).",
+                    MaskingKartu.idSiswa(siswaId), e.getStatusCode().value());
             return null;
         } catch (RuntimeException e) {
-            log.warn("[StatusSiswa] Gagal status siswa={} (tidak diketahui): {}", siswaId,
-                    e.getMessage());
+            log.warn("[StatusSiswa] Gagal status siswa={} (tidak diketahui): {}",
+                    MaskingKartu.idSiswa(siswaId), ringkasGalat(e));
             return null;
         }
     }
@@ -161,7 +162,7 @@ public class StatusSiswaRestClient extends IntegrasiRestSupport implements Statu
                         e.getStatusCode().value(), potong.size());
             } catch (RuntimeException e) {
                 log.warn("[StatusSiswa] Gagal batch status {} siswa (dilewati): {}",
-                        potong.size(), e.getMessage());
+                        potong.size(), ringkasGalat(e));
             }
         }
         log.debug("[StatusSiswa] batch {} id → {} status.", ids.size(), hasil.size());
@@ -185,20 +186,21 @@ public class StatusSiswaRestClient extends IntegrasiRestSupport implements Statu
             isi(body, "siswaId", siswaId);
             isi(body, "alasan", alasan);
             byte[] raw = bytesJson(body);
-            coba("blokir kartu siswa=" + siswaId, () -> {
+            coba("blokir kartu siswa=" + MaskingKartu.idSiswa(siswaId), () -> {
                 var spec = klien().post()
                         .uri(statusSiswaCfg.getBlokirPath())
                         .contentType(MediaType.APPLICATION_JSON);
                 return beriHeader(spec, raw).body(body).retrieve().body(String.class);
             });
-            log.info("[StatusSiswa] Kartu siswa={} diblokir (alasan={}).", siswaId, alasan);
+            log.info("[StatusSiswa] Kartu siswa={} diblokir (alasan={}).",
+                    MaskingKartu.idSiswa(siswaId), alasan);
         } catch (RestClientResponseException e) {
-            log.warn("[StatusSiswa] Blokir kartu siswa={} ditolak (HTTP {}).", siswaId,
-                    e.getStatusCode().value());
+            log.warn("[StatusSiswa] Blokir kartu siswa={} ditolak (HTTP {}).",
+                    MaskingKartu.idSiswa(siswaId), e.getStatusCode().value());
         } catch (RuntimeException e) {
             // Best-effort: perpindahan uang di ledger sudah sah & idempoten (PRD §9.3).
             log.warn("[StatusSiswa] Blokir kartu siswa={} gagal (best-effort, tidak membatalkan): {}",
-                    siswaId, e.getMessage());
+                    MaskingKartu.idSiswa(siswaId), ringkasGalat(e));
         }
     }
 }
