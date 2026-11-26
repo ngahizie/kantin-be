@@ -18,8 +18,15 @@ kantin.demo.enabled=true
 # `sslmode=disable` eksplisit: DB lokal docker compose tanpa TLS (issue #432).
 # Jangan pakai nilai ini di staging/produksi.
 spring.datasource.url=jdbc:postgresql://localhost:5432/kantin_db?stringtype=unspecified&sslmode=disable
-spring.datasource.username=kantin
-spring.datasource.password=<GANTI_DB_PASSWORD>
+# ROLE RUNTIME — HANYA DML (issue #433). Dibuat otomatis oleh docker compose
+# (scripts/peran-db/buat-peran.sql). JANGAN pakai `postgres`/superuser.
+spring.datasource.username=kantin_app
+spring.datasource.password=<GANTI_DB_APP_PASSWORD>
+# ROLE MIGRASI (DDL, pemilik skema) — WAJIB beda dari role runtime.
+# Bila dua baris ini dikosongkan, Flyway memakai role runtime; profil `local`
+# tetap boleh (dikecualikan penjaga), tetapi staging/produksi TIDAK.
+spring.flyway.user=kantin_owner
+spring.flyway.password=<GANTI_DB_OWNER_PASSWORD>
 
 # --- SEED DATA DEV (HANYA lokal, TIDAK lagi otomatis) ---
 # Dataset dummy untuk FE: katalog, kasir, riwayat transaksi, koreksi saldo,

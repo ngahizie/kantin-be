@@ -21,6 +21,7 @@
 | [0011](./0011-rfid-usb-bridge-keyboard-wedge-mvp.md) | RFID USB bridge: keyboard-wedge untuk MVP, WebHID/agent menuju produksi | Diterima | 2026-10-07 |
 | [0012](./0012-peran-kepsek-terpisah-admin-sekolah.md) | Peran KEPSEK dipisah dari ADMIN_SEKOLAH (read-only laporan) | Diterima | 2026-10-08 |
 | [0013](./0013-penjualan-melebihi-catatan-stok.md) | Penjualan melebihi catatan stok (`PENJUALAN_MINUS`) bila barang masih ada di gudang | Diterima | 2026-11-19 |
+| [0014](./0014-rls-ditunda-peran-db-least-privilege.md) | Peran DB least-privilege (owner/app) diterapkan, RLS ditunda | Diterima | 2026-11-26 |
 
 > Status: `Diusulkan` → `Diterima` → (`Ditolak` / `Digantikan oleh NNNN`).
 

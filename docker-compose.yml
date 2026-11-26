@@ -11,6 +11,15 @@
 #     `docker compose up` berhenti dengan pesan jelas (fail-closed).
 #   * Port hanya di-bind ke 127.0.0.1 agar DB & Redis tidak terekspos ke LAN.
 #   * Redis memakai --requirepass; tanpa password container menolak start.
+#
+# ⚠️ PERAN DB LEAST-PRIVILEGE (issue #433) — jangan dilonggarkan:
+#   * `kantin` = role bootstrap/ops (superuser milik image postgres). HANYA untuk
+#     membuat role & backup; aplikasi TIDAK memakainya.
+#   * `kantin_owner` = pemilik skema → dipakai FLYWAY (DDL).
+#   * `kantin_app`   = runtime aplikasi → HANYA DML (SELECT/INSERT/UPDATE/DELETE).
+#   * Role dibuat otomatis oleh scripts/peran-db/buat-peran.sql saat volume data
+#     PERTAMA KALI dibuat. Volume lama tidak menjalankan ulang script ini —
+#     jalankan manual (lihat docs/database-role.md §4).
 # ============================================================
 services:
   postgres:
@@ -22,6 +31,12 @@ services:
       POSTGRES_USER: kantin
       # `:?` = compose gagal bila variabel kosong/tidak ada (tanpa fallback).
       POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD-wajib-diisi}
+      # Password dua role least-privilege (issue #433). Wajib: tanpa ini
+      # container menolak start dan role aplikasi tidak bisa dibuat.
+      # Nilainya SAMA dengan yang dipakai aplikasi (DB_PASSWORD untuk runtime,
+      # SPRING_FLYWAY_PASSWORD untuk migrasi) — lihat .env.example.
+      DB_APP_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD-wajib-diisi}
+      DB_OWNER_PASSWORD: ${SPRING_FLYWAY_PASSWORD:?SPRING_FLYWAY_PASSWORD-wajib-diisi}
       TZ: Asia/Jakarta
       PGTZ: Asia/Jakarta
     ports:
@@ -34,6 +49,9 @@ services:
       # /var/lib/postgresql/data (unused mount/volume)".
       # Lihat https://github.com/docker-library/postgres/pull/1259
       - kantin_pgdata:/var/lib/postgresql
+      # Dijalankan SEKALI saat volume data kosong: membuat kantin_owner &
+      # kantin_app + GRANT minimum (issue #433).
+      - ./scripts/peran-db/buat-peran.sql:/docker-entrypoint-initdb.d/10-buat-peran.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U kantin -d kantin_db"]
       interval: 5s
