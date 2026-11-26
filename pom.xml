@@ -298,6 +298,32 @@
 
 	<build>
 		<plugins>
+			<!-- Flyway CLI lewat Maven (issue #436): `./mvnw flyway:info` dipakai
+			     pipeline & ops untuk melihat status migrasi SEBELUM migrate.
+			     Versi mengikuti flyway-core yang dipakai Spring Boot (11.14.1). -->
+			<plugin>
+				<groupId>org.flywaydb</groupId>
+				<artifactId>flyway-maven-plugin</artifactId>
+				<version>11.14.1</version>
+				<configuration>
+					<locations>
+						<location>classpath:db/migration</location>
+					</locations>
+				</configuration>
+				<dependencies>
+					<dependency>
+						<groupId>org.flywaydb</groupId>
+						<artifactId>flyway-database-postgresql</artifactId>
+						<version>11.14.1</version>
+					</dependency>
+					<dependency>
+						<groupId>org.postgresql</groupId>
+						<artifactId>postgresql</artifactId>
+						<!-- Samakan dengan versi driver runtime (Spring Boot BOM: 42.7.9). -->
+						<version>42.7.9</version>
+					</dependency>
+				</dependencies>
+			</plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
