@@ -154,6 +154,13 @@ request **429** ⇒ kantin berhenti melayani.
 - [ ] Ukuran pool Hikari sesuai kapasitas host — default `KANTIN_DB_POOL_MAX=30`.
       Bukti uji beban 100 tap/dtk: kolam 10 ⇒ antrean koneksi, p95 1,2 dtk;
       kolam 30 ⇒ p95 0,69 dtk (`docs/uji-beban-tap.md` §5.3, issue #180)
+- [ ] `KANTIN_DB_STATEMENT_TIMEOUT` / `KANTIN_DB_LOCK_TIMEOUT` sudah diset
+      sesuai beban produksi (default `10s` / `3s`, issue #435). Nilai ini
+      menentukan berapa lama query dan tunggu `FOR UPDATE` diizinkan sebelum
+      dihentikan — jangan memakai default tanpa uji beban.
+- [ ] Ada prosedur untuk menaikkan batas saat migrasi besar atau laporan berat
+      (environment variable, atau `SET LOCAL statement_timeout` di transaksi).
+- [ ] Alert `AntreanKoneksiDBPenuh` aktif — lihat `docs/OBSERVABILITY.md` §4b.
 - [ ] `KANTIN_TOMCAT_MIN_SPARE` (default 100) sesuai kapasitas host
 
 ## F. Observability

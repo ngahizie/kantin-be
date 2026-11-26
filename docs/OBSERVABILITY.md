@@ -83,6 +83,29 @@ tanpa instrumentasi tambahan.
 | `management.distributions.percentiles-histogram.http.server.requests` | `true` | histogram latensi HTTP |
 | `kantin.metrics.public` (`KANTIN_METRICS_PUBLIC`) | `false` | `/actuator/prometheus` butuh token; set `true` untuk scrape tanpa JWT |
 
+## 4b. Kolam koneksi database (issue #435)
+Micrometer otomatis mengekspos metrik Hikari. Yang relevan untuk mendeteksi
+koneksi habis:
+
+| Metrik | Arti |
+|---|---|
+| `hikaricp_connections_pending` | jumlah thread yang menunggu koneksi |
+| `hikaricp_connections_active` | koneksi yang sedang dipakai |
+| `hikaricp_connections_timeout_total` | percobaan ambil koneksi yang gagal |
+Contoh alert:
+```yaml
+- alert: AntreanKoneksiDBPenuh
+  expr: hikaricp_connections_pending{application="scholia-kantin"} > 5
+  for: 2m
+  labels:
+    severity: warning
+  annotations:
+    summary: "Banyak request menunggu koneksi DB — cek query lambat / lock"
+```
+Bila alert ini bunyi, periksa query yang berjalan lama dan transaksi yang
+menunggu `FOR UPDATE`. Batas waktunya diatur lewat `KANTIN_DB_STATEMENT_TIMEOUT`
+dan `KANTIN_DB_LOCK_TIMEOUT`.
+
 ## 5. Scrape config Prometheus
 
 ```yaml
