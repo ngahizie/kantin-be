@@ -89,6 +89,12 @@ BEGIN
         JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE n.nspname = 'public'
           AND c.relkind IN ('r', 'p', 'S', 'v', 'm', 'f')
+        -- TABEL dulu, SEQUENCE terakhir (issue #452, ditemukan saat upgrade
+        -- volume lama): `ALTER SEQUENCE ... OWNER` GAGAL bila tabel pemiliknya
+        -- masih milik role lain ("cannot change owner of sequence X, linked to
+        -- table Y"). Setelah tabel di-ALTER, sequence miliknya ikut pindah,
+        -- jadi entri sequence di sini tinggal menangani sequence lepas.
+        ORDER BY CASE c.relkind WHEN 'S' THEN 1 ELSE 0 END, c.relname
     LOOP
         EXECUTE format('ALTER %s public.%I OWNER TO kantin_owner',
             CASE r.relkind
