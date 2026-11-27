@@ -136,7 +136,46 @@ groups:
 | `management.distributions.percentiles-histogram.http.server.requests` | `true` | histogram latensi HTTP |
 | `kantin.metrics.public` (`KANTIN_METRICS_PUBLIC`) | `false` | `/actuator/prometheus` butuh token; set `true` untuk scrape tanpa JWT |
 
-## 6. Scrape config Prometheus
+## 6. Kolam koneksi database (issue #435)
+Micrometer otomatis mengekspos metrik Hikari. Yang relevan untuk mendeteksi
+koneksi habis:
+
+| Metrik | Arti |
+|---|---|
+| `hikaricp_connections_pending` | jumlah thread yang menunggu koneksi |
+| `hikaricp_connections_active` | koneksi yang sedang dipakai |
+| `hikaricp_connections_timeout_total` | percobaan ambil koneksi yang gagal |
+Contoh alert:
+```yaml
+- alert: AntreanKoneksiDBPenuh
+  expr: hikaricp_connections_pending{application="scholia-kantin"} > 5
+  for: 2m
+  labels:
+    severity: warning
+  annotations:
+    summary: "Banyak request menunggu koneksi DB — cek query lambat / lock"
+```
+Bila alert ini bunyi, periksa query yang berjalan lama dan transaksi yang
+menunggu `FOR UPDATE`. Batas waktunya diatur lewat `KANTIN_DB_STATEMENT_TIMEOUT`
+dan `KANTIN_DB_LOCK_TIMEOUT`.
+
+Setelah batas waktu aktif, tiga kondisi ini dijawab **503** dengan pesan
+"Server sedang sibuk ... Silakan ulangi" (bukan 500 generik):
+
+| Kondisi | Exception | Arti |
+|---|---|---|
+| Query terlalu lama | `QueryTimeoutException` | statement melewati `statement_timeout` |
+| Menunggu kunci terlalu lama | `CannotAcquireLockException` | transaksi lain masih memegang `FOR UPDATE` |
+| Kolam koneksi penuh | `CannotGetJdbcConnectionException` | tidak ada koneksi tersedia dalam `connection-timeout` |
+
+Log server menulis `Database sibuk (<NamaException>): permintaan dikembalikan 503`
+tanpa detail SQL. Ekspor laporan memakai `SET LOCAL statement_timeout` sendiri
+(`KANTIN_DB_STATEMENT_TIMEOUT_LAPORAN_MS`, default 30 dtk) agar laporan berat
+tidak ikut batas 10 dtk milik jalur tap. Migrasi Flyway memakai koneksi
+terpisah (`KANTIN_FLYWAY_URL/_USERNAME/_PASSWORD`) agar tidak terpotong batas
+aplikasi.
+
+## 7. Scrape config Prometheus
 
 ```yaml
 scrape_configs:

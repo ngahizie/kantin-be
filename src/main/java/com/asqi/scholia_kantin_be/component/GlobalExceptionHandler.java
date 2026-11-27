@@ -13,10 +13,13 @@ import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSourceResolvable;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.QueryTimeoutException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.jdbc.CannotGetJdbcConnectionException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.BindingResult;
@@ -270,6 +273,29 @@ public class GlobalExceptionHandler {
     public ResponseEntity<?> handleDataIntegrity(DataIntegrityViolationException ex) {
         ErrorLogger.printFilteredStackTrace(ex);
         return CommonResponse.conflict("Operasi ditolak oleh aturan data (kemungkinan data ganda atau melanggar batas)");
+    }
+
+    /**
+     * Timeout query, lock timeout, atau kolam koneksi penuh → 503.
+     *
+     * <p>Setelah #435 memasang batas waktu, ketiga kondisi ini benar-benar bisa
+     * muncul saat kontensi. Sebelumnya semuanya jatuh ke 500 generik sehingga
+     * kasir tidak tahu apakah aman diulang. Tap bersifat idempoten, jadi 503
+     * dengan pesan "ulangi" adalah kontrak yang tepat.
+     */
+    @ExceptionHandler({QueryTimeoutException.class, CannotAcquireLockException.class,
+            CannotGetJdbcConnectionException.class})
+    public ResponseEntity<?> handleDatabaseBusy(RuntimeException ex) {
+        String pesan;
+        if (ex instanceof QueryTimeoutException) {
+            pesan = "Server sedang sibuk: permintaan memakan waktu terlalu lama. Silakan ulangi.";
+        } else if (ex instanceof CannotAcquireLockException) {
+            pesan = "Server sedang sibuk: data sedang dipakai transaksi lain. Silakan ulangi.";
+        } else {
+            pesan = "Server sedang sibuk: koneksi database penuh. Silakan ulangi.";
+        }
+        log.warn("Database sibuk ({}): permintaan dikembalikan 503", ex.getClass().getSimpleName());
+        return CommonResponse.serviceUnavailable(pesan);
     }
 
     // ────────────────────────────────────────────────────────────────

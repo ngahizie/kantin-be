@@ -241,6 +241,18 @@ public class CommonResponse {
     }
 
     /**
+     * 503 — server sibuk sementara (query timeout, lock timeout, atau kolam
+     * koneksi penuh). Aman diulang; klien tidak perlu menganggap data rusak.
+     */
+    public static <T> ResponseEntity<Response<T>> serviceUnavailable(String message) {
+        Response<T> r = new Response<>();
+        r.setCode(503);
+        r.setResponseCode(ResponseCode.SERVICE_UNAVAILABLE);
+        r.setMessage(message);
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(r);
+    }
+
+    /**
      * 500 — kesalahan server.
      *
      * <p><b>⚠️ Jangan pakai varian {@code serverError(Exception)} (B22):</b>
