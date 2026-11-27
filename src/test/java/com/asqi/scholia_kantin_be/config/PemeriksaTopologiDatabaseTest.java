@@ -33,7 +33,7 @@ class PemeriksaTopologiDatabaseTest {
     @Test
     @DisplayName("URL JDBC: ekstraksi nama database & host benar (termasuk query & kredensial)")
     void ekstraksiUrl() {
-        String url = "jdbc:postgresql://db.internal:5432/kantin_db?stringtype=unspecified";
+        String url = "jdbc:postgresql://db.internal:5432/kantin_db";
         assertThat(PemeriksaTopologiDatabase.namaDatabase(url)).isEqualTo("kantin_db");
         assertThat(PemeriksaTopologiDatabase.host(url)).isEqualTo("db.internal");
 

@@ -17,7 +17,7 @@ kantin.demo.enabled=true
 # --- Database: PostgreSQL (docker compose up -d) ---
 # `sslmode=disable` eksplisit: DB lokal docker compose tanpa TLS (issue #432).
 # Jangan pakai nilai ini di staging/produksi.
-spring.datasource.url=jdbc:postgresql://localhost:5432/kantin_db?stringtype=unspecified&sslmode=disable
+spring.datasource.url=jdbc:postgresql://localhost:5432/kantin_db?sslmode=disable
 # ROLE RUNTIME — HANYA DML (issue #433). Dibuat otomatis oleh docker compose
 # (scripts/peran-db/buat-peran.sql). JANGAN pakai `postgres`/superuser.
 spring.datasource.username=kantin_app
