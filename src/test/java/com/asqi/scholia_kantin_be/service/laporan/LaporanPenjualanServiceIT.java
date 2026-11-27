@@ -225,7 +225,7 @@ class LaporanPenjualanServiceIT extends LaporanITSupport {
                         var sel = row.getCell(c);
                         if (sel == null
                                 || org.apache.poi.ss.usermodel.CellType.STRING != sel.getCellType()
-                                || !"Laba".equals(sel.getStringCellValue().trim())) {
+                                || !"Keuntungan".equals(sel.getStringCellValue().trim())) {
                             continue;
                         }
                         barisLabaDitemukan = true;
@@ -236,8 +236,8 @@ class LaporanPenjualanServiceIT extends LaporanITSupport {
                                     && nilai.getStringCellValue().isBlank());
                     }
                 }
-                assertThat(barisLabaDitemukan).as("baris 'Laba' harus ada di berkas").isTrue();
-                assertThat(labaKosong).as("nilai laba harus kosong untuk Admin Sekolah").isTrue();
+                assertThat(barisLabaDitemukan).as("baris 'Keuntungan' harus ada di berkas").isTrue();
+                assertThat(labaKosong).as("nilai keuntungan harus kosong untuk Admin Sekolah").isTrue();
             }
         } finally {
             TenantContext.clear();

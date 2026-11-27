@@ -1,12 +1,14 @@
 package com.asqi.scholia_kantin_be.service.laporan;
 
 import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.xssf.usermodel.XSSFCellStyle;
 import org.apache.poi.xssf.usermodel.XSSFColor;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -158,6 +160,56 @@ class ExcelWriterTest {
             assertThat(sheet.getRow(1).getCell(1).getStringCellValue()).isEqualTo("SMP NEGERI 1 SKOOLIA");
             // Header bagian 1 di baris 5
             assertThat(sheet.getRow(5).getCell(1).getStringCellValue()).isEqualTo("Metrik");
+        }
+    }
+
+    @Test
+    @DisplayName("#450: metadata banyak baris, baris total #22559B, catatan kaki, dan sanitasi formula")
+    void tulisMetadataTotalDanCatatanKaki() throws Exception {
+        byte[] xlsxBytes = writer.tulis(
+                "Penjualan",
+                "LAPORAN PENJUALAN",
+                "SMP NEGERI 1 SKOOLIA",
+                "Jl. Merdeka No. 1",
+                List.of("Tanggal Cetak: 27-11-2026 10:00", "=SUM(A1:A2)"),
+                List.of("Metrik", "Nilai"),
+                List.of(List.of("Penjualan bersih", 90000)),
+                Arrays.asList("=SUM(A1:A9)", 99000),
+                "=CMD()"
+        );
+
+        try (XSSFWorkbook wb = new XSSFWorkbook(new ByteArrayInputStream(xlsxBytes))) {
+            Sheet sheet = wb.getSheetAt(0);
+            assertThat(sheet.getRow(4).getCell(1).getStringCellValue())
+                    .isEqualTo("Tanggal Cetak: 27-11-2026 10:00");
+            assertThat(sheet.getRow(5).getCell(1).getStringCellValue())
+                    .isEqualTo("'=SUM(A1:A2)");
+            assertThat(sheet.getRow(6).getCell(1).getStringCellValue()).isEqualTo("Metrik");
+            assertThat(sheet.getRow(7).getCell(2).getNumericCellValue()).isEqualTo(90000);
+
+            var selTotal = sheet.getRow(8).getCell(1);
+            assertThat(selTotal.getStringCellValue()).isEqualTo("'=SUM(A1:A9)");
+            XSSFCellStyle gayaTotal = (XSSFCellStyle) selTotal.getCellStyle();
+            byte[] rgbTotal = gayaTotal.getFillForegroundXSSFColor().getRGB();
+            assertThat(rgbTotal[0] & 0xFF).isEqualTo(34);
+            assertThat(rgbTotal[1] & 0xFF).isEqualTo(85);
+            assertThat(rgbTotal[2] & 0xFF).isEqualTo(155);
+            var fontTotal = (org.apache.poi.xssf.usermodel.XSSFFont)
+                    wb.getFontAt(gayaTotal.getFontIndexAsInt());
+            assertThat(fontTotal.getBold()).isTrue();
+            byte[] rgbFontTotal = fontTotal.getXSSFColor().getRGB();
+            assertThat(rgbFontTotal[0] & 0xFF).isEqualTo(255);
+            assertThat(rgbFontTotal[1] & 0xFF).isEqualTo(255);
+            assertThat(rgbFontTotal[2] & 0xFF).isEqualTo(255);
+            assertThat(sheet.getRow(8).getCell(2).getNumericCellValue()).isEqualTo(99000);
+
+            assertThat(sheet.getRow(9).getCell(1).getStringCellValue()).isEqualTo("'=CMD()");
+            var fontCatatan = (org.apache.poi.xssf.usermodel.XSSFFont) wb.getFontAt(
+                    sheet.getRow(9).getCell(1).getCellStyle().getFontIndexAsInt());
+            byte[] rgbFontCatatan = fontCatatan.getXSSFColor().getRGB();
+            assertThat(rgbFontCatatan[0] & 0xFF).isEqualTo(100);
+            assertThat(rgbFontCatatan[1] & 0xFF).isEqualTo(100);
+            assertThat(rgbFontCatatan[2] & 0xFF).isEqualTo(100);
         }
     }
 }
