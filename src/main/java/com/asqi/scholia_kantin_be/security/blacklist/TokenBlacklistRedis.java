@@ -1,7 +1,9 @@
 package com.asqi.scholia_kantin_be.security.blacklist;
 
-import lombok.RequiredArgsConstructor;
+import com.asqi.scholia_kantin_be.component.metrics.MetrikFailOpen;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -23,12 +25,27 @@ import java.time.Duration;
  */
 @Component
 @Slf4j
-@RequiredArgsConstructor
 public class TokenBlacklistRedis implements TokenBlacklistPort {
 
     private static final String PREFIX = "bl:";
 
     private final StringRedisTemplate redis;
+    private final MetrikFailOpen metrikFailOpen;
+
+    public TokenBlacklistRedis(StringRedisTemplate redis) {
+        this(redis, (MetrikFailOpen) null);
+    }
+
+    public TokenBlacklistRedis(StringRedisTemplate redis, MetrikFailOpen metrikFailOpen) {
+        this.redis = redis;
+        this.metrikFailOpen = metrikFailOpen;
+    }
+
+    @Autowired
+    public TokenBlacklistRedis(StringRedisTemplate redis,
+                               ObjectProvider<MetrikFailOpen> metrikFailOpenProvider) {
+        this(redis, metrikFailOpenProvider.getIfAvailable());
+    }
 
     @Override
     public void cabut(String token, long detikSampaiKedaluwarsa) {
@@ -40,6 +57,9 @@ public class TokenBlacklistRedis implements TokenBlacklistPort {
         } catch (RuntimeException e) {
             // Fail-open: pencabutan gagal, tetapi jangan mengganggu permintaan berjalan.
             log.warn("Gagal mencabut token di Redis (fail-open): {}", e.getMessage());
+            if (metrikFailOpen != null) {
+                metrikFailOpen.catatIntegrasiFailOpen(MetrikFailOpen.ADAPTER_TOKEN_BLACKLIST);
+            }
         }
     }
 
@@ -53,6 +73,9 @@ public class TokenBlacklistRedis implements TokenBlacklistPort {
         } catch (RuntimeException e) {
             // Fail-open: penyimpanan tak dapat dihubungi → anggap belum dicabut.
             log.warn("Gagal memeriksa blacklist Redis (fail-open): {}", e.getMessage());
+            if (metrikFailOpen != null) {
+                metrikFailOpen.catatIntegrasiFailOpen(MetrikFailOpen.ADAPTER_TOKEN_BLACKLIST);
+            }
             return false;
         }
     }

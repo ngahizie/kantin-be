@@ -1,6 +1,8 @@
 package com.asqi.scholia_kantin_be.component.ratelimit;
 
+import com.asqi.scholia_kantin_be.component.metrics.MetrikFailOpen;
 import com.asqi.scholia_kantin_be.config.ratelimit.RateLimitProperties;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -96,5 +98,40 @@ class RateLimiterRedisTest {
         var hasil = limiter.periksa("tap", "1:42", 10);
         assertThat(hasil.diizinkan()).isTrue();
         assertThat(hasil.hitungan()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("Redis error pada mode fail-open mencatat counter ratelimit.bypass reason='redis_error'")
+    void failOpenMencatatMetrikBypass() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        RateLimiterRedis terinstrumentasi = new RateLimiterRedis(redis, props, new MetrikFailOpen(registry));
+        when(redis.execute(any(RedisScript.class), any(RedisSerializer.class),
+                any(RedisSerializer.class), anyList(), anyString()))
+                .thenThrow(new QueryTimeoutException("redis down"));
+
+        var hasil = terinstrumentasi.periksa("tap", "1:42", 10);
+
+        assertThat(hasil.diizinkan()).isTrue();
+        assertThat(registry.find(MetrikFailOpen.NAMA_RATELIMIT_BYPASS)
+                .tag("reason", MetrikFailOpen.REASON_REDIS_ERROR).counter().count())
+                .isEqualTo(1.0);
+    }
+
+    @Test
+    @DisplayName("Redis error pada mode fail-closed tidak mencatat counter bypass")
+    void failClosedTidakMencatatBypass() {
+        props.setFailClosed(true);
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        RateLimiterRedis terinstrumentasi = new RateLimiterRedis(redis, props, new MetrikFailOpen(registry));
+        when(redis.execute(any(RedisScript.class), any(RedisSerializer.class),
+                any(RedisSerializer.class), anyList(), anyString()))
+                .thenThrow(new QueryTimeoutException("redis down"));
+
+        var hasil = terinstrumentasi.periksa("tap", "1:42", 10);
+
+        assertThat(hasil.diizinkan()).isFalse();
+        assertThat(registry.find(MetrikFailOpen.NAMA_RATELIMIT_BYPASS)
+                .tag("reason", MetrikFailOpen.REASON_REDIS_ERROR).counter().count())
+                .isZero();
     }
 }

@@ -176,6 +176,20 @@ deteksi anomali A09.
   Token disimpan sebagai SHA-256 (bukan mentah) dengan TTL = sisa umur token.
   Filter menolak token tercabut **setelah** signature valid. **Gagal-terbuka**: Redis
   mati ⇒ token dianggap belum dicabut (gangguan infra tidak melumpuhkan kantin).
+
+### 7.1 Keputusan Fail-Open per Jalur (issue #439)
+
+Sesuai keputusan pilot di `docs/checklist-pra-rilis.md §D`, jalur infrastruktur berikut dipertahankan **fail-open** demi ketersediaan layanan kasir, sementara kondisi bypass dipantau lewat metrik `MetrikFailOpen` di `/actuator/prometheus` (aturan alert di `docs/OBSERVABILITY.md §4`):
+
+| Jalur & Komponen | Perilaku Saat Gangguan | Alasan Keputusan | Kontrol Keamanan yang Tetap Aktif | Metrik Observability |
+|---|---|---|---|---|
+| **Rate limit HTTP** (`RateLimiterRedis`, `RateLimitFilter`) | `fail-closed=false` (default): Redis error / timeout ⇒ permintaan tetap diteruskan | Redis down tidak boleh memblokir seluruh transaksi kasir (checklist §D) | Autentikasi JWT RS256, RBAC `@PerluPeran`, isolasi tenant `SekolahGuard`, validasi bisnis & batasan Hikari pool | `ratelimit_bypass_total{reason="redis_error" \| "disabled"}` |
+| **Blacklist token JWT** (`TokenBlacklistRedis`) | Redis error saat `cabut()` / `tercabut()` ⇒ dianggap belum dicabut | Token pendek + gangguan cache blacklist tidak boleh memutus sesi kasir aktif | Verifikasi signature RS256, `exp` TTL token, `typ!=refresh`, RBAC | `integrasi_fail_open_total{adapter="token_blacklist"}` |
+| **Cache aktivasi modul** (`AktivasiModulFilter`) | Redis error saat baca/tulis cache `akt:modul:*` ⇒ lanjut cek `AktivasiModulService` | Gangguan cache tidak boleh menghentikan penegakan aktivasi | Fallback ke adapter `AktivasiModulPort`, JWT, RBAC, isolasi tenant | `integrasi_fail_open_total{adapter="aktivasi_cache"}` |
+| **Adapter aktivasi modul** (`AktivasiModulRestClient`) | Endpoint internal-be gagal / 4xx / 5xx ⇒ `diketahui=false` (modul dianggap aktif) | Kontrak/layanan internal-be tak tersedia tidak boleh melumpuhkan kantin (PRD §10) | Autentikasi endpoint internal HMAC + seluruh kontrol inti `kantin-be` | `integrasi_fail_open_total{adapter="aktivasi_modul"}` |
+| **Adapter cek UID siswa** (`UidSiswaRestClient`) | Endpoint admin-be gagal / 4xx / 5xx ⇒ kembalikan `null` ("tidak diketahui") | Integrasi tak siap tidak boleh menolak registrasi Kartu Tamu yang sah (Q7) | Keunikan UID lokal antar Kartu Tamu di DB `kantin_db`, RBAC admin, audit log | `integrasi_fail_open_total{adapter="uid_siswa"}` |
+
+> Jalur autentikasi & verifikasi mesin-ke-mesin (`/api/webhook/**`, `/api/internal/**`, dan `KantinJwtDecoder`) tetap **gagal-tertutup (*fail-closed*)** (§1, §5.1, §7) dan **tidak** tercakup pengecualian di atas.
 - ✅ **Webhook masuk diamankan (B34)** — `/api/webhook/{sumber}` wajib HMAC-SHA256
   sah + anti-replay (timestamp) + allowlist IP opsional; rahasia dari
   `KANTIN_WEBHOOK_SECRET` (kosong ⇒ 503, gagal-tertutup). Idempotency per event id
