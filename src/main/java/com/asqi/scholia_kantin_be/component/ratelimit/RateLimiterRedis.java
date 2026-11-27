@@ -1,7 +1,9 @@
 package com.asqi.scholia_kantin_be.component.ratelimit;
 
+import com.asqi.scholia_kantin_be.component.metrics.MetrikFailOpen;
 import com.asqi.scholia_kantin_be.config.ratelimit.RateLimitProperties;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.serializer.GenericToStringSerializer;
@@ -26,7 +28,6 @@ import java.util.List;
  * (PRD §11.11) — itu wajib diperiksa di DB setiap tap.
  */
 @Component
-@RequiredArgsConstructor
 public class RateLimiterRedis {
 
     /**
@@ -48,6 +49,27 @@ public class RateLimiterRedis {
 
     private final RedisTemplate<String, Object> redisTemplate;
     private final RateLimitProperties properties;
+    private final MetrikFailOpen metrikFailOpen;
+
+    public RateLimiterRedis(RedisTemplate<String, Object> redisTemplate,
+                            RateLimitProperties properties) {
+        this(redisTemplate, properties, (MetrikFailOpen) null);
+    }
+
+    public RateLimiterRedis(RedisTemplate<String, Object> redisTemplate,
+                            RateLimitProperties properties,
+                            MetrikFailOpen metrikFailOpen) {
+        this.redisTemplate = redisTemplate;
+        this.properties = properties;
+        this.metrikFailOpen = metrikFailOpen;
+    }
+
+    @Autowired
+    public RateLimiterRedis(RedisTemplate<String, Object> redisTemplate,
+                            RateLimitProperties properties,
+                            ObjectProvider<MetrikFailOpen> metrikFailOpenProvider) {
+        this(redisTemplate, properties, metrikFailOpenProvider.getIfAvailable());
+    }
 
     /**
      * Hasil pemeriksaan limit.
@@ -81,7 +103,11 @@ public class RateLimiterRedis {
         } catch (RuntimeException e) {
             // Redis tidak tersedia (DataAccessException/timeout, dsb.) →
             // fail-open (default) agar operasional jalan terus.
-            return new Hasil(!properties.isFailClosed(), 0L, batas);
+            boolean izinkan = !properties.isFailClosed();
+            if (izinkan && metrikFailOpen != null) {
+                metrikFailOpen.catatRatelimitBypass(MetrikFailOpen.REASON_REDIS_ERROR);
+            }
+            return new Hasil(izinkan, 0L, batas);
         }
     }
 }

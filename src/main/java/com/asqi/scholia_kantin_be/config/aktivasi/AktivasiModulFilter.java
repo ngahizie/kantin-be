@@ -1,5 +1,6 @@
 package com.asqi.scholia_kantin_be.config.aktivasi;
 
+import com.asqi.scholia_kantin_be.component.metrics.MetrikFailOpen;
 import com.asqi.scholia_kantin_be.dto.konfigurasi.AktivasiModulResponse;
 import com.asqi.scholia_kantin_be.payload.response.CommonResponse;
 import com.asqi.scholia_kantin_be.payload.response.Response;
@@ -10,8 +11,9 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -45,7 +47,6 @@ import java.time.Duration;
  * sudah terisi.
  */
 @Component
-@RequiredArgsConstructor
 @Slf4j
 public class AktivasiModulFilter extends OncePerRequestFilter {
 
@@ -54,7 +55,32 @@ public class AktivasiModulFilter extends OncePerRequestFilter {
     private final AktivasiModulService aktivasiModulService;
     private final AktivasiModulProperties properties;
     private final StringRedisTemplate redis;
+    private final MetrikFailOpen metrikFailOpen;
     private final JsonMapper jsonMapper = JsonMapper.builder().build();
+
+    public AktivasiModulFilter(AktivasiModulService aktivasiModulService,
+                               AktivasiModulProperties properties,
+                               StringRedisTemplate redis) {
+        this(aktivasiModulService, properties, redis, (MetrikFailOpen) null);
+    }
+
+    public AktivasiModulFilter(AktivasiModulService aktivasiModulService,
+                               AktivasiModulProperties properties,
+                               StringRedisTemplate redis,
+                               MetrikFailOpen metrikFailOpen) {
+        this.aktivasiModulService = aktivasiModulService;
+        this.properties = properties;
+        this.redis = redis;
+        this.metrikFailOpen = metrikFailOpen;
+    }
+
+    @Autowired
+    public AktivasiModulFilter(AktivasiModulService aktivasiModulService,
+                               AktivasiModulProperties properties,
+                               StringRedisTemplate redis,
+                               ObjectProvider<MetrikFailOpen> metrikFailOpenProvider) {
+        this(aktivasiModulService, properties, redis, metrikFailOpenProvider.getIfAvailable());
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -122,6 +148,9 @@ public class AktivasiModulFilter extends OncePerRequestFilter {
                 }
             } catch (RuntimeException e) {
                 log.warn("Cache aktivasi modul tak tersedia (fail-open): {}", e.getMessage());
+                if (metrikFailOpen != null) {
+                    metrikFailOpen.catatIntegrasiFailOpen(MetrikFailOpen.ADAPTER_AKTIVASI_CACHE);
+                }
             }
         }
 
@@ -138,6 +167,9 @@ public class AktivasiModulFilter extends OncePerRequestFilter {
                         Duration.ofSeconds(properties.getCacheSeconds()));
             } catch (RuntimeException e) {
                 log.warn("Gagal meng-cache aktivasi modul (fail-open): {}", e.getMessage());
+                if (metrikFailOpen != null) {
+                    metrikFailOpen.catatIntegrasiFailOpen(MetrikFailOpen.ADAPTER_AKTIVASI_CACHE);
+                }
             }
         }
         return status.isAktif();

@@ -1,5 +1,6 @@
 package com.asqi.scholia_kantin_be.config.ratelimit;
 
+import com.asqi.scholia_kantin_be.component.metrics.MetrikFailOpen;
 import com.asqi.scholia_kantin_be.component.ratelimit.RateLimiterRedis;
 import com.asqi.scholia_kantin_be.helper.AlamatKlien;
 import com.asqi.scholia_kantin_be.payload.response.CommonResponse;
@@ -10,7 +11,8 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -34,12 +36,31 @@ import java.io.IOException;
  */
 @Component
 @Order(Ordered.LOWEST_PRECEDENCE - 10)
-@RequiredArgsConstructor
 public class RateLimitFilter extends OncePerRequestFilter {
 
     private final RateLimiterRedis limiter;
     private final RateLimitProperties properties;
+    private final MetrikFailOpen metrikFailOpen;
     private final JsonMapper jsonMapper = JsonMapper.builder().build();
+
+    public RateLimitFilter(RateLimiterRedis limiter, RateLimitProperties properties) {
+        this(limiter, properties, (MetrikFailOpen) null);
+    }
+
+    public RateLimitFilter(RateLimiterRedis limiter,
+                           RateLimitProperties properties,
+                           MetrikFailOpen metrikFailOpen) {
+        this.limiter = limiter;
+        this.properties = properties;
+        this.metrikFailOpen = metrikFailOpen;
+    }
+
+    @Autowired
+    public RateLimitFilter(RateLimiterRedis limiter,
+                           RateLimitProperties properties,
+                           ObjectProvider<MetrikFailOpen> metrikFailOpenProvider) {
+        this(limiter, properties, metrikFailOpenProvider.getIfAvailable());
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -47,6 +68,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
                                     FilterChain filterChain) throws ServletException, IOException {
 
         if (!properties.isEnabled()) {
+            if (metrikFailOpen != null && request.getRequestURI().startsWith("/api")) {
+                metrikFailOpen.catatRatelimitBypass(MetrikFailOpen.REASON_DISABLED);
+            }
             filterChain.doFilter(request, response);
             return;
         }

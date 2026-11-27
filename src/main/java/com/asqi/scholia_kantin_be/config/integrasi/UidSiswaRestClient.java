@@ -1,8 +1,11 @@
 package com.asqi.scholia_kantin_be.config.integrasi;
 
+import com.asqi.scholia_kantin_be.component.metrics.MetrikFailOpen;
 import com.asqi.scholia_kantin_be.helper.MaskingKartu;
 import com.asqi.scholia_kantin_be.service.integrasi.UidSiswaPort;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
@@ -38,8 +41,21 @@ public class UidSiswaRestClient extends IntegrasiRestSupport implements UidSiswa
     /** Path default cek UID siswa (Q7). */
     public static final String PATH_DEFAULT = "/api/internal/siswa/cek-uid";
 
+    private final MetrikFailOpen metrikFailOpen;
+
     public UidSiswaRestClient(IntegrasiRestProperties properties) {
+        this(properties, (MetrikFailOpen) null);
+    }
+
+    public UidSiswaRestClient(IntegrasiRestProperties properties, MetrikFailOpen metrikFailOpen) {
         super("UidSiswa", properties.getUidSiswa());
+        this.metrikFailOpen = metrikFailOpen;
+    }
+
+    @Autowired
+    public UidSiswaRestClient(IntegrasiRestProperties properties,
+                              ObjectProvider<MetrikFailOpen> metrikFailOpenProvider) {
+        this(properties, metrikFailOpenProvider.getIfAvailable());
     }
 
     @Override
@@ -62,10 +78,16 @@ public class UidSiswaRestClient extends IntegrasiRestSupport implements UidSiswa
         } catch (RestClientResponseException e) {
             log.warn("[UidSiswa] admin-be menolak cek UID {} (HTTP {}).",
                     MaskingKartu.uid(rfidUid), e.getStatusCode().value());
+            if (metrikFailOpen != null) {
+                metrikFailOpen.catatIntegrasiFailOpen(MetrikFailOpen.ADAPTER_UID_SISWA);
+            }
             return null;
         } catch (RuntimeException e) {
             log.warn("[UidSiswa] Gagal cek UID {} (tidak diketahui, fail-open): {}",
                     MaskingKartu.uid(rfidUid), ringkasGalat(e));
+            if (metrikFailOpen != null) {
+                metrikFailOpen.catatIntegrasiFailOpen(MetrikFailOpen.ADAPTER_UID_SISWA);
+            }
             return null;
         }
     }

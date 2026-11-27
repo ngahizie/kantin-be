@@ -1,8 +1,11 @@
 package com.asqi.scholia_kantin_be.config.integrasi;
 
+import com.asqi.scholia_kantin_be.component.metrics.MetrikFailOpen;
 import com.asqi.scholia_kantin_be.service.integrasi.AktivasiModulInfo;
 import com.asqi.scholia_kantin_be.service.integrasi.AktivasiModulPort;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
@@ -32,8 +35,21 @@ public class AktivasiModulRestClient extends IntegrasiRestSupport implements Akt
     /** Path default status aktivasi modul (Q6). */
     public static final String PATH_DEFAULT = "/api/internal/modul-kantin/status";
 
+    private final MetrikFailOpen metrikFailOpen;
+
     public AktivasiModulRestClient(IntegrasiRestProperties properties) {
+        this(properties, (MetrikFailOpen) null);
+    }
+
+    public AktivasiModulRestClient(IntegrasiRestProperties properties, MetrikFailOpen metrikFailOpen) {
         super("AktivasiModul", properties.getAktivasi());
+        this.metrikFailOpen = metrikFailOpen;
+    }
+
+    @Autowired
+    public AktivasiModulRestClient(IntegrasiRestProperties properties,
+                                   ObjectProvider<MetrikFailOpen> metrikFailOpenProvider) {
+        this(properties, metrikFailOpenProvider.getIfAvailable());
     }
 
     @Override
@@ -51,11 +67,17 @@ public class AktivasiModulRestClient extends IntegrasiRestSupport implements Akt
         } catch (RestClientResponseException e) {
             log.warn("[AktivasiModul] internal-be menolak status sekolah={} (HTTP {}).", sekolahId,
                     e.getStatusCode().value());
+            if (metrikFailOpen != null) {
+                metrikFailOpen.catatIntegrasiFailOpen(MetrikFailOpen.ADAPTER_AKTIVASI_MODUL);
+            }
             return AktivasiModulInfo.tidakDiketahui(
                     "internal-be menolak (HTTP " + e.getStatusCode().value() + ")");
         } catch (RuntimeException e) {
             log.warn("[AktivasiModul] Gagal status sekolah={} (fail-open, modul dianggap aktif): {}",
                     sekolahId, ringkasGalat(e));
+            if (metrikFailOpen != null) {
+                metrikFailOpen.catatIntegrasiFailOpen(MetrikFailOpen.ADAPTER_AKTIVASI_MODUL);
+            }
             return AktivasiModulInfo.tidakDiketahui("Gagal menghubungi internal-be: " + e.getMessage());
         }
     }
