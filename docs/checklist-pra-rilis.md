@@ -162,6 +162,24 @@ request **429** ⇒ kantin berhenti melayani.
 - [ ] Ukuran pool Hikari sesuai kapasitas host — default `KANTIN_DB_POOL_MAX=30`.
       Bukti uji beban 100 tap/dtk: kolam 10 ⇒ antrean koneksi, p95 1,2 dtk;
       kolam 30 ⇒ p95 0,69 dtk (`docs/uji-beban-tap.md` §5.3, issue #180)
+- [ ] `KANTIN_DB_STATEMENT_TIMEOUT` / `KANTIN_DB_LOCK_TIMEOUT` sudah diset
+      sesuai beban produksi (default `10s` / `3s`, issue #435). Nilai ini
+      menentukan berapa lama query dan tunggu `FOR UPDATE` diizinkan sebelum
+      dihentikan — jangan memakai default tanpa uji beban.
+- [ ] `KANTIN_DB_CONNECTION_TIMEOUT_MS` (default `5000`) lebih besar dari
+      acquire maksimum hasil uji beban. Cold-start pernah mencatat 2,3 dtk;
+      3 dtk terlalu ketat dan mengubah request sukses menjadi 500.
+- [ ] Ekspor laporan berat diuji dengan `KANTIN_DB_STATEMENT_TIMEOUT_LAPORAN_MS`
+      (default `30000`). Nilai ini dipasang sebagai `SET LOCAL` hanya untuk
+      transaksi ekspor, bukan untuk seluruh aplikasi.
+- [ ] Migrasi Flyway memakai koneksi sendiri (`KANTIN_FLYWAY_URL`,
+      `KANTIN_FLYWAY_USERNAME`, `KANTIN_FLYWAY_PASSWORD`) bila role migrasi
+      berbeda dari role runtime. Jangan memakai `spring.flyway.init-sqls` untuk
+      mematikan timeout — GUC sesi bisa terbawa ke kolam.
+- [ ] Timeout query/lock dan kolam penuh dijawab **503** dengan pesan
+      "Server sedang sibuk ... Silakan ulangi", bukan 500 generik. Uji dengan
+      `SET LOCAL statement_timeout` pendek dan `pg_advisory_xact_lock`.
+- [ ] Alert `AntreanKoneksiDBPenuh` aktif — lihat `docs/OBSERVABILITY.md` §4b.
 - [ ] `KANTIN_TOMCAT_MIN_SPARE` (default 100) sesuai kapasitas host
 
 ## F. Observability

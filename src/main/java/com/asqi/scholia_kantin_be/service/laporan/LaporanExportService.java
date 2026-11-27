@@ -26,6 +26,7 @@ import com.asqi.scholia_kantin_be.helper.UkuranHalaman;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -68,6 +69,13 @@ public class LaporanExportService {
     private final ExcelWriter excel;
     private final JamKantin jam;
     private final JdbcTemplate jdbc;
+
+    /**
+     * Batas {@code statement_timeout} khusus transaksi ekspor (milidetik).
+     * Default 30 dtk; bisa dioverride lewat environment untuk laporan besar.
+     */
+    @Value("${kantin.db.statement-timeout-laporan-ms:30000}")
+    private long batasWaktuLaporanMs = 30_000L;
 
     /** Opsional: dipakai mencatat audit ekspor laporan keuangan (SEC-06, #388). */
     private AuditLogger auditLogger;
@@ -157,6 +165,23 @@ public class LaporanExportService {
     }
 
     /**
+     * Pasang batas waktu khusus untuk transaksi ekspor laporan.
+     *
+     * <p>Batas global (10 dtk) melindungi kolam koneksi, tetapi laporan setahun
+     * bisa lebih lama. {@code SET LOCAL} hanya berlaku sampai transaksi
+     * berakhir, jadi koneksi lain tetap memakai batas global. Nilai berasal dari
+     * konfigurasi bertipe {@code long}, bukan input pengguna, sehingga aman
+     * dirangkai ke SQL.
+     */
+    void pasangBatasWaktuEkspor() {
+        if (jdbc == null) {
+            return;
+        }
+        long batas = batasWaktuLaporanMs > 0 ? batasWaktuLaporanMs : 30_000L;
+        jdbc.execute("SET LOCAL statement_timeout = " + batas);
+    }
+
+    /**
      * Ekspor laporan (bentuk lengkap). {@code menuId} untuk {@link JenisLaporan#KARTU_STOK};
      * {@code subjekTipe}/{@code siswaId} wajib untuk {@link JenisLaporan#PER_SISWA}
      * (divalidasi di sini → 400 bila kosong).
@@ -165,6 +190,7 @@ public class LaporanExportService {
     public HasilEkspor ekspor(Long sekolahId, JenisLaporan jenis, LocalDate tanggal,
                               OffsetDateTime dari, OffsetDateTime sampai, Long menuId,
                               Long siswaId) {
+        pasangBatasWaktuEkspor();
         String label = labelPeriode(tanggal, dari, sampai);
         HasilEkspor hasil = switch (jenis) {
             case PENJUALAN -> eksporPenjualan(sekolahId, tanggal, dari, sampai, label);
