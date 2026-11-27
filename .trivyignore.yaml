@@ -1,0 +1,205 @@
+# .trivyignore.yaml — baseline temuan yang disengaja (issue #440)
+#
+# Gate supply chain (CI job `supply-chain` + job `image`, Jenkins stage
+# `Pindai Supply Chain`) memakai file ini lewat `--ignorefile`. Gate GAGAL bila
+# ada CVE HIGH/CRITICAL yang tidak ada di daftar ini (dan sudah ada patch-nya).
+#
+# Isi file = utang keamanan yang sudah ada SEBELUM gate ini dipakai, bukan
+# pengecualian permanen. Semua entri kedaluwarsa 2027-12-31; setelah tanggal itu
+# Trivy menolak baseline-nya dan gate merah.
+#
+# Tech stack TIDAK diubah: architecture/AGENTS.md §2 mematok Spring Boot 4.0.2
+# (ADR-0001, parity admin-be). Baseline ini adalah cara gate tetap aktif tanpa
+# melanggar §2 — bukan alasan untuk menaikkan versi, dan tidak ada rencana
+# menaikkan versi. Tinjau ulang setiap rilis; perpanjangan `expired_at` wajib
+# disertai persetujuan tertulis (nama + tanggal) di deskripsi PR.
+#
+# ATURAN: setiap entri WAJIB memuat (a) alasan/keputusan, (b) tanggal kedaluwarsa,
+# dan (c) nomor issue rujukan (mis. "#440"). Entri tanpa salah satunya dicabut
+# saat review. Kalau sebuah CVE bisa diperbaiki sekarang, PERBAIKI — jangan
+# tambahkan ke sini.
+#
+# Format: https://trivy.dev/latest/docs/configuration/filtering/#trivyignoreyaml
+vulnerabilities:
+  - id: CVE-2024-47554
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2025-14813
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2025-59952
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-102554
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-108106
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-13506
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-22731
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-22732
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-22733
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-22753
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-22754
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-24734
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-24880
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-29062
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-34483
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-34487
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-40972
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-40973
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-40976
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-40983
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-40984
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-41284
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-41293
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-41695
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-41716
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-41842
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-41845
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-41850
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-42198
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-42498
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-42579
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-43512
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-43513
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-43515
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-44249
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-45416
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-45674
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-47691
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-47884
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-47890
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-50010
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-53404
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-54291
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-54512
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-54513
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-55276
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-5598
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-65182
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-65905
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-68494
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-68497
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-68525
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-75595
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-8763
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-89407
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-89425
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-91776
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-91777
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  - id: CVE-2026-93451
+    statement: "Diterima saat gate #440 dipakai: stack dipatok AGENTS.md §2/ADR-0001; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
+  # Trivy juga melaporkan advisory lewat ID GHSA (bukan hanya CVE);
+  # entri ini tertangkap gate pada run pertama dan ikut di-baseline.
+  - id: GHSA-2m67-wjpj-xhg9
+    statement: "Diterima saat gate #440 dipakai: jackson 3.0.4 dipatok BOM; tinjau ulang tiap rilis"
+    expired_at: 2027-12-31
