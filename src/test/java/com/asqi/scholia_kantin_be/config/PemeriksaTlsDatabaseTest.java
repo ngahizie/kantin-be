@@ -20,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class PemeriksaTlsDatabaseTest {
 
     private static final String URL_TANPA_SSLMODE =
-            "jdbc:postgresql://db.internal:5432/kantin_db?stringtype=unspecified";
+            "jdbc:postgresql://db.internal:5432/kantin_db";
 
     private MockEnvironment env(String url, String... profil) {
         MockEnvironment e = new MockEnvironment();
@@ -47,7 +47,7 @@ class PemeriksaTlsDatabaseTest {
     @DisplayName("Ambil parameter query JDBC: nilai, urutan, tanpa query, tanpa nilai, nama case-insensitive")
     void ambilParameter() {
         assertThat(PemeriksaTlsDatabase.ambilParameter(
-                "jdbc:postgresql://h:5432/db?stringtype=unspecified&sslmode=verify-full", "sslmode"))
+                "jdbc:postgresql://h:5432/db?sslmode=verify-full", "sslmode"))
                 .isEqualTo("verify-full");
         assertThat(PemeriksaTlsDatabase.ambilParameter(
                 "jdbc:postgresql://h:5432/db?SSLMode=Verify-Full", "sslmode"))
@@ -98,7 +98,7 @@ class PemeriksaTlsDatabaseTest {
     @DisplayName("Profil staging + sslmode=verify-full → lolos")
     void stagingVerifyFull() {
         assertThatCode(() -> pemeriksa(
-                "jdbc:postgresql://db.internal:5432/kantin_db?stringtype=unspecified&sslmode=verify-full",
+                "jdbc:postgresql://db.internal:5432/kantin_db?sslmode=verify-full",
                 true, "staging").periksa())
                 .doesNotThrowAnyException();
     }
@@ -126,7 +126,7 @@ class PemeriksaTlsDatabaseTest {
     @DisplayName("Profil local + host loopback + sslmode=disable → boleh (docker compose lokal)")
     void lokalLoopback() {
         assertThatCode(() -> pemeriksa(
-                "jdbc:postgresql://localhost:5432/kantin_db?stringtype=unspecified&sslmode=disable",
+                "jdbc:postgresql://localhost:5432/kantin_db?sslmode=disable",
                 true, "local").periksa())
                 .doesNotThrowAnyException();
     }

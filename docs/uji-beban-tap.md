@@ -67,7 +67,7 @@ TAP_RATE=100 DURATION=3m k6 run load/k6/tap-slo.js
 >   -e POSTGRES_USER=kantin -e POSTGRES_PASSWORD=kantin_dev -p 55432:5432 postgres:18-alpine
 > podman run -d --name kantin-redis-lt -p 56379:6379 redis:7-alpine
 > # arahkan app (env menang atas application-local.properties):
-> SPRING_DATASOURCE_URL='jdbc:postgresql://localhost:55432/kantin_db?stringtype=unspecified' \
+> SPRING_DATASOURCE_URL='jdbc:postgresql://localhost:55432/kantin_db' \
 > SPRING_DATASOURCE_USERNAME=kantin SPRING_DATASOURCE_PASSWORD=kantin_dev \
 > SPRING_DATA_REDIS_PORT=56379 SPRING_PROFILES_ACTIVE=local,loadtest \
 > KANTIN_DEV_LOGIN_ENABLED=true KANTIN_RATE_LIMIT_ENABLED=false ./mvnw -o spring-boot:run

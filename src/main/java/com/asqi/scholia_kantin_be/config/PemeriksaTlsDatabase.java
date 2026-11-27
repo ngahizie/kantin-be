@@ -82,7 +82,7 @@ public class PemeriksaTlsDatabase {
                             + ", host='" + host + "', profil=" + profil
                             + ". Wajib sslmode=verify-full (bukan require/verify-ca/prefer/disable) pada DB_URL. "
                             + "Contoh: DB_URL=jdbc:postgresql://<host>:5432/kantin_db"
-                            + "?stringtype=unspecified&sslmode=verify-full&sslrootcert=/etc/kantin/pg-ca.pem");
+                            + "?sslmode=verify-full&sslrootcert=/etc/kantin/pg-ca.pem");
         }
 
         if (kosong(ambilParameter(url, "sslrootcert"))) {

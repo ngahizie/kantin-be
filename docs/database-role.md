@@ -93,7 +93,7 @@ docker compose logs postgres | grep -A3 "Role siap"
 `.env` minimal untuk DB:
 
 ```properties
-DB_URL=jdbc:postgresql://localhost:5432/kantin_db?stringtype=unspecified&sslmode=disable
+DB_URL=jdbc:postgresql://localhost:5432/kantin_db?sslmode=disable
 DB_USERNAME=kantin_app
 DB_PASSWORD=<password role runtime>
 SPRING_FLYWAY_USER=kantin_owner

@@ -70,7 +70,7 @@ jobs:
     env:
       TZ: Asia/Jakarta
       # Aplikasi → layanan (services dipetakan ke localhost runner).
-      DB_URL: jdbc:postgresql://localhost:5432/kantin_db?stringtype=unspecified
+      DB_URL: jdbc:postgresql://localhost:5432/kantin_db
       DB_USERNAME: kantin
       DB_PASSWORD: kantin_dev
       REDIS_HOST: localhost

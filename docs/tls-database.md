@@ -50,7 +50,7 @@ kantin.db.tls.dikecualikan-profil=${KANTIN_DB_TLS_DIKECUALIKAN_PROFIL:local,test
 Konfigurasi produksi:
 
 ```properties
-DB_URL=jdbc:postgresql://<host>:5432/kantin_db?stringtype=unspecified&sslmode=verify-full&sslrootcert=/etc/kantin/pg-ca.pem
+DB_URL=jdbc:postgresql://<host>:5432/kantin_db?sslmode=verify-full&sslrootcert=/etc/kantin/pg-ca.pem
 ```
 
 `sslrootcert` diambil dari secret k8s (bukan dari repo). Bila PostgreSQL
@@ -125,13 +125,13 @@ Harapan: **gagal** dengan pesan kurang-lebih
 ```bash
 # (a) profil produksi + sslmode tidak diset → START GAGAL
 SPRING_PROFILES_ACTIVE=prod \
-DB_URL='jdbc:postgresql://db.internal:5432/kantin_db?stringtype=unspecified' \
+DB_URL='jdbc:postgresql://db.internal:5432/kantin_db' \
 ./mvnw spring-boot:run
 # → IllegalStateException: Koneksi PostgreSQL tidak terenkripsi dengan benar (OWASP A04:2025, issue #432)
 
 # (b) profil produksi + verify-full → lolos penjaga (lanjut ke koneksi DB)
 SPRING_PROFILES_ACTIVE=prod \
-DB_URL='jdbc:postgresql://localhost:55432/kantin_db?stringtype=unspecified&sslmode=verify-full&sslrootcert=tmp/tls/ca.crt' \
+DB_URL='jdbc:postgresql://localhost:55432/kantin_db?sslmode=verify-full&sslrootcert=tmp/tls/ca.crt' \
 ./mvnw spring-boot:run
 # → log: "TLS database terverifikasi: sslmode=verify-full ..."
 ```
