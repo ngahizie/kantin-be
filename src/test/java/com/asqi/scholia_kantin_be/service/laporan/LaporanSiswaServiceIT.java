@@ -209,10 +209,10 @@ class LaporanSiswaServiceIT extends LaporanITSupport {
 
         String admin = teksWorkbook(eksporSebagai(AktorKantin.ADMIN_SEKOLAH).isi());
         assertThat(admin).contains("Total top-up tunai", "Transaksi ID", "Mutasi ID")
-                .doesNotContain("Total HPP", "HPP");
+                .doesNotContain("Total Harga Modal", "Harga Modal");
 
         String bendahara = teksWorkbook(eksporSebagai(AktorKantin.TU_SEKOLAH).isi());
-        assertThat(bendahara).contains("Total HPP", "HPP");
+        assertThat(bendahara).contains("Total Harga Modal", "Harga Modal");
     }
 
     /** Ekspor PER_SISWA dengan peran tertentu; konteks dibersihkan setelahnya. */

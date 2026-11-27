@@ -60,6 +60,10 @@ public class LaporanExportService {
     private static final DateTimeFormatter FMT_TANGGAL =
             DateTimeFormatter.ofPattern("dd-MM-yyyy");
 
+    /** Format Tanggal Cetak pada metadata Excel (#450). */
+    private static final DateTimeFormatter FMT_CETAK =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+
     private final LaporanPenjualanService penjualan;
     private final LaporanSaldoService saldo;
     private final LaporanStokService stok;
@@ -264,14 +268,17 @@ public class LaporanExportService {
         // peran tidak berhak melihatnya (SEC-02) — List.of menolak null.
         List<List<Object>> baris = List.of(
                 List.of("Jumlah transaksi sukses", r.jumlahTransaksi()),
-                List.of("Penjualan bruto", r.penjualanBruto()),
+                List.of("Total Penjualan (Sebelum Batal/Refund)", r.penjualanBruto()),
                 List.of("Jumlah transaksi refund", r.jumlahRefund()),
                 List.of("Nilai refund", r.nilaiRefund()),
-                List.of("Penjualan bersih", r.penjualanBersih()),
+                List.of("Total Penjualan Akhir", r.penjualanBersih()),
                 Arrays.asList("Total modal", r.totalModal()),
-                Arrays.asList("Laba", r.laba()),
-                Arrays.asList("Margin (%)", r.marginPersen()));
-        return berkas(sekolahId, "Penjualan & Laba Kotor", label, header, baris);
+                Arrays.asList("Keuntungan", r.laba()),
+                Arrays.asList("Persen Untung (%)", r.marginPersen()));
+        List<Object> barisTotal = Arrays.asList("Total Penjualan Akhir", r.penjualanBersih());
+        String catatanKaki = "Angka keuntungan hanya ditampilkan untuk peran yang berhak.";
+        return berkas(sekolahId, "Penjualan & Keuntungan", label, header, baris,
+                barisTotal, catatanKaki);
     }
 
     private HasilEkspor eksporBarisPenjualan(Long sekolahId, LocalDate tgl, OffsetDateTime dari,
@@ -280,7 +287,7 @@ public class LaporanExportService {
         if (!bolehLihatLaba()) {
             data = LaporanMasking.tanpaLaba(data);
         }
-        List<String> header = List.of("ID", kolomNama, "Qty", "Harga Satuan", "Total", "Modal", "Margin (%)");
+        List<String> header = List.of("ID", kolomNama, "Qty", "Harga Satuan", "Total", "Harga Modal", "Persen Untung (%)");
         List<List<Object>> baris = new ArrayList<>();
         for (BarisPenjualan b : data) {
             baris.add(Arrays.asList(nvl(b.kunciId()), nvl(b.nama()), b.qty(),
@@ -294,8 +301,8 @@ public class LaporanExportService {
         List<String> header = List.of("Kategori", "Jumlah Subjek", "Saldo");
         List<List<Object>> baris = List.of(
                 List.of("Saldo Siswa", r.jumlahSiswa(), r.saldoSiswa()),
-                List.of("TOTAL (kewajiban sekolah)", "", r.total()));
-        return berkas(sekolahId, "Saldo Mengendap", label, header, baris);
+                List.of("Total Saldo Siswa (Titipan)", "", r.total()));
+        return berkas(sekolahId, "Total Saldo Siswa", label, header, baris);
     }
 
     private HasilEkspor eksporRekonsiliasi(Long sekolahId, LocalDate tgl, OffsetDateTime dari,
@@ -306,17 +313,17 @@ public class LaporanExportService {
                 List.of("Top-up online", r.topupOnline()),
                 List.of("Top-up tunai", r.topupTunai()),
                 List.of("Penjualan", r.penjualan()),
-                List.of("Void penjualan", r.voidPenjualan()),
+                List.of("Pembatalan / Refund Penjualan", r.voidPenjualan()),
                 List.of("Koreksi masuk", r.koreksiMasuk()),
                 List.of("Koreksi keluar", r.koreksiKeluar()),
                 List.of("Refund", r.refund()),
                 List.of("Transfer (net)", r.transfer()),
-                List.of("Saldo mengendap", r.saldoMengendap()),
-                List.of("Total kredit (semua waktu)", r.totalKreditSemua()),
-                List.of("Total debit (semua waktu)", r.totalDebitSemua()),
+                List.of("Total saldo siswa (titipan)", r.saldoMengendap()),
+                List.of("Total penambahan saldo (semua waktu)", r.totalKreditSemua()),
+                List.of("Total pengurangan saldo (semua waktu)", r.totalDebitSemua()),
                 List.of("Selisih", r.selisih()),
                 List.of("SEIMBANG?", r.seimbang() ? "YA" : "TIDAK — PERIKSA!"));
-        return berkas(sekolahId, "Rekonsiliasi", label, header, baris);
+        return berkas(sekolahId, "Cek Selisih Uang", label, header, baris);
     }
 
     private HasilEkspor eksporStok(Long sekolahId, String label) {
@@ -330,8 +337,8 @@ public class LaporanExportService {
             data.addAll(halaman.getContent());
             nomorHalaman++;
         } while (halaman.hasNext());
-        List<String> header = List.of("Menu ID", "Nama", "Stok", "Stok Min", "HPP",
-                "Nilai Persediaan", "Menipis");
+        List<String> header = List.of("Menu ID", "Nama", "Stok", "Stok Min", "Harga Modal",
+                "Total Nilai Stok", "Menipis");
         List<List<Object>> baris = new ArrayList<>();
         for (BarisStok b : data) {
             baris.add(List.of(nvl(b.menuId()), nvl(b.nama()), b.stok(), b.stokMinimum(),
@@ -354,7 +361,7 @@ public class LaporanExportService {
             nomorHalaman++;
         } while (halaman.hasNext());
         List<String> header = List.of("Waktu", "No. Berita Acara", "Nama Menu", "Kategori", "Jenis",
-                "Qty", "HPP Unit", "Total Nilai", "Alasan", "Petugas");
+                "Qty", "Modal Satuan", "Total Nilai", "Alasan", "Petugas");
         List<List<Object>> baris = new ArrayList<>();
         for (BarisKerugianStok b : data) {
             baris.add(List.of(
@@ -389,7 +396,7 @@ public class LaporanExportService {
 
     private HasilEkspor eksporKartuStok(Long sekolahId, Long menuId, String label) {
         List<String> header = List.of("Waktu", "Jenis", "Arah", "Qty", "Stok Setelah",
-                "HPP Snapshot", "Harga Beli/Unit", "Referensi", "Alasan", "Aktor");
+                "Modal Satuan", "Harga Beli/Unit", "Referensi", "Alasan", "Aktor");
         List<List<Object>> baris = new ArrayList<>();
         String judul = "Kartu Stok";
         if (menuId != null) {
@@ -425,7 +432,7 @@ public class LaporanExportService {
             nomorHalaman++;
         } while (halaman.size() == LaporanPembatalanService.MAKS_BARIS);
         List<String> header = List.of("Transaksi ID", "Subjek", "Subjek ID", "Total",
-                "Alasan Void", "Void Oleh", "Void At", "Petugas", "Titik Kasir", "Waktu");
+                "Alasan Batal/Refund", "Void Oleh", "Void At", "Petugas", "Titik Kasir", "Waktu");
         List<List<Object>> baris = new ArrayList<>();
         for (BarisPembatalanKasir b : data) {
             baris.add(List.of(
@@ -446,7 +453,7 @@ public class LaporanExportService {
         if (!bolehLihatLaba()) {
             data = LaporanMasking.tanpaLabaDimensi(data);
         }
-        List<String> header = List.of("ID", kolomNama, "Jumlah Transaksi", "Nilai", "HPP", "Laba Kotor");
+        List<String> header = List.of("ID", kolomNama, "Jumlah Transaksi", "Nilai", "Harga Modal", "Keuntungan");
         List<List<Object>> baris = new ArrayList<>();
         for (BarisPenjualanDimensi b : data) {
             baris.add(Arrays.asList(nvl(b.kunciId()), nvl(b.nama()), b.jumlahTransaksi(),
@@ -464,7 +471,7 @@ public class LaporanExportService {
                                              OffsetDateTime sampai, String label) {
         List<BarisPenjualanKasir> data = penjualan.penjualanPerKasir(sekolahId, tgl, dari, sampai);
         List<String> header = List.of("ID Titik", "Titik Kasir", "ID Petugas", "Petugas",
-                "Jumlah Transaksi", "Penjualan Bruto", "Nilai Void", "Penjualan Bersih");
+                "Jumlah Transaksi", "Total Penjualan (Sebelum Refund)", "Nilai Refund", "Total Penjualan Akhir");
         List<List<Object>> baris = new ArrayList<>();
         for (BarisPenjualanKasir b : data) {
             baris.add(List.of(nvl(b.titikKasirId()), nvl(b.namaTitikKasir()),
@@ -501,8 +508,8 @@ public class LaporanExportService {
      * di {@link JenisLaporan}/{@link LaporanExportService}.
      *
      * <p>{@code siswaId} <b>wajib</b> untuk jenis ini → 400 bila kosong.
-     * Subjek laporan selalu {@code SISWA} sejak C.2b. Baris "Total HPP" dan
-     * kolom "HPP" hanya ditulis untuk peran yang berhak melihat laba (issue #402).
+     * Subjek laporan selalu {@code SISWA} sejak C.2b. Baris "Total Harga Modal" dan
+     * kolom "Harga Modal" hanya ditulis untuk peran yang berhak melihat laba (issue #402).
      */
     private HasilEkspor eksporPerSiswa(Long sekolahId, Long siswaId,
                                         LocalDate tgl, OffsetDateTime dari, OffsetDateTime sampai,
@@ -522,11 +529,11 @@ public class LaporanExportService {
         ringkasan.add(List.of("Saldo saat ini", r.saldo()));
         ringkasan.add(List.of("Jumlah transaksi sukses", r.ringkasan().jumlahTransaksiSukses()));
         ringkasan.add(List.of("Nilai belanja sukses", r.ringkasan().nilaiBelanjaSukses()));
-        ringkasan.add(List.of("Jumlah transaksi void", r.ringkasan().jumlahTransaksiVoid()));
-        ringkasan.add(List.of("Nilai void", r.ringkasan().nilaiVoid()));
+        ringkasan.add(List.of("Jumlah transaksi batal/refund", r.ringkasan().jumlahTransaksiVoid()));
+        ringkasan.add(List.of("Nilai refund", r.ringkasan().nilaiVoid()));
         ringkasan.add(List.of("Total top-up tunai", r.ringkasan().totalTopup()));
         if (lihatHpp) {
-            ringkasan.add(List.of("Total HPP", nvl(r.ringkasan().totalHpp())));
+            ringkasan.add(List.of("Total Harga Modal", nvl(r.ringkasan().totalHpp())));
         }
 
         List<List<Object>> transaksi = new ArrayList<>();
@@ -557,9 +564,9 @@ public class LaporanExportService {
 
         List<String> headerTransaksi = new ArrayList<>(List.of("Transaksi ID", "Status", "Total"));
         if (lihatHpp) {
-            headerTransaksi.add("HPP");
+            headerTransaksi.add("Harga Modal");
         }
-        headerTransaksi.addAll(List.of("Petugas", "Titik Kasir", "Alasan Void", "Waktu"));
+        headerTransaksi.addAll(List.of("Petugas", "Titik Kasir", "Alasan Batal/Refund", "Waktu"));
         List<ExcelWriter.Bagian> bagian = List.of(
                 new ExcelWriter.Bagian(List.of("Metrik", "Nilai"), ringkasan),
                 new ExcelWriter.Bagian(headerTransaksi, transaksi),
@@ -577,8 +584,24 @@ public class LaporanExportService {
 
     private HasilEkspor berkas(Long sekolahId, String judul, String label, List<String> header,
                                List<List<Object>> baris) {
+        return berkas(sekolahId, judul, label, header, baris, null, null);
+    }
+
+    /**
+     * Tulis berkas Excel dengan metadata dua baris, baris total, dan catatan kaki opsional.
+     *
+     * <p>Metadata memakai jam sekolah dari {@link JamKantin}, bukan {@code LocalDate.now()},
+     * supaya export mengikuti zona waktu kantin (PRD §11.9).
+     */
+    private HasilEkspor berkas(Long sekolahId, String judul, String label, List<String> header,
+                               List<List<Object>> baris, List<Object> barisTotal,
+                               String catatanKaki) {
         ProfilSekolah profil = cariProfilSekolah(sekolahId);
-        byte[] isi = excel.tulis(judul, judul, profil.nama(), profil.alamat(), "Periode: " + label, header, baris);
+        List<String> metadata = List.of(
+                "Tanggal Cetak: " + FMT_CETAK.format(jam.sekarang()),
+                "Periode Laporan: " + label);
+        byte[] isi = excel.tulis(judul, judul, profil.nama(), profil.alamat(),
+                metadata, header, baris, barisTotal, catatanKaki);
         String nama = judul.replaceAll("\\s+", "-").toLowerCase() + ".xlsx";
         return new HasilEkspor(nama, isi);
     }

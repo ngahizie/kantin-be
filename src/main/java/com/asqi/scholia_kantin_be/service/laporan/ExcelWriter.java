@@ -26,9 +26,10 @@ import java.util.List;
  * <ul>
  *   <li>Kolom A kosong dengan lebar 3.0 sebagai margin/padding kiri.</li>
  *   <li>Kop 3 baris: Judul (16pt bold Navy #123463), Nama Sekolah (13pt bold Navy), Alamat (10pt abu-abu #646464).</li>
- *   <li>Baris pemisah kosong dan metadata periode/waktu cetak (10pt Navy).</li>
+ *   <li>Baris pemisah kosong dan metadata periode/waktu cetak (10pt Navy); metadata boleh beberapa baris.</li>
  *   <li>Header tabel Navy gelap (#123463) dengan teks putih tebal (10pt).</li>
  *   <li>Baris data zebra striping (#F0F4FB) dengan auto-alignment dan border tipis rapi.</li>
+ *   <li>Baris total opsional (#22559B, teks putih tebal) dan catatan kaki abu-abu di bawah data.</li>
  * </ul>
  */
 @Component
@@ -41,6 +42,8 @@ public class ExcelWriter {
     /** Karakter awal yang membuat Excel/Calc mengeksekusi sel sebagai rumus. */
     private static final String AWALAN_FORMULA = "=+-@";
     private static final byte[] RGB_WHITE = new byte[] {(byte) 255, (byte) 255, (byte) 255};    // #FFFFFF
+    /** Latar baris total laporan — mengikuti warna total pada template FE (#450). */
+    private static final byte[] RGB_TOTAL = new byte[] {(byte) 34, (byte) 85, (byte) 155};     // #22559B
 
     /**
      * Bangun workbook satu sheet standar dengan kop dan styling resmi.
@@ -56,11 +59,25 @@ public class ExcelWriter {
     }
 
     /**
-     * Bangun workbook satu sheet lengkap dengan profil sekolah eksplisit.
+     * Bangun workbook satu sheet dengan metadata satu baris, tanpa baris total/catatan kaki.
      */
     public byte[] tulis(String namaSheet, String judulLaporan, String namaSekolah,
                         String alamatSekolah, String metadataTeks, List<String> header,
                         List<List<Object>> baris) {
+        List<String> metadata = metadataTeks == null ? null : List.of(metadataTeks);
+        return tulis(namaSheet, judulLaporan, namaSekolah, alamatSekolah,
+                metadata, header, baris, null, null);
+    }
+
+    /**
+     * Bangun workbook satu sheet dengan metadata beberapa baris, baris total, dan catatan kaki.
+     *
+     * <p>Metadata kosong diganti satu baris "Dicetak pada: ..." agar perilaku lama tetap sama.
+     * Baris total dan catatan kaki opsional, ditulis setelah baris data.
+     */
+    public byte[] tulis(String namaSheet, String judulLaporan, String namaSekolah,
+                        String alamatSekolah, List<String> metadata, List<String> header,
+                        List<List<Object>> baris, List<Object> barisTotal, String catatanKaki) {
         try (XSSFWorkbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             Sheet sheet = wb.createSheet(sanitasiNamaSheet(namaSheet));
 
@@ -84,6 +101,10 @@ public class ExcelWriter {
             XSSFCellStyle gayaDataZebraKiri = buatGayaData(wb, true, HorizontalAlignment.LEFT);
             XSSFCellStyle gayaDataZebraTengah = buatGayaData(wb, true, HorizontalAlignment.CENTER);
             XSSFCellStyle gayaDataZebraKanan = buatGayaData(wb, true, HorizontalAlignment.RIGHT);
+            XSSFCellStyle gayaTotalKiri = buatGayaTotal(wb, HorizontalAlignment.LEFT);
+            XSSFCellStyle gayaTotalTengah = buatGayaTotal(wb, HorizontalAlignment.CENTER);
+            XSSFCellStyle gayaTotalKanan = buatGayaTotal(wb, HorizontalAlignment.RIGHT);
+            XSSFCellStyle gayaCatatan = buatGayaKop(wb, 10, false, RGB_GRAY, HorizontalAlignment.LEFT);
 
             // Baris 0: Judul Laporan (tinggi 26pt)
             Row r0 = sheet.createRow(0);
@@ -119,18 +140,24 @@ public class ExcelWriter {
             Row r3 = sheet.createRow(3);
             r3.setHeightInPoints(4f);
 
-            // Baris 4: Metadata (tinggi 16pt)
-            Row r4 = sheet.createRow(4);
-            r4.setHeightInPoints(16f);
-            Cell c4 = r4.createCell(startCol);
-            c4.setCellValue(metadataTeks != null ? metadataTeks : "Dicetak pada: " + java.time.LocalDate.now());
-            c4.setCellStyle(gayaMeta);
-            if (endCol > startCol) {
-                sheet.addMergedRegion(new CellRangeAddress(4, 4, startCol, endCol));
+            // Baris 4+: metadata. Satu entri = satu baris.
+            List<String> daftarMeta = (metadata == null || metadata.isEmpty())
+                    ? List.of("Dicetak pada: " + java.time.LocalDate.now())
+                    : metadata;
+            int r = 4;
+            for (String teksMeta : daftarMeta) {
+                Row barisMeta = sheet.createRow(r++);
+                barisMeta.setHeightInPoints(16f);
+                Cell cellMeta = barisMeta.createCell(startCol);
+                isiSel(cellMeta, teksMeta);
+                cellMeta.setCellStyle(gayaMeta);
+                if (endCol > startCol) {
+                    sheet.addMergedRegion(new CellRangeAddress(barisMeta.getRowNum(),
+                            barisMeta.getRowNum(), startCol, endCol));
+                }
             }
 
-            // Baris 5: Header Kolom Tabel (tinggi 22pt)
-            int r = 5;
+            // Header Kolom Tabel (tinggi 22pt)
             if (header != null && !header.isEmpty()) {
                 Row row = sheet.createRow(r++);
                 row.setHeightInPoints(22f);
@@ -165,6 +192,35 @@ public class ExcelWriter {
                             else cell.setCellStyle(gayaDataPutihKiri);
                         }
                     }
+                }
+            }
+
+            // Baris total: latar #22559B, teks putih tebal.
+            if (barisTotal != null && !barisTotal.isEmpty()) {
+                Row row = sheet.createRow(r++);
+                row.setHeightInPoints(20f);
+                for (int c = 0; c < barisTotal.size(); c++) {
+                    Cell cell = row.createCell(startCol + c);
+                    Object val = barisTotal.get(c);
+                    isiSel(cell, val);
+                    String namaKolom = (header != null && c < header.size()) ? header.get(c) : "";
+                    HorizontalAlignment align = tentukanAlignment(namaKolom, val);
+                    if (align == HorizontalAlignment.RIGHT) cell.setCellStyle(gayaTotalKanan);
+                    else if (align == HorizontalAlignment.CENTER) cell.setCellStyle(gayaTotalTengah);
+                    else cell.setCellStyle(gayaTotalKiri);
+                }
+            }
+
+            // Catatan kaki: satu baris setelah data/total.
+            if (catatanKaki != null && !catatanKaki.isBlank()) {
+                Row row = sheet.createRow(r++);
+                row.setHeightInPoints(16f);
+                Cell cell = row.createCell(startCol);
+                isiSel(cell, catatanKaki);
+                cell.setCellStyle(gayaCatatan);
+                if (endCol > startCol) {
+                    sheet.addMergedRegion(new CellRangeAddress(row.getRowNum(), row.getRowNum(),
+                            startCol, endCol));
                 }
             }
 
@@ -362,7 +418,8 @@ public class ExcelWriter {
     private HorizontalAlignment tentukanAlignment(String header, Object val) {
         String h = header != null ? header.toLowerCase() : "";
         if (h.contains("rp") || h.contains("harga") || h.contains("total") || h.contains("hpp") ||
-            h.contains("laba") || h.contains("qty") || h.contains("jumlah") || h.contains("saldo") ||
+            h.contains("laba") || h.contains("modal") || h.contains("untung") || h.contains("refund") ||
+            h.contains("qty") || h.contains("jumlah") || h.contains("saldo") ||
             h.contains("nominal") || h.contains("margin") || h.contains("omzet") || h.contains("omset") ||
             h.contains("disetor") || h.contains("selisih") || (val instanceof Number)) {
             return HorizontalAlignment.RIGHT;
@@ -402,6 +459,25 @@ public class ExcelWriter {
         style.setVerticalAlignment(VerticalAlignment.CENTER);
         style.setWrapText(true);
 
+        style.setBorderTop(BorderStyle.THIN);
+        style.setBorderBottom(BorderStyle.THIN);
+        style.setBorderLeft(BorderStyle.THIN);
+        style.setBorderRight(BorderStyle.THIN);
+        return style;
+    }
+
+    private XSSFCellStyle buatGayaTotal(XSSFWorkbook wb, HorizontalAlignment align) {
+        XSSFCellStyle style = wb.createCellStyle();
+        XSSFFont font = wb.createFont();
+        font.setFontName("Calibri");
+        font.setFontHeightInPoints((short) 10);
+        font.setBold(true);
+        font.setColor(new XSSFColor(RGB_WHITE, null));
+        style.setFont(font);
+        style.setFillForegroundColor(new XSSFColor(RGB_TOTAL, null));
+        style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        style.setAlignment(align);
+        style.setVerticalAlignment(VerticalAlignment.CENTER);
         style.setBorderTop(BorderStyle.THIN);
         style.setBorderBottom(BorderStyle.THIN);
         style.setBorderLeft(BorderStyle.THIN);
