@@ -35,6 +35,12 @@
 		<jacoco.version>0.8.13</jacoco.version>
 		<!-- ArchUnit 1.4.1: uji aturan arsitektur (lihat ArsitekturTenantArchTest). -->
 		<archunit.version>1.4.1</archunit.version>
+		<!--
+			CycloneDX (issue #440, OWASP A03:2025 Software Supply Chain):
+			SBOM per build. Dipakai Trivy di CI/Jenkins untuk memindai dependency
+			tanpa menebak dari lockfile, dan diarsipkan sebagai artefak build.
+		-->
+		<cyclonedx.version>2.9.1</cyclonedx.version>
 	</properties>
 
 	<!-- Testcontainers BOM: Spring Boot 4 tidak lagi mengelola versinya. -->
@@ -433,6 +439,34 @@
 						</goals>
 					</execution>
 				</executions>
+			</plugin>
+			<!--
+				SBOM CycloneDX (issue #440, OWASP A03:2025 Software Supply Chain).
+				`makeAggregateBom` pada fase `verify` menghasilkan target/bom.json
+				untuk SETIAP build — CI dan Jenkins sama-sama memakainya sebagai
+				sumber pemindaian, jadi daftar dependency yang dipindai selalu sama
+				dengan yang benar-benar dibangun (bukan hasil tebakan dari pom.xml).
+				Artefak ini juga yang diarsipkan sebagai SBOM per build.
+			-->
+			<plugin>
+				<groupId>org.cyclonedx</groupId>
+				<artifactId>cyclonedx-maven-plugin</artifactId>
+				<version>${cyclonedx.version}</version>
+				<executions>
+					<execution>
+						<id>sbom-per-build</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>makeAggregateBom</goal>
+						</goals>
+					</execution>
+				</executions>
+				<configuration>
+					<outputFormat>json</outputFormat>
+					<outputName>bom</outputName>
+					<projectType>application</projectType>
+					<includeTestScope>false</includeTestScope>
+				</configuration>
 			</plugin>
 		</plugins>
 	</build>

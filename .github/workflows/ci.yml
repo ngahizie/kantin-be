@@ -8,11 +8,31 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Pindai ulang tiap Senin 03:00 UTC (issue #440): CVE baru terbit tanpa ada
+  # commit baru, jadi gate supply chain tidak boleh hanya jalan saat ada PR.
+  schedule:
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
 
 # Batalkan run lama bila branch yang sama di-push ulang.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
+
+# Trivy memakai DB kerentanan sendiri (tanpa token); cukup baca repo.
+permissions:
+  contents: read
+
+# Action pihak ketiga dipatok ke commit SHA (bukan tag mutable) — bagian dari
+# pengurangan risiko supply chain (OWASP A03). Komentar `# vX` menyimpan tag
+# asalnya supaya update tetap mudah dilacak.
+env:
+  # Dipatok (bukan `latest`) supaya hasil pindai reproducible antar-build.
+  TRIVY_VERSION: v0.76.2
+  # Gate: gagal bila ada CVE HIGH/CRITICAL yang SUDAH ada perbaikannya.
+  # `--ignore-unfixed` dipakai karena base image alpine/JDK sering membawa CVE
+  # tanpa patch — tanpa flag ini gate selalu merah lalu diabaikan orang.
+  TRIVY_SEVERITY: HIGH,CRITICAL
 
 jobs:
   test:
@@ -22,11 +42,11 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       # JDK 25 — WAJIB (AGENTS.md §2, CONVENTIONS.md §11: bukan 21/26).
       - name: Set up JDK 25
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
           java-version: '25'
@@ -43,7 +63,7 @@ jobs:
 
       - name: Unggah laporan test
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: laporan-test
           path: |
@@ -55,7 +75,7 @@ jobs:
       # Laporan cakupan JaCoCo (issue #174) — HTML + XML + CSV.
       - name: Unggah laporan cakupan (JaCoCo)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: laporan-coverage
           path: target/site/jacoco/
@@ -89,10 +109,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Set up JDK 25
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
           java-version: '25'
@@ -105,6 +125,82 @@ jobs:
             -Dflyway.user=kantin \
             -Dflyway.password=kantin
 
+  # ── Gerbang supply chain: SBOM + pindai dependency (issue #440) ───────────
+  # OWASP A03:2025 (Software Supply Chain Failures). Versi dependency dikelola
+  # Spring Boot BOM, tetapi CVE pada dependency transitif tidak terlihat tanpa
+  # pemindaian. SBOM CycloneDX dipakai sebagai sumber pindai supaya yang
+  # diperiksa adalah dependency hasil resolusi Maven, bukan tebakan dari pom.xml.
+  supply-chain:
+    name: SBOM & pindai dependency (Trivy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      # Cukup goal plugin-nya (tanpa compile/package) supaya job ini cepat;
+      # isi SBOM sama dengan yang dihasilkan `./mvnw verify`.
+      - name: Buat SBOM CycloneDX
+        run: ./mvnw -B -ntp -DskipTests org.cyclonedx:cyclonedx-maven-plugin:2.9.1:makeAggregateBom
+
+      - name: Pasang Trivy
+        uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
+        with:
+          version: ${{ env.TRIVY_VERSION }}
+          cache: true
+
+      # Gagal (exit 1) bila ada CVE HIGH/CRITICAL yang sudah ada perbaikannya
+      # DAN tidak tercatat di baseline .trivyignore.yaml. Baseline = keputusan
+      # "stack tetap" (AGENTS.md §2 + ADR-0001: versi TIDAK dinaikkan), bukan
+      # rencana upgrade. `--show-suppressed` menjaga daftar utang tetap tampil.
+      # `set -o pipefail` wajib: tanpa itu status `trivy` tertelan `tee` dan
+      # gate-nya diam-diam lolos.
+      - name: Pindai dependency (gate)
+        run: |
+          set -o pipefail
+          trivy sbom target/bom.json \
+            --scanners vuln \
+            --severity "$TRIVY_SEVERITY" \
+            --ignore-unfixed \
+            --ignorefile .trivyignore.yaml \
+            --show-suppressed \
+            --exit-code 1 \
+            --format table | tee laporan-trivy-dependency.txt
+
+      # Ringkasan di halaman run/PR supaya hasil terlihat tanpa membuka log.
+      - name: Tulis ringkasan pindai
+        if: always()
+        run: |
+          {
+            echo "## SBOM & pindai dependency (Trivy)"
+            echo
+            echo "- SBOM: \`target/bom.json\` (CycloneDX, artefak \`sbom-dependency\`)"
+            echo "- Ambang gate: \`$TRIVY_SEVERITY\`, CVE tanpa perbaikan diabaikan"
+            echo
+            echo '\`\`\`'
+            cat laporan-trivy-dependency.txt 2>/dev/null || echo "(laporan tidak dihasilkan)"
+            echo '\`\`\`'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Unggah SBOM & laporan pindai dependency
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-dependency
+          path: |
+            target/bom.json
+            laporan-trivy-dependency.txt
+          if-no-files-found: ignore
+          retention-days: 30
+
   # ── Gerbang image produksi (issue #215) ──────────────────────────────────
   # Unit/IT di job `test` berjalan di JVM runner (PUNYA font) sehingga TIDAK
   # menangkap bug "font hilang di container" (ekspor Excel → 500). Job ini
@@ -116,7 +212,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Build image produksi
         run: docker build -t kantin-be:ci .
@@ -131,3 +227,53 @@ jobs:
             ls /usr/lib/libfontconfig.so.1 >/dev/null 2>&1 || { echo "FONTCONFIG HILANG"; exit 1; }
             echo "OK: font + fontconfig tersedia di image produksi"
           '
+
+      - name: Pasang Trivy
+        uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
+        with:
+          version: ${{ env.TRIVY_VERSION }}
+          cache: true
+
+      # SBOM image (paket OS + jar aplikasi) — diarsipkan per build.
+      - name: Buat SBOM image (CycloneDX)
+        run: trivy image --scanners vuln --format cyclonedx --output sbom-image.cdx.json kantin-be:ci
+
+      # Gate: image dengan CVE HIGH/CRITICAL yang sudah ada patch tidak boleh
+      # dipakai rilis (di Jenkins stage ini berada sebelum `docker push`).
+      # Baseline yang sama dipakai untuk dependency (lihat .trivyignore.yaml).
+      - name: Pindai image (gate)
+        run: |
+          set -o pipefail
+          trivy image \
+            --scanners vuln \
+            --severity "$TRIVY_SEVERITY" \
+            --ignore-unfixed \
+            --ignorefile .trivyignore.yaml \
+            --show-suppressed \
+            --exit-code 1 \
+            --format table kantin-be:ci | tee laporan-trivy-image.txt
+
+      - name: Tulis ringkasan pindai image
+        if: always()
+        run: |
+          {
+            echo "## Pindai image produksi (Trivy)"
+            echo
+            echo "- SBOM image: \`sbom-image.cdx.json\` (artefak \`sbom-image\`)"
+            echo "- Ambang gate: \`$TRIVY_SEVERITY\`, CVE tanpa perbaikan diabaikan"
+            echo
+            echo '\`\`\`'
+            cat laporan-trivy-image.txt 2>/dev/null || echo "(laporan tidak dihasilkan)"
+            echo '\`\`\`'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Unggah SBOM & laporan pindai image
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-image
+          path: |
+            sbom-image.cdx.json
+            laporan-trivy-image.txt
+          if-no-files-found: ignore
+          retention-days: 30
