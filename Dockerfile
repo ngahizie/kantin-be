@@ -16,7 +16,19 @@ WORKDIR /app
 COPY pom.xml .
 COPY .mvn/ .mvn/
 COPY mvnw .
-RUN chmod +x mvnw && ./mvnw dependency:go-offline -B -q
+# mvnw mengunduh distribusi Maven 3.9.12 dari repo.maven.apache.org pada
+# pemakaian pertama. Host itu membalas **HTTP 429 Too Many Requests** bila
+# di-hit terlalu sering — pernah menggagalkan CI `main` (job "Verifikasi image
+# produksi", issue #461) padahal kode tidak berubah. Unduhan diulang maksimal
+# 3x dengan jeda; kalau tetap gagal, build TETAP gagal (tidak lolos diam-diam).
+RUN chmod +x mvnw && \
+    berhasil=0; \
+    for i in 1 2 3; do \
+        if ./mvnw -B -q dependency:go-offline; then berhasil=1; break; fi; \
+        echo "go-offline gagal (percobaan $i/3) — ulangi dalam $((i * 10)) dtk"; \
+        sleep $((i * 10)); \
+    done; \
+    [ "$berhasil" = "1" ] || { echo "GAGAL: dependency:go-offline tidak berhasil setelah 3 percobaan"; exit 1; }
 
 COPY src ./src
 RUN ./mvnw clean package -DskipTests -q
