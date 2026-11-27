@@ -84,7 +84,7 @@ class LaporanExportServiceTest {
     }
 
     @Test
-    @DisplayName("#450: ekspor PENJUALAN memakai label FE, metadata dua baris, total, dan catatan kaki")
+    @DisplayName("#450 (revisi): ekspor PENJUALAN memakai label FE, metadata dua baris, baris total dua sel, dan catatan kaki")
     void eksporPenjualanLengkap() {
         masuk(AktorKantin.TU_SEKOLAH);
         when(penjualan.ringkasanPenjualan(eq(7L), isNull(), isNull(), isNull()))
@@ -112,13 +112,14 @@ class LaporanExportServiceTest {
                 .contains("Keuntungan")
                 .contains("Persen Untung (%)")
                 .doesNotContain("Penjualan bruto", "Penjualan bersih", "Laba", "Margin (%)");
+        // Revisi #450: header PENJUALAN dua kolom, jadi baris total hanya label + nilai akhir.
         assertThat(total.getValue()).containsExactly("Total Penjualan Akhir", 95_000L);
         assertThat(catatan.getValue())
                 .isEqualTo("Angka keuntungan hanya ditampilkan untuk peran yang berhak.");
     }
 
     @Test
-    @DisplayName("#450: ADMIN_SEKOLAH menerima nilai modal dan keuntungan kosong")
+    @DisplayName("#450 (revisi): ADMIN_SEKOLAH menerima nilai modal dan keuntungan kosong; baris total tetap dua sel")
     void eksporPenjualanDisamarkan() {
         masuk(AktorKantin.ADMIN_SEKOLAH);
         when(penjualan.ringkasanPenjualan(eq(7L), isNull(), isNull(), isNull()))
