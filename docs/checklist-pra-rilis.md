@@ -166,20 +166,33 @@ request **429** ⇒ kantin berhenti melayani.
       sesuai beban produksi (default `10s` / `3s`, issue #435). Nilai ini
       menentukan berapa lama query dan tunggu `FOR UPDATE` diizinkan sebelum
       dihentikan — jangan memakai default tanpa uji beban.
+- [ ] `KANTIN_DB_IDLE_TX_TIMEOUT` (default `60s`, issue #452) diset. Transaksi
+      yang ditinggal idle memegang lock **dan** slot kolam tanpa batas, dan
+      `statement_timeout` tidak menolong karena tidak ada statement berjalan.
 - [ ] `KANTIN_DB_CONNECTION_TIMEOUT_MS` (default `5000`) lebih besar dari
       acquire maksimum hasil uji beban. Cold-start pernah mencatat 2,3 dtk;
       3 dtk terlalu ketat dan mengubah request sukses menjadi 500.
-- [ ] Ekspor laporan berat diuji dengan `KANTIN_DB_STATEMENT_TIMEOUT_LAPORAN_MS`
-      (default `30000`). Nilai ini dipasang sebagai `SET LOCAL` hanya untuk
-      transaksi ekspor, bukan untuk seluruh aplikasi.
-- [ ] Migrasi Flyway memakai koneksi sendiri (`KANTIN_FLYWAY_URL`,
-      `KANTIN_FLYWAY_USERNAME`, `KANTIN_FLYWAY_PASSWORD`) bila role migrasi
-      berbeda dari role runtime. Jangan memakai `spring.flyway.init-sqls` untuk
-      mematikan timeout — GUC sesi bisa terbawa ke kolam.
-- [ ] Timeout query/lock dan kolam penuh dijawab **503** dengan pesan
-      "Server sedang sibuk ... Silakan ulangi", bukan 500 generik. Uji dengan
+- [ ] Ekspor laporan berat diuji dengan `KANTIN_DB_STATEMENT_TIMEOUT_LAPORAN`
+      (default `30s`, format durasi). Nilai ini dipasang sebagai `SET LOCAL`
+      hanya untuk transaksi ekspor, bukan untuk seluruh aplikasi.
+- [ ] `KANTIN_LAPORAN_EKSPOR_KONKUREN_MAKS` (default `2`, issue #452) diset.
+      Ekspor membangun workbook di dalam transaksi; tanpa batas, beberapa
+      ekspor besar sekaligus menghabiskan kolam dan memacetkan tap.
+- [ ] **WAJIB**: `KANTIN_FLYWAY_URL` / `KANTIN_FLYWAY_USERNAME` /
+      `KANTIN_FLYWAY_PASSWORD` diisi (bukan opsional) — role runtime
+      `kantin_app` hanya DML, jadi tanpa role migrasi Flyway gagal saat DDL.
+      Role migrasi juga butuh `GRANT` ke `public.flyway_schema_history`
+      (schema sudah dipatok lewat `spring.flyway.default-schema`, issue #452).
+      Jangan memakai `spring.flyway.init-sqls` untuk mematikan timeout — GUC
+      sesi bisa terbawa ke kolam.
+- [ ] Tidak ada variabel `KANTIN_DB_*` / `KANTIN_FLYWAY_*` yang **diisi kosong**
+      (hapus barisnya bila tidak dipakai). Aplikasi menolak start dengan pesan
+      jelas bila ada (PemeriksaKonfigurasiDatabase, issue #452).
+- [ ] Timeout query/lock, deadlock, serialization failure, dan kolam penuh
+      dijawab **503** + header `Retry-After`, bukan 500 generik. Uji dengan
       `SET LOCAL statement_timeout` pendek dan `pg_advisory_xact_lock`.
-- [ ] Alert `AntreanKoneksiDBPenuh` aktif — lihat `docs/OBSERVABILITY.md` §4b.
+- [ ] Alert `AntreanKoneksiDBPenuh` **dan** `DatabaseSibukMeningkat`
+      (`db_busy_total`) aktif — lihat `docs/OBSERVABILITY.md` §4b.
 - [ ] `KANTIN_TOMCAT_MIN_SPARE` (default 100) sesuai kapasitas host
 
 ## F. Observability

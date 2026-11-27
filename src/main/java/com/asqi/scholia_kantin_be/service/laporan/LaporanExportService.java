@@ -22,21 +22,26 @@ import lombok.extern.slf4j.Slf4j;
 import com.asqi.scholia_kantin_be.enums.JenisLaporan;
 import com.asqi.scholia_kantin_be.enums.SubjekTipe;
 import com.asqi.scholia_kantin_be.helper.JamKantin;
+import com.asqi.scholia_kantin_be.component.exception.ServerBusyException;
 import com.asqi.scholia_kantin_be.helper.UkuranHalaman;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Page;
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Menyusun laporan menjadi berkas Excel (PRD §9.5) memakai service agregasi per
@@ -75,11 +80,47 @@ public class LaporanExportService {
     private final JdbcTemplate jdbc;
 
     /**
-     * Batas {@code statement_timeout} khusus transaksi ekspor (milidetik).
-     * Default 30 dtk; bisa dioverride lewat environment untuk laporan besar.
+     * Batas {@code statement_timeout} khusus transaksi ekspor (durasi, issue #452).
+     *
+     * <p>Default 30 dtk; bisa dioverride lewat environment untuk laporan besar.
+     * Formatnya sama dengan batas global ({@code 10s}, {@code 45s}, {@code 2m})
+     * supaya operator tidak perlu mengingat mana yang milidetik. Default-nya
+     * HANYA di {@code application.properties} — tidak diulang di sini.
      */
-    @Value("${kantin.db.statement-timeout-laporan-ms:30000}")
-    private long batasWaktuLaporanMs = 30_000L;
+    @Value("${kantin.db.statement-timeout-laporan:30s}")
+    private Duration batasWaktuLaporan = Duration.ofSeconds(30);
+
+    /**
+     * Batas jumlah ekspor yang berjalan bersamaan (issue #452).
+     *
+     * <p>Ekspor membangun workbook <b>di dalam</b> transaksi, jadi satu koneksi
+     * kolam ditahan selama query + pembuatan berkas. Tanpa batas, beberapa ekspor
+     * besar sekaligus bisa menghabiskan kolam dan memacetkan tap — persis
+     * kegagalan yang ingin dicegah #435.
+     */
+    @Value("${kantin.laporan.ekspor-konkuren-maks:2}")
+    private int eksporKonkurenMaks = 2;
+
+    private volatile Semaphore izinEkspor;
+
+    @PostConstruct
+    void siapkanIzinEkspor() {
+        this.izinEkspor = new Semaphore(Math.max(1, eksporKonkurenMaks));
+    }
+
+    /** Lazy init: unit test memakai konstruktor langsung tanpa @PostConstruct. */
+    private Semaphore izinEkspor() {
+        Semaphore izin = izinEkspor;
+        if (izin == null) {
+            synchronized (this) {
+                if (izinEkspor == null) {
+                    izinEkspor = new Semaphore(Math.max(1, eksporKonkurenMaks));
+                }
+                izin = izinEkspor;
+            }
+        }
+        return izin;
+    }
 
     /** Opsional: dipakai mencatat audit ekspor laporan keuangan (SEC-06, #388). */
     private AuditLogger auditLogger;
@@ -174,15 +215,18 @@ public class LaporanExportService {
      * <p>Batas global (10 dtk) melindungi kolam koneksi, tetapi laporan setahun
      * bisa lebih lama. {@code SET LOCAL} hanya berlaku sampai transaksi
      * berakhir, jadi koneksi lain tetap memakai batas global. Nilai berasal dari
-     * konfigurasi bertipe {@code long}, bukan input pengguna, sehingga aman
-     * dirangkai ke SQL.
+     * konfigurasi bertipe {@link Duration} (bukan input pengguna), dikonversi ke
+     * milidetik sebelum dirangkai ke SQL.
      */
     void pasangBatasWaktuEkspor() {
         if (jdbc == null) {
             return;
         }
-        long batas = batasWaktuLaporanMs > 0 ? batasWaktuLaporanMs : 30_000L;
-        jdbc.execute("SET LOCAL statement_timeout = " + batas);
+        long batasMs = batasWaktuLaporan == null || batasWaktuLaporan.isNegative()
+                || batasWaktuLaporan.isZero()
+                ? Duration.ofSeconds(30).toMillis()
+                : batasWaktuLaporan.toMillis();
+        jdbc.execute("SET LOCAL statement_timeout = " + batasMs);
     }
 
     /**
@@ -194,35 +238,53 @@ public class LaporanExportService {
     public HasilEkspor ekspor(Long sekolahId, JenisLaporan jenis, LocalDate tanggal,
                               OffsetDateTime dari, OffsetDateTime sampai, Long menuId,
                               Long siswaId) {
-        pasangBatasWaktuEkspor();
-        String label = labelPeriode(tanggal, dari, sampai);
-        HasilEkspor hasil = switch (jenis) {
-            case PENJUALAN -> eksporPenjualan(sekolahId, tanggal, dari, sampai, label);
-            case PENJUALAN_ITEM -> eksporBarisPenjualan(sekolahId, tanggal, dari, sampai, label,
-                    "Penjualan per Item", "Item",
-                    penjualan.penjualanPerItem(sekolahId, tanggal, dari, sampai));
-            case PENJUALAN_KATEGORI -> eksporBarisPenjualan(sekolahId, tanggal, dari, sampai, label,
-                    "Penjualan per Kategori", "Kategori",
-                    penjualan.penjualanPerKategori(sekolahId, tanggal, dari, sampai));
-            case SALDO_MENGENDAP -> eksporSaldoMengendap(sekolahId, label);
-            case REKONSILIASI -> eksporRekonsiliasi(sekolahId, tanggal, dari, sampai, label);
-            case STOK -> eksporStok(sekolahId, label);
-            case KERUGIAN_STOK -> eksporKerugianStok(sekolahId, tanggal, dari, sampai, label);
-            case BARANG_MASUK -> eksporBarangMasuk(sekolahId, tanggal, dari, sampai, label);
-            case PEMBATALAN -> eksporPembatalan(sekolahId, tanggal, dari, sampai, label);
-            case PENJUALAN_TITIK -> eksporPenjualanDimensi(sekolahId, tanggal, dari, sampai, label,
-                    "Penjualan per Titik Kasir", "Titik",
-                    penjualan.penjualanPerTitik(sekolahId, tanggal, dari, sampai));
-            case PENJUALAN_PETUGAS -> eksporPenjualanDimensi(sekolahId, tanggal, dari, sampai, label,
-                    "Penjualan per Petugas", "Petugas",
-                    penjualan.penjualanPerPetugas(sekolahId, tanggal, dari, sampai));
-            case PENJUALAN_KASIR -> eksporPenjualanKasir(sekolahId, tanggal, dari, sampai, label);
-            case KARTU_STOK -> eksporKartuStok(sekolahId, menuId, label);
-            case SETORAN_TU -> eksporSetoran(sekolahId, tanggal, label);
-            case PER_SISWA -> eksporPerSiswa(sekolahId, siswaId, tanggal, dari, sampai, label);
-        };
+        // Batasi ekspor bersamaan (issue #452) SEBELUM transaksi menyentuh kolam:
+        // tanpa ini, beberapa laporan besar sekaligus menahan semua koneksi.
+        Semaphore izin = izinEkspor();
+        boolean dapat;
+        try {
+            dapat = izin.tryAcquire(2, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ServerBusyException("Ekspor laporan terganggu. Silakan ulangi.");
+        }
+        if (!dapat) {
+            throw new ServerBusyException(
+                    "Terlalu banyak ekspor laporan berjalan bersamaan. Silakan ulangi beberapa saat lagi.");
+        }
+        try {
+            pasangBatasWaktuEkspor();
+            String label = labelPeriode(tanggal, dari, sampai);
+            HasilEkspor hasil = switch (jenis) {
+                case PENJUALAN -> eksporPenjualan(sekolahId, tanggal, dari, sampai, label);
+                case PENJUALAN_ITEM -> eksporBarisPenjualan(sekolahId, tanggal, dari, sampai, label,
+                        "Penjualan per Item", "Item",
+                        penjualan.penjualanPerItem(sekolahId, tanggal, dari, sampai));
+                case PENJUALAN_KATEGORI -> eksporBarisPenjualan(sekolahId, tanggal, dari, sampai, label,
+                        "Penjualan per Kategori", "Kategori",
+                        penjualan.penjualanPerKategori(sekolahId, tanggal, dari, sampai));
+                case SALDO_MENGENDAP -> eksporSaldoMengendap(sekolahId, label);
+                case REKONSILIASI -> eksporRekonsiliasi(sekolahId, tanggal, dari, sampai, label);
+                case STOK -> eksporStok(sekolahId, label);
+                case KERUGIAN_STOK -> eksporKerugianStok(sekolahId, tanggal, dari, sampai, label);
+                case BARANG_MASUK -> eksporBarangMasuk(sekolahId, tanggal, dari, sampai, label);
+                case PEMBATALAN -> eksporPembatalan(sekolahId, tanggal, dari, sampai, label);
+                case PENJUALAN_TITIK -> eksporPenjualanDimensi(sekolahId, tanggal, dari, sampai, label,
+                        "Penjualan per Titik Kasir", "Titik",
+                        penjualan.penjualanPerTitik(sekolahId, tanggal, dari, sampai));
+                case PENJUALAN_PETUGAS -> eksporPenjualanDimensi(sekolahId, tanggal, dari, sampai, label,
+                        "Penjualan per Petugas", "Petugas",
+                        penjualan.penjualanPerPetugas(sekolahId, tanggal, dari, sampai));
+                case PENJUALAN_KASIR -> eksporPenjualanKasir(sekolahId, tanggal, dari, sampai, label);
+                case KARTU_STOK -> eksporKartuStok(sekolahId, menuId, label);
+                case SETORAN_TU -> eksporSetoran(sekolahId, tanggal, label);
+                case PER_SISWA -> eksporPerSiswa(sekolahId, siswaId, tanggal, dari, sampai, label);
+            };
         catatAuditEkspor(sekolahId, jenis, label, hasil.namaBerkas());
-        return hasil;
+            return hasil;
+        } finally {
+            izin.release();
+        }
     }
 
     /**

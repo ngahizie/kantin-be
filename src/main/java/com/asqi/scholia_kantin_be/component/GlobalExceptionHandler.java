@@ -1,6 +1,7 @@
 package com.asqi.scholia_kantin_be.component;
 
 import com.asqi.scholia_kantin_be.component.exception.*;
+import com.asqi.scholia_kantin_be.component.metrics.MetrikDatabaseSibuk;
 import com.asqi.scholia_kantin_be.component.logging.ErrorLogger;
 import com.asqi.scholia_kantin_be.config.ValidasiContractConfig;
 import com.asqi.scholia_kantin_be.payload.response.CommonResponse;
@@ -12,8 +13,10 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSourceResolvable;
-import org.springframework.dao.CannotAcquireLockException;
+import org.springframework.dao.ConcurrencyFailureException;
+import org.springframework.dao.TransientDataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.QueryTimeoutException;
 import org.springframework.http.HttpStatus;
@@ -67,6 +70,20 @@ public class GlobalExceptionHandler {
      * supaya setiap instance (termasuk di test) memakai nilainya sendiri.
      */
     private final ValidasiContractConfig validasiContract;
+
+    /**
+     * Metrik 503 (issue #452). Opsional supaya konstruktor satu-argumen tetap
+     * bisa dipakai unit test yang tidak peduli metrik.
+     */
+    private MetrikDatabaseSibuk metrikDatabaseSibuk;
+
+    @Autowired(required = false)
+    public void setMetrikDatabaseSibuk(MetrikDatabaseSibuk metrikDatabaseSibuk) {
+        this.metrikDatabaseSibuk = metrikDatabaseSibuk;
+    }
+
+    /** Jeda yang disarankan untuk klien saat menerima 503 (detik). */
+    static final int RETRY_AFTER_DETIK = 1;
 
     public GlobalExceptionHandler(ValidasiContractConfig validasiContract) {
         this.validasiContract = validasiContract;
@@ -276,26 +293,51 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Timeout query, lock timeout, atau kolam koneksi penuh → 503.
+     * Timeout query, lock timeout, deadlock, serialization failure, atau kolam
+     * koneksi penuh → 503 + {@code Retry-After} (issue #435, diperluas #452).
      *
      * <p>Setelah #435 memasang batas waktu, ketiga kondisi ini benar-benar bisa
      * muncul saat kontensi. Sebelumnya semuanya jatuh ke 500 generik sehingga
      * kasir tidak tahu apakah aman diulang. Tap bersifat idempoten, jadi 503
      * dengan pesan "ulangi" adalah kontrak yang tepat.
      */
-    @ExceptionHandler({QueryTimeoutException.class, CannotAcquireLockException.class,
-            CannotGetJdbcConnectionException.class})
+    @ExceptionHandler({QueryTimeoutException.class, ConcurrencyFailureException.class,
+            TransientDataAccessException.class, CannotGetJdbcConnectionException.class})
     public ResponseEntity<?> handleDatabaseBusy(RuntimeException ex) {
-        String pesan;
-        if (ex instanceof QueryTimeoutException) {
-            pesan = "Server sedang sibuk: permintaan memakan waktu terlalu lama. Silakan ulangi.";
-        } else if (ex instanceof CannotAcquireLockException) {
-            pesan = "Server sedang sibuk: data sedang dipakai transaksi lain. Silakan ulangi.";
-        } else {
-            pesan = "Server sedang sibuk: koneksi database penuh. Silakan ulangi.";
+        String jenis = MetrikDatabaseSibuk.jenisUntuk(ex);
+        if (metrikDatabaseSibuk != null) {
+            metrikDatabaseSibuk.catat(jenis);
         }
-        log.warn("Database sibuk ({}): permintaan dikembalikan 503", ex.getClass().getSimpleName());
-        return CommonResponse.serviceUnavailable(pesan);
+
+        String pesan = switch (jenis) {
+            case MetrikDatabaseSibuk.JENIS_QUERY_TIMEOUT ->
+                    "Server sedang sibuk: permintaan memakan waktu terlalu lama. Silakan ulangi.";
+            case MetrikDatabaseSibuk.JENIS_KUNCI, MetrikDatabaseSibuk.JENIS_DEADLOCK ->
+                    "Server sedang sibuk: data sedang dipakai transaksi lain. Silakan ulangi.";
+            case MetrikDatabaseSibuk.JENIS_SERIALISASI ->
+                    "Server sedang sibuk: transaksi bentrok dan perlu diulang. Silakan ulangi.";
+            case MetrikDatabaseSibuk.JENIS_KONEKSI ->
+                    "Server tidak dapat terhubung ke database. Silakan ulangi beberapa saat lagi.";
+            default -> "Server sedang sibuk. Silakan ulangi.";
+        };
+
+        log.warn("Database sibuk ({} -> {}): permintaan dikembalikan 503",
+                ex.getClass().getSimpleName(), jenis);
+        log.debug("Detail kondisi database sibuk", ex);
+        return CommonResponse.serviceUnavailable(pesan, RETRY_AFTER_DETIK);
+    }
+
+    /**
+     * 503 karena kapasitas internal penuh (mis. batas ekspor laporan bersamaan
+     * tercapai) - issue #452. Bukan kesalahan data, jadi bukan 409.
+     */
+    @ExceptionHandler(ServerBusyException.class)
+    public ResponseEntity<?> handleServerBusy(ServerBusyException ex) {
+        if (metrikDatabaseSibuk != null) {
+            metrikDatabaseSibuk.catat(MetrikDatabaseSibuk.JENIS_LAINNYA);
+        }
+        log.warn("Server sibuk: {}", ex.getMessage());
+        return CommonResponse.serviceUnavailable(ex.getMessage(), RETRY_AFTER_DETIK);
     }
 
     // ────────────────────────────────────────────────────────────────
