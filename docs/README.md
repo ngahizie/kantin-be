@@ -16,6 +16,7 @@ Folder ini menampung dokumen kerja **non-Flyway** (AGENTS.md §4).
 | [`API-KARTU-TAMU.md`](API-KARTU-TAMU.md) | Kontrak endpoint kartu tamu (`/api/kartu-tamu`) |
 | [`dev-jwt-dummy.md`](dev-jwt-dummy.md) | Harness JWT **DUMMY** untuk dev/test — ⚠️ jangan di staging/produksi |
 | [`OBSERVABILITY.md`](OBSERVABILITY.md) | Metrik yang diekspos & cara memantau SLO (issue #146) |
+| [`migrasi-flyway.md`](migrasi-flyway.md) | Tata kelola migrasi: `baseline-on-migrate`, prasyarat V28, riwayat V29/V30, checklist pre-deploy (issue #436) |
 | [`tls-database.md`](tls-database.md) | TLS koneksi PostgreSQL: `sslmode=verify-full` + penjaga start (issue #432) |
 | [`database-role.md`](database-role.md) | **Peran DB least-privilege** (`kantin_owner` DDL / `kantin_app` DML) + penjaga superuser & cara membuktikannya (issue #433) |
 | [`uji-beban-tap.md`](uji-beban-tap.md) | Cara menjalankan & ambang SLO uji beban tap (issue #145) |

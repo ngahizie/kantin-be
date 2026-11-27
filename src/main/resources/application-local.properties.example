@@ -46,6 +46,10 @@ spring.flyway.locations=classpath:db/migration
 # flyway_schema_history. Tanpa baris ini Flyway menolak start dengan
 # "Detected applied migration not resolved locally".
 spring.flyway.ignore-migration-patterns=*:missing
+# Satu-satunya tempat baseline-on-migrate dibuka (issue #436): database lokal
+# developer sering sudah berisi tabel dari eksperimen. JANGAN dibuka di
+# staging/produksi — skema yang tidak sesuai harus terlihat, bukan ditutupi.
+spring.flyway.baseline-on-migrate=true
 kantin.demo.enabled=true
 
 # --- Endpoint publik (default fail-closed di application.properties) ---

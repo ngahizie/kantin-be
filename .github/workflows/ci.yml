@@ -62,6 +62,49 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # ── Pemeriksaan migrasi (issue #436) ────────────────────────────────────
+  # Migrasi dijalankan otomatis saat aplikasi start, jadi kesalahan berkas
+  # migrasi baru ketahuan setelah deploy. Job ini menjalankan `flyway:info`
+  # terhadap PostgreSQL sekali pakai: berkas yang rusak / tidak terbaca /
+  # tidak berurutan gagal di sini, sebelum menyentuh database nyata.
+  migrasi:
+    name: Flyway info (status migrasi)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: kantin_db
+          POSTGRES_USER: kantin
+          POSTGRES_PASSWORD: kantin
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kantin"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Flyway info (deteksi drift sebelum migrate)
+        run: |
+          ./mvnw -B -ntp flyway:info \
+            -Dflyway.url=jdbc:postgresql://localhost:5432/kantin_db \
+            -Dflyway.user=kantin \
+            -Dflyway.password=kantin
+
   # ── Gerbang image produksi (issue #215) ──────────────────────────────────
   # Unit/IT di job `test` berjalan di JVM runner (PUNYA font) sehingga TIDAK
   # menangkap bug "font hilang di container" (ekspor Excel → 500). Job ini
