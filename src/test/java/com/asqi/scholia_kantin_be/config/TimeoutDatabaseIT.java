@@ -59,17 +59,58 @@ class TimeoutDatabaseIT {
     @Value("${KANTIN_DB_LOCK_TIMEOUT:3s}")
     private String lockTimeout;
 
+    @Value("${KANTIN_DB_IDLE_TX_TIMEOUT:60s}")
+    private String idleTxTimeout;
+
     @Value("${KANTIN_DB_CONNECTION_TIMEOUT_MS:5000}")
     private long connectionTimeoutMs;
 
-    /** Cek setiap koneksi baru dari kolam sudah membawa batas waktu. */
+    /**
+     * Cek setiap koneksi baru dari kolam sudah membawa batas waktu.
+     *
+     * <p>Dibandingkan sebagai <b>durasi</b>, bukan string (issue #452):
+     * PostgreSQL menormalkan nilai (env {@code 10000} tampil sebagai {@code 10s}),
+     * jadi perbandingan string akan merah padahal perilakunya benar.
+     */
     @Test
     @DisplayName("batas waktu terpasang di koneksi kolam")
     void batasWaktuTerpasangDiKoneksi() {
-        assertThat(jdbc.queryForObject("SHOW statement_timeout", String.class))
-                .isEqualTo(statementTimeout);
-        assertThat(jdbc.queryForObject("SHOW lock_timeout", String.class))
-                .isEqualTo(lockTimeout);
+        assertThat(ms(jdbc.queryForObject("SHOW statement_timeout", String.class)))
+                .isEqualTo(ms(statementTimeout));
+        assertThat(ms(jdbc.queryForObject("SHOW lock_timeout", String.class)))
+                .isEqualTo(ms(lockTimeout));
+    }
+
+    /**
+     * Issue #452: transaksi yang ditinggal idle harus diputus PostgreSQL, karena
+     * {@code statement_timeout} tidak menolong saat tidak ada statement berjalan.
+     */
+    @Test
+    @DisplayName("idle_in_transaction_session_timeout terpasang di koneksi kolam")
+    void idleTransaksiTerpasangDiKoneksi() {
+        assertThat(ms(jdbc.queryForObject("SHOW idle_in_transaction_session_timeout", String.class)))
+                .isEqualTo(ms(idleTxTimeout));
+    }
+
+    /**
+     * Ubah nilai GUC PostgreSQL ({@code 10s}, {@code 200ms}, {@code 2min},
+     * atau angka tanpa satuan = milidetik) menjadi milidetik.
+     */
+    private static long ms(String nilaiPg) {
+        if (nilaiPg == null || nilaiPg.isBlank()) {
+            return -1L;
+        }
+        String v = nilaiPg.trim().toLowerCase();
+        if (v.endsWith("ms")) {
+            return Long.parseLong(v.substring(0, v.length() - 2).trim());
+        }
+        if (v.endsWith("min")) {
+            return (long) (Double.parseDouble(v.substring(0, v.length() - 3).trim()) * 60_000);
+        }
+        if (v.endsWith("s")) {
+            return (long) (Double.parseDouble(v.substring(0, v.length() - 1).trim()) * 1_000);
+        }
+        return Long.parseLong(v);
     }
 
     /** Batas tunggu koneksi dari kolam harus eksplisit, bukan default Hikari. */
@@ -140,9 +181,9 @@ class TimeoutDatabaseIT {
     void overridePerTransaksiBerfungsi() {
         tx.executeWithoutResult(s -> {
             jdbc.execute("SET LOCAL statement_timeout = '2s'");
-            assertThat(jdbc.queryForObject("SHOW statement_timeout", String.class)).isEqualTo("2s");
+            assertThat(ms(jdbc.queryForObject("SHOW statement_timeout", String.class))).isEqualTo(2_000L);
         });
-        assertThat(jdbc.queryForObject("SHOW statement_timeout", String.class))
-                .isEqualTo(statementTimeout);
+        assertThat(ms(jdbc.queryForObject("SHOW statement_timeout", String.class)))
+                .isEqualTo(ms(statementTimeout));
     }
 }

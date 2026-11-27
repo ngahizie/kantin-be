@@ -43,6 +43,26 @@ Hak yang **sengaja tidak** diberikan ke `kantin_app`:
 Hak untuk tabel **baru** dijamin `ALTER DEFAULT PRIVILEGES FOR ROLE kantin_owner`,
 jadi migrasi berikutnya tidak perlu mengurus `GRANT` lagi.
 
+### 2b. Schema Flyway dipatok (issue #452)
+
+Flyway menentukan `defaultSchema` dari `spring.flyway.schemas` atau schema default
+**koneksi**. Kalau role migrasi punya schema sendiri (mis. `kantin_migrator`
+dengan `search_path` ke `kantin_migrator`), Flyway bisa tidak melihat
+`public.flyway_schema_history` dan memperlakukan skema sebagai asing. Dulu itu
+berujung **"baseline lalu lewati semua migrasi" tanpa error** — skema produksi
+tidak pernah termigrasi.
+
+Sekarang ditutup dua lapis:
+
+1. `spring.flyway.baseline-on-migrate=false` (#436) → skema asing membuat start
+   **gagal**, bukan dibaseline diam-diam.
+2. `spring.flyway.default-schema=public` + `spring.flyway.table=flyway_schema_history`
+   (#452) → role migrasi selalu mencari riwayat di `public`, apa pun
+   `search_path`-nya.
+
+Prasyarat yang tetap berlaku: role migrasi harus bisa `CREATE` di `public` dan
+membaca/menulis `public.flyway_schema_history` (dijamin `scripts/peran-db/buat-peran.sql`).
+
 ## 3. Penjaga saat start: `PemeriksaPeranDatabase`
 
 Berjalan **saat inisialisasi bean** — sebelum Tomcat menerima trafik, sehingga

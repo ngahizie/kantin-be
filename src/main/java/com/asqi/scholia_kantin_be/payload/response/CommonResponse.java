@@ -241,15 +241,30 @@ public class CommonResponse {
     }
 
     /**
-     * 503 — server sibuk sementara (query timeout, lock timeout, atau kolam
-     * koneksi penuh). Aman diulang; klien tidak perlu menganggap data rusak.
+     * 503 — server sibuk sementara (query timeout, lock timeout, deadlock,
+     * kolam koneksi penuh, atau kapasitas ekspor penuh). Aman diulang; klien
+     * tidak perlu menganggap data rusak.
      */
     public static <T> ResponseEntity<Response<T>> serviceUnavailable(String message) {
+        return serviceUnavailable(message, null);
+    }
+
+    /**
+     * 503 dengan header {@code Retry-After} (detik) — issue #452.
+     *
+     * <p>{@code Retry-After} memberi klien (dan kasir) jeda yang eksplisit,
+     * bukan menebak-nebak kapan mengulang. {@code null} = tanpa header.
+     */
+    public static <T> ResponseEntity<Response<T>> serviceUnavailable(String message, Integer retryAfterDetik) {
         Response<T> r = new Response<>();
         r.setCode(503);
         r.setResponseCode(ResponseCode.SERVICE_UNAVAILABLE);
         r.setMessage(message);
-        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(r);
+        ResponseEntity.BodyBuilder status = ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE);
+        if (retryAfterDetik != null && retryAfterDetik > 0) {
+            status.header(HttpHeaders.RETRY_AFTER, String.valueOf(retryAfterDetik));
+        }
+        return status.body(r);
     }
 
     /**

@@ -156,17 +156,63 @@ Contoh alert:
     summary: "Banyak request menunggu koneksi DB — cek query lambat / lock"
 ```
 Bila alert ini bunyi, periksa query yang berjalan lama dan transaksi yang
-menunggu `FOR UPDATE`. Batas waktunya diatur lewat `KANTIN_DB_STATEMENT_TIMEOUT`
-dan `KANTIN_DB_LOCK_TIMEOUT`.
+menunggu `FOR UPDATE`. Batas waktunya diatur lewat `KANTIN_DB_STATEMENT_TIMEOUT`,
+`KANTIN_DB_LOCK_TIMEOUT`, dan `KANTIN_DB_IDLE_TX_TIMEOUT` (transaksi yang
+ditinggal idle diputus, issue #452).
 
-Setelah batas waktu aktif, tiga kondisi ini dijawab **503** dengan pesan
-"Server sedang sibuk ... Silakan ulangi" (bukan 500 generik):
+### 6b. Metrik database sibuk (issue #452)
 
-| Kondisi | Exception | Arti |
+`hikaricp_connections_pending` hanya menunjukkan **antrean**; ia tidak bisa
+membedakan "lambat" dari "gagal". Karena itu setiap respons 503 dari jalur
+database juga dicatat sebagai counter:
+
+| Metrik | Label `jenis` | Arti |
 |---|---|---|
-| Query terlalu lama | `QueryTimeoutException` | statement melewati `statement_timeout` |
-| Menunggu kunci terlalu lama | `CannotAcquireLockException` | transaksi lain masih memegang `FOR UPDATE` |
-| Kolam koneksi penuh | `CannotGetJdbcConnectionException` | tidak ada koneksi tersedia dalam `connection-timeout` |
+| `db_busy_total` | `query_timeout` | statement melewati `statement_timeout` (SQLState 57014) |
+| `db_busy_total` | `lock` | menunggu kunci melewati `lock_timeout` (55P03) |
+| `db_busy_total` | `deadlock` | deadlock PostgreSQL (40P01) |
+| `db_busy_total` | `serialisasi` | serialization failure (40001) |
+| `db_busy_total` | `koneksi` | kolam penuh **atau** DB tidak bisa dihubungi |
+| `db_busy_total` | `lainnya` | kondisi transien lain (termasuk kapasitas ekspor penuh) |
+
+Nilai label tak dikenal dinormalisasi ke `lainnya` agar kardinalitas terjaga.
+
+```promql
+# Laju 503 per jenis selama 5 menit terakhir
+sum by (jenis) (increase(db_busy_total[5m]))
+```
+
+```yaml
+- alert: DatabaseSibukMeningkat
+  expr: sum(increase(db_busy_total[5m])) > 5
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: "Request dijawab 503 karena database sibuk (issue #452)"
+    description: "Lihat label jenis: query_timeout/lock = lambat atau kontensi; deadlock/serialisasi = logika transaksi; koneksi = kolam atau DB bermasalah."
+
+- alert: DatabaseKoneksiBermasalah
+  expr: sum(increase(db_busy_total{jenis="koneksi"}[5m])) > 0
+  for: 2m
+  labels:
+    severity: critical
+  annotations:
+    summary: "Kolam koneksi habis atau DB tidak terjangkau"
+    description: "Cek hikaricp_connections_pending, kesehatan DB, dan kredensial/TLS."
+```
+
+Setelah batas waktu aktif, kondisi berikut dijawab **503 + header `Retry-After`**
+(bukan 500 generik). Semuanya aman diulang karena tap bersifat idempoten:
+
+| Kondisi | Exception | Label `db_busy_total` |
+|---|---|---|
+| Query terlalu lama | `QueryTimeoutException` | `query_timeout` |
+| Menunggu kunci terlalu lama | `CannotAcquireLockException` | `lock` |
+| Deadlock | `DeadlockLoserDataAccessException` | `deadlock` |
+| Serialization failure | `CannotSerializeTransactionException` | `serialisasi` |
+| Kolam penuh / DB tidak terjangkau | `CannotGetJdbcConnectionException` | `koneksi` |
+| Kapasitas ekspor penuh | `ServerBusyException` | `lainnya` |
 
 Log server menulis `Database sibuk (<NamaException>): permintaan dikembalikan 503`
 tanpa detail SQL. Ekspor laporan memakai `SET LOCAL statement_timeout` sendiri
